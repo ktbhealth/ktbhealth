@@ -1,0 +1,2 @@
+/** Demo transcript — a realistic pt-BR consult for testing without a mic. */
+export const SAMPLE_TRANSCRIPT = `O paciente relata dor de cabeça forte há três dias. A dor começou de repente, na região frontal, e piora à noite. Também sente enjoo quando a dor aumenta. Ele teve febre ontem à tarde, mediu 38 graus em casa. Nega vômitos. O paciente é hipertenso há cinco anos e faz uso de losartana 50 mg uma vez ao dia. Não tem alergia a medicamentos que saiba. A mãe dele tem enxaqueca. Ele parou de fumar há dois anos. Diz que a dor não melhora com dipirona.`;

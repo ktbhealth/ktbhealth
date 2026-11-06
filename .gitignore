@@ -1,3 +1,19 @@
+node_modules
+.DS_Store
+dist
+dist-ssr
+*.local
+.env
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+todos.json
 
-# myco worktree mount point (created by `myco init`)
+# myco project ledger worktree (orphan `project` branch)
 project/
+
+# local sqlite database
+data/
