@@ -121,10 +121,18 @@ export function createTranscriber(): Transcriber {
 	return new WebSpeechTranscriber();
 }
 
-import { TabAudioTranscriber } from "./tab-audio.ts";
+import {
+	createWhisperMicTranscriber,
+	createWhisperTabTranscriber,
+	WhisperTranscriber,
+} from "./whisper.ts";
 
-export { TabAudioTranscriber };
+export {
+	WhisperTranscriber,
+	createWhisperMicTranscriber,
+	createWhisperTabTranscriber,
+};
 
 export function createTabAudioTranscriber(): Transcriber {
-	return new TabAudioTranscriber();
+	return createWhisperTabTranscriber();
 }

@@ -1,14 +1,12 @@
 import type { Transcriber, TranscriptEvent } from "./index.ts";
 
 /**
- * TabAudioTranscriber — captures the teleconsult tab's audio via
- * getDisplayMedia and transcribes it client-side with Whisper
- * (transformers.js in a worker; webgpu → wasm).
- *
- * Separate stream = separate speaker label for free (ADR-0002):
- * whatever comes through this adapter IS the patient.
+ * WhisperTranscriber — one adapter, any MediaStream source.
+ * Client-side Whisper (transformers.js worker; webgpu → wasm).
+ * The SOURCE decides the speaker label — separate streams,
+ * free diarization (ADR-0002).
  */
-export class TabAudioTranscriber implements Transcriber {
+export class WhisperTranscriber implements Transcriber {
 	private stream: MediaStream | null = null;
 	private ctx: AudioContext | null = null;
 	private worker: Worker | null = null;
@@ -17,12 +15,16 @@ export class TabAudioTranscriber implements Transcriber {
 	private readonly chunkSec = 8;
 	private stopping = false;
 
+	constructor(
+		private acquire: () => Promise<MediaStream>,
+		private hint?: string,
+	) {}
+
 	get supported(): boolean {
 		return (
 			typeof navigator !== "undefined" &&
-			"mediaDevices" in navigator &&
-			"getDisplayMedia" in navigator.mediaDevices &&
-			typeof Worker !== "undefined"
+			typeof Worker !== "undefined" &&
+			Boolean(navigator.mediaDevices?.getUserMedia)
 		);
 	}
 
@@ -30,15 +32,12 @@ export class TabAudioTranscriber implements Transcriber {
 		if (!this.supported) {
 			onEvent({
 				type: "error",
-				message: "captura de aba não suportada neste browser",
+				message: "whisper não suportado neste browser",
 			});
 			return;
 		}
 		this.stopping = false;
-		onEvent({
-			type: "partial",
-			text: "[selecione a aba da teleconsulta e marque 'compartilhar áudio']",
-		});
+		if (this.hint) onEvent({ type: "partial", text: this.hint });
 		void this.boot(onEvent).catch((e) =>
 			onEvent({
 				type: "error",
@@ -48,19 +47,11 @@ export class TabAudioTranscriber implements Transcriber {
 	}
 
 	private async boot(onEvent: (event: TranscriptEvent) => void) {
-		this.stream = await navigator.mediaDevices.getDisplayMedia({
-			video: true,
-			audio: { echoCancellation: false, noiseSuppression: false },
-		});
-		// We only need the audio — stop the video track immediately.
-		for (const t of this.stream.getVideoTracks()) t.stop();
+		this.stream = await this.acquire();
 		const audio = this.stream.getAudioTracks()[0];
 		if (!audio) {
 			this.stop();
-			onEvent({
-				type: "error",
-				message: "aba compartilhada sem áudio — marque 'compartilhar áudio'",
-			});
+			onEvent({ type: "error", message: "stream sem áudio" });
 			return;
 		}
 		audio.onended = () => this.stop();
@@ -123,4 +114,29 @@ export class TabAudioTranscriber implements Transcriber {
 		this.stream = null;
 		this.ctx = null;
 	}
+}
+
+const micStream = () =>
+	navigator.mediaDevices.getUserMedia({
+		audio: { echoCancellation: true, noiseSuppression: true },
+	});
+
+const tabStream = async () => {
+	const s = await navigator.mediaDevices.getDisplayMedia({
+		video: true,
+		audio: { echoCancellation: false, noiseSuppression: false },
+	});
+	for (const t of s.getVideoTracks()) t.stop();
+	return s;
+};
+
+export function createWhisperMicTranscriber(): Transcriber {
+	return new WhisperTranscriber(micStream);
+}
+
+export function createWhisperTabTranscriber(): Transcriber {
+	return new WhisperTranscriber(
+		tabStream,
+		"[selecione a aba da teleconsulta e marque 'compartilhar áudio']",
+	);
 }

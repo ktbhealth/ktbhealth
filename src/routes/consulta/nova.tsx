@@ -14,8 +14,8 @@ import {
 } from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
 import {
-	createTabAudioTranscriber,
-	createTranscriber,
+	createWhisperMicTranscriber,
+	createWhisperTabTranscriber,
 } from "#/lib/transcriber/index.ts";
 
 export const Route = createFileRoute("/consulta/nova")({
@@ -49,10 +49,10 @@ function NovaConsulta() {
 	const [patients, setPatients] = useState<Array<{ id: number; name: string }>>(
 		[],
 	);
-	const transcriberRef = useRef<ReturnType<typeof createTranscriber> | null>(
-		null,
-	);
-	const tabRef = useRef<ReturnType<typeof createTabAudioTranscriber> | null>(
+	const transcriberRef = useRef<ReturnType<
+		typeof createWhisperMicTranscriber
+	> | null>(null);
+	const tabRef = useRef<ReturnType<typeof createWhisperTabTranscriber> | null>(
 		null,
 	);
 	const [tabRecording, setTabRecording] = useState(false);
@@ -67,9 +67,9 @@ function NovaConsulta() {
 	}, [initialPatients]);
 
 	useEffect(() => {
-		const t = createTranscriber();
+		const t = createWhisperMicTranscriber();
 		transcriberRef.current = t;
-		tabRef.current = createTabAudioTranscriber();
+		tabRef.current = createWhisperTabTranscriber();
 		setSupported(t.supported);
 		return () => {
 			t.stop();
