@@ -4,6 +4,7 @@ import { db } from "#/db/index.ts";
 import { consultations } from "#/db/schema.ts";
 
 export async function createConsultation(fields: {
+	userId: number;
 	transcript?: string;
 	source: string;
 	status?: string;
@@ -12,6 +13,7 @@ export async function createConsultation(fields: {
 	const rows = await db
 		.insert(consultations)
 		.values({
+			userId: fields.userId,
 			transcript: fields.transcript ?? "",
 			source: fields.source,
 			status: fields.status ?? "done",

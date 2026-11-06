@@ -6,10 +6,12 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-
+import { useState } from "react";
+import { ensureUserFn, signInFn } from "#/lib/fns.ts";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
+	loader: () => ensureUserFn(),
 	head: () => ({
 		meta: [
 			{ charSet: "utf-8" },
@@ -22,6 +24,8 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	const user = Route.useLoaderData();
+	const [name, setName] = useState("");
 	return (
 		<html lang="pt-BR">
 			<head>
@@ -37,6 +41,29 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 							<Link to="/consultas" className="hover:text-neutral-900">
 								Consultas
 							</Link>
+							{user?.isGuest ? (
+								<form
+									onSubmit={async (e) => {
+										e.preventDefault();
+										if (!name.trim()) return;
+										await signInFn({ data: name });
+										location.reload();
+									}}
+									className="flex items-center gap-1"
+								>
+									<input
+										value={name}
+										onChange={(e) => setName(e.target.value)}
+										placeholder="seu nome"
+										className="w-24 rounded border border-neutral-300 px-2 py-1 text-xs"
+									/>
+									<button type="submit" className="text-xs underline">
+										entrar
+									</button>
+								</form>
+							) : (
+								<span className="text-xs text-neutral-500">{user?.name}</span>
+							)}
 							<Link
 								to="/consulta/nova"
 								className="rounded-lg bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-700"

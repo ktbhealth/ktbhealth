@@ -5,8 +5,10 @@ import { type Anamnesis, SECTION_LABELS } from "#/lib/anamnese/index.ts";
 import type { AnamnesisSectionKey, Confidence } from "#/lib/anamnese/types.ts";
 import {
 	attachAnamnesisFn,
+	createPatientFn,
 	extractAnamneseFn,
 	getLiveConsultationFn,
+	listPatientsFn,
 	saveConsultationFn,
 } from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
@@ -16,6 +18,7 @@ import {
 } from "#/lib/transcriber/index.ts";
 
 export const Route = createFileRoute("/consulta/nova")({
+	loader: () => listPatientsFn(),
 	component: NovaConsulta,
 });
 
@@ -26,6 +29,7 @@ const CONF_STYLE: Record<Confidence, string> = {
 };
 
 function NovaConsulta() {
+	const initialPatients = Route.useLoaderData();
 	const [recording, setRecording] = useState(false);
 	const [supported, setSupported] = useState(false);
 	const [transcript, setTranscript] = useState("");
@@ -38,6 +42,12 @@ function NovaConsulta() {
 	const [meetUrl, setMeetUrl] = useState("");
 	const [liveId, setLiveId] = useState<number | null>(null);
 	const [liveStatus, setLiveStatus] = useState<string | null>(null);
+	const [consented, setConsented] = useState(false);
+	const [patientId, setPatientId] = useState<number | null>(null);
+	const [patientName, setPatientName] = useState("");
+	const [patients, setPatients] = useState<Array<{ id: number; name: string }>>(
+		[],
+	);
 	const transcriberRef = useRef<ReturnType<typeof createTranscriber> | null>(
 		null,
 	);
@@ -45,6 +55,15 @@ function NovaConsulta() {
 		null,
 	);
 	const [tabRecording, setTabRecording] = useState(false);
+
+	useEffect(() => {
+		setPatients(
+			initialPatients.map((p: { id: number; name: string }) => ({
+				id: p.id,
+				name: p.name,
+			})),
+		);
+	}, [initialPatients]);
 
 	useEffect(() => {
 		const t = createTranscriber();
@@ -179,7 +198,12 @@ function NovaConsulta() {
 			return;
 		}
 		const res = await saveConsultationFn({
-			data: { transcript, anamnesis, engine: engine ?? "unknown" },
+			data: {
+				transcript,
+				anamnesis,
+				engine: engine ?? "unknown",
+				patientId: patientId ?? undefined,
+			},
 		});
 		if (res.id) setSavedId(res.id);
 	}
@@ -203,6 +227,60 @@ function NovaConsulta() {
 				Grave a conversa ou cole a transcrição — a anamnese sai estruturada para
 				revisão.
 			</p>
+
+			{/* ---- paciente + consentimento ---- */}
+			<section className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4">
+				<label
+					className="text-xs font-medium text-neutral-600"
+					htmlFor="patient-sel"
+				>
+					Paciente
+				</label>
+				<select
+					id="patient-sel"
+					value={patientId ?? ""}
+					onChange={(e) =>
+						setPatientId(e.target.value ? Number(e.target.value) : null)
+					}
+					className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
+				>
+					<option value="">sem vínculo</option>
+					{patients.map((p) => (
+						<option key={p.id} value={p.id}>
+							{p.name}
+						</option>
+					))}
+				</select>
+				<input
+					value={patientName}
+					onChange={(e) => setPatientName(e.target.value)}
+					placeholder="novo paciente"
+					className="rounded-lg border border-neutral-300 px-2 py-1.5 text-sm"
+				/>
+				<button
+					type="button"
+					onClick={async () => {
+						if (!patientName.trim()) return;
+						const p = await createPatientFn({ data: patientName });
+						if (p) {
+							setPatients((prev) => [...prev, { id: p.id, name: p.name }]);
+							setPatientId(p.id);
+							setPatientName("");
+						}
+					}}
+					className="rounded-lg border border-neutral-300 px-2 py-1.5 text-xs hover:bg-neutral-50"
+				>
+					+ paciente
+				</button>
+				<label className="ml-auto flex items-center gap-2 text-xs text-neutral-600">
+					<input
+						type="checkbox"
+						checked={consented}
+						onChange={(e) => setConsented(e.target.checked)}
+					/>
+					Declaro que o paciente foi informado e consentiu com a gravação
+				</label>
+			</section>
 
 			{/* ---- teleconsulta (bot) ---- */}
 			<section className="mt-6 rounded-xl border border-neutral-200 p-5">
@@ -257,6 +335,7 @@ function NovaConsulta() {
 							<button
 								type="button"
 								onClick={toggleTabCapture}
+								disabled={!consented}
 								className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white ${
 									tabRecording ? "bg-red-600" : "bg-neutral-700"
 								}`}
@@ -266,7 +345,7 @@ function NovaConsulta() {
 							<button
 								type="button"
 								onClick={toggleRecording}
-								disabled={!supported}
+								disabled={!supported || !consented}
 								className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white ${
 									recording ? "bg-red-600" : "bg-neutral-900"
 								} disabled:opacity-40`}

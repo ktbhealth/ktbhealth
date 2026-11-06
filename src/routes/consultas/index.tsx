@@ -22,6 +22,11 @@ function ConsultasPage() {
 					>
 						<div className="flex items-center justify-between">
 							<span className="font-medium">Consulta #{c.id}</span>
+							{c.patientName ? (
+								<span className="ml-2 text-xs text-neutral-500">
+									· {c.patientName}
+								</span>
+							) : null}
 							<span className="text-xs text-neutral-400">
 								{new Date(c.createdAt).toLocaleString("pt-BR")}
 							</span>
