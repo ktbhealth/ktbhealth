@@ -9,6 +9,7 @@ import {
 	extractAnamneseFn,
 	getLiveConsultationFn,
 	listPatientsFn,
+	recordConsentFn,
 	saveConsultationFn,
 } from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
@@ -192,8 +193,10 @@ function NovaConsulta() {
 					consultationId: liveId,
 					anamnesis,
 					engine: engine ?? "unknown",
+					patientId: patientId ?? undefined,
 				},
 			});
+			if (consented) await recordConsentFn({ data: liveId });
 			setSavedId(liveId);
 			return;
 		}
@@ -205,7 +208,10 @@ function NovaConsulta() {
 				patientId: patientId ?? undefined,
 			},
 		});
-		if (res.id) setSavedId(res.id);
+		if (res.id) {
+			if (consented) await recordConsentFn({ data: res.id });
+			setSavedId(res.id);
+		}
 	}
 
 	function updateSection(key: AnamnesisSectionKey, content: string) {
