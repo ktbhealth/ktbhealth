@@ -57,3 +57,34 @@ export const getConsultationFn = createServerFn({ method: "GET" })
 				: null,
 		};
 	});
+
+export const getLiveConsultationFn = createServerFn({ method: "GET" })
+	.validator((id: number) => id)
+	.handler(async ({ data: id }) => {
+		const rows = await db
+			.select({
+				transcript: consultations.transcript,
+				status: consultations.status,
+			})
+			.from(consultations)
+			.where(eq(consultations.id, id))
+			.limit(1);
+		return rows[0] ?? null;
+	});
+
+export const attachAnamnesisFn = createServerFn({ method: "POST" })
+	.validator(
+		(input: { consultationId: number; anamnesis: Anamnesis; engine: string }) =>
+			input,
+	)
+	.handler(async ({ data }) => {
+		await db
+			.update(consultations)
+			.set({
+				anamnesis: JSON.stringify(data.anamnesis),
+				engine: data.engine,
+				status: "done",
+			})
+			.where(eq(consultations.id, data.consultationId));
+		return { ok: true };
+	});

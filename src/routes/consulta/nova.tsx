@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { type Anamnesis, SECTION_LABELS } from "#/lib/anamnese/index.ts";
 import type { AnamnesisSectionKey, Confidence } from "#/lib/anamnese/types.ts";
-import { extractAnamneseFn, saveConsultationFn } from "#/lib/fns.ts";
+import {
+	attachAnamnesisFn,
+	extractAnamneseFn,
+	getLiveConsultationFn,
+	saveConsultationFn,
+} from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
 import { createTranscriber } from "#/lib/transcriber/index.ts";
 
@@ -27,6 +32,9 @@ function NovaConsulta() {
 	const [busy, setBusy] = useState(false);
 	const [savedId, setSavedId] = useState<number | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [meetUrl, setMeetUrl] = useState("");
+	const [liveId, setLiveId] = useState<number | null>(null);
+	const [liveStatus, setLiveStatus] = useState<string | null>(null);
 	const transcriberRef = useRef<ReturnType<typeof createTranscriber> | null>(
 		null,
 	);
@@ -37,6 +45,40 @@ function NovaConsulta() {
 		setSupported(t.supported);
 		return () => t.stop();
 	}, []);
+
+	// Poll a live bot consultation — transcript grows as events arrive.
+	useEffect(() => {
+		if (!liveId || liveStatus === "done") return;
+		const interval = setInterval(async () => {
+			const res = await getLiveConsultationFn({ data: liveId });
+			if (!res) return;
+			setTranscript(res.transcript);
+			setLiveStatus(res.status);
+		}, 1500);
+		return () => clearInterval(interval);
+	}, [liveId, liveStatus]);
+
+	async function sendBot() {
+		if (!meetUrl.trim()) return;
+		setError(null);
+		setSavedId(null);
+		const res = await fetch("/api/bots", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ meetUrl }),
+		});
+		const data = (await res.json()) as {
+			consultationId?: number;
+			provider?: string;
+			error?: string;
+		};
+		if (!res.ok || !data.consultationId) {
+			setError(data.error ?? `bot falhou: HTTP ${res.status}`);
+			return;
+		}
+		setLiveId(data.consultationId);
+		setLiveStatus("live");
+	}
 
 	function toggleRecording() {
 		const t = transcriberRef.current;
@@ -84,6 +126,17 @@ function NovaConsulta() {
 
 	async function save() {
 		if (!anamnesis) return;
+		if (liveId) {
+			await attachAnamnesisFn({
+				data: {
+					consultationId: liveId,
+					anamnesis,
+					engine: engine ?? "unknown",
+				},
+			});
+			setSavedId(liveId);
+			return;
+		}
 		const res = await saveConsultationFn({
 			data: { transcript, anamnesis, engine: engine ?? "unknown" },
 		});
@@ -109,6 +162,43 @@ function NovaConsulta() {
 				Grave a conversa ou cole a transcrição — a anamnese sai estruturada para
 				revisão.
 			</p>
+
+			{/* ---- teleconsulta (bot) ---- */}
+			<section className="mt-6 rounded-xl border border-neutral-200 p-5">
+				<div className="flex items-center gap-3">
+					<h2 className="font-semibold">Teleconsulta</h2>
+					<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+						speaker labels grátis via canais
+					</span>
+				</div>
+				<p className="mt-1 text-xs text-neutral-500">
+					O bot “Anamnese” entra na sua call (Meet/Zoom/Teams), transcreve com
+					separação por falante e gera o rascunho quando a consulta acaba.
+				</p>
+				<div className="mt-3 flex gap-2">
+					<input
+						type="url"
+						value={meetUrl}
+						onChange={(e) => setMeetUrl(e.target.value)}
+						placeholder="https://meet.google.com/xxx-xxxx-xxx"
+						className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+					/>
+					<button
+						type="button"
+						onClick={sendBot}
+						disabled={!meetUrl.trim() || liveStatus === "live"}
+						className="shrink-0 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+					>
+						{liveStatus === "live" ? "bot na call…" : "Enviar bot"}
+					</button>
+				</div>
+				{liveId ? (
+					<p className="mt-2 text-xs text-neutral-500">
+						consulta #{liveId} —{" "}
+						{liveStatus === "live" ? "transcrevendo ao vivo" : "call encerrada"}
+					</p>
+				) : null}
+			</section>
 
 			<div className="mt-6 grid gap-6 lg:grid-cols-2">
 				{/* ---- transcrição ---- */}

@@ -8,5 +8,11 @@ export const consultations = sqliteTable("consultations", {
 	anamnesis: text(),
 	/** Which AnamnesisExtractor produced the draft. */
 	engine: text(),
+	/** Transcription source: browser | bot | dictation | upload. */
+	source: text().notNull().default("browser"),
+	/** live (still transcribing) | done */
+	status: text().notNull().default("done"),
+	/** Provider-side bot id (MeetingBotTranscriber source). */
+	botId: text("bot_id"),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });

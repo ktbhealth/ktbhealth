@@ -10,13 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiBotsRouteImport } from './routes/api.bots'
 import { Route as ConsultaNovaRouteImport } from './routes/consulta/nova'
 import { Route as ConsultasIndexRouteImport } from './routes/consultas/index'
 import { Route as ConsultasIdRouteImport } from './routes/consultas/$id'
+import { Route as ApiBotsWebhookRouteImport } from './routes/api.bots.webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBotsRoute = ApiBotsRouteImport.update({
+  id: '/api/bots',
+  path: '/api/bots',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsultaNovaRoute = ConsultaNovaRouteImport.update({
@@ -34,36 +41,67 @@ const ConsultasIdRoute = ConsultasIdRouteImport.update({
   path: '/consultas/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBotsWebhookRoute = ApiBotsWebhookRouteImport.update({
+  id: '/webhook',
+  path: '/webhook',
+  getParentRoute: () => ApiBotsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/bots': typeof ApiBotsRouteWithChildren
   '/consulta/nova': typeof ConsultaNovaRoute
   '/consultas/$id': typeof ConsultasIdRoute
   '/consultas/': typeof ConsultasIndexRoute
+  '/api/bots/webhook': typeof ApiBotsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/bots': typeof ApiBotsRouteWithChildren
   '/consulta/nova': typeof ConsultaNovaRoute
   '/consultas/$id': typeof ConsultasIdRoute
   '/consultas': typeof ConsultasIndexRoute
+  '/api/bots/webhook': typeof ApiBotsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/bots': typeof ApiBotsRouteWithChildren
   '/consulta/nova': typeof ConsultaNovaRoute
   '/consultas/$id': typeof ConsultasIdRoute
   '/consultas/': typeof ConsultasIndexRoute
+  '/api/bots/webhook': typeof ApiBotsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/consulta/nova' | '/consultas/$id' | '/consultas/'
+  fullPaths:
+    | '/'
+    | '/api/bots'
+    | '/consulta/nova'
+    | '/consultas/$id'
+    | '/consultas/'
+    | '/api/bots/webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/consulta/nova' | '/consultas/$id' | '/consultas'
-  id: '__root__' | '/' | '/consulta/nova' | '/consultas/$id' | '/consultas/'
+  to:
+    | '/'
+    | '/api/bots'
+    | '/consulta/nova'
+    | '/consultas/$id'
+    | '/consultas'
+    | '/api/bots/webhook'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/bots'
+    | '/consulta/nova'
+    | '/consultas/$id'
+    | '/consultas/'
+    | '/api/bots/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiBotsRoute: typeof ApiBotsRouteWithChildren
   ConsultaNovaRoute: typeof ConsultaNovaRoute
   ConsultasIdRoute: typeof ConsultasIdRoute
   ConsultasIndexRoute: typeof ConsultasIndexRoute
@@ -76,6 +114,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/bots': {
+      id: '/api/bots'
+      path: '/api/bots'
+      fullPath: '/api/bots'
+      preLoaderRoute: typeof ApiBotsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consulta/nova': {
@@ -99,11 +144,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsultasIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/bots/webhook': {
+      id: '/api/bots/webhook'
+      path: '/webhook'
+      fullPath: '/api/bots/webhook'
+      preLoaderRoute: typeof ApiBotsWebhookRouteImport
+      parentRoute: typeof ApiBotsRoute
+    }
   }
 }
 
+interface ApiBotsRouteChildren {
+  ApiBotsWebhookRoute: typeof ApiBotsWebhookRoute
+}
+
+const ApiBotsRouteChildren: ApiBotsRouteChildren = {
+  ApiBotsWebhookRoute: ApiBotsWebhookRoute,
+}
+
+const ApiBotsRouteWithChildren =
+  ApiBotsRoute._addFileChildren(ApiBotsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiBotsRoute: ApiBotsRouteWithChildren,
   ConsultaNovaRoute: ConsultaNovaRoute,
   ConsultasIdRoute: ConsultasIdRoute,
   ConsultasIndexRoute: ConsultasIndexRoute,
