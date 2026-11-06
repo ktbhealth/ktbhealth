@@ -10,7 +10,10 @@ import {
 	saveConsultationFn,
 } from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
-import { createTranscriber } from "#/lib/transcriber/index.ts";
+import {
+	createTabAudioTranscriber,
+	createTranscriber,
+} from "#/lib/transcriber/index.ts";
 
 export const Route = createFileRoute("/consulta/nova")({
 	component: NovaConsulta,
@@ -38,12 +41,20 @@ function NovaConsulta() {
 	const transcriberRef = useRef<ReturnType<typeof createTranscriber> | null>(
 		null,
 	);
+	const tabRef = useRef<ReturnType<typeof createTabAudioTranscriber> | null>(
+		null,
+	);
+	const [tabRecording, setTabRecording] = useState(false);
 
 	useEffect(() => {
 		const t = createTranscriber();
 		transcriberRef.current = t;
+		tabRef.current = createTabAudioTranscriber();
 		setSupported(t.supported);
-		return () => t.stop();
+		return () => {
+			t.stop();
+			tabRef.current?.stop();
+		};
 	}, []);
 
 	// Poll a live bot consultation — transcript grows as events arrive.
@@ -93,7 +104,7 @@ function NovaConsulta() {
 		t.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
-				setTranscript((prev) => `${prev}${prev ? " " : ""}${ev.text}`);
+				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Médico: ${ev.text}`);
 				setPartial("");
 			}
 			if (ev.type === "error") {
@@ -106,6 +117,36 @@ function NovaConsulta() {
 			}
 		});
 		setRecording(true);
+	}
+
+	function toggleTabCapture() {
+		const t = tabRef.current;
+		if (!t) return;
+		if (tabRecording) {
+			t.stop();
+			setTabRecording(false);
+			setPartial("");
+			return;
+		}
+		setError(null);
+		t.start((ev) => {
+			if (ev.type === "partial") setPartial(ev.text);
+			if (ev.type === "final") {
+				setTranscript(
+					(prev) => `${prev}${prev ? "\n" : ""}Paciente: ${ev.text}`,
+				);
+				setPartial("");
+			}
+			if (ev.type === "error") {
+				setError(ev.message);
+				setTabRecording(false);
+			}
+			if (ev.type === "end") {
+				setTabRecording(false);
+				setPartial("");
+			}
+		});
+		setTabRecording(true);
 	}
 
 	async function generate() {
@@ -215,13 +256,22 @@ function NovaConsulta() {
 							</button>
 							<button
 								type="button"
+								onClick={toggleTabCapture}
+								className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white ${
+									tabRecording ? "bg-red-600" : "bg-neutral-700"
+								}`}
+							>
+								{tabRecording ? "■ Parar aba" : "🎧 Capturar aba"}
+							</button>
+							<button
+								type="button"
 								onClick={toggleRecording}
 								disabled={!supported}
 								className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white ${
 									recording ? "bg-red-600" : "bg-neutral-900"
 								} disabled:opacity-40`}
 							>
-								{recording ? "■ Parar" : "● Gravar"}
+								{recording ? "■ Parar mic" : "● Gravar mic"}
 							</button>
 						</div>
 					</div>

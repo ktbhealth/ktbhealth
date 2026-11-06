@@ -120,3 +120,11 @@ export class WebSpeechTranscriber implements Transcriber {
 export function createTranscriber(): Transcriber {
 	return new WebSpeechTranscriber();
 }
+
+import { TabAudioTranscriber } from "./tab-audio.ts";
+
+export { TabAudioTranscriber };
+
+export function createTabAudioTranscriber(): Transcriber {
+	return new TabAudioTranscriber();
+}
