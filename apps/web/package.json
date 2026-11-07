@@ -16,7 +16,9 @@
 		"db:migrate": "wrangler d1 migrations apply ktb --remote",
 		"infra:dev": "alchemy dev",
 		"infra:deploy": "alchemy deploy",
-		"infra:destroy": "alchemy destroy"
+		"infra:destroy": "alchemy destroy",
+		"test:e2e": "playwright test",
+		"test:coverage": "vp test"
 	},
 	"dependencies": {
 		"@huggingface/transformers": "^4.3.2",
@@ -38,12 +40,14 @@
 		"@alchemy.run/cloudflare": "2.0.0-beta.84",
 		"@cloudflare/vite-plugin": "1.67.0",
 		"@effect/platform-bun": "4.0.7",
+		"@playwright/test": "^1.65.0",
 		"@tanstack/devtools-vite": "0.8.6",
 		"@types/node": "^22.10.2",
 		"@types/pdfkit": "^0.17.7",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"@vitejs/plugin-react": "^6.0.1",
+		"@vitest/coverage-v8": "5.1.0",
 		"alchemy": "2.0.0-beta.84",
 		"effect": "4.0.7",
 		"vite": "npm:@voidzero-dev/vite-plus-core@1.5.0",

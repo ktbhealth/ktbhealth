@@ -14,12 +14,18 @@ export default defineConfig({
 	},
 
 	lint: {
-		plugins: ["typescript", "react"],
+		plugins: ["typescript", "react", "import"],
 		options: {
 			typeAware: true,
 			typeCheck: true,
 		},
 		overrides: [
+			{
+				files: ["packages/**/*.ts", "packages/**/*.tsx"],
+				rules: {
+					"no-restricted-imports": ["error", { patterns: ["**/apps/**", "@ktb/web"] }],
+				},
+			},
 			{
 				files: ["**/*.test.ts", "**/*.test.tsx"],
 				plugins: ["vitest"],
