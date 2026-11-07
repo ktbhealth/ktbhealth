@@ -10,6 +10,7 @@ export default defineConfig({
 			"**/worker-configuration.d.ts",
 			"**/.alchemy/**",
 			"**/drizzle/meta/**",
+			"**/coverage/**",
 		],
 	},
 

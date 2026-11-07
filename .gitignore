@@ -20,3 +20,4 @@ data/
 
 # alchemy local state
 .alchemy/
+coverage/
