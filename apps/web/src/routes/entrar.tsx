@@ -12,7 +12,7 @@ import {
 import { Input } from "@ktbhealth/ui/components/input";
 import { Label } from "@ktbhealth/ui/components/label";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
-import { Turnstile } from "#/components/turnstile.tsx";
+import { Turnstile } from "@ktbhealth/ui/components/turnstile";
 
 export const Route = createFileRoute("/entrar")({
 	head: () => ({ meta: [{ title: "Entrar — anamnese" }] }),

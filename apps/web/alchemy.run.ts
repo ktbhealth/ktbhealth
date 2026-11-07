@@ -30,6 +30,21 @@ export default Alchemy.Stack(
 				...(process.env.TURNSTILE_SECRET_KEY
 					? { TURNSTILE_SECRET_KEY: Redacted.make(process.env.TURNSTILE_SECRET_KEY) }
 					: {}),
+				// LLM provider config — bound as worker vars/secrets so
+				// createApp's env mapping reaches them in production.
+				...Object.fromEntries(
+					[
+						"ANTHROPIC_API_KEY",
+						"LLM_API_KEY",
+						"OPENAI_API_KEY",
+						"LLM_BASE_URL",
+						"LLM_MODEL",
+						"REVIEW_MODEL",
+						"REVIEW_PROVIDER",
+					]
+						.filter((k) => process.env[k])
+						.map((k) => [k, Redacted.make(process.env[k] as string)]),
+				),
 			},
 			compatibilityFlags: ["nodejs_compat"],
 		});
