@@ -1,4 +1,5 @@
-import { StubBotProvider } from "@ktb/bot";
+import { Bot, StubBotProvider } from "@ktb/bot";
+import * as Layer from "effect/Layer";
 import type { BotProvider, BotSession } from "@ktb/bot";
 
 const BASE = "https://api.recall.ai/api/v1";
@@ -44,3 +45,6 @@ export class RecallBotProvider implements BotProvider {
 export function selectBotProvider(): BotProvider {
 	return process.env.RECALL_API_KEY ? new RecallBotProvider() : new StubBotProvider();
 }
+
+/** Env-selected layer: Recall when RECALL_API_KEY, stub otherwise. */
+export const BotLive = Layer.sync(Bot, selectBotProvider);

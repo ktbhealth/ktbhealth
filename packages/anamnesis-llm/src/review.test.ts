@@ -1,8 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import { HeuristicExtractor } from "@ktb/anamnesis";
-import { normalizeReview, parseReview, reviewAnamnesis, selectReviewProvider } from "./review.ts";
+import {
+	clearReviewCache,
+	normalizeReview,
+	parseReview,
+	reviewAnamnesis,
+	selectReviewProvider,
+} from "./review.ts";
 
 afterEach(() => {
 	vi.unstubAllEnvs();
@@ -10,6 +16,9 @@ afterEach(() => {
 });
 
 describe("review", () => {
+	beforeEach(async () => {
+		await clearReviewCache();
+	});
 	it("normalises sloppy model output instead of crashing", () => {
 		const r = normalizeReview({
 			lacunas: [
@@ -260,6 +269,79 @@ describe("review", () => {
 		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
 		expect(r.review).toBeNull();
 		expect("reason" in r && r.reason).toMatch(/boom/);
+	});
+
+	it("caches successful reviews: same input hits fetch once", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "openai");
+		vi.stubEnv("OPENAI_API_KEY", "k");
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				choices: [
+					{
+						message: {
+							content: JSON.stringify({
+								lacunas: [],
+								hipoteses: [],
+								sinais_de_alerta: [],
+								inconsistencias: [],
+							}),
+						},
+					},
+				],
+			}),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r1 = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		const r2 = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r1.review).not.toBeNull();
+		expect(r2).toEqual(r1);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("expires cached reviews after the TTL", async () => {
+		vi.useFakeTimers();
+		try {
+			vi.stubEnv("REVIEW_PROVIDER", "openai");
+			vi.stubEnv("OPENAI_API_KEY", "k");
+			const fetchMock = vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					choices: [
+						{
+							message: {
+								content: JSON.stringify({
+									lacunas: [],
+									hipoteses: [],
+									sinais_de_alerta: [],
+									inconsistencias: [],
+								}),
+							},
+						},
+					],
+				}),
+			});
+			vi.stubGlobal("fetch", fetchMock);
+			const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+			await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+			vi.setSystemTime(Date.now() + 6 * 60_000);
+			await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not cache degraded results", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "openai");
+		vi.stubEnv("OPENAI_API_KEY", "k");
+		const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+		vi.stubGlobal("fetch", fetchMock);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("degrades to a reason (never throws) when the API fails", async () => {

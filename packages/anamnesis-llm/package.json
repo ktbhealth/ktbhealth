@@ -6,6 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@ktb/anamnesis": "workspace:*"
+		"@ktb/anamnesis": "workspace:*",
+		"effect": "4.0.7"
 	}
 }

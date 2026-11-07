@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { consultations } from "./schema.ts";
 
-import type { DbClient } from "@ktb/db";
+import { DbLive, type DbClient } from "@ktb/db";
 
 export async function createConsultation(
 	db: DbClient,
@@ -55,4 +55,5 @@ export const plugin = definePlugin({
 	id: "consultations",
 	nav: [{ to: "/consultas", label: "Consultas" }],
 	tables: { consultations },
+	services: DbLive,
 });

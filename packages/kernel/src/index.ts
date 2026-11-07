@@ -17,7 +17,7 @@ export interface Plugin {
 	/** Drizzle table slice composed into @ktb/db/schema. */
 	readonly tables?: Record<string, SQLiteTable>;
 	/** Effect layers: services the plugin needs/provides at runtime. */
-	readonly services?: Layer.Any;
+	readonly services?: Layer.Layer<never, unknown, unknown>;
 }
 
 export const definePlugin = <P extends Plugin>(plugin: P): P => plugin;

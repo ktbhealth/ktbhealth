@@ -1,7 +1,7 @@
 import { definePlugin } from "@ktb/kernel";
 import { eq } from "drizzle-orm";
 
-import type { DbClient } from "@ktb/db";
+import { DbLive, type DbClient } from "@ktb/db";
 import { patients } from "./schema.ts";
 
 export async function listPatients(db: DbClient, ownerId: string) {
@@ -19,4 +19,5 @@ export async function createPatient(db: DbClient, ownerId: string, name: string)
 export const plugin = definePlugin({
 	id: "patients",
 	tables: { patients },
+	services: DbLive,
 });

@@ -1,3 +1,6 @@
+import * as Context from "effect/Context";
+import * as Layer from "effect/Layer";
+
 /**
  * BotProvider port — server-side meeting-bot source (ADR-0001).
  *
@@ -71,3 +74,9 @@ export const STUB_CALL: Array<{
 		delayMs: 2000,
 	},
 ];
+
+/** Bot service tag — impls provide via Layer (stub, recall, ...). */
+export class Bot extends Context.Service<Bot, BotProvider>()("@ktb/bot/Bot") {}
+
+/** Local stub layer: simulates a bot without a provider account. */
+export const StubBotLive = Layer.succeed(Bot, new StubBotProvider());

@@ -1,5 +1,6 @@
 import { PROMPT } from "./prompt.ts";
 import type { Anamnesis, AnamnesisExtractor } from "@ktb/anamnesis";
+import { decodeOpenAiAnamnesis } from "./structured.ts";
 
 /**
  * OpenAI-compatible extractor — any chat-completions endpoint.
@@ -34,6 +35,6 @@ export class OpenAIExtractor implements AnamnesisExtractor {
 			choices?: Array<{ message?: { content?: string } }>;
 		};
 		const text = data.choices?.[0]?.message?.content ?? "";
-		return JSON.parse(text.replace(/```json|```/g, "").trim()) as Anamnesis;
+		return decodeOpenAiAnamnesis(JSON.parse(text.replace(/```json|```/g, "").trim()));
 	}
 }

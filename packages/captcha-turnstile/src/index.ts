@@ -1,4 +1,6 @@
 import type { CaptchaVerifier } from "@ktb/captcha";
+import { Captcha } from "@ktb/captcha";
+import * as Layer from "effect/Layer";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -18,3 +20,7 @@ export const makeTurnstileVerifier = (secretKey: string): CaptchaVerifier => ({
 		}
 	},
 });
+
+/** Live layer for a Turnstile-backed deployment. */
+export const TurnstileCaptchaLive = (secretKey: string) =>
+	Layer.succeed(Captcha, makeTurnstileVerifier(secretKey));

@@ -5,9 +5,16 @@ import { createPatient, listPatients } from "@ktb/patients";
 import { db } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
 import { patients } from "@ktb/patients/schema";
-import { type Anamnesis, extractAnamnesis } from "@ktb/anamnesis-llm";
+import { extractAnamnesis } from "@ktb/anamnesis-llm";
 import { reviewAnamnesis } from "@ktb/anamnesis-llm";
-import type { AnamnesisReview } from "@ktb/anamnesis";
+import type { Anamnesis } from "@ktb/anamnesis";
+import {
+	AnamnesisReviewSchema,
+	AnamnesisSchema,
+	decodeAnamnesisOption,
+	decodeAnamnesisReviewOption,
+} from "@ktb/anamnesis/schema";
+import { Option, Schema } from "effect";
 import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
 import { AuthzLive, type can, requireCan } from "@ktb/authz";
 import * as Effect from "effect/Effect";
@@ -16,17 +23,60 @@ const assertCan = async (userId: string, ...args: Parameters<typeof can>) => {
 	await Effect.runPromise(requireCan(...args).pipe(Effect.provide(AuthzLive(userId))));
 };
 
+// ---------- wire validation (effect/schema) ----------
+
+const decodeString = Schema.decodeUnknownSync(Schema.String);
+const decodeNumber = Schema.decodeUnknownSync(Schema.Number);
+
+const ReviewInput = Schema.Struct({
+	transcript: Schema.String,
+	anamnesis: AnamnesisSchema,
+});
+
+const SaveInput = Schema.Struct({
+	transcript: Schema.String,
+	anamnesis: AnamnesisSchema,
+	engine: Schema.String,
+	patientId: Schema.optionalKey(Schema.Number),
+	review: Schema.optionalKey(Schema.NullOr(AnamnesisReviewSchema)),
+});
+
+const AttachInput = Schema.Struct({
+	consultationId: Schema.Number,
+	anamnesis: AnamnesisSchema,
+	engine: Schema.String,
+	patientId: Schema.optionalKey(Schema.Number),
+	review: Schema.optionalKey(Schema.NullOr(AnamnesisReviewSchema)),
+});
+
+const decodeReviewInput = Schema.decodeUnknownSync(ReviewInput);
+const decodeSaveInput = Schema.decodeUnknownSync(SaveInput);
+const decodeAttachInput = Schema.decodeUnknownSync(AttachInput);
+
+/** Stored JSON columns → typed domain objects, None on any drift. */
+const parseStored = <A>(
+	json: string | null,
+	decode: (u: unknown) => Option.Option<A>,
+): A | null => {
+	if (!json) return null;
+	try {
+		return Option.getOrNull(decode(JSON.parse(json)));
+	} catch {
+		return null;
+	}
+};
+
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const extractAnamneseFn = createServerFn({ method: "POST" })
-	.validator((transcript: string) => transcript)
+	.validator((transcript: string) => decodeString(transcript))
 	.handler(({ data: transcript }) => extractAnamnesis(transcript));
 
 /** Second opinion (stronger model): gaps, hypotheses, red flags. */
 export const reviewAnamneseFn = createServerFn({ method: "POST" })
-	.validator((input: { transcript: string; anamnesis: Anamnesis }) => input)
+	.validator((input: { transcript: string; anamnesis: Anamnesis }) => decodeReviewInput(input))
 	.handler(({ data }) => reviewAnamnesis(data.transcript, data.anamnesis));
 
 // ---------- patients ----------
@@ -38,7 +88,7 @@ export const listPatientsFn = createServerFn({ method: "GET" }).handler(async ()
 });
 
 export const createPatientFn = createServerFn({ method: "POST" })
-	.validator((name: string) => name)
+	.validator((name: string) => decodeString(name))
 	.handler(async ({ data: name }) => {
 		const user = await ensureSessionUser();
 		await assertCan(user.id, "patient.create");
@@ -48,15 +98,7 @@ export const createPatientFn = createServerFn({ method: "POST" })
 // ---------- consultations (owner-scoped) ----------
 
 export const saveConsultationFn = createServerFn({ method: "POST" })
-	.validator(
-		(input: {
-			transcript: string;
-			anamnesis: Anamnesis;
-			engine: string;
-			patientId?: number;
-			review?: AnamnesisReview | null;
-		}) => input,
-	)
+	.validator((input) => decodeSaveInput(input))
 	.handler(async ({ data }) => {
 		const user = await ensureSessionUser();
 		const rows = await db
@@ -95,25 +137,18 @@ export const listConsultationsFn = createServerFn({ method: "GET" }).handler(asy
 		.where(eq(consultations.userId, user.id))
 		.orderBy(desc(consultations.id));
 	return rows.map(({ anamnesis, review, ...c }) => {
-		let queixa: string | null = null;
-		if (anamnesis) {
-			try {
-				queixa = (JSON.parse(anamnesis) as Anamnesis).queixa_principal?.content ?? null;
-			} catch {
-				queixa = null;
-			}
-		}
+		const parsed = parseStored(anamnesis, decodeAnamnesisOption);
 		return {
 			...c,
 			hasAnamnesis: anamnesis !== null,
 			hasReview: review !== null,
-			queixa,
+			queixa: parsed?.queixa_principal.content ?? null,
 		};
 	});
 });
 
 export const getConsultationFn = createServerFn({ method: "GET" })
-	.validator((id: number) => id)
+	.validator((id: number) => decodeNumber(id))
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return null;
@@ -129,13 +164,13 @@ export const getConsultationFn = createServerFn({ method: "GET" })
 		return {
 			...row.c,
 			patientName: row.patientName,
-			anamnesis: row.c.anamnesis ? (JSON.parse(row.c.anamnesis) as Anamnesis) : null,
-			review: row.c.review ? (JSON.parse(row.c.review) as AnamnesisReview) : null,
+			anamnesis: parseStored(row.c.anamnesis, decodeAnamnesisOption),
+			review: parseStored(row.c.review, decodeAnamnesisReviewOption),
 		};
 	});
 
 export const getLiveConsultationFn = createServerFn({ method: "GET" })
-	.validator((id: number) => id)
+	.validator((id: number) => decodeNumber(id))
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return null;
@@ -151,15 +186,7 @@ export const getLiveConsultationFn = createServerFn({ method: "GET" })
 	});
 
 export const attachAnamnesisFn = createServerFn({ method: "POST" })
-	.validator(
-		(input: {
-			consultationId: number;
-			anamnesis: Anamnesis;
-			engine: string;
-			patientId?: number;
-			review?: AnamnesisReview | null;
-		}) => input,
-	)
+	.validator((input) => decodeAttachInput(input))
 	.handler(async ({ data }) => {
 		const user = await getSessionUser();
 		if (!user) return { ok: false };
@@ -178,7 +205,7 @@ export const attachAnamnesisFn = createServerFn({ method: "POST" })
 
 /** Record the doctor's consent declaration (LGPD trail). */
 export const recordConsentFn = createServerFn({ method: "POST" })
-	.validator((consultationId: number) => consultationId)
+	.validator((id: number) => decodeNumber(id))
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return { ok: false };

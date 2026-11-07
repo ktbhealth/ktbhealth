@@ -4,11 +4,20 @@ import { AnthropicExtractor } from "./anthropic.ts";
 import { extractAnamnesis, selectExtractor } from "./index.ts";
 import { OpenAIExtractor } from "./openai.ts";
 
+const section = (content: string, confidence: "alta" | "media" | "baixa" = "alta") => ({
+	content,
+	confidence,
+	evidence: ["evidência"],
+});
 const MOCK_ANAMNESIS = {
-	queixa_principal: { content: "Dor de cabeça", confidence: "alta" },
-	hda: { content: "Há 3 dias", confidence: "alta" },
-	hipoteses: { content: "Enxaqueca", confidence: "media" },
-	conduta: { content: "Dipirona", confidence: "alta" },
+	queixa_principal: section("Dor de cabeça"),
+	hda: section("Há 3 dias"),
+	antecedentes: section("Nega"),
+	alergias: section("Nega", "baixa"),
+	medicamentos_em_uso: section("Nega", "baixa"),
+	exame_fisico: section("N/A", "baixa"),
+	hipoteses: section("Enxaqueca", "media"),
+	conduta: section("Dipirona"),
 };
 
 describe("selectExtractor", () => {

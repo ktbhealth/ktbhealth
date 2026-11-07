@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auth, captcha } from "#/lib/platform.ts";
+import { auth, CaptchaLive } from "#/lib/platform.ts";
+import { Captcha } from "@ktb/captcha";
+import { Effect } from "effect";
 
 /** better-auth paths that accept raw credentials and need a bot check. */
 const CREDENTIAL_PATHS = ["/sign-in/email", "/sign-up/email"];
@@ -11,6 +13,9 @@ export const Route = createFileRoute("/api/auth/$")({
 			GET: async ({ request }) => auth.handler(request),
 			POST: async ({ request }) => {
 				const { pathname } = new URL(request.url);
+				const captcha = await Effect.runPromise(
+					Effect.service(Captcha).pipe(Effect.provide(CaptchaLive)),
+				);
 				if (captcha && CREDENTIAL_PATHS.some((p) => pathname.endsWith(p))) {
 					const body = (await request
 						.clone()

@@ -4,6 +4,7 @@ import { ConsultasPage } from "@ktb/consultations/views";
 import { listConsultationsFn } from "#/lib/fns.ts";
 
 export const Route = createFileRoute("/consultas/")({
+	staleTime: 30_000,
 	loader: () => listConsultationsFn(),
 	component: function ConsultasRoute() {
 		const consultas = Route.useLoaderData();

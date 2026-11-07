@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ensureSessionUser } from "#/lib/auth.ts";
 import { db } from "#/lib/platform.ts";
 import { STUB_CALL } from "@ktb/bot";
-import { selectBotProvider } from "@ktb/bot-recall";
+import { BotLive } from "@ktb/bot-recall";
+import { Bot } from "@ktb/bot";
+import { Effect } from "effect";
 import { appendTranscript, createConsultation, finishConsultation } from "@ktb/consultations";
 
 /**
@@ -22,7 +24,7 @@ export const Route = createFileRoute("/api/bots")({
 					return Response.json({ error: "missing meetUrl" }, { status: 400 });
 				}
 
-				const provider = selectBotProvider();
+				const provider = await Effect.runPromise(Effect.service(Bot).pipe(Effect.provide(BotLive)));
 				const webhookUrl = new URL("/api/bots/webhook", request.url).toString();
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureSessionUser();

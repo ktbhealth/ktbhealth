@@ -31,6 +31,18 @@ vi.mock("@tanstack/react-start", () => ({
 import { novaApi } from "./nova.tsx";
 
 describe("novaApi wiring", () => {
+	const sec = { content: "x", confidence: "media" as const, evidence: [] as string[] };
+	const ANAMNESIS = {
+		queixa_principal: sec,
+		hda: sec,
+		antecedentes: sec,
+		alergias: sec,
+		medicamentos_em_uso: sec,
+		exame_fisico: sec,
+		hipoteses: sec,
+		conduta: sec,
+	};
+
 	it("delegates every server fn", async () => {
 		// anonymous: fns return empty results or throw; arrows still execute
 		await expect(novaApi.getLiveConsultation({ data: 1 })).resolves.toBeNull();
@@ -38,13 +50,17 @@ describe("novaApi wiring", () => {
 			anamnesis: expect.anything(),
 		});
 		await expect(
-			novaApi.reviewAnamnese({ data: { transcript: "t", anamnesis: {} } } as never),
+			novaApi.reviewAnamnese({ data: { transcript: "t", anamnesis: ANAMNESIS } } as never),
 		).resolves.toBeTruthy();
 		await expect(
-			novaApi.attachAnamnesis({ data: { consultationId: 1, anamnesis: {}, engine: "e" } } as never),
+			novaApi.attachAnamnesis({
+				data: { consultationId: 1, anamnesis: ANAMNESIS, engine: "e" },
+			} as never),
 		).resolves.toEqual({ ok: false });
 		await expect(
-			novaApi.saveConsultation({ data: { transcript: "t", anamnesis: {}, engine: "e" } } as never),
+			novaApi.saveConsultation({
+				data: { transcript: "t", anamnesis: ANAMNESIS, engine: "e" },
+			} as never),
 		).rejects.toThrow("unauthenticated");
 		await expect(novaApi.recordConsent({ data: 1 })).resolves.toEqual({ ok: false });
 		await expect(novaApi.createPatient({ data: "Ana" })).rejects.toThrow("unauthenticated");

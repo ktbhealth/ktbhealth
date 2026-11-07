@@ -4,9 +4,12 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./testing": "./src/testing.ts"
+		"./testing": "./src/testing.ts",
+		"./schema": "./src/schema.ts"
 	},
-	"dependencies": {},
+	"dependencies": {
+		"effect": "4.0.7"
+	},
 	"devDependencies": {
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0"

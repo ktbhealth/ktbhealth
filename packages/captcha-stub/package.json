@@ -6,6 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@ktb/captcha": "workspace:*"
+		"@ktb/captcha": "workspace:*",
+		"effect": "4.0.7"
 	}
 }

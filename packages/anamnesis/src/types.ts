@@ -9,10 +9,10 @@
 export type Confidence = "alta" | "media" | "baixa";
 
 export interface AnamnesisSection {
-	content: string;
-	confidence: Confidence;
+	readonly content: string;
+	readonly confidence: Confidence;
 	/** Verbatim transcript sentences that ground this section. */
-	evidence: string[];
+	readonly evidence: readonly string[];
 }
 
 export interface Anamnesis {
@@ -48,22 +48,22 @@ export interface AnamnesisExtractor {
 
 /** A piece of information the consult did not capture. */
 export interface ReviewGap {
-	secao: AnamnesisSectionKey;
-	o_que_falta: string;
+	readonly secao: AnamnesisSectionKey;
+	readonly o_que_falta: string;
 	/** Question the doctor could still ask the patient. */
-	pergunta_sugerida: string;
+	readonly pergunta_sugerida: string;
 	/** Why it matters clinically. */
-	motivo: string;
+	readonly motivo: string;
 }
 
 export interface ReviewHypothesis {
-	diagnostico: string;
-	probabilidade: Confidence;
-	raciocinio: string;
+	readonly diagnostico: string;
+	readonly probabilidade: Confidence;
+	readonly raciocinio: string;
 	/** Verbatim transcript sentences supporting this hypothesis. */
-	evidence: string[];
+	readonly evidence: readonly string[];
 	/** Exams/steps that would confirm or exclude it. */
-	investigar: string[];
+	readonly investigar: readonly string[];
 }
 
 /**
@@ -71,8 +71,8 @@ export interface ReviewHypothesis {
  * silently: it is decision support, the doctor accepts item by item.
  */
 export interface AnamnesisReview {
-	lacunas: ReviewGap[];
-	hipoteses: ReviewHypothesis[];
-	sinais_de_alerta: string[];
-	inconsistencias: string[];
+	readonly lacunas: readonly ReviewGap[];
+	readonly hipoteses: readonly ReviewHypothesis[];
+	readonly sinais_de_alerta: readonly string[];
+	readonly inconsistencias: readonly string[];
 }

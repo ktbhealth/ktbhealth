@@ -97,6 +97,9 @@
     },
     "packages/anamnesis": {
       "name": "@ktb/anamnesis",
+      "dependencies": {
+        "effect": "4.0.7",
+      },
       "devDependencies": {
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
@@ -109,6 +112,7 @@
       "name": "@ktb/anamnesis-llm",
       "dependencies": {
         "@ktb/anamnesis": "workspace:*",
+        "effect": "4.0.7",
       },
     },
     "packages/auth": {
@@ -140,26 +144,35 @@
     },
     "packages/bot": {
       "name": "@ktb/bot",
+      "dependencies": {
+        "effect": "4.0.7",
+      },
     },
     "packages/bot-recall": {
       "name": "@ktb/bot-recall",
       "dependencies": {
         "@ktb/bot": "workspace:*",
+        "effect": "4.0.7",
       },
     },
     "packages/captcha": {
       "name": "@ktb/captcha",
+      "dependencies": {
+        "effect": "4.0.7",
+      },
     },
     "packages/captcha-stub": {
       "name": "@ktb/captcha-stub",
       "dependencies": {
         "@ktb/captcha": "workspace:*",
+        "effect": "4.0.7",
       },
     },
     "packages/captcha-turnstile": {
       "name": "@ktb/captcha-turnstile",
       "dependencies": {
         "@ktb/captcha": "workspace:*",
+        "effect": "4.0.7",
       },
     },
     "packages/consultations": {

@@ -1,5 +1,6 @@
 import { PROMPT } from "./prompt.ts";
 import type { Anamnesis, AnamnesisExtractor } from "@ktb/anamnesis";
+import { decodeAnthropicAnamnesis } from "./structured.ts";
 
 export class AnthropicExtractor implements AnamnesisExtractor {
 	readonly name = "anthropic";
@@ -26,6 +27,6 @@ export class AnthropicExtractor implements AnamnesisExtractor {
 			content?: Array<{ type: string; text?: string }>;
 		};
 		const text = data.content?.find((c) => c.type === "text")?.text ?? "";
-		return JSON.parse(text.replace(/```json|```/g, "").trim()) as Anamnesis;
+		return decodeAnthropicAnamnesis(JSON.parse(text.replace(/```json|```/g, "").trim()));
 	}
 }

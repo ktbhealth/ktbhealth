@@ -12,6 +12,12 @@ export const STUB_CAPTCHA_TOKEN = "ktb-captcha-stub";
  * rejects anything else. NEVER bind this in production: it defeats the
  * bot check by design.
  */
+import * as Layer from "effect/Layer";
+import { Captcha } from "@ktb/captcha";
+
 export const makeStubVerifier = (): CaptchaVerifier => ({
 	verify: async (token) => token === undefined || token === "" || token === STUB_CAPTCHA_TOKEN,
 });
+
+/** Live layer for local/dev deployments. */
+export const StubCaptchaLive = Layer.succeed(Captcha, makeStubVerifier());

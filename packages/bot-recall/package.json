@@ -6,6 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@ktb/bot": "workspace:*"
+		"@ktb/bot": "workspace:*",
+		"effect": "4.0.7"
 	}
 }
