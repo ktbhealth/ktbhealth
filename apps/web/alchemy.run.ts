@@ -11,12 +11,12 @@ export default Alchemy.Stack(
 	},
 	Effect.gen(function* () {
 		const { db } = yield* deployD1({
-			name: "ktb",
+			name: "db",
 			migrationsDir: "../../packages/db/drizzle",
 		});
 
 		const site = yield* deployWorker({
-			name: "ktb",
+			name: "web",
 			command: "bun run build",
 			outdir: "dist/client",
 			main: "@tanstack/react-start/server-entry",
