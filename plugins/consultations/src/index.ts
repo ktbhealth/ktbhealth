@@ -246,16 +246,80 @@ export const ConsultationsLive = Layer.effect(
 	Effect.gen(function* () {
 		const db = yield* Db;
 		return Consultations.of({
-			create: (fields) => Effect.promise(() => createConsultation(db, fields)),
-			appendTranscript: (id, text) => Effect.promise(() => appendTranscript(db, id, text)),
-			finish: (id) => Effect.promise(() => finishConsultation(db, id)),
-			ownedByBot: (id, botId) => Effect.promise(() => ownsBot(db, id, botId)),
-			save: (userId, input) => Effect.promise(() => saveConsultation(db, userId, input)),
-			list: (userId) => Effect.promise(() => listConsultations(db, userId)),
-			get: (id, userId) => Effect.promise(() => getConsultation(db, id, userId)),
-			getLive: (id, userId) => Effect.promise(() => getLiveConsultation(db, id, userId)),
-			attachAnamnesis: (userId, input) => Effect.promise(() => attachAnamnesis(db, userId, input)),
-			recordConsent: (id, userId) => Effect.promise(() => recordConsent(db, id, userId)),
+			create: Effect.fn("Consultations.create")(function* (fields: {
+				userId: string;
+				transcript?: string;
+				source: string;
+				status?: string;
+				botId?: string;
+			}) {
+				yield* Effect.annotateCurrentSpan({ userId: fields.userId, source: fields.source });
+				yield* Effect.logInfo("consultation create", {
+					userId: fields.userId,
+					source: fields.source,
+				});
+				return yield* Effect.promise(() => createConsultation(db, fields));
+			}),
+			appendTranscript: Effect.fn("Consultations.appendTranscript")(function* (
+				consultationId: number,
+				text: string,
+			) {
+				yield* Effect.annotateCurrentSpan({ consultationId });
+				yield* Effect.logInfo("consultation transcript append", {
+					consultationId,
+					length: text.length,
+				});
+				return yield* Effect.promise(() => appendTranscript(db, consultationId, text));
+			}),
+			finish: Effect.fn("Consultations.finish")(function* (consultationId: number) {
+				yield* Effect.annotateCurrentSpan({ consultationId });
+				yield* Effect.logInfo("consultation finish", { consultationId });
+				return yield* Effect.promise(() => finishConsultation(db, consultationId));
+			}),
+			ownedByBot: Effect.fn("Consultations.ownedByBot")((consultationId: number, botId: string) =>
+				Effect.promise(() => ownsBot(db, consultationId, botId)),
+			),
+			save: Effect.fn("Consultations.save")(function* (
+				userId: string,
+				input: SaveConsultationInput,
+			) {
+				yield* Effect.annotateCurrentSpan({ userId, engine: input.engine });
+				yield* Effect.logInfo("consultation save", { userId, engine: input.engine });
+				return yield* Effect.promise(() => saveConsultation(db, userId, input));
+			}),
+			list: Effect.fn("Consultations.list")((userId: string) =>
+				Effect.promise(() => listConsultations(db, userId)),
+			),
+			get: Effect.fn("Consultations.get")((id: number, userId: string) =>
+				Effect.promise(() => getConsultation(db, id, userId)),
+			),
+			getLive: Effect.fn("Consultations.getLive")((id: number, userId: string) =>
+				Effect.promise(() => getLiveConsultation(db, id, userId)),
+			),
+			attachAnamnesis: Effect.fn("Consultations.attachAnamnesis")(function* (
+				userId: string,
+				input: AttachAnamnesisInput,
+			) {
+				yield* Effect.annotateCurrentSpan({
+					userId,
+					consultationId: input.consultationId,
+					engine: input.engine,
+				});
+				yield* Effect.logInfo("consultation attach anamnesis", {
+					userId,
+					consultationId: input.consultationId,
+					engine: input.engine,
+				});
+				return yield* Effect.promise(() => attachAnamnesis(db, userId, input));
+			}),
+			recordConsent: Effect.fn("Consultations.recordConsent")(function* (
+				id: number,
+				userId: string,
+			) {
+				yield* Effect.annotateCurrentSpan({ consultationId: id, userId });
+				yield* Effect.logInfo("consultation consent recorded", { consultationId: id, userId });
+				return yield* Effect.promise(() => recordConsent(db, id, userId));
+			}),
 		});
 	}),
 );

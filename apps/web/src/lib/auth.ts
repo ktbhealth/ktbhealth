@@ -10,7 +10,12 @@ export async function getSessionUser(headers?: Headers): Promise<SessionUser | n
 	const session = await run(
 		Effect.gen(function* () {
 			const auth = yield* Auth;
-			return yield* Effect.promise(() => auth.getSession(headers ?? getRequestHeaders()));
+			// Auth.getSession is a Promise port; the span wraps the Effect
+			// boundary where it is invoked. null session is normal — no logging.
+			return yield* Effect.withSpan(
+				Effect.promise(() => auth.getSession(headers ?? getRequestHeaders())),
+				"Auth.getSession",
+			);
 		}),
 	);
 	if (!session) return null;

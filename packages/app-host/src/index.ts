@@ -3,6 +3,7 @@ import type { Plugin } from "@ktb/kernel";
 import { BotLive } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Binding, Db, DbLive, makeDb, type DbClient } from "@ktb/db";
 import { makeAuth } from "@ktb/auth-better";
@@ -116,6 +117,8 @@ export const createApp = <E extends AppEnv>(env: E) => {
 	);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),
+		// Single-line JSON logs → workerd console / wrangler observability.
+		Layer.provideMerge(Logger.layer([Logger.consoleJson])),
 	);
 	// Heterogeneous plugin layers can't be proven RIn-free at the type
 	// level; unsatisfied requirements still fail at layer build time.

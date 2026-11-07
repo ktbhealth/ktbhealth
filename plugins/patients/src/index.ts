@@ -35,8 +35,14 @@ export const PatientsLive = Layer.effect(
 	Effect.gen(function* () {
 		const db = yield* Db;
 		return Patients.of({
-			list: (ownerId) => Effect.promise(() => listPatients(db, ownerId)),
-			create: (ownerId, name) => Effect.promise(() => createPatient(db, ownerId, name)),
+			list: Effect.fn("Patients.list")((ownerId: string) =>
+				Effect.promise(() => listPatients(db, ownerId)),
+			),
+			create: Effect.fn("Patients.create")(function* (ownerId: string, name: string) {
+				yield* Effect.annotateCurrentSpan({ ownerId });
+				yield* Effect.logInfo("patient create", { ownerId });
+				return yield* Effect.promise(() => createPatient(db, ownerId, name));
+			}),
 		});
 	}),
 );
