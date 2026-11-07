@@ -1,15 +1,15 @@
 # anamnese
 
-> Captura, transcrição e gestão de teleconsultas — de forma escalável e barata.
+> Capture, transcribe, and manage teleconsultations — scalably and cheaply.
 
-**Draft / ideia do projeto**
+**Draft / project idea**
 
-MVP de uma ferramenta para ajudar médicos a capturar, transcrever e
-gerenciar transcrições de consultas de telemedicina — de forma escalável
-e barata. Depois a gente pode expandir o produto.
+MVP of a tool to help doctors capture, transcribe, and manage
+telemedicine consultation transcripts — scalably and cheaply. The
+product can be expanded later on.
 
 ## Status
 
-Exploração em andamento. O proof-of-concept (app, pipeline de
-transcrição, spikes de captura de áudio) vive na branch
-[`poc`](https://github.com/luisfuturist/anamnese/tree/poc).
+Exploration in progress. The proof-of-concept (app, transcription
+pipeline, audio capture spikes) lives on the
+[`poc`](https://github.com/luisfuturist/anamnese/tree/poc) branch.
