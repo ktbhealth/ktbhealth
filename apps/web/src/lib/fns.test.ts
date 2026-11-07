@@ -101,7 +101,7 @@ describe("server fns", () => {
 	it("full patient + consultation lifecycle", async () => {
 		headers.current = new Headers({ cookie });
 		const patient = await createPatientFn({ data: "Maria Silva" });
-		expect(patient.id).toBeGreaterThan(0);
+		expect(patient!.id).toBeGreaterThan(0);
 		expect((await listPatientsFn())[0]?.name).toBe("Maria Silva");
 
 		const saved = await saveConsultationFn({
@@ -109,7 +109,7 @@ describe("server fns", () => {
 				transcript: SAMPLE_TRANSCRIPT,
 				anamnesis: makeAnamnesis("Dor de cabeça"),
 				engine: "heuristic",
-				patientId: patient.id,
+				patientId: patient!.id,
 				review: {
 					lacunas: [
 						{
@@ -125,7 +125,7 @@ describe("server fns", () => {
 				},
 			},
 		});
-		expect(saved.id).toBeGreaterThan(0);
+		expect(saved.id!).toBeGreaterThan(0);
 
 		const list = await listConsultationsFn();
 		expect(list).toHaveLength(1);
@@ -134,21 +134,21 @@ describe("server fns", () => {
 		expect(list[0]?.queixa).toBe("Dor de cabeça");
 		expect(list[0]?.patientName).toBe("Maria Silva");
 
-		const detail = await getConsultationFn({ data: saved.id });
+		const detail = await getConsultationFn({ data: saved.id! });
 		expect(detail?.anamnesis?.queixa_principal.content).toBe("Dor de cabeça");
 		expect(detail?.review?.lacunas[0]?.o_que_falta).toBe("duração dos sintomas");
 		expect(detail?.patientName).toBe("Maria Silva");
 
-		expect(await getLiveConsultationFn({ data: saved.id })).toMatchObject({
+		expect(await getLiveConsultationFn({ data: saved.id! })).toMatchObject({
 			transcript: SAMPLE_TRANSCRIPT,
 		});
 		expect(await getLiveConsultationFn({ data: 999 })).toBeNull();
 
-		expect(await recordConsentFn({ data: saved.id })).toEqual({ ok: true });
+		expect(await recordConsentFn({ data: saved.id! })).toEqual({ ok: true });
 		expect(
 			await attachAnamnesisFn({
 				data: {
-					consultationId: saved.id,
+					consultationId: saved.id!,
 					anamnesis: makeAnamnesis("Nova queixa"),
 					engine: "openai",
 					review: {
@@ -161,7 +161,7 @@ describe("server fns", () => {
 			}),
 		).toEqual({ ok: true });
 
-		const after = await getConsultationFn({ data: saved.id });
+		const after = await getConsultationFn({ data: saved.id! });
 		expect(after?.anamnesis?.queixa_principal.content).toBe("Nova queixa");
 		expect(after?.engine).toBe("openai");
 		expect(after?.review).not.toBeNull();
@@ -172,7 +172,7 @@ describe("server fns", () => {
 		const saved = await saveConsultationFn({
 			data: { transcript: "t2", anamnesis: makeAnamnesis("Q2"), engine: "heuristic" },
 		});
-		const detail = await getConsultationFn({ data: saved.id });
+		const detail = await getConsultationFn({ data: saved.id! });
 		expect(detail?.anamnesis).not.toBeNull();
 		expect(detail?.review).toBeNull();
 		expect(detail?.patientName).toBeNull();
@@ -194,13 +194,13 @@ describe("server fns", () => {
 		});
 		await attachAnamnesisFn({
 			data: {
-				consultationId: saved.id,
+				consultationId: saved.id!,
 				anamnesis: makeAnamnesis("Q3b"),
 				engine: "e2",
-				patientId: patient.id,
+				patientId: patient!.id,
 			},
 		});
-		const detail = await getConsultationFn({ data: saved.id });
+		const detail = await getConsultationFn({ data: saved.id! });
 		expect(detail?.patientName).toBe("João");
 	});
 

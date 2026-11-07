@@ -4,7 +4,7 @@ import { BotLive } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { Binding, Db, makeDb, type DbClient } from "@ktb/db";
+import { Binding, Db, DbLive, makeDb, type DbClient } from "@ktb/db";
 import { makeAuth } from "@ktb/auth-better";
 import { StubCaptchaLive } from "@ktb/captcha-stub";
 import { TurnstileCaptchaLive } from "@ktb/captcha-turnstile";
@@ -52,22 +52,31 @@ export const createApp = <E extends AppEnv>(env: E) => {
 			? TurnstileCaptchaLive(env.TURNSTILE_SECRET_KEY)
 			: Layer.succeed(Captcha, null);
 
-	// Plugin `services` layers merge here; platform bindings sit underneath.
-	const pluginServices = plugins
-		.map((p) => p.services)
-		.filter((s): s is NonNullable<typeof s> => s !== undefined) as Layer.Layer<
-		Db,
-		never,
-		Binding
-	>[];
-	const AppLive = Layer.mergeAll(BotLive, CaptchaLive, ...pluginServices).pipe(
+	// Plugin services compose in topo order: each plugin's layer is
+	// provided the accumulated outputs of everything before it, so a
+	// plugin can consume services provided by its `deps`.
+	// Layer.Any is type-erased per plugin; requirements are still checked
+	// when ManagedRuntime.make builds AppLive.
+	const pluginLayer = plugins
+		.map((p) => p.services as Layer.Layer<unknown, unknown, unknown> | undefined)
+		.filter((s): s is NonNullable<typeof s> => s !== undefined)
+		.reduce<Layer.Layer<unknown, unknown, unknown>>(
+			(acc, svc) => Layer.merge(acc, svc.pipe(Layer.provideMerge(acc))),
+			Layer.empty as unknown as Layer.Layer<unknown, unknown, unknown>,
+		);
+	// Infra layers are provided to plugin layers explicitly: mergeAll does
+	// not wire one sibling's outputs into another's requirements.
+	const core = Layer.mergeAll(BotLive, CaptchaLive, DbLive);
+	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),
 	);
-	const runtime = ManagedRuntime.make(AppLive);
+	// Heterogeneous plugin layers can't be proven RIn-free at the type
+	// level; unsatisfied requirements still fail at layer build time.
+	const runtime = ManagedRuntime.make(AppLive as Layer.Layer<unknown, unknown, never>);
 
-	/** Resolve the Db service from AppLive and run a query against it. */
-	const withDb = <A>(f: (db: DbClient) => Promise<A>): Promise<A> =>
-		runtime.runPromise(Effect.flatMap(Effect.service(Db), (db) => Effect.promise(() => f(db))));
+	/** Run an Effect program against the composed app runtime. */
+	const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
+		runtime.runPromise(effect);
 
 	return {
 		plugins,
@@ -75,7 +84,7 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		CaptchaLive,
 		AppLive,
 		runtime,
-		withDb,
+		run,
 		db,
 		auth,
 	};

@@ -1,8 +1,18 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { makeDb } from "@ktb/db";
+import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import { appendTranscript, createConsultation, finishConsultation, plugin } from "./index.ts";
+import {
+	Consultations,
+	ConsultationsLive,
+	appendTranscript,
+	createConsultation,
+	finishConsultation,
+	plugin,
+} from "./index.ts";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -67,6 +77,26 @@ describe("consultations repo", () => {
 			}),
 		} as unknown as typeof db;
 		expect(await createConsultation(stub, { userId: "u1", source: "browser" })).toBeNull();
+	});
+});
+
+describe("ConsultationsLive", () => {
+	it("service methods create/append/finish run through the layer", async () => {
+		const testDb = makeDb(makeD1(DDL));
+		const runtime = ManagedRuntime.make(
+			ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))),
+		);
+		const id = await runtime.runPromise(
+			Effect.gen(function* () {
+				const c = yield* Consultations;
+				const created = yield* c.create({ userId: "u1", source: "browser" });
+				yield* c.appendTranscript(created!, "svc chunk");
+				yield* c.finish(created!);
+				return created;
+			}),
+		);
+		expect(id).toBeTypeOf("number");
+		await runtime.dispose();
 	});
 });
 

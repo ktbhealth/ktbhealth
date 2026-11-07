@@ -1,3 +1,4 @@
+import { Graph } from "effect";
 import type { Plugin } from "@ktb/kernel";
 
 interface PluginModule {
@@ -18,27 +19,22 @@ export const discoverPlugins = (modules: Record<string, unknown>): Plugin[] =>
 		.filter(isPlugin);
 
 /**
- * Topologically sort plugins by `deps` (plugin ids). Throws on unknown
- * deps and cycles so misconfiguration fails at startup, not at runtime.
+ * Topologically sort plugins by `deps` (plugin ids) using effect/Graph.
+ * Throws on unknown deps eagerly; cycles surface as GraphError from
+ * Graph.topo at composition time.
  */
-export const orderPlugins = (plugins: readonly Plugin[]): Plugin[] =>
-	(() => {
-		const byId = new Map(plugins.map((p) => [p.id, p]));
+export const orderPlugins = (plugins: readonly Plugin[]): Plugin[] => {
+	const byId = new Map(plugins.map((p) => [p.id, p]));
+	for (const p of plugins)
+		for (const dep of p.deps ?? [])
+			if (!byId.has(dep)) throw new Error(`plugin "${p.id}" depends on unknown plugin "${dep}"`);
+
+	const graph = Graph.directed<Plugin, null>((mutable) => {
+		const nodes = new Map<string, Graph.NodeIndex>();
+		for (const p of plugins) nodes.set(p.id, Graph.addNode(mutable, p));
 		for (const p of plugins)
 			for (const dep of p.deps ?? [])
-				if (!byId.has(dep)) throw new Error(`plugin "${p.id}" depends on unknown plugin "${dep}"`);
-
-		const ordered: Plugin[] = [];
-		const state = new Map<string, "visiting" | "done">();
-		const visit = (p: Plugin): void => {
-			const s = state.get(p.id);
-			if (s === "done") return;
-			if (s === "visiting") throw new Error(`plugin dependency cycle at "${p.id}"`);
-			state.set(p.id, "visiting");
-			for (const dep of p.deps ?? []) visit(byId.get(dep)!);
-			state.set(p.id, "done");
-			ordered.push(p);
-		};
-		for (const p of plugins) visit(p);
-		return ordered;
-	})();
+				Graph.addEdge(mutable, nodes.get(dep)!, nodes.get(p.id)!, null);
+	});
+	return Array.from(Graph.values(Graph.topo(graph)));
+};

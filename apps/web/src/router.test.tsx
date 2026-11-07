@@ -97,7 +97,7 @@ async function signInRouterUser() {
 			review: { lacunas: [], hipoteses: [], sinais_de_alerta: [], inconsistencias: [] },
 		},
 	});
-	consultationId = saved.id;
+	consultationId = saved.id!;
 }
 
 describe("router integration", () => {

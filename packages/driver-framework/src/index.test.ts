@@ -29,7 +29,7 @@ describe("orderPlugins", () => {
 
 	it("throws on dependency cycle", () => {
 		expect(() => orderPlugins([p("a", ["b"]), p("b", ["a"])])).toThrow(
-			'plugin dependency cycle at "a"',
+			"Cannot perform topological sort on cyclic graph",
 		);
 	});
 });

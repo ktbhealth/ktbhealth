@@ -10,7 +10,8 @@
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
-		"drizzle-orm": "^0.45.1"
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.0.7"
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^9.6.0",

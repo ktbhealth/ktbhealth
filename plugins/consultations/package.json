@@ -17,7 +17,8 @@
 		"@tanstack/react-router": "1.170.46",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
-		"drizzle-orm": "^0.45.1"
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.0.7"
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^9.6.0",

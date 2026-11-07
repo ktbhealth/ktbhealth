@@ -218,6 +218,7 @@
       "name": "@ktb/driver-framework",
       "dependencies": {
         "@ktb/kernel": "workspace:*",
+        "effect": "4.0.7",
       },
     },
     "packages/export-pdf": {
@@ -323,6 +324,7 @@
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "drizzle-orm": "^0.45.1",
+        "effect": "4.0.7",
       },
       "devDependencies": {
         "@types/better-sqlite3": "^9.6.0",
@@ -341,6 +343,7 @@
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "drizzle-orm": "^0.45.1",
+        "effect": "4.0.7",
       },
       "devDependencies": {
         "@types/better-sqlite3": "^9.6.0",

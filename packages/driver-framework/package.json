@@ -6,6 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@ktb/kernel": "workspace:*"
+		"@ktb/kernel": "workspace:*",
+		"effect": "4.0.7"
 	}
 }
