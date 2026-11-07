@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { run } from "#/lib/platform.ts";
-import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis-llm/services";
+import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
 import type { Anamnesis } from "@ktb/anamnesis";
 import { AnamnesisReviewSchema, AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";

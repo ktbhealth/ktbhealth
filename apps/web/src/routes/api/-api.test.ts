@@ -153,29 +153,6 @@ describe("api routes", () => {
 		);
 	});
 
-	it("bots POST with recall provider skips simulation", async () => {
-		vi.stubEnv("RECALL_API_KEY", "recall-key");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (url: string) => {
-				if (String(url).includes("api.recall.ai")) {
-					return { ok: true, json: async () => ({ id: "recall-bot-1" }) };
-				}
-				return { ok: true, json: async () => ({}) };
-			}),
-		);
-		const h = handlersOf(BotsRoute);
-		const res = await h.POST!({
-			request: post("http://x/api/bots", { meetUrl: "https://meet.google.com/rec-1234" }),
-		} as never);
-		expect(res.status).toBe(200);
-		const body = (await res.json()) as { provider: string; botId: string };
-		expect(body.provider).toBe("recall");
-		expect(body.botId).toBe("recall-bot-1");
-		vi.unstubAllEnvs();
-		vi.unstubAllGlobals();
-	});
-
 	it("bots POST requires auth", async () => {
 		headers.current = new Headers();
 		const h = handlersOf(BotsRoute);

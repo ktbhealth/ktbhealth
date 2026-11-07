@@ -1,35 +1,20 @@
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { LanguageModel, Prompt } from "effect/ai";
 
 import type { Anamnesis } from "@ktb/anamnesis";
 import { HeuristicExtractor } from "@ktb/anamnesis";
+import { AnamnesisEngine, ReviewEngine, type ReviewResult } from "@ktb/anamnesis/services";
 import { AnamnesisSchema, AnamnesisReviewSchema } from "@ktb/anamnesis/schema";
 import { PROMPT } from "./prompt.ts";
 import { anthropicLanguageModelLive, openAiLanguageModelLive, type LlmConfig } from "./llm.ts";
 
 export type { LlmConfig } from "./llm.ts";
-import { REVIEW_PROMPT, reviewUserMessage, reviewViaOllama, type ReviewResult } from "./review.ts";
+import { REVIEW_PROMPT, reviewUserMessage, reviewViaOllama } from "./review.ts";
 import { FetchHttpClient } from "effect/http";
 
-/** Anamnesis extraction port — provider chosen inside the impl. */
-export class AnamnesisEngine extends Context.Service<
-	AnamnesisEngine,
-	{
-		readonly extract: (
-			transcript: string,
-		) => Effect.Effect<{ anamnesis: Anamnesis; engine: string }>;
-	}
->()("@ktb/anamnesis-llm/AnamnesisEngine") {}
-
-/** Second-opinion review port — each Live layer owns an isolated cache. */
-export class ReviewEngine extends Context.Service<
-	ReviewEngine,
-	{
-		readonly review: (transcript: string, anamnesis: Anamnesis) => Effect.Effect<ReviewResult>;
-	}
->()("@ktb/anamnesis-llm/ReviewEngine") {}
+// Port tags live in the domain package (@ktb/anamnesis/services); this
+// module only provides the Live layers — impl → port direction.
 
 const heuristicExtract = (transcript: string): Effect.Effect<Anamnesis> =>
 	Effect.promise(() => new HeuristicExtractor().extract(transcript));

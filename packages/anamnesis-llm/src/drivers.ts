@@ -1,10 +1,9 @@
 import * as Layer from "effect/Layer";
 import type { Driver } from "@ktb/driver-framework";
 
+import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
 import { anthropicLanguageModelLive, openAiLanguageModelLive, type LlmConfig } from "./llm.ts";
 import {
-	AnamnesisEngine,
-	ReviewEngine,
 	heuristicAnamnesisEngineLive,
 	makeAnamnesisEngine,
 	makeOllamaReviewEngine,

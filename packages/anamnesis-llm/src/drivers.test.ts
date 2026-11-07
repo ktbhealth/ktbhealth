@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { LlmConfig } from "./llm.ts";
-import { AnamnesisEngine, heuristicAnamnesisEngineLive, ReviewEngine } from "./services.ts";
+import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
+import { heuristicAnamnesisEngineLive } from "./services.ts";
 import {
 	anthropicAnamnesisDriver,
 	anthropicReviewDriver,

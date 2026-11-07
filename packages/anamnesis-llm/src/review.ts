@@ -1,9 +1,12 @@
 import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
+import type { ReviewResult } from "@ktb/anamnesis/services";
 import { AnamnesisReviewSchema, decodeAnamnesisReview } from "@ktb/anamnesis/schema";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import { HttpBody, HttpClient, HttpClientError, HttpClientRequest } from "effect/http";
 import * as Schema from "effect/Schema";
+
+export type { ReviewResult } from "@ktb/anamnesis/services";
 
 /**
  * Second-opinion pass: a (stronger) model reads the transcript and
@@ -31,10 +34,6 @@ Regras:
 - PT-BR, conciso, terminologia clínica.
 
 `;
-
-export type ReviewResult =
-	| { review: AnamnesisReview; engine: string }
-	| { review: null; reason: string };
 
 export const reviewUserMessage = (transcript: string, anamnesis: Anamnesis): string =>
 	`TRANSCRIÇÃO:\n${transcript}\n\nRASCUNHO DA ANAMNESE:\n${JSON.stringify(anamnesis)}`;

@@ -6,6 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
+		"@ktb/anamnesis": "workspace:*",
 		"@ktb/anamnesis-llm": "workspace:*",
 		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",

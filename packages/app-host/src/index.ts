@@ -12,7 +12,8 @@ import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
 import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
 import { Auth } from "@ktb/auth";
-import { AnamnesisEngine, ReviewEngine, type LlmConfig } from "@ktb/anamnesis-llm/services";
+import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
+import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
 
 /**

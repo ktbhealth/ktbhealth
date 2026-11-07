@@ -5,14 +5,13 @@ import * as Layer from "effect/Layer";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
+import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
 import {
-	AnamnesisEngine,
 	AnamnesisEngineLive,
 	heuristicAnamnesisEngineLive,
 	makeAnamnesisEngine,
 	makeOllamaReviewEngine,
 	makeReviewEngine,
-	ReviewEngine,
 	ReviewEngineLive,
 	selectReviewProvider,
 } from "./services.ts";
