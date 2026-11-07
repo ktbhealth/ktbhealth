@@ -124,10 +124,9 @@
         "@ktb/captcha": "workspace:*",
         "@ktb/captcha-stub": "workspace:*",
         "@ktb/captcha-turnstile": "workspace:*",
-        "@ktb/consultations": "workspace:*",
         "@ktb/db": "workspace:*",
+        "@ktb/driver-framework": "workspace:*",
         "@ktb/kernel": "workspace:*",
-        "@ktb/patients": "workspace:*",
         "effect": "4.0.7",
       },
       "devDependencies": {
@@ -198,30 +197,6 @@
         "effect": "4.0.7",
       },
     },
-    "packages/consultations": {
-      "name": "@ktb/consultations",
-      "dependencies": {
-        "@ktb/anamnesis": "workspace:*",
-        "@ktb/db": "workspace:*",
-        "@ktb/kernel": "workspace:*",
-        "@ktb/patients": "workspace:*",
-        "@ktb/transcription": "workspace:*",
-        "@ktbhealth/ui": "workspace:*",
-        "@tanstack/react-router": "1.170.46",
-        "@types/react": "^19.2.0",
-        "@types/react-dom": "^19.2.0",
-        "drizzle-orm": "^0.45.1",
-      },
-      "devDependencies": {
-        "@types/better-sqlite3": "^9.6.0",
-        "@types/react": "^19.2.0",
-        "@types/react-dom": "^19.2.0",
-        "better-sqlite3": "^13.0.3",
-      },
-      "peerDependencies": {
-        "react": "^19.2.0",
-      },
-    },
     "packages/db": {
       "name": "@ktb/db",
       "dependencies": {
@@ -237,6 +212,12 @@
         "@types/node": "^22.10.2",
         "better-sqlite3": "^13.0.3",
         "drizzle-kit": "^0.31.7",
+      },
+    },
+    "packages/driver-framework": {
+      "name": "@ktb/driver-framework",
+      "dependencies": {
+        "@ktb/kernel": "workspace:*",
       },
     },
     "packages/export-pdf": {
@@ -268,19 +249,6 @@
         "@tanstack/virtual-file-routes": "1.162.0",
         "drizzle-orm": "^0.45.4",
         "effect": "4.0.7",
-      },
-    },
-    "packages/patients": {
-      "name": "@ktb/patients",
-      "dependencies": {
-        "@ktb/auth-better": "workspace:*",
-        "@ktb/db": "workspace:*",
-        "@ktb/kernel": "workspace:*",
-        "drizzle-orm": "^0.45.1",
-      },
-      "devDependencies": {
-        "@types/better-sqlite3": "^9.6.0",
-        "better-sqlite3": "^13.0.3",
       },
     },
     "packages/transcription": {
@@ -340,6 +308,43 @@
       "peerDependencies": {
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
+      },
+    },
+    "plugins/consultations": {
+      "name": "@ktb/consultations",
+      "dependencies": {
+        "@ktb/anamnesis": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/patients": "workspace:*",
+        "@ktb/transcription": "workspace:*",
+        "@ktbhealth/ui": "workspace:*",
+        "@tanstack/react-router": "1.170.46",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "drizzle-orm": "^0.45.1",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^9.6.0",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "better-sqlite3": "^13.0.3",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/patients": {
+      "name": "@ktb/patients",
+      "dependencies": {
+        "@ktb/auth-better": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "drizzle-orm": "^0.45.1",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^9.6.0",
+        "better-sqlite3": "^13.0.3",
       },
     },
   },
@@ -706,11 +711,13 @@
 
     "@ktb/captcha-turnstile": ["@ktb/captcha-turnstile@workspace:packages/captcha-turnstile"],
 
-    "@ktb/consultations": ["@ktb/consultations@workspace:packages/consultations"],
+    "@ktb/consultations": ["@ktb/consultations@workspace:plugins/consultations"],
 
     "@ktb/db": ["@ktb/db@workspace:packages/db"],
 
     "@ktb/draft-landing": ["@ktb/draft-landing@workspace:apps/draft-landing"],
+
+    "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
 
     "@ktb/export-pdf": ["@ktb/export-pdf@workspace:packages/export-pdf"],
 
@@ -718,7 +725,7 @@
 
     "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
 
-    "@ktb/patients": ["@ktb/patients@workspace:packages/patients"],
+    "@ktb/patients": ["@ktb/patients@workspace:plugins/patients"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
 

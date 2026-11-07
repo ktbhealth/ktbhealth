@@ -34,7 +34,8 @@ export default defineConfig({
 				// or platform APIs. Composition roots (apps/*, @ktb/db schema
 				// aggregation) are the only places allowed to wire impls.
 				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,patients,consultations,export-pdf,ui,db}/**/*.{ts,tsx}",
+					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,export-pdf,ui,db,driver-framework}/**/*.{ts,tsx}",
+					"plugins/**/*.{ts,tsx}",
 				],
 				rules: {
 					"no-restricted-imports": [
@@ -69,7 +70,8 @@ export default defineConfig({
 				// Env access is adapter-only: domain code receives config
 				// through ports/layers, never process.env.
 				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,patients,consultations}/src/**/*.ts",
+					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,driver-framework}/src/**/*.ts",
+					"plugins/*/src/**/*.ts",
 				],
 				rules: {
 					"no-restricted-globals": [

@@ -53,6 +53,7 @@ import { definePlugin } from "@ktb/kernel";
 
 export const plugin = definePlugin({
 	id: "consultations",
+	deps: ["patients"],
 	nav: [{ to: "/consultas", label: "Consultas" }],
 	tables: { consultations },
 	services: DbLive,

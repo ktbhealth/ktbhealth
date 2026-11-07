@@ -10,6 +10,9 @@ import type * as Layer from "effect/Layer";
  */
 export interface Plugin {
 	readonly id: string;
+	/** Ids of plugins this plugin builds on. Host topo-sorts services
+	 * composition so deps' layers are available to dependents. */
+	readonly deps?: readonly string[];
 	/** Route subtree composed into the host's virtualRouteConfig. */
 	readonly routes?: VirtualRouteSubtreeConfig;
 	/** Nav links surfaced in the host shell. */

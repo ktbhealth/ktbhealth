@@ -11,10 +11,9 @@
 		"@ktb/captcha": "workspace:*",
 		"@ktb/captcha-stub": "workspace:*",
 		"@ktb/captcha-turnstile": "workspace:*",
-		"@ktb/consultations": "workspace:*",
 		"@ktb/db": "workspace:*",
+		"@ktb/driver-framework": "workspace:*",
 		"@ktb/kernel": "workspace:*",
-		"@ktb/patients": "workspace:*",
 		"effect": "4.0.7"
 	},
 	"devDependencies": {

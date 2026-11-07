@@ -1,6 +1,5 @@
+import { discoverPlugins, orderPlugins } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
-import { plugin as consultations } from "@ktb/consultations";
-import { plugin as patients } from "@ktb/patients";
 import { BotLive } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -12,11 +11,14 @@ import { TurnstileCaptchaLive } from "@ktb/captcha-turnstile";
 import { Captcha } from "@ktb/captcha";
 
 /**
- * Static plugin registry. Add a workspace plugin here — order matters for
- * nav/route composition. Everything is statically imported: workerd can't
- * do dynamic module loading and static keeps 100% type safety.
+ * Plugin registry discovered from the filesystem: every module under
+ * packages/plugins/* exporting `plugin` is registered, topo-sorted by
+ * `deps`. import.meta.glob is a build-time transform — Vite emits static
+ * imports, so workerd bundling and type safety are preserved.
  */
-export const plugins: readonly Plugin[] = [patients, consultations];
+export const plugins: readonly Plugin[] = orderPlugins(
+	discoverPlugins(import.meta.glob("../../../plugins/*/src/index.ts", { eager: true })),
+);
 
 /** Minimal binding surface the host needs. Any platform (workerd, bun,
  * future adapters) supplies these; the host never touches cloudflare:*. */
