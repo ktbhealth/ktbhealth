@@ -4,7 +4,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./schema": "./src/schema.ts"
+		"./schema": "./src/schema.ts",
+		"./testing": "./src/testing.ts"
 	},
 	"scripts": {
 		"db:generate": "drizzle-kit generate && node scripts/sync-alchemy-migrations.mjs"
@@ -17,10 +18,10 @@
 		"effect": "4.0.7"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20251104.0",
-		"@types/node": "^22.10.2",
-		"dotenv": "^17.3.1",
-		"drizzle-kit": "^0.31.9",
-		"vitest": "5.1.0"
+		"@cloudflare/workers-types": "^4.20251014.0",
+		"@types/better-sqlite3": "^9.6.0",
+		"better-sqlite3": "^13.0.3",
+		"drizzle-kit": "^0.31.7",
+		"@types/node": "^22.10.2"
 	}
 }

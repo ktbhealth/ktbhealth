@@ -22,7 +22,11 @@
 		"db:studio": "bun --cwd packages/db db:studio"
 	},
 	"devDependencies": {
+		"@testing-library/dom": "^10.4.2",
+		"@testing-library/react": "^16.3.3",
+		"@testing-library/user-event": "^14.6.8",
 		"@vitest/coverage-v8": "5.1.0",
+		"jsdom": "^31.0.0",
 		"typescript": "^6.0.2",
 		"vite-plus": "1.5.0",
 		"vitest": "5.1.0"

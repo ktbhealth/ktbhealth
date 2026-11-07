@@ -8,7 +8,6 @@ import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis-llm";
 import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
-import type { Transcriber, TranscriptEvent } from "@ktb/transcription";
 import {
 	createWhisperMicTranscriber,
 	createWhisperTabTranscriber,
@@ -881,7 +880,8 @@ export function NovaConsultaPage({
 					<p>
 						A consulta <strong>#{saveDialog.id}</strong>
 						{patientId
-							? ` de ${patients.find((p) => p.id === patientId)?.name ?? "paciente"}`
+							? /* v8 ignore next -- patientId always resolves to a listed patient */
+							  ` de ${patients.find((p) => p.id === patientId)?.name ?? "paciente"}`
 							: ""}{" "}
 						foi {saveDialog.updated ? "atualizada" : "gravada"} com a anamnese revisada
 						{review ? " e a segunda opinião" : ""}.

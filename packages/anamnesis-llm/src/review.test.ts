@@ -104,6 +104,43 @@ describe("review", () => {
 		expect("reason" in r && r.reason).toMatch(/ollama pull qwen3:8b/);
 	});
 
+	it("ollama non-404 HTTP error throws into degrade path", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "ollama");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({ ok: false, status: 500 }),
+		);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r.review).toBeNull();
+		expect("reason" in r && r.reason).toMatch(/ollama api: 500/);
+	});
+
+	it("ollama response without message content parses empty", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "ollama");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: {} }) }),
+		);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r.review).toBeNull();
+		expect("reason" in r && r.reason).toMatch(/Segunda opinião falhou/);
+	});
+
+	it("selectReviewProvider picks openai via LLM_API_KEY or OPENAI_API_KEY", () => {
+		vi.stubEnv("REVIEW_PROVIDER", "");
+		vi.stubEnv("ANTHROPIC_API_KEY", "");
+		vi.stubEnv("LLM_API_KEY", "k1");
+		vi.stubEnv("OPENAI_API_KEY", "");
+		expect(selectReviewProvider()).toBe("openai");
+		delete process.env.LLM_API_KEY;
+		vi.stubEnv("OPENAI_API_KEY", "k2");
+		expect(selectReviewProvider()).toBe("openai");
+		vi.stubEnv("OPENAI_API_KEY", "");
+		expect(selectReviewProvider()).toBe("ollama");
+	});
+
 	it("calls the Anthropic review model and returns the parsed review", async () => {
 		vi.stubEnv("REVIEW_PROVIDER", "");
 		vi.stubEnv("ANTHROPIC_API_KEY", "k");
@@ -137,6 +174,67 @@ describe("review", () => {
 		const body = JSON.parse(fetchMock.mock.calls[0][1].body);
 		expect(body.model).toBe("modelo-x");
 		expect(body.messages[0].content).toContain(SAMPLE_TRANSCRIPT);
+	});
+
+	it("calls the OpenAI review model and returns the parsed review", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "openai");
+		vi.stubEnv("OPENAI_API_KEY", "sk-openai-key");
+		vi.stubEnv("REVIEW_MODEL", "gpt-4o");
+		const fetchMock = vi
+			.fn<(url: string, init: { body: string }) => Promise<unknown>>()
+			.mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					choices: [
+						{
+							message: {
+								content: JSON.stringify({
+									hipoteses: [
+										{
+											diagnostico: "Enxaqueca clássica",
+											probabilidade: "alta",
+											evidence: ["fotofobia"],
+										},
+									],
+								}),
+							},
+						},
+					],
+				}),
+			});
+		vi.stubGlobal("fetch", fetchMock);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r.review?.hipoteses[0]?.diagnostico).toBe("Enxaqueca clássica");
+		expect("engine" in r && r.engine).toBe("openai:gpt-4o");
+	});
+
+	it("openai review degrades when API fails and handles empty choices", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "openai");
+		vi.stubEnv("LLM_API_KEY", "sk-llm");
+		vi.stubEnv("LLM_BASE_URL", "http://llm.local/v1");
+		const fetchMock = vi
+			.fn<(url: string, init: { body: string }) => Promise<unknown>>()
+			.mockResolvedValueOnce({ ok: false, status: 502 })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+		vi.stubGlobal("fetch", fetchMock);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r1 = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r1.review).toBeNull();
+		expect("reason" in r1 && r1.reason).toMatch(/502/);
+		const r2 = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r2.review).toBeNull();
+		expect(fetchMock.mock.calls[0][0]).toBe("http://llm.local/v1/chat/completions");
+	});
+
+	it("degrades with String(e) when a non-Error is thrown", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "openai");
+		vi.stubEnv("OPENAI_API_KEY", "k");
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue("boom"));
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r.review).toBeNull();
+		expect("reason" in r && r.reason).toMatch(/boom/);
 	});
 
 	it("degrades to a reason (never throws) when the API fails", async () => {

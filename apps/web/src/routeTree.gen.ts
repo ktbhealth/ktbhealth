@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as indexRouteImport } from './routes/index'
+import { Route as entrarRouteImport } from './routes/entrar'
 import { Route as testeCapturaRouteImport } from './routes/teste-captura'
 import { Route as ApiBotsRouteImport } from './routes/api/bots'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
@@ -23,6 +24,11 @@ import { Route as ApiConsultasDotidDotpdfRouteImport } from './routes/api/consul
 const indexRoute = indexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const entrarRoute = entrarRouteImport.update({
+  id: '/entrar',
+  path: '/entrar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const testeCapturaRoute = testeCapturaRouteImport.update({
@@ -73,6 +79,7 @@ const ApiConsultasDotidDotpdfRoute = ApiConsultasDotidDotpdfRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof indexRoute
+  '/entrar': typeof entrarRoute
   '/teste-captura': typeof testeCapturaRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof indexRoute
+  '/entrar': typeof entrarRoute
   '/teste-captura': typeof testeCapturaRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -98,6 +106,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof indexRoute
+  '/entrar': typeof entrarRoute
   '/teste-captura': typeof testeCapturaRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/entrar'
     | '/teste-captura'
     | '/api/bots'
     | '/api/transcribe'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/entrar'
     | '/teste-captura'
     | '/api/bots'
     | '/api/transcribe'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/entrar'
     | '/teste-captura'
     | '/api/bots'
     | '/api/transcribe'
@@ -149,6 +161,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   indexRoute: typeof indexRoute
+  entrarRoute: typeof entrarRoute
   testeCapturaRoute: typeof testeCapturaRoute
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
   ApiTranscribeRoute: typeof ApiTranscribeRoute
@@ -166,6 +179,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof indexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/entrar': {
+      id: '/entrar'
+      path: '/entrar'
+      fullPath: '/entrar'
+      preLoaderRoute: typeof entrarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/teste-captura': {
@@ -247,6 +267,7 @@ const ApiBotsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
+  entrarRoute: entrarRoute,
   testeCapturaRoute: testeCapturaRoute,
   ApiBotsRoute: ApiBotsRouteWithChildren,
   ApiTranscribeRoute: ApiTranscribeRoute,
@@ -259,12 +280,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

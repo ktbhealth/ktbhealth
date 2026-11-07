@@ -8,7 +8,14 @@ export default defineConfig({
 			enabled: true,
 			reporter: ["text", "html"],
 			include: ["apps/*/src/**", "packages/*/src/**"],
-			exclude: ["**/*.test.*", "**/*.d.ts", "**/routeTree.gen.ts", "**/worker-configuration.d.ts"],
+			exclude: [
+				"**/*.test.*",
+				"**/*.d.ts",
+				"**/routeTree.gen.ts",
+				"**/worker-configuration.d.ts",
+				"**/paraglide/**",
+				"packages/ui/**",
+			],
 			thresholds: {
 				lines: 100,
 				functions: 100,

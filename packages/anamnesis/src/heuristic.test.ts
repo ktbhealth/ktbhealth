@@ -13,4 +13,15 @@ describe("HeuristicExtractor", () => {
 		expect(a.alergias.evidence.length).toBeGreaterThan(0);
 		expect(a.exame_fisico.confidence).toBe("baixa");
 	});
+
+	it("falls back to first sentence when no symptom keyword matches", async () => {
+		const a = await new HeuristicExtractor().extract("Paciente comparece para retorno.");
+		expect(a.queixa_principal.content).toBe("Paciente comparece para retorno.");
+	});
+
+	it("handles an empty transcript", async () => {
+		const a = await new HeuristicExtractor().extract("");
+		expect(a.queixa_principal.content).toBe("Não identificada.");
+		expect(a.queixa_principal.evidence).toEqual([]);
+	});
 });
