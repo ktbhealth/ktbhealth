@@ -1,18 +1,28 @@
-import tailwindcss from "@tailwindcss/vite";
-import { devtools } from "@tanstack/devtools-vite";
+import { defineConfig } from "vite-plus";
 
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+export default defineConfig({
+	defaultPackage: "./apps/web",
 
-import viteReact from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+	fmt: {
+		useTabs: true,
+		ignorePatterns: ["**/routeTree.gen.ts", "**/worker-configuration.d.ts"],
+	},
 
-const config = defineConfig({
-	resolve: { tsconfigPaths: true },
-	// Whisper worker imports this lazily; pre-bundle it at startup so the
-	// dev server doesn't re-optimize (and 504) while the worker is loading.
-	optimizeDeps: { include: ["@huggingface/transformers"] },
-	worker: { format: "es" },
-	plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact()],
+	lint: {
+		plugins: ["typescript", "react"],
+		options: {
+			typeAware: true,
+			typeCheck: true,
+		},
+		overrides: [
+			{
+				files: ["**/*.test.ts", "**/*.test.tsx"],
+				plugins: ["vitest"],
+			},
+			{
+				files: ["packages/**"],
+				env: { node: true },
+			},
+		],
+	},
 });
-
-export default config;

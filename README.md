@@ -39,19 +39,30 @@ Beyond transcription: an intelligent layer for clinical information,
 connecting consultations, documentation, and patient history into a
 more useful and continuous clinical workflow.
 
+## Layout
+
+- `apps/web` - TanStack Start app (Cloudflare Workers target)
+- `packages/db` - drizzle schema + client (`@ktb/db`)
+
+Toolchain is Vite+ (`vp`): check, fmt, lint, test, build in one CLI.
+
 ## Running the PoC
 
 ```bash
 pnpm install
 
-# .env.local - at minimum an LLM provider + database:
+# apps/web/.env.local - at minimum an LLM provider + database:
 #   LLM_API_KEY, LLM_BASE_URL, LLM_MODEL   (OpenAI-compatible endpoint)
-#   DATABASE_URL                           (Postgres, drizzle-kit db:push)
+#   DATABASE_URL                           (defaults to apps/web/data/app.db)
 
-pnpm dev   # http://localhost:3000
+pnpm dev     # http://localhost:3000
+pnpm check   # fmt + lint + typecheck
+pnpm test
+pnpm build   # production build (worker bundle)
+pnpm deploy  # wrangler deploy (needs `wrangler login`)
 ```
 
 ## Status
 
-Exploration in progress. active roadmap, ADRs, and backlog live on the
+Exploration in progress. Active roadmap, ADRs, and backlog live on the
 [`project`](https://github.com/ktbhealth/ktbhealth/tree/project) branch.
