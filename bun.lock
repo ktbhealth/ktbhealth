@@ -127,6 +127,7 @@
         "@ktb/anamnesis-llm": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/auth-better": "workspace:*",
+        "@ktb/authz": "workspace:*",
         "@ktb/bot": "workspace:*",
         "@ktb/bot-recall": "workspace:*",
         "@ktb/captcha": "workspace:*",
@@ -327,6 +328,7 @@
       "name": "@ktb/consultations",
       "dependencies": {
         "@ktb/anamnesis": "workspace:*",
+        "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/patients": "workspace:*",
@@ -353,6 +355,7 @@
       "name": "@ktb/patients",
       "dependencies": {
         "@ktb/auth-better": "workspace:*",
+        "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "drizzle-orm": "^0.45.1",

@@ -1,7 +1,17 @@
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
-import { AuthzLive, can, Forbidden, requireCan, rulesFor } from "./index.ts";
+import {
+	AuthzLive,
+	can,
+	canAs,
+	Forbidden,
+	Principal,
+	requireCan,
+	requireCanAs,
+	requirePrincipalUser,
+	rulesFor,
+} from "./index.ts";
 
 describe("rulesFor", () => {
 	it("grants owner access on consultation", async () => {
@@ -105,5 +115,79 @@ describe("rulesFor shape", () => {
 		const rules = rulesFor("u1");
 		expect(rules.consultation.create).toBe(true);
 		expect(typeof rules.patient.read).toBe("function");
+	});
+});
+
+describe("Principal", () => {
+	it("defaults to null outside a request context", async () => {
+		await expect(Effect.runPromise(Effect.service(Principal))).resolves.toBeNull();
+	});
+
+	it("resolves the bound userId", async () => {
+		await expect(
+			Effect.runPromise(
+				Effect.provideService(Effect.service(Principal), Principal, { userId: "u9" }),
+			),
+		).resolves.toEqual({ userId: "u9" });
+	});
+});
+
+describe("canAs / requireCanAs", () => {
+	const asUser = <A, E>(userId: string, effect: Effect.Effect<A, E>) =>
+		Effect.runPromise(Effect.provideService(effect, Principal, { userId }));
+
+	it("canAs returns false with no principal", async () => {
+		await expect(Effect.runPromise(canAs("patient.read", { ownerId: "u1" }))).resolves.toBe(false);
+	});
+
+	it("canAs checks rules for the bound principal", async () => {
+		await expect(asUser("u1", canAs("patient.read", { ownerId: "u1" }))).resolves.toBe(true);
+		await expect(asUser("u1", canAs("patient.read", { ownerId: "u2" }))).resolves.toBe(false);
+	});
+
+	it("canAs fails closed on permix errors", async () => {
+		// Unknown path → PermixRuleNotDefinedError → caught → false.
+		await expect(asUser("u1", canAs("bogus.path" as never))).resolves.toBe(false);
+	});
+
+	it("requireCanAs passes for owner and fails Forbidden otherwise", async () => {
+		await expect(asUser("u1", requireCanAs("patient.read", { ownerId: "u1" }))).resolves.toBe(
+			undefined,
+		);
+		await expect(
+			asUser("u1", requireCanAs("patient.read", { ownerId: "u2" })),
+		).rejects.toThrowError(Forbidden);
+		await expect(Effect.runPromise(requireCanAs("patient.create"))).rejects.toThrowError(Forbidden);
+	});
+});
+
+describe("requirePrincipalUser", () => {
+	it("passes when principal matches", async () => {
+		await expect(
+			Effect.runPromise(
+				Effect.provideService(requirePrincipalUser("u1", "patient.create"), Principal, {
+					userId: "u1",
+				}),
+			),
+		).resolves.toBeUndefined();
+	});
+
+	it("fails Forbidden on mismatch, null principal, or default path", async () => {
+		const mismatch = Effect.provideService(
+			requirePrincipalUser("u2", "patient.create"),
+			Principal,
+			{ userId: "u1" },
+		);
+		await expect(Effect.runPromise(mismatch)).rejects.toMatchObject({
+			path: "patient.create",
+		});
+		await expect(Effect.runPromise(requirePrincipalUser("u1"))).rejects.toMatchObject({
+			path: "principal",
+		});
+		await expect(
+			Effect.runPromise(
+				Effect.provideService(requirePrincipalUser("u2"), Principal, { userId: "u1" }),
+			),
+		).rejects.toMatchObject({ path: "principal" });
 	});
 });

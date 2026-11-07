@@ -24,7 +24,7 @@ for (const key of LLM_ENV_KEYS) {
 
 export const app = createApp(appEnv as unknown as typeof env);
 
-export const { plugins, BindingLive, CaptchaLive, AppLive, runtime, run, db, auth } = app;
+export const { plugins, BindingLive, CaptchaLive, AppLive, runtime, run, runAs, db, auth } = app;
 
 // Raw platform binding passthrough — not composed, just exposed.
 export const ai = env.AI;

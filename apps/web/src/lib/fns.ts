@@ -2,18 +2,18 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
-import { run } from "#/lib/platform.ts";
+import { run, runAs } from "#/lib/platform.ts";
 import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
 import type { Anamnesis } from "@ktb/anamnesis";
 import { AnamnesisReviewSchema, AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";
 import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
-import { AuthzLive, type can, requireCan } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 
-const assertCan = async (userId: string, ...args: Parameters<typeof can>) => {
-	await Effect.runPromise(requireCan(...args).pipe(Effect.provide(AuthzLive(userId))));
-};
+// Services enforce authorization and fail `Forbidden`; handlers translate
+// denial into the same "not visible" response as a missing entity
+// (null / { ok: false } / 404) via Effect.catchTag — other errors still
+// propagate, no data leaks, no error boundary for stale links.
 
 // ---------- wire validation (effect/schema) ----------
 
@@ -49,6 +49,8 @@ export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => 
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
+// LLM helpers run without a bound principal: they touch no owned data —
+// the transcript/anamnesis come from the request payload itself.
 export const extractAnamneseFn = createServerFn({ method: "POST" })
 	.validator((transcript: string) => decodeString(transcript))
 	.handler(({ data: transcript }) =>
@@ -73,11 +75,14 @@ export const reviewAnamneseFn = createServerFn({ method: "POST" })
 	);
 
 // ---------- patients ----------
+// All domain calls go through `runAs(user, …)`: the service enforces
+// ownership via the bound Principal — no handler-level requireCan.
 
 export const listPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
 	const user = await getSessionUser();
 	if (!user) return [];
-	return run(
+	return runAs(
+		user,
 		Effect.gen(function* () {
 			const patients = yield* Patients;
 			return yield* patients.list(user.id);
@@ -89,8 +94,8 @@ export const createPatientFn = createServerFn({ method: "POST" })
 	.validator((name: string) => decodeString(name))
 	.handler(async ({ data: name }) => {
 		const user = await ensureSessionUser();
-		await assertCan(user.id, "patient.create");
-		return run(
+		return runAs(
+			user,
 			Effect.gen(function* () {
 				const patients = yield* Patients;
 				return yield* patients.create(user.id, name);
@@ -104,7 +109,8 @@ export const saveConsultationFn = createServerFn({ method: "POST" })
 	.validator((input) => decodeSaveInput(input))
 	.handler(async ({ data }) => {
 		const user = await ensureSessionUser();
-		return run(
+		return runAs(
+			user,
 			Effect.gen(function* () {
 				const consultations = yield* Consultations;
 				return yield* consultations.save(user.id, data);
@@ -115,7 +121,8 @@ export const saveConsultationFn = createServerFn({ method: "POST" })
 export const listConsultationsFn = createServerFn({ method: "GET" }).handler(async () => {
 	const user = await getSessionUser();
 	if (!user) return [];
-	return run(
+	return runAs(
+		user,
 		Effect.gen(function* () {
 			const consultations = yield* Consultations;
 			return yield* consultations.list(user.id);
@@ -128,15 +135,16 @@ export const getConsultationFn = createServerFn({ method: "GET" })
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return null;
-		const detail = await run(
+		// Non-owner access fails Forbidden inside the service → null (404).
+		return runAs(
+			user,
 			Effect.gen(function* () {
 				const consultations = yield* Consultations;
-				return yield* consultations.get(id, user.id);
+				return yield* consultations
+					.get(id, user.id)
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
 			}),
 		);
-		if (!detail) return null;
-		await assertCan(user.id, "consultation.read", { userId: user.id });
-		return detail;
 	});
 
 export const getLiveConsultationFn = createServerFn({ method: "GET" })
@@ -144,10 +152,13 @@ export const getLiveConsultationFn = createServerFn({ method: "GET" })
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return null;
-		return run(
+		return runAs(
+			user,
 			Effect.gen(function* () {
 				const consultations = yield* Consultations;
-				return yield* consultations.getLive(id, user.id);
+				return yield* consultations
+					.getLive(id, user.id)
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
 			}),
 		);
 	});
@@ -157,13 +168,17 @@ export const attachAnamnesisFn = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getSessionUser();
 		if (!user) return { ok: false };
-		await run(
+		return runAs(
+			user,
 			Effect.gen(function* () {
 				const consultations = yield* Consultations;
-				return yield* consultations.attachAnamnesis(user.id, data);
+				const ok = yield* consultations.attachAnamnesis(user.id, data).pipe(
+					Effect.as(true),
+					Effect.catchTag("Forbidden", () => Effect.succeed(false)),
+				);
+				return { ok };
 			}),
 		);
-		return { ok: true };
 	});
 
 /** Record the doctor's consent declaration (LGPD trail). */
@@ -172,11 +187,15 @@ export const recordConsentFn = createServerFn({ method: "POST" })
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return { ok: false };
-		await run(
+		return runAs(
+			user,
 			Effect.gen(function* () {
 				const consultations = yield* Consultations;
-				return yield* consultations.recordConsent(id, user.id);
+				const ok = yield* consultations.recordConsent(id, user.id).pipe(
+					Effect.as(true),
+					Effect.catchTag("Forbidden", () => Effect.succeed(false)),
+				);
+				return { ok };
 			}),
 		);
-		return { ok: true };
 	});

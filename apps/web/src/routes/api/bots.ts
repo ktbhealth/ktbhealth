@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureSessionUser } from "#/lib/auth.ts";
-import { run } from "#/lib/platform.ts";
+import { run, runAs } from "#/lib/platform.ts";
 import { STUB_CALL } from "@ktb/bot";
 import { Bot } from "@ktb/bot";
 import { Effect } from "effect";
@@ -34,7 +34,8 @@ export const Route = createFileRoute("/api/bots")({
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureSessionUser();
 
-				const consultationId = await run(
+				const consultationId = await runAs(
+					user,
 					Effect.gen(function* () {
 						const consultations = yield* Consultations;
 						return yield* consultations.create({
@@ -63,6 +64,9 @@ export const Route = createFileRoute("/api/bots")({
 	},
 });
 
+// Simulated-call appends run on the system path (`run`, no Principal):
+// appendTranscript/finish are bot-channel methods authorized by the
+// botId binding established at create time — same as the real webhook.
 async function simulateCall(consultationId: number) {
 	await run(
 		Effect.gen(function* () {

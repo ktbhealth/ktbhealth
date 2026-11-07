@@ -3,7 +3,7 @@ import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
 import { getSessionUser } from "#/lib/auth.ts";
-import { run } from "#/lib/platform.ts";
+import { runAs } from "#/lib/platform.ts";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
 /** GET /api/consultas/:id/pdf — owner-only download of the anamnese PDF. */
@@ -16,10 +16,14 @@ export const Route = createFileRoute("/api/consultas/$id/pdf")({
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
 
-				const detail = await run(
+				// Non-owner → service fails Forbidden → same 404 as missing.
+				const detail = await runAs(
+					user,
 					Effect.gen(function* () {
 						const consultations = yield* Consultations;
-						return yield* consultations.get(id, user.id);
+						return yield* consultations
+							.get(id, user.id)
+							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
 					}),
 				);
 				if (!detail) return Response.json({ error: "not found" }, { status: 404 });

@@ -8,6 +8,7 @@
 	},
 	"dependencies": {
 		"@ktb/auth-better": "workspace:*",
+		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"drizzle-orm": "^0.45.1",

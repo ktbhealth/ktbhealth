@@ -243,4 +243,30 @@ describe("server fns", () => {
 		});
 		expect("review" in reviewed || "reason" in reviewed).toBe(true);
 	});
+
+	it("services deny cross-user access via the bound principal", async () => {
+		headers.current = new Headers({ cookie });
+		const saved = await saveConsultationFn({
+			data: { transcript: "t", anamnesis: makeAnamnesis("Q"), engine: "e" },
+		});
+
+		// Second user: lists are scoped empty; entity access is denied
+		// (service fails Forbidden → handlers return the "not visible" shape).
+		const cookie2 = await signIn("fns2@x.com");
+		headers.current = new Headers({ cookie: cookie2 });
+		expect(await listConsultationsFn()).toEqual([]);
+		expect(await listPatientsFn()).toEqual([]);
+		expect(await getConsultationFn({ data: saved.id! })).toBeNull();
+		expect(await getLiveConsultationFn({ data: saved.id! })).toBeNull();
+		expect(await recordConsentFn({ data: saved.id! })).toEqual({ ok: false });
+		expect(
+			await attachAnamnesisFn({
+				data: { consultationId: saved.id!, anamnesis: makeAnamnesis("x"), engine: "e" },
+			}),
+		).toEqual({ ok: false });
+
+		// Owner still reads fine afterwards.
+		headers.current = new Headers({ cookie });
+		expect(await getConsultationFn({ data: saved.id! })).not.toBeNull();
+	});
 });

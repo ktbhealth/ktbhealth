@@ -12,6 +12,7 @@ import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
 import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
 import { Auth } from "@ktb/auth";
+import { AuthzLive, Principal } from "@ktb/authz";
 import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
 import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
@@ -146,9 +147,34 @@ export const createApp = <E extends AppEnv>(env: E) => {
 	// level; unsatisfied requirements still fail at layer build time.
 	const runtime = ManagedRuntime.make(AppLive as Layer.Layer<unknown, unknown, never>);
 
-	/** Run an Effect program against the composed app runtime. */
+	/**
+	 * Run an Effect program against the composed app runtime.
+	 *
+	 * System/unauthenticated paths only: provider webhooks (bot-token auth
+	 * via `ownedByBot`), background simulation, LLM helpers reachable
+	 * without a session. No `Principal` is bound — domain services that
+	 * require a user will fail `Forbidden`; bot-channel methods that are
+	 * authorized out-of-band (botId binding) are designed for this.
+	 */
 	const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
 		runtime.runPromise(effect);
+
+	/**
+	 * Run an Effect program as an authenticated user: binds `Principal`
+	 * and the user's `Authz` rules for the duration of the effect, so
+	 * domain services enforce authorization themselves (defense in
+	 * depth — handlers no longer need per-call `requireCan`).
+	 */
+	const runAs = <A, E>(
+		user: { readonly id: string },
+		effect: Effect.Effect<A, E, unknown>,
+	): Promise<A> =>
+		runtime.runPromise(
+			effect.pipe(
+				Effect.provideService(Principal, { userId: user.id }),
+				Effect.provide(AuthzLive(user.id)),
+			),
+		);
 
 	return {
 		plugins,
@@ -157,6 +183,7 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		AppLive,
 		runtime,
 		run,
+		runAs,
 		db,
 		auth,
 	};

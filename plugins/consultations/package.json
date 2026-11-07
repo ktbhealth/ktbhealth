@@ -9,6 +9,7 @@
 	},
 	"dependencies": {
 		"@ktb/anamnesis": "workspace:*",
+		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",

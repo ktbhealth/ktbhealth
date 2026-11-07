@@ -270,4 +270,28 @@ describe("api routes", () => {
 		const bytes = new Uint8Array(await pdf.arrayBuffer());
 		expect(bytes.length).toBeGreaterThan(100);
 	});
+
+	it("pdf route returns 404 for another user's consultation", async () => {
+		const h = handlersOf(PdfRoute);
+		const { createConsultation } = await import("@ktb/consultations");
+		const id = await createConsultation(db, { userId, source: "mic" });
+
+		// Second user → service fails Forbidden → mapped to 404.
+		await auth.api.signUpEmail({
+			body: { email: "api2@x.com", password: "senha-forte-123", name: "Dra Dois" },
+		});
+		const res = await auth.handler(
+			new Request("http://localhost:3000/api/auth/sign-in/email", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ email: "api2@x.com", password: "senha-forte-123" }),
+			}),
+		);
+		headers.current = new Headers({
+			cookie: (res.headers.get("set-cookie") ?? "").split(";")[0],
+		});
+		const denied = await h.GET!({ params: { id: String(id) } } as never);
+		expect(denied.status).toBe(404);
+		headers.current = new Headers({ cookie });
+	});
 });
