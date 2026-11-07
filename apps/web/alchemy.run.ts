@@ -41,6 +41,7 @@ export default Alchemy.Stack(
 						"LLM_MODEL",
 						"REVIEW_MODEL",
 						"REVIEW_PROVIDER",
+						"WORKERS_AI_MODEL",
 					]
 						.filter((k) => process.env[k])
 						.map((k) => [k, Redacted.make(process.env[k] as string)]),

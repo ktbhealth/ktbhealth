@@ -11,7 +11,12 @@ import {
 	ollamaReviewDriver,
 	openAiAnamnesisDriver,
 	openAiReviewDriver,
+	workersAiAnamnesisDriver,
+	workersAiReviewDriver,
 } from "./drivers.ts";
+import type { WorkersAiBinding } from "./workers-ai.ts";
+
+const fakeWorkersAi: WorkersAiBinding = { run: async () => ({ response: "{}" }) };
 
 describe("anamnesis engine drivers", () => {
 	it("all provide the AnamnesisEngine port", () => {
@@ -34,7 +39,19 @@ describe("anamnesis engine drivers", () => {
 		expect(openAiAnamnesisDriver.when?.({ anthropicApiKey: "k" })).toBe(false);
 	});
 
-	it("heuristic is the fallback when no cloud key is set", () => {
+	it("workers-ai is eligible only when cloud keys are absent and the binding exists", () => {
+		expect(workersAiAnamnesisDriver.id).toBe("anamnesis-workers-ai");
+		expect(workersAiAnamnesisDriver.when?.({})).toBe(false);
+		expect(workersAiAnamnesisDriver.when?.({ workersAi: fakeWorkersAi })).toBe(true);
+		expect(workersAiAnamnesisDriver.when?.({ openAiApiKey: "k", workersAi: fakeWorkersAi })).toBe(
+			false,
+		);
+		expect(
+			workersAiAnamnesisDriver.when?.({ anthropicApiKey: "k", workersAi: fakeWorkersAi }),
+		).toBe(false);
+	});
+
+	it("heuristic is the fallback when no provider is configured", () => {
 		expect(heuristicAnamnesisDriver.id).toBe("anamnesis-heuristic");
 		expect(heuristicAnamnesisDriver.when?.({})).toBe(true);
 		expect(heuristicAnamnesisDriver.when?.({ openAiApiKey: "k" })).toBe(false);
@@ -42,6 +59,7 @@ describe("anamnesis engine drivers", () => {
 		expect(heuristicAnamnesisDriver.when?.({ anthropicApiKey: "k", openAiApiKey: "k" })).toBe(
 			false,
 		);
+		expect(heuristicAnamnesisDriver.when?.({ workersAi: fakeWorkersAi })).toBe(false);
 	});
 
 	it("provides build layers for every config shape", () => {
@@ -58,6 +76,13 @@ describe("anamnesis engine drivers", () => {
 			}),
 		).toBeDefined();
 		expect(heuristicAnamnesisDriver.provides({})).toBe(heuristicAnamnesisEngineLive);
+		expect(workersAiAnamnesisDriver.provides({ workersAi: fakeWorkersAi })).toBeDefined();
+		expect(
+			workersAiAnamnesisDriver.provides({
+				workersAi: fakeWorkersAi,
+				workersAiModel: "m",
+			}),
+		).toBeDefined();
 	});
 });
 
@@ -93,6 +118,23 @@ describe("review engine drivers", () => {
 		expect(ollamaReviewDriver.when?.({ reviewProvider: "anthropic" })).toBe(true);
 	});
 
+	it("workers-ai review is selected by provider or by binding presence", () => {
+		expect(workersAiReviewDriver.id).toBe("review-workers-ai");
+		expect(workersAiReviewDriver.when?.({})).toBe(false);
+		expect(workersAiReviewDriver.when?.({ workersAi: fakeWorkersAi })).toBe(true);
+		expect(
+			workersAiReviewDriver.when?.({
+				reviewProvider: "workers-ai",
+				workersAi: fakeWorkersAi,
+			}),
+		).toBe(true);
+		expect(workersAiReviewDriver.when?.({ reviewProvider: "workers-ai" })).toBe(false);
+		expect(workersAiReviewDriver.when?.({ openAiApiKey: "k", workersAi: fakeWorkersAi })).toBe(
+			false,
+		);
+		expect(ollamaReviewDriver.when?.({ workersAi: fakeWorkersAi })).toBe(false);
+	});
+
 	it("provides build layers for every config shape", () => {
 		expect(anthropicReviewDriver.provides({})).toBeDefined();
 		expect(
@@ -107,18 +149,24 @@ describe("review engine drivers", () => {
 		expect(openAiReviewDriver.provides({ openAiApiKey: "k" })).toBeDefined();
 		expect(ollamaReviewDriver.provides({})).toBeDefined();
 		expect(ollamaReviewDriver.provides({ ollamaUrl: "http://x", ollamaModel: "m" })).toBeDefined();
+		expect(workersAiReviewDriver.provides({ workersAi: fakeWorkersAi })).toBeDefined();
+		expect(
+			workersAiReviewDriver.provides({ workersAi: fakeWorkersAi, workersAiModel: "m" }),
+		).toBeDefined();
 	});
 });
 
 describe("llmDrivers", () => {
-	it("lists all six engine drivers", () => {
-		expect(llmDrivers).toHaveLength(6);
+	it("lists all eight engine drivers", () => {
+		expect(llmDrivers).toHaveLength(8);
 		expect(llmDrivers.map((d) => d.id)).toEqual([
 			"anamnesis-anthropic",
 			"anamnesis-openai",
+			"anamnesis-workers-ai",
 			"anamnesis-heuristic",
 			"review-anthropic",
 			"review-openai",
+			"review-workers-ai",
 			"review-ollama",
 		]);
 	});

@@ -126,6 +126,9 @@ describe("AnamnesisEngineLive selection", () => {
 			}),
 		).toBeDefined();
 		expect(AnamnesisEngineLive({ openAiApiKey: "k" })).toBeDefined();
+		expect(
+			AnamnesisEngineLive({ workersAi: { run: async () => ({ response: "{}" }) } }),
+		).toBeDefined();
 		expect(AnamnesisEngineLive({})).toBe(heuristicAnamnesisEngineLive);
 	});
 });
@@ -141,9 +144,14 @@ describe("selectReviewProvider", () => {
 		expect(selectReviewProvider({ reviewProvider: "bogus" })).toBe("ollama");
 	});
 
-	it("prefers anthropic, then openai, then ollama", () => {
+	it("honours workers-ai as a forced provider", () => {
+		expect(selectReviewProvider({ reviewProvider: "workers-ai" })).toBe("workers-ai");
+	});
+
+	it("prefers anthropic, then openai, then workers-ai, then ollama", () => {
 		expect(selectReviewProvider({ anthropicApiKey: "a", openAiApiKey: "o" })).toBe("anthropic");
 		expect(selectReviewProvider({ openAiApiKey: "o" })).toBe("openai");
+		expect(selectReviewProvider({ workersAi: { run: async () => ({}) } })).toBe("workers-ai");
 		expect(selectReviewProvider({})).toBe("ollama");
 	});
 });
@@ -217,6 +225,16 @@ describe("ReviewEngineLive selection", () => {
 		expect(ReviewEngineLive({})).toBeDefined();
 		expect(ReviewEngineLive({ reviewProvider: "anthropic" })).toBeDefined();
 		expect(ReviewEngineLive({ reviewProvider: "openai", openAiApiKey: "k" })).toBeDefined();
+		expect(
+			ReviewEngineLive({ workersAi: { run: async () => ({ response: "{}" }) } }),
+		).toBeDefined();
+		expect(
+			ReviewEngineLive({
+				reviewProvider: "workers-ai",
+				workersAi: { run: async () => ({ response: "{}" }) },
+				workersAiModel: "m",
+			}),
+		).toBeDefined();
 	});
 });
 

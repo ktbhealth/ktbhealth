@@ -15,6 +15,7 @@ const LLM_ENV_KEYS = [
 	"REVIEW_MODEL",
 	"REVIEW_PROVIDER",
 	"OLLAMA_URL",
+	"WORKERS_AI_MODEL",
 ] as const;
 
 const appEnv = { ...env } as Record<string, unknown>;

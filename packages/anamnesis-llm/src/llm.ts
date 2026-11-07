@@ -21,6 +21,8 @@ export interface LlmConfig {
 	readonly reviewProvider?: string;
 	readonly ollamaUrl?: string;
 	readonly ollamaModel?: string;
+	readonly workersAi?: import("./workers-ai.ts").WorkersAiBinding;
+	readonly workersAiModel?: string;
 }
 
 const http = FetchHttpClient.layer;

@@ -43,6 +43,11 @@ export interface AppEnv {
 	readonly REVIEW_MODEL?: string;
 	readonly REVIEW_PROVIDER?: string;
 	readonly OLLAMA_URL?: string;
+	readonly WORKERS_AI_MODEL?: string;
+	/** Workers AI binding — optional; any object with `run(model, inputs)`. */
+	readonly AI?: {
+		run(model: string, inputs: unknown): Promise<unknown>;
+	};
 }
 
 /**
@@ -127,6 +132,8 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		reviewModel: env.REVIEW_MODEL,
 		reviewProvider: env.REVIEW_PROVIDER,
 		ollamaUrl: env.OLLAMA_URL,
+		workersAi: env.AI,
+		workersAiModel: env.WORKERS_AI_MODEL,
 	};
 	const AnamnesisEngineLive = layerFor<AnamnesisEngine>(AnamnesisEngine.key, llmConfig);
 	const ReviewEngineLive = layerFor<ReviewEngine>(ReviewEngine.key, llmConfig);

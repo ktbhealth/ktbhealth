@@ -11,6 +11,11 @@ import { anthropicLanguageModelLive, openAiLanguageModelLive, type LlmConfig } f
 
 export type { LlmConfig } from "./llm.ts";
 import { REVIEW_PROMPT, reviewUserMessage, reviewViaOllama } from "./review.ts";
+import {
+	DEFAULT_WORKERS_AI_MODEL,
+	makeWorkersAiAnamnesisEngine,
+	makeWorkersAiReviewEngine,
+} from "./workers-ai.ts";
 import { FetchHttpClient } from "effect/http";
 
 // Port tags live in the domain package (@ktb/anamnesis/services); this
@@ -76,18 +81,20 @@ export const heuristicAnamnesisEngineLive: Layer.Layer<AnamnesisEngine> = Layer.
 	}),
 );
 
-export type ReviewProvider = "anthropic" | "openai" | "ollama";
+export type ReviewProvider = "anthropic" | "openai" | "workers-ai" | "ollama";
 
-/** REVIEW_PROVIDER forces one; otherwise cloud key if present, else local. */
+/** REVIEW_PROVIDER forces one; otherwise cloud key, Workers AI, then local. */
 export const selectReviewProvider = (cfg: LlmConfig): ReviewProvider => {
 	if (
 		cfg.reviewProvider === "anthropic" ||
 		cfg.reviewProvider === "openai" ||
+		cfg.reviewProvider === "workers-ai" ||
 		cfg.reviewProvider === "ollama"
 	)
 		return cfg.reviewProvider;
 	if (cfg.anthropicApiKey) return "anthropic";
 	if (cfg.openAiApiKey) return "openai";
+	if (cfg.workersAi) return "workers-ai";
 	return "ollama";
 };
 
@@ -209,6 +216,12 @@ export const AnamnesisEngineLive = (cfg: LlmConfig): Layer.Layer<AnamnesisEngine
 			),
 		);
 	}
+	if (cfg.workersAi) {
+		return makeWorkersAiAnamnesisEngine(
+			cfg.workersAi,
+			cfg.workersAiModel ?? DEFAULT_WORKERS_AI_MODEL,
+		);
+	}
 	return heuristicAnamnesisEngineLive;
 };
 
@@ -235,6 +248,9 @@ export const ReviewEngineLive = (cfg: LlmConfig): Layer.Layer<ReviewEngine> => {
 				}),
 			),
 		);
+	}
+	if (provider === "workers-ai" && cfg.workersAi) {
+		return makeWorkersAiReviewEngine(cfg.workersAi, cfg.workersAiModel ?? DEFAULT_WORKERS_AI_MODEL);
 	}
 	return makeOllamaReviewEngine(
 		cfg.ollamaUrl ?? "http://localhost:11434",

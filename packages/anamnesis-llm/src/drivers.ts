@@ -10,6 +10,11 @@ import {
 	makeReviewEngine,
 	selectReviewProvider,
 } from "./services.ts";
+import {
+	DEFAULT_WORKERS_AI_MODEL,
+	makeWorkersAiAnamnesisEngine,
+	makeWorkersAiReviewEngine,
+} from "./workers-ai.ts";
 
 /**
  * Driver descriptors for the AnamnesisEngine and ReviewEngine ports.
@@ -52,10 +57,21 @@ export const openAiAnamnesisDriver: Driver<LlmConfig> = {
 		),
 };
 
+export const workersAiAnamnesisDriver: Driver<LlmConfig> = {
+	id: "anamnesis-workers-ai",
+	port: AnamnesisEngine.key,
+	when: (cfg) => !cfg.anthropicApiKey && !cfg.openAiApiKey && Boolean(cfg.workersAi),
+	provides: (cfg) =>
+		makeWorkersAiAnamnesisEngine(
+			cfg.workersAi as NonNullable<LlmConfig["workersAi"]>,
+			cfg.workersAiModel ?? DEFAULT_WORKERS_AI_MODEL,
+		),
+};
+
 export const heuristicAnamnesisDriver: Driver<LlmConfig> = {
 	id: "anamnesis-heuristic",
 	port: AnamnesisEngine.key,
-	when: (cfg) => !cfg.anthropicApiKey && !cfg.openAiApiKey,
+	when: (cfg) => !cfg.anthropicApiKey && !cfg.openAiApiKey && !cfg.workersAi,
 	provides: () => heuristicAnamnesisEngineLive,
 };
 
@@ -100,10 +116,24 @@ export const openAiReviewDriver: Driver<LlmConfig> = {
 	},
 };
 
+const isWorkersAiReview = (cfg: LlmConfig): boolean =>
+	selectReviewProvider(cfg) === "workers-ai" && Boolean(cfg.workersAi);
+
+export const workersAiReviewDriver: Driver<LlmConfig> = {
+	id: "review-workers-ai",
+	port: ReviewEngine.key,
+	when: isWorkersAiReview,
+	provides: (cfg) =>
+		makeWorkersAiReviewEngine(
+			cfg.workersAi as NonNullable<LlmConfig["workersAi"]>,
+			cfg.workersAiModel ?? DEFAULT_WORKERS_AI_MODEL,
+		),
+};
+
 export const ollamaReviewDriver: Driver<LlmConfig> = {
 	id: "review-ollama",
 	port: ReviewEngine.key,
-	when: (cfg) => !isAnthropicReview(cfg) && !isOpenAiReview(cfg),
+	when: (cfg) => !isAnthropicReview(cfg) && !isOpenAiReview(cfg) && !isWorkersAiReview(cfg),
 	provides: (cfg) =>
 		makeOllamaReviewEngine(
 			cfg.ollamaUrl ?? "http://localhost:11434",
@@ -115,8 +145,10 @@ export const ollamaReviewDriver: Driver<LlmConfig> = {
 export const llmDrivers: Driver<LlmConfig>[] = [
 	anthropicAnamnesisDriver,
 	openAiAnamnesisDriver,
+	workersAiAnamnesisDriver,
 	heuristicAnamnesisDriver,
 	anthropicReviewDriver,
 	openAiReviewDriver,
+	workersAiReviewDriver,
 	ollamaReviewDriver,
 ];
