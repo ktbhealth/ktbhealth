@@ -1,6 +1,12 @@
-# anamnese
+# KTB
 
-> Capture, transcribe, and manage teleconsultations — scalably and cheaply.
+> Clinical Intelligence — turning medical conversations into lasting
+> clinical knowledge.
+
+KTB is a SaaS platform for doctors that captures, transcribes,
+organizes, and manages medical consultation conversations — reducing
+the administrative burden of clinical documentation while preserving
+the information generated during patient care.
 
 ## Problem
 
@@ -20,13 +26,22 @@ doctor reviews and approves → export to the medical record.
 The AI drafts; the physician decides. It supports clinical
 documentation — it does not diagnose or prescribe.
 
+## The name
+
+KTB comes from the Arabic root ك ت ب (K-T-B), associated with writing,
+books, and documentation: writing down what matters, preserving
+knowledge, and turning conversations into structured records that stay
+accessible over time.
+
+## Vision
+
+Beyond transcription: an intelligent layer for clinical information,
+connecting consultations, documentation, and patient history into a
+more useful and continuous clinical workflow.
+
 ## Running the PoC
 
-The proof-of-concept (app, transcription pipeline, audio capture
-spikes) lives on the [`poc`](https://github.com/luisfuturist/tool-telemedicine-transcription/tree/poc) branch:
-
 ```bash
-git checkout poc
 pnpm install
 
 # .env.local — at minimum an LLM provider + database:
@@ -39,4 +54,4 @@ pnpm dev   # http://localhost:3000
 ## Status
 
 Exploration in progress — active roadmap, ADRs, and backlog live on the
-[`project`](https://github.com/luisfuturist/tool-telemedicine-transcription/tree/project) branch.
+[`project`](https://github.com/ktbhealth/ktbhealth/tree/project) branch.
