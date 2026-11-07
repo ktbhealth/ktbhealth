@@ -12,7 +12,6 @@ export default Alchemy.Stack(
 	Effect.gen(function* () {
 		const site = yield* deployStaticSite({
 			name: "draft-landing",
-			command: "bun run build",
 			outdir: "dist/client",
 		});
 

@@ -7,3 +7,4 @@ import { Binding, makeDb } from "@ktb/db";
 export const BindingLive = Layer.succeed(Binding, env.DB);
 
 export const db = makeDb(env.DB);
+export const ai = env.AI;

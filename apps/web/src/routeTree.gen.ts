@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TesteCapturaRouteImport } from './routes/teste-captura'
 import { Route as ApiBotsRouteImport } from './routes/api.bots'
+import { Route as ApiTranscribeRouteImport } from './routes/api.transcribe'
 import { Route as ConsultaNovaRouteImport } from './routes/consulta/nova'
 import { Route as ConsultasIndexRouteImport } from './routes/consultas/index'
 import { Route as ConsultasIdRouteImport } from './routes/consultas/$id'
@@ -31,6 +32,11 @@ const TesteCapturaRoute = TesteCapturaRouteImport.update({
 const ApiBotsRoute = ApiBotsRouteImport.update({
   id: '/api/bots',
   path: '/api/bots',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
+  id: '/api/transcribe',
+  path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConsultaNovaRoute = ConsultaNovaRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/teste-captura': typeof TesteCapturaRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/consulta/nova': typeof ConsultaNovaRoute
   '/consultas/$id': typeof ConsultasIdRoute
   '/consultas/': typeof ConsultasIndexRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/teste-captura': typeof TesteCapturaRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/consulta/nova': typeof ConsultaNovaRoute
   '/consultas/$id': typeof ConsultasIdRoute
   '/consultas': typeof ConsultasIndexRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/teste-captura': typeof TesteCapturaRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/consulta/nova': typeof ConsultaNovaRoute
   '/consultas/$id': typeof ConsultasIdRoute
   '/consultas/': typeof ConsultasIndexRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/teste-captura'
     | '/api/bots'
+    | '/api/transcribe'
     | '/consulta/nova'
     | '/consultas/$id'
     | '/consultas/'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/teste-captura'
     | '/api/bots'
+    | '/api/transcribe'
     | '/consulta/nova'
     | '/consultas/$id'
     | '/consultas'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/teste-captura'
     | '/api/bots'
+    | '/api/transcribe'
     | '/consulta/nova'
     | '/consultas/$id'
     | '/consultas/'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TesteCapturaRoute: typeof TesteCapturaRoute
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
+  ApiTranscribeRoute: typeof ApiTranscribeRoute
   ConsultaNovaRoute: typeof ConsultaNovaRoute
   ConsultasIdRoute: typeof ConsultasIdRoute
   ConsultasIndexRoute: typeof ConsultasIndexRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/api/bots'
       fullPath: '/api/bots'
       preLoaderRoute: typeof ApiBotsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transcribe': {
+      id: '/api/transcribe'
+      path: '/api/transcribe'
+      fullPath: '/api/transcribe'
+      preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consulta/nova': {
@@ -209,6 +229,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TesteCapturaRoute: TesteCapturaRoute,
   ApiBotsRoute: ApiBotsRouteWithChildren,
+  ApiTranscribeRoute: ApiTranscribeRoute,
   ConsultaNovaRoute: ConsultaNovaRoute,
   ConsultasIdRoute: ConsultasIdRoute,
   ConsultasIndexRoute: ConsultasIndexRoute,

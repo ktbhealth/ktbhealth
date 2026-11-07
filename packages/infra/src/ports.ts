@@ -4,7 +4,8 @@ import type * as Effect from "effect/Effect";
 
 export interface StaticSiteSpec {
 	readonly name: string;
-	readonly command: string;
+	/** Shell command that produces `outdir`. Provider supplies a default. */
+	readonly command?: string;
 	readonly outdir: string;
 }
 
@@ -20,29 +21,28 @@ export interface D1Spec {
 	readonly migrationsDir?: string;
 }
 
-/** What a provider hands back. `TUrl`/`TDb` are provider-defined: Alchemy
- * resources expose outputs as `Output<T>` resolved at deploy time. */
-export interface DeployedSite<TUrl = unknown> {
-	readonly url: TUrl;
+/**
+ * What a provider hands back. The url/db are opaque handles: Alchemy
+ * resolves its `Output<T>` at deploy time, another provider may hand a
+ * plain value. The port deliberately exposes neither.
+ */
+export interface DeployedSite {
+	readonly url: unknown;
 }
 
-export interface DeployedWorker<TUrl = unknown> {
-	readonly url: TUrl;
+export interface DeployedWorker {
+	readonly url: unknown;
 }
 
-export interface DeployedD1<TDb = unknown> {
-	readonly db: TDb;
+export interface DeployedD1 {
+	readonly db: unknown;
 }
 
 /** Provider ports. `R` is the provider services the stack wires via `providers:`. */
-export type DeployStaticSite<TUrl = unknown, R = never> = (
+export type DeployStaticSite<R = never> = (
 	spec: StaticSiteSpec,
-) => Effect.Effect<DeployedSite<TUrl>, never, R>;
+) => Effect.Effect<DeployedSite, never, R>;
 
-export type DeployWorker<TUrl = unknown, R = never> = (
-	spec: WorkerSpec,
-) => Effect.Effect<DeployedWorker<TUrl>, never, R>;
+export type DeployWorker<R = never> = (spec: WorkerSpec) => Effect.Effect<DeployedWorker, never, R>;
 
-export type DeployD1<TDb = unknown, R = never> = (
-	spec: D1Spec,
-) => Effect.Effect<DeployedD1<TDb>, never, R>;
+export type DeployD1<R = never> = (spec: D1Spec) => Effect.Effect<DeployedD1, never, R>;

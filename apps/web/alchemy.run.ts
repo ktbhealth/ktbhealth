@@ -17,7 +17,6 @@ export default Alchemy.Stack(
 
 		const site = yield* deployWorker({
 			name: "web",
-			command: "bun run build",
 			outdir: "dist/client",
 			main: "@tanstack/react-start/server-entry",
 			bindings: { DB: db },

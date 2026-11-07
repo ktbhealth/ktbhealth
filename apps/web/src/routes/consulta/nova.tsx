@@ -100,7 +100,7 @@ function NovaConsulta() {
 		return st.state === "ready" ? `modelo pronto — ${st.device}` : null;
 	});
 	const [toast, setToast] = useState<ToastData | null>(null);
-	const [source, setSource] = useState<"gravar" | "bot">("gravar");
+	const [source, setSource] = useState<"gravar" | "bot" | "upload">("gravar");
 	const [resultTab, setResultTab] = useState<"anamnese" | "review">("anamnese");
 
 	// Preload Whisper once per page: first visit downloads, later ones
@@ -136,6 +136,23 @@ function NovaConsulta() {
 		}, 1500);
 		return () => clearInterval(interval);
 	}, [liveId, liveStatus]);
+
+	async function uploadAudio(file: File) {
+		setBusy(true);
+		setError(null);
+		try {
+			const form = new FormData();
+			form.append("audio", file);
+			const res = await fetch("/api/transcribe", { method: "POST", body: form });
+			if (!res.ok) throw new Error(`transcrição falhou (${res.status})`);
+			const { text } = (await res.json()) as { text: string };
+			setTranscript((t) => (t ? `${t}\n${text}` : text));
+		} catch (e) {
+			setError(e instanceof Error ? e.message : "transcrição falhou");
+		} finally {
+			setBusy(false);
+		}
+	}
 
 	async function sendBot() {
 		if (!meetUrl.trim()) return;
@@ -450,6 +467,7 @@ function NovaConsulta() {
 							{(
 								[
 									["gravar", "Gravar"],
+									["upload", "Upload"],
 									["bot", "Teleconsulta (bot)"],
 								] as const
 							).map(([key, label]) => (
@@ -472,7 +490,25 @@ function NovaConsulta() {
 					</div>
 
 					<div className="space-y-4 p-5">
-						{source === "gravar" ? (
+						{source === "upload" ? (
+							<label className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 transition hover:border-neutral-400">
+								<input
+									type="file"
+									accept="audio/*"
+									className="hidden"
+									disabled={busy}
+									onChange={(e) => {
+										const f = e.target.files?.[0];
+										if (f) void uploadAudio(f);
+										e.target.value = "";
+									}}
+								/>
+								<span className="font-medium text-neutral-700">
+									{busy ? "Transcrevendo…" : "Enviar gravação"}
+								</span>
+								<span className="text-[11px]">Áudio transcrito no servidor (Whisper)</span>
+							</label>
+						) : source === "gravar" ? (
 							<>
 								<div className="grid gap-3 sm:grid-cols-2">
 									<button
