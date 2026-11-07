@@ -9,9 +9,9 @@
 		"dev": "vp dev --port 3001",
 		"build": "vp build",
 		"preview": "vp preview",
-		"plan": "arca run -- alchemy plan",
-		"deploy": "arca run -- alchemy deploy",
-		"destroy": "arca run -- alchemy destroy",
+		"plan": "arca run --config ../../arca.toml -- alchemy plan",
+		"deploy": "arca run --config ../../arca.toml -- alchemy deploy",
+		"destroy": "arca run --config ../../arca.toml -- alchemy destroy",
 		"infra:dev": "alchemy dev",
 		"infra:deploy": "alchemy deploy",
 		"infra:destroy": "alchemy destroy"

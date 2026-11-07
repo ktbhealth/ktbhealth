@@ -6,7 +6,7 @@
 		"#/*": "./src/*"
 	},
 	"scripts": {
-		"dev": "arca run -- vp dev --port 3000",
+		"dev": "arca run --config ../../arca.toml -- vp dev --port 3000",
 		"build": "vp build && node scripts/strip-oversized-assets.mjs",
 		"preview": "vp preview",
 		"test": "vp test",
@@ -14,7 +14,7 @@
 		"cf-typegen": "wrangler types",
 		"db:migrate:local": "wrangler d1 migrations apply ktb --local",
 		"infra:dev": "alchemy dev",
-		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && arca run -- alchemy deploy",
+		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && arca run --config ../../arca.toml -- alchemy deploy",
 		"infra:destroy": "alchemy destroy",
 		"test:e2e": "playwright test",
 		"test:coverage": "vp test"
