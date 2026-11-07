@@ -11,6 +11,7 @@ import {
 } from "@ktbhealth/ui/components/card";
 import { Input } from "@ktbhealth/ui/components/input";
 import { Label } from "@ktbhealth/ui/components/label";
+import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { Turnstile } from "#/components/turnstile.tsx";
 
 export const Route = createFileRoute("/entrar")({
@@ -61,6 +62,19 @@ function SignInPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
+					<Tabs
+						value={mode}
+						onValueChange={(value) => {
+							setMode(value as "in" | "up");
+							setError(null);
+						}}
+						className="mb-4"
+					>
+						<TabsList className="w-full">
+							<TabsTrigger value="in">Entrar</TabsTrigger>
+							<TabsTrigger value="up">Criar conta</TabsTrigger>
+						</TabsList>
+					</Tabs>
 					<form onSubmit={submit} className="flex flex-col gap-4">
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="email">Email</Label>
@@ -90,16 +104,6 @@ function SignInPage() {
 						<Button type="submit" disabled={pending} className="w-full">
 							{pending ? "Aguarde…" : mode === "in" ? "Entrar" : "Criar conta"}
 						</Button>
-						<button
-							type="button"
-							onClick={() => {
-								setMode(mode === "in" ? "up" : "in");
-								setError(null);
-							}}
-							className="text-center text-xs text-neutral-500 hover:text-neutral-800"
-						>
-							{mode === "in" ? "Não tem conta? Criar conta" : "Já tem conta? Entrar"}
-						</button>
 					</form>
 				</CardContent>
 			</Card>

@@ -53,7 +53,7 @@ describe("entrar page", () => {
 
 	it("toggles to sign-up mode and submits", async () => {
 		render(createElement(Page));
-		fireEvent.click(screen.getByText("Não tem conta? Criar conta"));
+		fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
 		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
 		fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
 		await act(async () => {

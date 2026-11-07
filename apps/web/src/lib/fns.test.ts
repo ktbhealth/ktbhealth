@@ -7,10 +7,15 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 vi.mock("@tanstack/react-start", () => ({
 	createServerFn: () => {
+		let validate: ((x: unknown) => unknown) | undefined;
 		const chain = {
-			validator: () => chain,
+			validator: (v: (x: unknown) => unknown) => {
+				validate = v;
+				return chain;
+			},
 			handler: (h: (arg?: { data?: unknown }) => unknown) =>
-				async (arg?: { data?: unknown }) => h(arg ?? {}),
+				async (arg?: { data?: unknown }) =>
+					h(arg === undefined ? {} : { ...arg, data: validate ? validate(arg.data) : arg.data }),
 		};
 		return chain;
 	},

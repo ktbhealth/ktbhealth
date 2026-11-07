@@ -16,6 +16,16 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
+let failCreateConsultation = false;
+vi.mock("@ktb/consultations", async (importOriginal) => {
+	const m = await importOriginal<typeof import("@ktb/consultations")>();
+	return {
+		...m,
+		createConsultation: (...args: Parameters<typeof m.createConsultation>) =>
+			failCreateConsultation ? Promise.resolve(0) : m.createConsultation(...args),
+	};
+});
+
 import { auth, db } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
@@ -59,8 +69,14 @@ async function signIn() {
 describe("api routes", () => {
 	beforeAll(signIn);
 
-	it("auth catch-all proxies sign-in", async () => {
+	it("auth catch-all proxies GET and POST", async () => {
 		const h = handlersOf(AuthRoute);
+		const get = await h.GET!({
+			request: new Request("http://localhost:3000/api/auth/get-session", {
+				headers: { cookie },
+			}),
+		} as never);
+		expect(get.status).toBe(200);
 		const res = await h.POST!({
 			request: post("http://localhost:3000/api/auth/sign-in/email", {
 				email: "api@x.com",
@@ -94,6 +110,13 @@ describe("api routes", () => {
 			request: post("http://x/api/bots", {}),
 		} as never);
 		expect(bad.status).toBe(400);
+
+		failCreateConsultation = true;
+		const failed = await h.POST!({
+			request: post("http://x/api/bots", { meetUrl: "https://meet.google.com/fail-1234" }),
+		} as never);
+		expect(failed.status).toBe(500);
+		failCreateConsultation = false;
 
 		const res = await h.POST!({
 			request: post("http://x/api/bots", { meetUrl: "https://meet.google.com/abc-defg-hij" }),
@@ -165,6 +188,15 @@ describe("api routes", () => {
 		} as never);
 		expect(noText.status).toBe(200);
 
+		const noSpeaker = await h.POST!({
+			request: post("http://x/api/bots/webhook", {
+				consultationId: id,
+				botId: "bot-123",
+				text: "linha sem locutor",
+			}),
+		} as never);
+		expect(noSpeaker.status).toBe(200);
+
 		const end = await h.POST!({
 			request: post("http://x/api/bots/webhook", {
 				consultationId: id,
@@ -176,6 +208,7 @@ describe("api routes", () => {
 
 		const rows = await db.select().from(consultations).where(eq(consultations.id, id));
 		expect(rows[0]?.transcript).toContain("Médico: Bom dia");
+		expect(rows[0]?.transcript).toContain("linha sem locutor");
 		expect(rows[0]?.status).toBe("done");
 	});
 
@@ -183,6 +216,12 @@ describe("api routes", () => {
 		const h = handlersOf(PdfRoute);
 		const missing = await h.GET!({ params: { id: "99999" } } as never);
 		expect(missing.status).toBe(404);
+		const badId = await h.GET!({ params: { id: "abc" } } as never);
+		expect(badId.status).toBe(404);
+		headers.current = new Headers();
+		const anon = await h.GET!({ params: { id: "1" } } as never);
+		expect(anon.status).toBe(404);
+		headers.current = new Headers({ cookie });
 
 		// consultation without anamnesis → 409
 		const { createConsultation } = await import("@ktb/consultations");

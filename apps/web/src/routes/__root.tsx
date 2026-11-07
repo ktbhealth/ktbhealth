@@ -1,3 +1,13 @@
+import { authClient } from "@ktb/auth-better/client";
+import { Avatar, AvatarFallback } from "@ktbhealth/ui/components/avatar";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@ktbhealth/ui/components/dropdown-menu";
 import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
@@ -74,12 +84,36 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										Entrar
 									</Link>
 								) : (
-									<span className="flex items-center gap-2 px-2 text-xs text-neutral-600">
-										<span className="flex size-6 items-center justify-center rounded-full bg-neutral-200 text-[11px] font-semibold uppercase">
-											{user?.name?.[0] ?? "?"}
-										</span>
-										{user?.name}
-									</span>
+									<DropdownMenu>
+										<DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900">
+											<Avatar size="sm">
+												<AvatarFallback className="bg-neutral-200 text-[11px] font-semibold uppercase">
+													{user?.name?.[0] ?? "?"}
+												</AvatarFallback>
+											</Avatar>
+											<span className="max-w-32 truncate">{user?.name}</span>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end" className="w-52">
+											<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+												<span className="text-sm font-medium text-neutral-900">
+													{user?.name}
+												</span>
+												<span className="truncate text-xs text-neutral-500">
+													{user?.email}
+												</span>
+											</DropdownMenuLabel>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												variant="destructive"
+												onClick={async () => {
+													await authClient.signOut();
+													window.location.assign("/");
+												}}
+											>
+												Sair
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								)}
 								<Link
 									to="/consulta/nova"

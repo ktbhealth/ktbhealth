@@ -11,10 +11,15 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 vi.mock("@tanstack/react-start", () => ({
 	createServerFn: () => {
+		let validate: ((x: unknown) => unknown) | undefined;
 		const chain = {
-			validator: () => chain,
+			validator: (v: (x: unknown) => unknown) => {
+				validate = v;
+				return chain;
+			},
 			handler: (h: (arg?: { data?: unknown }) => unknown) =>
-				async (arg?: { data?: unknown }) => h(arg ?? {}),
+				async (arg?: { data?: unknown }) =>
+					h(arg === undefined ? {} : { ...arg, data: validate ? validate(arg.data) : arg.data }),
 		};
 		return chain;
 	},
@@ -36,6 +41,46 @@ import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router.tsx";
 import { plugins } from "./plugins.ts";
 import { routes } from "./routes.ts";
+import { auth } from "#/lib/platform.ts";
+import { saveConsultationFn } from "#/lib/fns.ts";
+import { SAMPLE_TRANSCRIPT, SECTION_LABELS } from "@ktb/anamnesis";
+import type { Anamnesis, AnamnesisSection } from "@ktb/anamnesis";
+
+const sec = (content: string): AnamnesisSection => ({
+	content,
+	confidence: "alta",
+	evidence: ["e"],
+});
+const fullAnamnesis: Anamnesis = Object.fromEntries(
+	(Object.keys(SECTION_LABELS) as (keyof Anamnesis)[]).map((k) => [k, sec("conteúdo " + k)]),
+) as unknown as Anamnesis;
+
+let consultationId = 0;
+
+async function signInRouterUser() {
+	await auth.api.signUpEmail({
+		body: { email: "router@x.com", password: "senha-forte-123", name: "Dra Router" },
+	});
+	const res = await auth.handler(
+		new Request("http://localhost:3000/api/auth/sign-in/email", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ email: "router@x.com", password: "senha-forte-123" }),
+		}),
+	);
+	headers.current = new Headers({
+		cookie: (res.headers.get("set-cookie") ?? "").split(";")[0],
+	});
+	const saved = await saveConsultationFn({
+		data: {
+			transcript: SAMPLE_TRANSCRIPT,
+			anamnesis: fullAnamnesis,
+			engine: "heuristic",
+			review: { lacunas: [], hipoteses: [], sinais_de_alerta: [], inconsistencias: [] },
+		},
+	});
+	consultationId = saved.id;
+}
 
 describe("router integration", () => {
 	beforeAll(async () => {
@@ -67,6 +112,20 @@ describe("router integration", () => {
 			await router.navigate({ to: "/consultas" });
 		});
 		await waitFor(() => expect(router.state.location.pathname).toBe("/consultas"));
+	});
+
+	it("authenticated user sees name in nav and consultation detail", async () => {
+		await signInRouterUser();
+		const router = getRouter();
+		await router.load();
+		render(createElement(RouterProvider, { router }));
+		await waitFor(() => expect(document.body.textContent).toContain("Dra Router"));
+		await act(async () => {
+			await router.navigate({ to: "/consultas/$id", params: { id: String(consultationId) } });
+		});
+		await waitFor(() =>
+			expect(document.body.textContent).toContain("conteúdo queixa_principal"),
+		);
 	});
 
 	it("renders consulta detail 404 for unknown id", async () => {
