@@ -6,6 +6,7 @@ allowBuilds:
   lightningcss: true
   better-sqlite3: true
   workerd: true
+  msw: true
   # Whisper roda no browser (wasm/webgpu); o binário nativo do onnxruntime-node não é usado.
   onnxruntime-node: false
   protobufjs: false

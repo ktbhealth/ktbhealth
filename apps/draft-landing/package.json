@@ -1,0 +1,32 @@
+{
+	"name": "@ktb/draft-landing",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#/*": "./src/*"
+	},
+	"scripts": {
+		"dev": "vp dev --port 3001",
+		"build": "vp build",
+		"preview": "vp preview",
+		"deploy": "vp build && gh-pages -d dist/client -t"
+	},
+	"dependencies": {
+		"@inlang/paraglide-js": "2.29.3",
+		"@ktbhealth/ui": "workspace:*",
+		"@tailwindcss/vite": "^4.1.18",
+		"@tanstack/react-router": "1.170.46",
+		"@tanstack/react-start": "1.169.4",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"tailwindcss": "^4.1.18"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"@vitejs/plugin-react": "^6.0.1",
+		"gh-pages": "^6.3.0",
+		"vite": "npm:@voidzero-dev/vite-plus-core@1.5.0"
+	}
+}

@@ -1,0 +1,21 @@
+{
+	"include": ["**/*.ts", "**/*.tsx"],
+	"compilerOptions": {
+		"target": "ES2023",
+		"jsx": "react-jsx",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"verbatimModuleSyntax": true,
+		"noEmit": true,
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"paths": {
+			"@ktbhealth/ui/*": ["./src/*"]
+		},
+
+		"skipLibCheck": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
+	}
+}
