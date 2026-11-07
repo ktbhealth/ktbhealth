@@ -413,20 +413,26 @@ function Home() {
 
 			{/* ---------- CTA final ---------- */}
 			<section className="mx-auto max-w-6xl px-6 pb-8">
-				<div className="rounded-3xl bg-foreground px-8 py-14 text-center text-background">
-					<h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-						Termine o dia sem prontuário pendente.
-					</h2>
-					<p className="mx-auto mt-3 max-w-md text-sm text-background/70">
-						Teste com a transcrição de exemplo, sem precisar de microfone.
-					</p>
-					<Link
-						to="/consulta/nova"
-						className={buttonVariants({ variant: "secondary", size: "lg" }) + " mt-8"}
-					>
-						Começar agora
-						<ArrowRightIcon />
-					</Link>
+				<div className="relative overflow-hidden rounded-3xl bg-primary px-8 py-14 text-center text-primary-foreground">
+					<div
+						aria-hidden
+						className="absolute -top-24 left-1/2 h-48 w-[36rem] -translate-x-1/2 rounded-full bg-white/10 blur-3xl"
+					/>
+					<div className="relative">
+						<h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+							Termine o dia sem prontuário pendente.
+						</h2>
+						<p className="mx-auto mt-3 max-w-md text-sm text-primary-foreground/75">
+							Teste com a transcrição de exemplo, sem precisar de microfone.
+						</p>
+						<Link
+							to="/consulta/nova"
+							className={buttonVariants({ variant: "secondary", size: "lg" }) + " mt-8"}
+						>
+							Começar agora
+							<ArrowRightIcon />
+						</Link>
+					</div>
 				</div>
 			</section>
 		</div>
