@@ -1,9 +1,5 @@
 <!-- myco:agent-awareness -->
 
-## Style
-
-- No em-dashes (—) in docs or prose. Use colons, semicolons, or commas.
-
 ## Agent awareness
 
 - Session start / any work discussion: run `myco status --prompt`
