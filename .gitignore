@@ -17,3 +17,6 @@ project/
 
 # local sqlite database
 data/
+
+# alchemy local state
+.alchemy/
