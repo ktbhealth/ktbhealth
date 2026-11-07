@@ -1,0 +1,13 @@
+{
+	"name": "@ktb/kernel",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@tanstack/virtual-file-routes": "1.162.0",
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.0.7"
+	}
+}

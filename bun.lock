@@ -101,6 +101,14 @@
         "vitest": "5.1.0",
       },
     },
+    "packages/kernel": {
+      "name": "@ktb/kernel",
+      "dependencies": {
+        "@tanstack/virtual-file-routes": "1.162.0",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.0.7",
+      },
+    },
     "packages/ui": {
       "name": "@ktbhealth/ui",
       "dependencies": {
@@ -477,6 +485,8 @@
     "@ktb/draft-landing": ["@ktb/draft-landing@workspace:apps/draft-landing"],
 
     "@ktb/infra": ["@ktb/infra@workspace:packages/infra"],
+
+    "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
 
     "@ktb/web": ["@ktb/web@workspace:apps/web"],
 
