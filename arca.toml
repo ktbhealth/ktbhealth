@@ -25,3 +25,5 @@ prod = { vault = "ktb" }
 # CLOUDFLARE_API_TOKEN = "arca://ktb/cf-api-token"
 BETTER_AUTH_SECRET = "arca://ktb/better-auth-secret"
 BETTER_AUTH_URL = "arca://ktb/better-auth-url"
+TURNSTILE_SECRET_KEY = "arca://ktb/turnstile-secret-key"
+VITE_TURNSTILE_SITE_KEY = "arca://ktb/turnstile-site-key"

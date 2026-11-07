@@ -27,6 +27,9 @@ export default Alchemy.Stack(
 				...(process.env.BETTER_AUTH_SECRET
 					? { BETTER_AUTH_SECRET: Redacted.make(process.env.BETTER_AUTH_SECRET) }
 					: {}),
+				...(process.env.TURNSTILE_SECRET_KEY
+					? { TURNSTILE_SECRET_KEY: Redacted.make(process.env.TURNSTILE_SECRET_KEY) }
+					: {}),
 			},
 			compatibilityFlags: ["nodejs_compat"],
 		});

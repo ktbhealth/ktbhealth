@@ -7,5 +7,6 @@ export const routes = rootRoute("__root.tsx", [
 	route("consultas", [index("consultas/index.tsx"), route("$id", "consultas/$id.tsx")]),
 	route("consulta", [route("nova", "consulta/nova.tsx")]),
 	route("teste-captura", "teste-captura.tsx"),
+	route("entrar", "entrar.tsx"),
 	physical("/api", "api"),
 ]);
