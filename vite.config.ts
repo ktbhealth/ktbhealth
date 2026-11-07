@@ -5,11 +5,15 @@ export default defineConfig({
 
 	fmt: {
 		useTabs: true,
-		ignorePatterns: ["**/routeTree.gen.ts", "**/worker-configuration.d.ts"],
+		ignorePatterns: [
+			"**/routeTree.gen.ts",
+			"**/worker-configuration.d.ts",
+			"**/.alchemy/**",
+			"**/drizzle/meta/**",
+		],
 	},
 
 	lint: {
-		ignorePatterns: ["apps/draft-landing/alchemy.run.ts", "apps/draft-landing/infra/**"],
 		plugins: ["typescript", "react"],
 		options: {
 			typeAware: true,

@@ -11,10 +11,14 @@
 		"preview": "vp preview",
 		"plan": "alchemy plan",
 		"deploy": "alchemy deploy",
-		"destroy": "alchemy destroy"
+		"destroy": "alchemy destroy",
+		"infra:dev": "alchemy dev",
+		"infra:deploy": "alchemy deploy",
+		"infra:destroy": "alchemy destroy"
 	},
 	"dependencies": {
 		"@inlang/paraglide-js": "2.29.3",
+		"@ktb/infra": "workspace:*",
 		"@ktbhealth/ui": "workspace:*",
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/react-router": "1.170.46",

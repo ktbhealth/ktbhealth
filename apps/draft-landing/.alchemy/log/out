@@ -1,0 +1,5 @@
+timestamp=2026-11-07T04:07:17.770Z level=INFO fiber=#1 message="Loading stack state"
+timestamp=2026-11-07T04:07:17.771Z level=DEBUG fiber=#312 message="state store: initializing"
+timestamp=2026-11-07T04:07:17.773Z level=DEBUG fiber=#313 message="auth lock: acquiring '/home/luis/.alchemy/lock/profiles-migrate.lock' for profiles-migrate"
+timestamp=2026-11-07T04:07:17.776Z level=DEBUG fiber=#313 message="auth lock: acquired '/home/luis/.alchemy/lock/profiles-migrate.lock' for profiles-migrate"
+timestamp=2026-11-07T04:07:17.777Z level=DEBUG fiber=#313 message="auth lock: releasing '/home/luis/.alchemy/lock/profiles-migrate.lock' for profiles-migrate"

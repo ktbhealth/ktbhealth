@@ -1,10 +1,10 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
-import { deployStaticSite } from "./infra/index.ts";
+import { deployStaticSite } from "@ktb/infra";
 
 export default Alchemy.Stack(
-	"ktb",
+	"ktb-landing",
 	{
 		providers: Cloudflare.providers(),
 		state: Cloudflare.state(),
@@ -12,7 +12,7 @@ export default Alchemy.Stack(
 	Effect.gen(function* () {
 		const site = yield* deployStaticSite({
 			name: "draft-landing",
-			command: "pnpm build",
+			command: "bun run build",
 			outdir: "dist/client",
 		});
 

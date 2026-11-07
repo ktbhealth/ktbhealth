@@ -25,6 +25,9 @@
 		"typescript": "^6.0.2",
 		"vite-plus": "1.5.0"
 	},
+	"overrides": {
+		"@effect/platform-node-shared": "4.0.7"
+	},
 	"trustedDependencies": [
 		"esbuild",
 		"lightningcss",

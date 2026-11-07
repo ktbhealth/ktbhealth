@@ -1,0 +1,18 @@
+{
+	"name": "@ktb/infra",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./ports": "./src/ports.ts",
+		"./cloudflare": "./src/cloudflare.ts"
+	},
+	"dependencies": {
+		"@alchemy.run/cloudflare": "2.0.0-beta.84",
+		"alchemy": "2.0.0-beta.84",
+		"effect": "4.0.7"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2"
+	}
+}
