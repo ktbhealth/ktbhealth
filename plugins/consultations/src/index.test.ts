@@ -125,4 +125,23 @@ describe("plugin", () => {
 		expect(plugin.nav?.[0]?.to).toBe("/consultas");
 		expect(plugin.tables?.consultations).toBeDefined();
 	});
+
+	it("owns the consultas route subtree", () => {
+		const paths = (plugin.routes ?? []).map((n) => (n.type === "route" ? n.path : n.type));
+		expect(paths).toEqual(["consultas", "consulta"]);
+		const [consultas, consulta] = plugin.routes ?? [];
+		expect(consultas).toMatchObject({
+			type: "route",
+			path: "consultas",
+			children: [
+				{ type: "index", file: "consultas/index.tsx" },
+				{ type: "route", path: "$id", file: "consultas/$id.tsx" },
+			],
+		});
+		expect(consulta).toMatchObject({
+			type: "route",
+			path: "consulta",
+			children: [{ type: "route", path: "nova", file: "consulta/nova.tsx" }],
+		});
+	});
 });

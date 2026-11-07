@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Option } from "effect";
 import { and, desc, eq } from "drizzle-orm";
+import { index, route } from "@tanstack/virtual-file-routes";
 
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin } from "@ktb/kernel";
@@ -327,6 +328,14 @@ export const ConsultationsLive = Layer.effect(
 export const plugin = definePlugin({
 	id: "consultations",
 	deps: ["patients"],
+	// Route subtree composed into the host's virtualRouteConfig. File paths
+	// resolve relative to the host's routes directory (apps/web/src/routes);
+	// the route modules there wire these paths to this plugin's views and to
+	// host server functions, which plugins cannot import.
+	routes: [
+		route("consultas", [index("consultas/index.tsx"), route("$id", "consultas/$id.tsx")]),
+		route("consulta", [route("nova", "consulta/nova.tsx")]),
+	],
 	nav: [{ to: "/consultas", label: "Consultas" }],
 	tables: { consultations },
 	services: ConsultationsLive,

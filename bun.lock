@@ -333,6 +333,7 @@
         "@ktb/transcription": "workspace:*",
         "@ktbhealth/ui": "workspace:*",
         "@tanstack/react-router": "1.170.46",
+        "@tanstack/virtual-file-routes": "1.162.0",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "drizzle-orm": "^0.45.1",

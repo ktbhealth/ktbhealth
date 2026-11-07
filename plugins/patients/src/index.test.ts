@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
+import type { Plugin } from "@ktb/kernel";
 import { createPatient, listPatients, plugin } from "./index.ts";
 
 const DDL = `
@@ -46,5 +47,9 @@ describe("plugin", () => {
 	it("has id + tables", () => {
 		expect(plugin.id).toBe("patients");
 		expect(plugin.tables?.patients).toBeDefined();
+	});
+
+	it("has no standalone routes", () => {
+		expect((plugin as Plugin).routes).toBeUndefined();
 	});
 });

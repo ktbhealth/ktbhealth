@@ -109,6 +109,19 @@ describe("router integration", () => {
 	it("plugins and routes compose", () => {
 		expect(plugins.length).toBeGreaterThan(0);
 		expect(routes).toBeDefined();
+		// Plugin-declared subtrees are spliced into the host tree: the
+		// consultations plugin owns /consultas (+/$id) and /consulta/nova.
+		const consultas = routes.children?.find((n) => n.type === "route" && n.path === "consultas");
+		expect(consultas).toMatchObject({
+			children: [
+				{ type: "index", file: "consultas/index.tsx" },
+				{ type: "route", path: "$id", file: "consultas/$id.tsx" },
+			],
+		});
+		const consulta = routes.children?.find((n) => n.type === "route" && n.path === "consulta");
+		expect(consulta).toMatchObject({
+			children: [{ type: "route", path: "nova", file: "consulta/nova.tsx" }],
+		});
 	});
 
 	it("renders home, sign-in page and navigates", async () => {
