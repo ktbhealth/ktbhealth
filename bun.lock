@@ -5,8 +5,10 @@
     "": {
       "name": "ktb",
       "devDependencies": {
+        "@vitest/coverage-v8": "5.1.0",
         "typescript": "^6.0.2",
         "vite-plus": "1.5.0",
+        "vitest": "5.1.0",
       },
     },
     "apps/draft-landing": {
@@ -83,6 +85,7 @@
         "@types/node": "^22.10.2",
         "dotenv": "^17.3.1",
         "drizzle-kit": "^0.31.9",
+        "vitest": "5.1.0",
       },
     },
     "packages/infra": {
@@ -95,6 +98,7 @@
       },
       "devDependencies": {
         "@types/node": "^22.10.2",
+        "vitest": "5.1.0",
       },
     },
     "packages/ui": {
@@ -139,6 +143,7 @@
         "@types/node": "^22.10.2",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
+        "vitest": "5.1.0",
       },
       "peerDependencies": {
         "react": "^19.0.0",

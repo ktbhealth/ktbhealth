@@ -17,24 +17,6 @@ const config = defineConfig({
 	test: {
 		include: ["src/**/*.test.*"],
 		exclude: ["e2e/**"],
-		coverage: {
-			provider: "v8",
-			enabled: true,
-			reporter: ["text", "html"],
-			include: ["src/**"],
-			exclude: [
-				"src/**/*.test.*",
-				"src/**/*.d.ts",
-				"src/routeTree.gen.ts",
-				"**/worker-configuration.d.ts",
-			],
-			thresholds: {
-				lines: 100,
-				functions: 100,
-				branches: 100,
-				statements: 100,
-			},
-		},
 	},
 	plugins: [
 		// workerd everywhere except vitest (unit tests stay on plain Node).
