@@ -27,7 +27,7 @@ function section(content: string, evidence: string[]): AnamnesisSection {
 
 function toFill(label: string): AnamnesisSection {
 	return {
-		content: `A preencher pelo médico — ${label}.`,
+		content: `A preencher pelo médico: ${label}.`,
 		confidence: "baixa",
 		evidence: [],
 	};
@@ -57,7 +57,7 @@ export class HeuristicExtractor implements AnamnesisExtractor {
 		return {
 			queixa_principal: section(qp || "Não identificada.", qp ? [qp] : []),
 			hda: section(
-				hda.length ? hda.join(" ") : "Sem detalhes temporais extraídos — revisar transcrição.",
+				hda.length ? hda.join(" ") : "Sem detalhes temporais extraídos. Revisar transcrição.",
 				hda,
 			),
 			antecedentes: section(history.length ? history.join(" ") : "Nega / não informado.", history),

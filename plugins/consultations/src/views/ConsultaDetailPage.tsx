@@ -200,7 +200,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 												pending ? "text-amber-700 italic" : "text-foreground"
 											}`}
 										>
-											{sec.content || "—"}
+											{sec.content || "Não informado"}
 										</p>
 										{sec.evidence.length ? (
 											<details className="mt-2">
@@ -262,7 +262,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 						{tab === "review" && c.review ? (
 							<>
 								<p className="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
-									Apoio à decisão gerado por IA — sugestões, não fazem parte do prontuário.
+									Apoio à decisão gerado por IA. Sugestões não fazem parte do prontuário.
 								</p>
 								<ReviewPanel review={c.review} />
 							</>

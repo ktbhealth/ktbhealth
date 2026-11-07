@@ -632,7 +632,7 @@ describe("NovaConsultaPage", () => {
 		// switch back and check content
 		await user.click(screen.getByText("Anamnese"));
 		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
-		expect(ta.value).toContain("Enxaqueca — r");
+		expect(ta.value).toContain("Enxaqueca: r");
 	});
 
 	it("addHypothesis returns false when already present", async () => {
@@ -641,7 +641,7 @@ describe("NovaConsultaPage", () => {
 			extractAnamnese: vi.fn(async () => ({
 				anamnesis: {
 					...ANAMNESIS,
-					hipoteses: { content: "- Enxaqueca — r", confidence: "baixa" as const, evidence: [] },
+					hipoteses: { content: "- Enxaqueca: r", confidence: "baixa" as const, evidence: [] },
 				},
 				engine: "heuristic",
 			})),
@@ -729,7 +729,7 @@ describe("NovaConsultaPage", () => {
 		for (const fn of engineSubs) fn({ type: "progress", message: "baixando 50%" });
 		await screen.findByText(/baixando 50%/);
 		for (const fn of engineSubs) fn({ type: "ready", device: "webgpu" });
-		await screen.findByText(/modelo pronto — webgpu/);
+		await screen.findByText(/modelo pronto \(webgpu\)/);
 		for (const fn of engineSubs) fn({ type: "error", message: "falhou tudo" });
 		await screen.findByText(/modelo indisponível: falhou tudo/);
 	});
@@ -756,7 +756,7 @@ describe("NovaConsultaPage", () => {
 	it("shows ready model status on mount when engine already loaded", () => {
 		statusImpl = () => ({ state: "ready", device: "webgpu" });
 		renderPage();
-		expect(screen.getByText(/modelo pronto — webgpu/)).toBeTruthy();
+		expect(screen.getByText(/modelo pronto \(webgpu\)/)).toBeTruthy();
 	});
 
 	it("progress engine message without text clears status", async () => {
@@ -969,7 +969,7 @@ describe("NovaConsultaPage", () => {
 		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
 		await user.click(screen.getByText("Anamnese"));
 		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
-		expect(ta.value).toContain("- Enxaqueca — r");
+		expect(ta.value).toContain("- Enxaqueca: r");
 		expect(ta.value).not.toContain("A preencher");
 	});
 
@@ -996,7 +996,7 @@ describe("NovaConsultaPage", () => {
 		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
 		await user.click(screen.getByText("Anamnese"));
 		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
-		expect(ta.value).toBe("- Outra hipótese\n- Enxaqueca — r");
+		expect(ta.value).toBe("- Outra hipótese\n- Enxaqueca: r");
 	});
 
 	it("save sends engine unknown and attach failure shows session error", async () => {
@@ -1161,7 +1161,7 @@ describe("NovaConsultaPage", () => {
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(61_500);
 			});
-			expect(screen.getByText(/Parar narração — 1:01/)).toBeTruthy();
+			expect(screen.getByText(/Parar narração \(1:01\)/)).toBeTruthy();
 			vi.useRealTimers();
 		});
 

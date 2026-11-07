@@ -51,7 +51,7 @@ const STEPS = [
 const FAQ = [
 	{
 		q: "O áudio da consulta sai do meu computador?",
-		a: "A transcrição roda no seu navegador com o Whisper local — o áudio não sai da máquina. Só o texto resultante é enviado para estruturar a anamnese, e você pode apontar um modelo próprio (inclusive local, via Ollama) para manter tudo no seu ambiente.",
+		a: "A transcrição roda no seu navegador com o Whisper local. O áudio não sai da máquina. Só o texto resultante é enviado para estruturar a anamnese, e você pode apontar um modelo próprio (inclusive local, via Ollama) para manter tudo no seu ambiente.",
 	},
 	{
 		q: "A IA diagnostica ou prescreve?",
@@ -67,7 +67,7 @@ const FAQ = [
 	},
 	{
 		q: "Posso escolher qual modelo de IA usar?",
-		a: "Sim. A extração e a revisão suportam Anthropic, OpenAI, Workers AI da Cloudflare, Ollama local e um motor heurístico de fallback — a escolha é configuração, não código.",
+		a: "Sim. A extração e a revisão suportam Anthropic, OpenAI, Workers AI da Cloudflare, Ollama local e um motor heurístico de fallback. A escolha é configuração, não código.",
 	},
 ];
 
@@ -200,7 +200,7 @@ function Home() {
 					</span>
 				</h1>
 				<p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-					Fale com o paciente, não com a tela. A conversa vira anamnese estruturada — você só revisa
+					Fale com o paciente, não com a tela. A conversa vira anamnese estruturada. Você só revisa
 					e aprova. O contexto de cada consulta fica guardado para a próxima.
 				</p>
 				<div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -278,7 +278,7 @@ function Home() {
 							<CardTitle className="mt-3 text-base">Transcrição no seu navegador</CardTitle>
 							<CardDescription className="text-sm leading-relaxed">
 								O Whisper roda localmente em pt-BR, separando médico e paciente por voz. O áudio não
-								sai do seu computador — só o texto é processado.
+								sai do seu computador. Só o texto é processado.
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -364,7 +364,7 @@ function Home() {
 								<CardTitle className="mt-3 text-base">Privacidade por desenho</CardTitle>
 								<CardDescription className="text-sm leading-relaxed">
 									Transcrição local, consentimento do paciente registrado e opção de rodar 100% no
-									seu ambiente — com modelo próprio na sua GPU.
+									seu ambiente, com modelo próprio na sua GPU.
 								</CardDescription>
 							</div>
 							<LockIcon className="mt-1 size-5 shrink-0 text-muted-foreground" />
@@ -390,7 +390,7 @@ function Home() {
 				</div>
 				<p className="mx-auto mt-8 flex max-w-md items-center justify-center gap-2 text-center text-sm text-muted-foreground">
 					<StethoscopeIcon className="size-4 shrink-0" />
-					Cada consulta vira contexto duradouro — a próxima já começa com o histórico na tela.
+					Cada consulta vira contexto duradouro. A próxima já começa com o histórico na tela.
 				</p>
 			</section>
 

@@ -73,8 +73,8 @@ async function doLoad() {
 	postMessage({
 		type: "progress",
 		message: cached
-			? "modelo em cache — carregando (sem download)"
-			: "primeiro uso — baixando modelo (só desta vez)",
+			? "modelo em cache, carregando (sem download)"
+			: "primeiro uso, baixando modelo (só desta vez)",
 	});
 	// skip the doomed WebGPU attempt when no adapter exists
 	const devices = (await hasWebGpu()) ? ["webgpu", "wasm"] : ["wasm"];

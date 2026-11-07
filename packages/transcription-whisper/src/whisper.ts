@@ -80,7 +80,7 @@ export class WhisperTranscriber implements Transcriber {
 		this.unsubscribe = subscribeWhisper((msg: EngineMessage) => {
 			if (msg.type === "progress") onEvent({ type: "partial", text: `[${msg.message}]` });
 			if (msg.type === "ready")
-				onEvent({ type: "partial", text: `[modelo pronto — ${msg.device}]` });
+				onEvent({ type: "partial", text: `[modelo pronto (${msg.device})]` });
 			if (msg.type === "text" && msg.id === this.id) {
 				this.inflight = Math.max(0, this.inflight - 1);
 				if (msg.text?.trim()) onEvent({ type: "final", text: msg.text.trim() });
@@ -94,7 +94,7 @@ export class WhisperTranscriber implements Transcriber {
 		});
 		loadWhisper();
 		const st = whisperStatus();
-		if (st.state === "ready") onEvent({ type: "partial", text: `[modelo pronto — ${st.device}]` });
+		if (st.state === "ready") onEvent({ type: "partial", text: `[modelo pronto (${st.device})]` });
 
 		this.ctx = new AudioContext({ sampleRate: 16000 });
 		const src = this.ctx.createMediaStreamSource(this.stream);

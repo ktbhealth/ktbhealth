@@ -128,8 +128,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					</header>
 					<main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
 					<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
-						Prova de conceito — a anamnese é um rascunho e deve ser revisada pelo médico
-						responsável.
+						Prova de conceito: a anamnese é um rascunho e deve ser revisada pelo médico responsável.
 					</footer>
 					<TanStackDevtools
 						config={{ position: "bottom-right" }}

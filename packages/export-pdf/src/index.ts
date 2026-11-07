@@ -22,7 +22,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 			margins: { top: 56, bottom: 64, left: 56, right: 56 },
 			bufferPages: true,
 			info: {
-				Title: `Anamnese — consulta #${input.consultationId}`,
+				Title: `Anamnese · consulta #${input.consultationId}`,
 				Author: input.doctorName ?? "anamnese",
 			},
 		});
@@ -56,7 +56,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 
 		// ---- sections ----
 		for (const key of Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]) {
-			const content = input.anamnesis[key]?.content?.trim() || "—";
+			const content = input.anamnesis[key]?.content?.trim() || "Não informado";
 			// keep a heading together with the start of its text
 			if (doc.y > doc.page.height - doc.page.margins.bottom - 70) doc.addPage();
 			doc
@@ -96,7 +96,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 				.fontSize(8)
 				.fillColor("#999")
 				.text(
-					"Rascunho estruturado por IA a partir da transcrição — revisado e validado pelo médico responsável.",
+					"Rascunho estruturado por IA a partir da transcrição, revisado e validado pelo médico responsável.",
 					doc.page.margins.left,
 					fy,
 					{ width: width - 60, lineBreak: false },

@@ -119,7 +119,7 @@ export function NovaConsultaPage({
 	const [tabRecording, setTabRecording] = useState(false);
 	const [modelStatus, setModelStatus] = useState<string | null>(() => {
 		const st = backend.status();
-		return st.state === "ready" ? `modelo pronto — ${st.device}` : null;
+		return st.state === "ready" ? `modelo pronto (${st.device})` : null;
 	});
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const [source, setSource] = useState<"gravar" | "bot" | "upload">("gravar");
@@ -134,7 +134,7 @@ export function NovaConsultaPage({
 	useEffect(() => {
 		const off = backend.subscribe((m) => {
 			if (m.type === "progress") setModelStatus(m.message ?? null);
-			if (m.type === "ready") setModelStatus(`modelo pronto — ${m.device}`);
+			if (m.type === "ready") setModelStatus(`modelo pronto (${m.device})`);
 			if (m.type === "error" && !m.id) setModelStatus(`modelo indisponível: ${m.message}`);
 		});
 		backend.load();
@@ -400,7 +400,7 @@ export function NovaConsultaPage({
 						review,
 					},
 				});
-				if (!r.ok) throw new Error("sessão expirada — recarregue a página");
+				if (!r.ok) throw new Error("sessão expirada. Recarregue a página");
 			} else {
 				const res = await api.saveConsultation({
 					data: {
@@ -441,7 +441,7 @@ export function NovaConsultaPage({
 		const text = anamnesisToText(anamnesis);
 		void navigator.clipboard.writeText(text).then(
 			() => showToast({ text: "Anamnese copiada para a área de transferência" }),
-			() => setError("Não foi possível copiar — selecione o texto manualmente."),
+			() => setError("Não foi possível copiar. Selecione o texto manualmente."),
 		);
 	}
 
@@ -467,7 +467,7 @@ export function NovaConsultaPage({
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Nova consulta</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Grave a conversa ou cole a transcrição — a anamnese sai estruturada para revisão.
+						Grave a conversa ou cole a transcrição. A anamnese sai estruturada para revisão.
 					</p>
 				</div>
 				<div className="flex items-center gap-3 text-sm">
@@ -611,7 +611,7 @@ export function NovaConsultaPage({
 						{mode === "dictation" ? (
 							<div className="flex flex-col items-center gap-3 rounded-xl border border-border px-6 py-8 text-center">
 								<p className="max-w-md text-sm text-muted-foreground">
-									A consulta já aconteceu? Narre tudo em voz alta, como se explicasse o caso — uma
+									A consulta já aconteceu? Narre tudo em voz alta, como se explicasse o caso, uma
 									voz só (a sua): queixa, história, exame e conduta. A narração vira a transcrição
 									que gera a anamnese.
 								</p>
@@ -628,11 +628,11 @@ export function NovaConsultaPage({
 									<span
 										className={`size-3 rounded-full ${dictating ? "animate-pulse bg-white" : "bg-white/70"}`}
 									/>
-									{dictating ? `Parar narração — ${fmtElapsed(elapsedSec)}` : "Iniciar narração"}
+									{dictating ? `Parar narração (${fmtElapsed(elapsedSec)})` : "Iniciar narração"}
 								</button>
 								{dictating ? (
 									<p className="text-xs text-muted-foreground">
-										gravando… {fmtElapsed(elapsedSec)} — a transcrição aparece abaixo em tempo real
+										gravando… {fmtElapsed(elapsedSec)}. A transcrição aparece abaixo em tempo real
 									</p>
 								) : null}
 								{!consented ? (
@@ -642,8 +642,8 @@ export function NovaConsultaPage({
 								) : null}
 								{!supported ? (
 									<p className="text-xs text-amber-600">
-										Gravação não suportada neste browser — use o exemplo ou cole o texto
-										(Chrome/Edge suportam).
+										Gravação não suportada neste browser. Use o exemplo ou cole o texto (Chrome/Edge
+										suportam).
 									</p>
 								) : null}
 							</div>
@@ -687,7 +687,7 @@ export function NovaConsultaPage({
 											{recording ? "Parar microfone" : "Gravar microfone"}
 										</span>
 										<span className="mt-1 text-[11px] text-muted-foreground">
-											Sua voz — aparece como “Médico”
+											Sua voz, aparece como “Médico”
 										</span>
 									</button>
 									<button
@@ -709,7 +709,7 @@ export function NovaConsultaPage({
 											{tabRecording ? "Parar aba" : "Capturar aba da chamada"}
 										</span>
 										<span className="mt-1 text-[11px] text-muted-foreground">
-											Áudio da call — aparece como “Paciente”
+											Áudio da call, aparece como “Paciente”
 										</span>
 									</button>
 								</div>
@@ -725,8 +725,8 @@ export function NovaConsultaPage({
 								)}
 								{!supported ? (
 									<p className="text-xs text-amber-600">
-										Gravação não suportada neste browser — use o exemplo ou cole o texto
-										(Chrome/Edge suportam).
+										Gravação não suportada neste browser. Use o exemplo ou cole o texto (Chrome/Edge
+										suportam).
 									</p>
 								) : null}
 							</>
@@ -766,7 +766,7 @@ export function NovaConsultaPage({
 										) : (
 											<span className="size-2 rounded-full bg-emerald-500" />
 										)}
-										consulta #{liveId} —{" "}
+										consulta #{liveId} ·{" "}
 										{liveStatus === "live" ? "transcrevendo ao vivo" : "call encerrada"}
 									</p>
 								) : null}
@@ -951,7 +951,7 @@ export function NovaConsultaPage({
 					) : (
 						<div className="max-h-[68vh] overflow-y-auto p-5">
 							<p className="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
-								Apoio à decisão — sugestões para o médico avaliar. Não fazem parte do prontuário até
+								Apoio à decisão. Sugestões para o médico avaliar. Não fazem parte do prontuário até
 								você adicionar.
 							</p>
 							{reviewBusy ? (

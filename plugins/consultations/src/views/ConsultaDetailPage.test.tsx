@@ -22,7 +22,7 @@ import { ConsultaDetailPage } from "./ConsultaDetailPage.tsx";
 const SECTION = { content: "", confidence: "baixa" as const, evidence: [] as string[] };
 const ANAMNESIS = {
 	queixa_principal: { content: "Dor", confidence: "alta" as const, evidence: ["dor relatada"] },
-	hda: { content: "A preencher pelo médico — hda.", confidence: "media" as const, evidence: [] },
+	hda: { content: "A preencher pelo médico: hda.", confidence: "media" as const, evidence: [] },
 	antecedentes: SECTION,
 	alergias: SECTION,
 	medicamentos_em_uso: SECTION,

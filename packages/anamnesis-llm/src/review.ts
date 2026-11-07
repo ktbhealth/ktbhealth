@@ -56,7 +56,7 @@ const degrade = (
 	isUnavailable(e)
 		? {
 				review: null,
-				reason: `Ollama não respondeu em ${options.baseUrl}. Inicie com "ollama serve" e baixe o modelo com "ollama pull ${options.model}" — ou configure ANTHROPIC_API_KEY.`,
+				reason: `Ollama não respondeu em ${options.baseUrl}. Inicie com "ollama serve" e baixe o modelo com "ollama pull ${options.model}" . Ou configure ANTHROPIC_API_KEY.`,
 			}
 		: {
 				review: null,

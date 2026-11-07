@@ -66,7 +66,7 @@ export function ReviewPanel({
 											<button
 												type="button"
 												onClick={() => {
-													const ok = onAddHypothesis(`${h.diagnostico} — ${h.raciocinio}`);
+													const ok = onAddHypothesis(`${h.diagnostico}: ${h.raciocinio}`);
 													if (ok !== false) setAdded((prev) => new Set(prev).add(h.diagnostico));
 												}}
 												className="ml-auto rounded border border-border px-2 py-0.5 text-[11px] transition hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-700 active:scale-95"
@@ -100,7 +100,7 @@ export function ReviewPanel({
 			{review.lacunas.length ? (
 				<div>
 					<div className="text-xs font-semibold text-foreground">
-						Lacunas — perguntas que ainda podem ser feitas
+						Lacunas: perguntas que ainda podem ser feitas
 					</div>
 					<ul className="mt-2 space-y-2">
 						{review.lacunas.map((g) => (

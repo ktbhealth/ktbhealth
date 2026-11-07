@@ -70,7 +70,7 @@ describe("ReviewPanel", () => {
 		render(<ReviewPanel review={FULL_REVIEW} onAddHypothesis={onAdd} />);
 		const buttons = screen.getAllByText("+ adicionar às hipóteses");
 		await user.click(buttons[0]!);
-		expect(onAdd).toHaveBeenCalledWith("Enxaqueca — fotofobia clássica");
+		expect(onAdd).toHaveBeenCalledWith("Enxaqueca: fotofobia clássica");
 		expect(screen.getAllByText("✓ adicionada")).toHaveLength(1);
 		// second click still calls (button remains for other hypotheses)
 		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);

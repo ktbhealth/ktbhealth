@@ -27,7 +27,7 @@ function TesteCaptura() {
 			for (const t of stream.getVideoTracks()) t.stop();
 			const track = stream.getAudioTracks()[0];
 			if (!track) {
-				setError("aba compartilhada sem áudio — marque 'compartilhar áudio'");
+				setError("aba compartilhada sem áudio. Marque 'compartilhar áudio'");
 				return;
 			}
 			refs.current.stream = stream;
@@ -38,7 +38,7 @@ function TesteCaptura() {
 			analyser.fftSize = 256;
 			src.connect(analyser);
 			const data = new Uint8Array(analyser.frequencyBinCount);
-			setStatus(`capturando — track: ${track.label} | ${track.readyState}`);
+			setStatus(`capturando · track: ${track.label} | ${track.readyState}`);
 
 			const tick = () => {
 				analyser.getByteTimeDomainData(data);
@@ -63,7 +63,7 @@ function TesteCaptura() {
 
 	return (
 		<div>
-			<h1 className="text-2xl font-bold">Spike — captura de áudio da aba</h1>
+			<h1 className="text-2xl font-bold">Spike: captura de áudio da aba</h1>
 			<p className="mt-2 text-sm text-muted-foreground">
 				1. Abra uma chamada (WhatsApp Web, Meet, YouTube) noutra aba. 2. Clique em iniciar e
 				selecione ESSA aba marcando &quot;compartilhar áudio&quot;. 3. Se o medidor mexer com a
