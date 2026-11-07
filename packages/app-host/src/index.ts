@@ -10,7 +10,7 @@ import { StubCaptchaLive } from "@ktb/captcha-stub";
 import { TurnstileCaptchaLive } from "@ktb/captcha-turnstile";
 import { Captcha } from "@ktb/captcha";
 import { Auth } from "@ktb/auth";
-import { AnamnesisEngineLive, ReviewEngineLive } from "@ktb/anamnesis-llm/services";
+import { AnamnesisEngineLive, ReviewEngineLive, type LlmConfig } from "@ktb/anamnesis-llm/services";
 
 /**
  * Plugin registry discovered from the filesystem: every module under
@@ -30,6 +30,14 @@ export interface AppEnv {
 	readonly BETTER_AUTH_URL?: string;
 	readonly CAPTCHA_STUB?: unknown;
 	readonly TURNSTILE_SECRET_KEY?: string;
+	readonly ANTHROPIC_API_KEY?: string;
+	readonly LLM_API_KEY?: string;
+	readonly OPENAI_API_KEY?: string;
+	readonly LLM_BASE_URL?: string;
+	readonly LLM_MODEL?: string;
+	readonly REVIEW_MODEL?: string;
+	readonly REVIEW_PROVIDER?: string;
+	readonly OLLAMA_URL?: string;
 }
 
 /**
@@ -87,13 +95,24 @@ export const createApp = <E extends AppEnv>(env: E) => {
 			},
 		}),
 	);
+	// LLM provider config is resolved here, once — impl packages never
+	// read env themselves.
+	const llmConfig: LlmConfig = {
+		anthropicApiKey: env.ANTHROPIC_API_KEY,
+		openAiApiKey: env.LLM_API_KEY ?? env.OPENAI_API_KEY,
+		openAiBaseUrl: env.LLM_BASE_URL,
+		openAiModel: env.LLM_MODEL,
+		reviewModel: env.REVIEW_MODEL,
+		reviewProvider: env.REVIEW_PROVIDER,
+		ollamaUrl: env.OLLAMA_URL,
+	};
 	const core = Layer.mergeAll(
 		BotLive,
 		CaptchaLive,
 		DbLive,
 		AuthServiceLive,
-		AnamnesisEngineLive,
-		ReviewEngineLive,
+		AnamnesisEngineLive(llmConfig),
+		ReviewEngineLive(llmConfig),
 	);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),

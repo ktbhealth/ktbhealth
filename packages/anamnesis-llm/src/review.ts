@@ -1,8 +1,7 @@
-import type { Anamnesis, AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
-import { decodeAnamnesisReview, AnamnesisReviewSchema } from "@ktb/anamnesis/schema";
-import { decodeAnthropicReview, decodeOpenAiReview } from "./structured.ts";
-import { Schema } from "effect";
-import { SECTION_LABELS } from "@ktb/anamnesis";
+import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
+import { AnamnesisReviewSchema, decodeAnamnesisReview } from "@ktb/anamnesis/schema";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 /**
  * Second-opinion pass: a (stronger) model reads the transcript and
@@ -35,232 +34,67 @@ export type ReviewResult =
 	| { review: AnamnesisReview; engine: string }
 	| { review: null; reason: string };
 
-const SECTION_KEYS = Object.keys(SECTION_LABELS) as AnamnesisSectionKey[];
-const CONFIDENCES: Confidence[] = ["alta", "media", "baixa"];
-
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-const strs = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
-const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
-
-/** Models drift from the schema — normalise so the UI never crashes. */
-export function normalizeReview(raw: unknown): AnamnesisReview {
-	const r = (raw ?? {}) as Record<string, unknown>;
-	return {
-		lacunas: arr(r.lacunas)
-			.map((g) => g as Record<string, unknown>)
-			.map((g) => ({
-				secao: SECTION_KEYS.includes(g.secao as AnamnesisSectionKey)
-					? (g.secao as AnamnesisSectionKey)
-					: "hda",
-				o_que_falta: str(g.o_que_falta),
-				pergunta_sugerida: str(g.pergunta_sugerida),
-				motivo: str(g.motivo),
-			}))
-			.filter((g) => g.o_que_falta || g.pergunta_sugerida),
-		hipoteses: arr(r.hipoteses)
-			.map((h) => h as Record<string, unknown>)
-			.map((h) => ({
-				diagnostico: str(h.diagnostico),
-				probabilidade: CONFIDENCES.includes(h.probabilidade as Confidence)
-					? (h.probabilidade as Confidence)
-					: "baixa",
-				raciocinio: str(h.raciocinio),
-				evidence: strs(h.evidence),
-				investigar: strs(h.investigar),
-			}))
-			.filter((h) => h.diagnostico)
-			.slice(0, 5),
-		sinais_de_alerta: strs(r.sinais_de_alerta),
-		inconsistencias: strs(r.inconsistencias),
-	};
-}
-
-export function parseReview(
-	text: string,
-	decode: (u: unknown) => AnamnesisReview = decodeAnamnesisReview,
-): AnamnesisReview {
-	const clean = text.replace(/```json|```/g, "").trim();
-	// normalize first (models drift), then the provider codec guarantees shape.
-	return decode(normalizeReview(JSON.parse(clean)));
-}
-
-function userMessage(transcript: string, anamnesis: Anamnesis): string {
-	return `TRANSCRIÇÃO:\n${transcript}\n\nRASCUNHO DA ANAMNESE:\n${JSON.stringify(anamnesis)}`;
-}
-
-async function viaAnthropic(transcript: string, anamnesis: Anamnesis): Promise<ReviewResult> {
-	const model = process.env.REVIEW_MODEL || "claude-sonnet-5-5";
-	const res = await fetch("https://api.anthropic.com/v1/messages", {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			"x-api-key": process.env.ANTHROPIC_API_KEY as string,
-			"anthropic-version": "2023-06-01",
-		},
-		body: JSON.stringify({
-			model,
-			max_tokens: 4096,
-			system: REVIEW_PROMPT,
-			messages: [{ role: "user", content: userMessage(transcript, anamnesis) }],
-		}),
-	});
-	if (!res.ok) throw new Error(`anthropic api: ${res.status}`);
-	const data = (await res.json()) as {
-		content?: Array<{ type: string; text?: string }>;
-	};
-	const text = data.content?.find((c) => c.type === "text")?.text ?? "";
-	return { review: parseReview(text, decodeAnthropicReview), engine: `anthropic:${model}` };
-}
-
-async function viaOpenAI(transcript: string, anamnesis: Anamnesis): Promise<ReviewResult> {
-	const key = process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY;
-	const base = process.env.LLM_BASE_URL ?? "https://api.openai.com/v1";
-	const model = process.env.REVIEW_MODEL || process.env.LLM_MODEL || "gpt-4o";
-	const res = await fetch(`${base}/chat/completions`, {
-		method: "POST",
-		headers: {
-			"content-type": "application/json",
-			authorization: `Bearer ${key}`,
-		},
-		body: JSON.stringify({
-			model,
-			response_format: { type: "json_object" },
-			messages: [
-				{ role: "system", content: REVIEW_PROMPT },
-				{ role: "user", content: userMessage(transcript, anamnesis) },
-			],
-		}),
-	});
-	if (!res.ok) throw new Error(`llm api: ${res.status}`);
-	const data = (await res.json()) as {
-		choices?: Array<{ message?: { content?: string } }>;
-	};
-	const text = data.choices?.[0]?.message?.content ?? "";
-	return { review: parseReview(text, decodeOpenAiReview), engine: `openai:${model}` };
-}
-
-// ---------- local (Ollama) ----------
+export const reviewUserMessage = (transcript: string, anamnesis: Anamnesis): string =>
+	`TRANSCRIÇÃO:\n${transcript}\n\nRASCUNHO DA ANAMNESE:\n${JSON.stringify(anamnesis)}`;
 
 /** Ollama constrains decoding with this schema, so small models can't drift. */
-const REVIEW_SCHEMA = Schema.toJsonSchemaDocument(AnamnesisReviewSchema).schema;
+export const REVIEW_OLLAMA_SCHEMA = Schema.toJsonSchemaDocument(AnamnesisReviewSchema).schema;
 
-const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://localhost:11434";
-const OLLAMA_MODEL = () => process.env.REVIEW_MODEL || "qwen3:8b";
+const parseReviewJson = (text: string): AnamnesisReview =>
+	decodeAnamnesisReview(JSON.parse(text.replace(/```json|```/g, "").trim()));
 
-async function viaOllama(transcript: string, anamnesis: Anamnesis): Promise<ReviewResult> {
-	const model = OLLAMA_MODEL();
-	let res: Response;
-	try {
-		res = await fetch(`${OLLAMA_URL()}/api/chat`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			// first call loads the model into VRAM — be patient
-			signal: AbortSignal.timeout(180_000),
-			body: JSON.stringify({
-				model,
-				stream: false,
-				think: false,
-				format: REVIEW_SCHEMA,
-				options: { temperature: 0.2, num_ctx: 8192 },
-				messages: [
-					{ role: "system", content: REVIEW_PROMPT },
-					{ role: "user", content: userMessage(transcript, anamnesis) },
-				],
-			}),
-		});
-	} catch {
-		return {
-			review: null,
-			reason: `Ollama não respondeu em ${OLLAMA_URL()}. Inicie com "ollama serve" e baixe o modelo com "ollama pull ${model}" — ou configure ANTHROPIC_API_KEY.`,
-		};
-	}
-	if (res.status === 404)
-		return {
-			review: null,
-			reason: `Modelo "${model}" não está no Ollama. Rode: ollama pull ${model}`,
-		};
-	if (!res.ok) throw new Error(`ollama api: ${res.status}`);
-	const data = (await res.json()) as { message?: { content?: string } };
-	return {
-		review: parseReview(data.message?.content ?? ""),
-		engine: `ollama:${model}`,
-	};
-}
-
-export type ReviewProvider = "anthropic" | "openai" | "ollama";
-
-/** REVIEW_PROVIDER forces one; otherwise cloud key if present, else local. */
-export function selectReviewProvider(): ReviewProvider {
-	const forced = process.env.REVIEW_PROVIDER;
-	if (forced === "anthropic" || forced === "openai" || forced === "ollama") return forced;
-	if (process.env.ANTHROPIC_API_KEY) return "anthropic";
-	if (process.env.LLM_API_KEY ?? process.env.OPENAI_API_KEY) return "openai";
-	return "ollama";
-}
-
-type ReviewKey = readonly [transcript: string, anamnesis: Anamnesis];
-
-const reviewKey = (transcript: string, anamnesis: Anamnesis): string =>
-	JSON.stringify([selectReviewProvider(), transcript, anamnesis] satisfies [
-		ReviewProvider,
-		string,
-		Anamnesis,
-	]);
-
-const dispatch = (key: string): Promise<ReviewResult> => {
-	const [transcript, anamnesis] = JSON.parse(key) as ReviewKey;
-	return (async () => {
-		try {
-			switch (selectReviewProvider()) {
-				case "anthropic":
-					return await viaAnthropic(transcript, anamnesis);
-				case "openai":
-					return await viaOpenAI(transcript, anamnesis);
-				default:
-					return await viaOllama(transcript, anamnesis);
+/**
+ * Local Ollama review over plain HTTP (no official effect/ai client).
+ * Degrades to a user-facing reason instead of throwing: provider down,
+ * missing model, or bad output are all recoverable states.
+ */
+export const reviewViaOllama = (options: {
+	readonly baseUrl: string;
+	readonly model: string;
+	readonly transcript: string;
+	readonly anamnesis: Anamnesis;
+}): Effect.Effect<ReviewResult> =>
+	Effect.tryPromise({
+		try: async (signal) => {
+			const res = await fetch(`${options.baseUrl}/api/chat`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				// first call loads the model into VRAM — be patient
+				signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]),
+				body: JSON.stringify({
+					model: options.model,
+					stream: false,
+					think: false,
+					format: REVIEW_OLLAMA_SCHEMA,
+					options: { temperature: 0.2, num_ctx: 8192 },
+					messages: [
+						{ role: "system", content: REVIEW_PROMPT },
+						{ role: "user", content: reviewUserMessage(options.transcript, options.anamnesis) },
+					],
+				}),
+			});
+			if (res.status === 404) {
+				return {
+					review: null,
+					reason: `Modelo "${options.model}" não está no Ollama. Rode: ollama pull ${options.model}`,
+				} satisfies ReviewResult;
 			}
-		} catch (e) {
+			if (!res.ok) throw new Error(`ollama api: ${res.status}`);
+			const data = (await res.json()) as { message?: { content?: string } };
 			return {
-				review: null,
-				reason: `Segunda opinião falhou: ${e instanceof Error ? e.message : String(e)}`,
-			};
-		}
-	})();
-};
-
-/**
- * Second opinions are expensive; identical consult inputs reuse the
- * result for a few minutes. Only successful reviews are stored: a
- * degraded result (provider down, bad output) must not be pinned.
- */
-const REVIEW_TTL_MS = 5 * 60_000;
-
-/**
- * Build a reviewer with its own TTL cache. Only successful reviews are
- * stored: a degraded result (provider down, bad output) is never pinned.
- * Each Effect layer gets an isolated cache — no shared module state.
- */
-export const makeReviewer = () => {
-	const cache = new Map<string, { expires: number; result: ReviewResult }>();
-	const review = Object.assign(
-		async (transcript: string, anamnesis: Anamnesis): Promise<ReviewResult> => {
-			const key = reviewKey(transcript, anamnesis);
-			const hit = cache.get(key);
-			if (hit && hit.expires > Date.now()) return hit.result;
-			const result = await dispatch(key);
-			if (result.review !== null) {
-				cache.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
-			}
-			return result;
+				review: parseReviewJson(data.message?.content ?? ""),
+				engine: `ollama:${options.model}`,
+			} satisfies ReviewResult;
 		},
-		{ clear: () => cache.clear() },
+		catch: (e) => e,
+	}).pipe(
+		Effect.catch((e) =>
+			Effect.succeed<ReviewResult>({
+				review: null,
+				reason:
+					e instanceof TypeError || (e instanceof Error && e.name === "TimeoutError")
+						? `Ollama não respondeu em ${options.baseUrl}. Inicie com "ollama serve" e baixe o modelo com "ollama pull ${options.model}" — ou configure ANTHROPIC_API_KEY.`
+						: `Segunda opinião falhou: ${e instanceof Error ? e.message : String(e)}`,
+			}),
+		),
 	);
-	return review;
-};
-
-const defaultReviewer = makeReviewer();
-
-/** Drop all cached reviews of the default reviewer (tests, reconfiguration). */
-export const clearReviewCache = (): void => defaultReviewer.clear();
-
-export const reviewAnamnesis = defaultReviewer;

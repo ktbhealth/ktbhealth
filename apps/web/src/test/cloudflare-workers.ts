@@ -11,4 +11,12 @@ export const env = {
 	BETTER_AUTH_URL: "http://localhost:3000",
 	TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
 	CAPTCHA_STUB: process.env.CAPTCHA_STUB,
+	ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+	LLM_API_KEY: process.env.LLM_API_KEY,
+	OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+	LLM_BASE_URL: process.env.LLM_BASE_URL,
+	LLM_MODEL: process.env.LLM_MODEL,
+	REVIEW_MODEL: process.env.REVIEW_MODEL,
+	REVIEW_PROVIDER: process.env.REVIEW_PROVIDER,
+	OLLAMA_URL: process.env.OLLAMA_URL,
 };
