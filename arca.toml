@@ -6,7 +6,7 @@
 # account. Deployed from crates/arca-vault-cf/worker (9aia/arca).
 [vaults.ktb]
 kind = "cf"
-url = "https://arca-vault.ktbhealth.workers.dev"
+url = "https://arca.ktbhealth.workers.dev"
 token_env = "ARCA_CF_TOKEN" # bearer fallback; scoped HMAC below
 
 # Scoped token refs in the local vault — the ref path is the
