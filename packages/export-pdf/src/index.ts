@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 
-import type { Anamnesis, AnamnesisSectionKey } from "#/lib/anamnese/types.ts";
-import { SECTION_LABELS } from "#/lib/anamnese/types.ts";
+import type { Anamnesis, AnamnesisSectionKey } from "@ktb/anamnesis";
+import { SECTION_LABELS } from "@ktb/anamnesis";
 
 export interface AnamnesisPdfInput {
 	consultationId: number;

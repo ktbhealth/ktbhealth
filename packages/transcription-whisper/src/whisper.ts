@@ -1,4 +1,4 @@
-import type { Transcriber, TranscriptEvent } from "./index.ts";
+import type { Transcriber, TranscriptEvent } from "@ktb/transcription";
 import {
 	type EngineMessage,
 	loadWhisper,

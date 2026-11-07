@@ -3,9 +3,9 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "#/lib/platform.ts";
 import { consultations, patients } from "@ktb/db/schema";
-import type { Anamnesis } from "#/lib/anamnese/types.ts";
+import type { Anamnesis } from "@ktb/anamnesis";
 import { getSessionUser } from "#/lib/auth.ts";
-import { renderAnamnesisPdf } from "#/lib/pdf.ts";
+import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
 /** GET /api/consultas/:id/pdf — owner-only download of the anamnese PDF. */
 export const Route = createFileRoute("/api/consultas/$id/pdf")({

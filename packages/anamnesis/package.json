@@ -1,0 +1,10 @@
+{
+	"name": "@ktb/anamnesis",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./testing": "./src/testing.ts"
+	},
+	"dependencies": {}
+}

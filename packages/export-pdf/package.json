@@ -1,0 +1,15 @@
+{
+	"name": "@ktb/export-pdf",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/anamnesis": "workspace:*",
+		"pdfkit": "^0.17.2"
+	},
+	"devDependencies": {
+		"@types/pdfkit": "^0.17.7"
+	}
+}

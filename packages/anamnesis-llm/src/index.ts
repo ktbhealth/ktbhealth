@@ -1,10 +1,11 @@
+export * from "@ktb/anamnesis";
 import { AnthropicExtractor } from "./anthropic.ts";
-import { HeuristicExtractor } from "./heuristic.ts";
+import { HeuristicExtractor } from "@ktb/anamnesis";
 import { OpenAIExtractor } from "./openai.ts";
-import type { Anamnesis, AnamnesisExtractor } from "./types.ts";
+import type { Anamnesis, AnamnesisExtractor } from "@ktb/anamnesis";
 
-export type { Anamnesis, AnamnesisSection, Confidence } from "./types.ts";
-export { SECTION_LABELS } from "./types.ts";
+export type { Anamnesis, AnamnesisSection, Confidence } from "@ktb/anamnesis";
+export { SECTION_LABELS } from "@ktb/anamnesis";
 
 /** Adapter selection — LLM when configured, deterministic fallback otherwise. */
 export function selectExtractor(): AnamnesisExtractor {
@@ -30,3 +31,4 @@ export async function extractAnamnesis(
 		};
 	}
 }
+export * from "./review.ts";

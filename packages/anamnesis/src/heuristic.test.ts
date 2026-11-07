@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
+import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import { HeuristicExtractor } from "./heuristic.ts";
 
 describe("HeuristicExtractor", () => {

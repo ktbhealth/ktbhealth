@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
-import { HeuristicExtractor } from "./heuristic.ts";
+import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
+import { HeuristicExtractor } from "@ktb/anamnesis";
 import { normalizeReview, parseReview, reviewAnamnesis, selectReviewProvider } from "./review.ts";
 
 afterEach(() => {

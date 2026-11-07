@@ -3,9 +3,9 @@ import { useState } from "react";
 
 import { ReviewPanel } from "#/components/ReviewPanel.tsx";
 import { Toast, type ToastData } from "#/components/Toast.tsx";
-import { anamnesisToText } from "#/lib/anamnese/format.ts";
-import { SECTION_LABELS } from "#/lib/anamnese/index.ts";
-import type { AnamnesisSectionKey, Confidence } from "#/lib/anamnese/types.ts";
+import { anamnesisToText } from "@ktb/anamnesis";
+import { SECTION_LABELS } from "@ktb/anamnesis-llm";
+import type { AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { getConsultationFn } from "#/lib/fns.ts";
 
 export const Route = createFileRoute("/consultas/$id")({

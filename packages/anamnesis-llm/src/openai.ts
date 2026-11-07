@@ -1,5 +1,5 @@
 import { PROMPT } from "./prompt.ts";
-import type { Anamnesis, AnamnesisExtractor } from "./types.ts";
+import type { Anamnesis, AnamnesisExtractor } from "@ktb/anamnesis";
 
 /**
  * OpenAI-compatible extractor — any chat-completions endpoint.

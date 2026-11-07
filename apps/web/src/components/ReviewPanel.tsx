@@ -1,7 +1,7 @@
 import { useState } from "react";
 
-import { SECTION_LABELS } from "#/lib/anamnese/index.ts";
-import type { AnamnesisReview, Confidence } from "#/lib/anamnese/types.ts";
+import { SECTION_LABELS } from "@ktb/anamnesis-llm";
+import type { AnamnesisReview, Confidence } from "@ktb/anamnesis";
 
 const PROB_STYLE: Record<Confidence, string> = {
 	alta: "bg-red-50 text-red-700",

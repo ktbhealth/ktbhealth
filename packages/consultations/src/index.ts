@@ -1,15 +1,18 @@
 import { eq } from "drizzle-orm";
 
-import { db } from "#/lib/platform.ts";
+import type { DbClient } from "@ktb/db";
 import { consultations } from "@ktb/db/schema";
 
-export async function createConsultation(fields: {
-	userId: number;
-	transcript?: string;
-	source: string;
-	status?: string;
-	botId?: string;
-}) {
+export async function createConsultation(
+	db: DbClient,
+	fields: {
+		userId: number;
+		transcript?: string;
+		source: string;
+		status?: string;
+		botId?: string;
+	},
+) {
 	const rows = await db
 		.insert(consultations)
 		.values({
@@ -25,7 +28,7 @@ export async function createConsultation(fields: {
 }
 
 /** Append a transcript chunk (webhook sources — diarized or not). */
-export async function appendTranscript(consultationId: number, text: string) {
+export async function appendTranscript(db: DbClient, consultationId: number, text: string) {
 	const rows = await db
 		.select({ transcript: consultations.transcript })
 		.from(consultations)
@@ -38,7 +41,7 @@ export async function appendTranscript(consultationId: number, text: string) {
 		.where(eq(consultations.id, consultationId));
 }
 
-export async function finishConsultation(consultationId: number) {
+export async function finishConsultation(db: DbClient, consultationId: number) {
 	await db
 		.update(consultations)
 		.set({ status: "done" })

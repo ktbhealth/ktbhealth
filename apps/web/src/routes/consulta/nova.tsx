@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog } from "#/components/Dialog.tsx";
 import { ReviewPanel } from "#/components/ReviewPanel.tsx";
 import { Toast, type ToastData } from "#/components/Toast.tsx";
-import { anamnesisToText } from "#/lib/anamnese/format.ts";
-import { type Anamnesis, SECTION_LABELS } from "#/lib/anamnese/index.ts";
-import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "#/lib/anamnese/types.ts";
+import { anamnesisToText } from "@ktb/anamnesis";
+import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis-llm";
+import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import {
 	attachAnamnesisFn,
 	createPatientFn,
@@ -16,12 +16,12 @@ import {
 	reviewAnamneseFn,
 	saveConsultationFn,
 } from "#/lib/fns.ts";
-import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
+import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import {
 	createWhisperMicTranscriber,
 	createWhisperTabTranscriber,
-} from "#/lib/transcriber/index.ts";
-import { loadWhisper, subscribeWhisper, whisperStatus } from "#/lib/transcriber/whisper-engine.ts";
+} from "@ktb/transcription-whisper";
+import { loadWhisper, subscribeWhisper, whisperStatus } from "@ktb/transcription-whisper";
 
 export const Route = createFileRoute("/consulta/nova")({
 	loader: () => listPatientsFn(),

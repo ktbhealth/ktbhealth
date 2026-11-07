@@ -1,0 +1,12 @@
+{
+	"name": "@ktb/transcription-whisper",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@huggingface/transformers": "^4.3.2",
+		"@ktb/transcription": "workspace:*"
+	}
+}

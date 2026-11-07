@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { HeuristicExtractor } from "#/lib/anamnese/heuristic.ts";
-import { SAMPLE_TRANSCRIPT } from "#/lib/sample.ts";
-import { renderAnamnesisPdf } from "./pdf.ts";
+import { HeuristicExtractor } from "@ktb/anamnesis";
+import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
+import { renderAnamnesisPdf } from "./index.ts";
 
 describe("renderAnamnesisPdf", () => {
 	it("produces a valid PDF with the anamnese content", async () => {

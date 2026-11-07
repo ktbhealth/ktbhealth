@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureSessionUser } from "#/lib/auth.ts";
-import { STUB_CALL, selectBotProvider } from "#/lib/bot/index.ts";
-import { appendTranscript, createConsultation, finishConsultation } from "#/lib/consultations.ts";
+import { db } from "#/lib/platform.ts";
+import { STUB_CALL } from "@ktb/bot";
+import { selectBotProvider } from "@ktb/bot-recall";
+import { appendTranscript, createConsultation, finishConsultation } from "@ktb/consultations";
 
 /**
  * POST /api/bots — send a bot into a teleconsult.
@@ -25,7 +27,7 @@ export const Route = createFileRoute("/api/bots")({
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureSessionUser();
 
-				const consultationId = await createConsultation({
+				const consultationId = await createConsultation(db, {
 					userId: user.id,
 					source: "bot",
 					status: "live",
@@ -52,7 +54,7 @@ export const Route = createFileRoute("/api/bots")({
 async function simulateCall(consultationId: number) {
 	for (const seg of STUB_CALL) {
 		await new Promise((r) => setTimeout(r, seg.delayMs));
-		await appendTranscript(consultationId, `${seg.speaker}: ${seg.text}`);
+		await appendTranscript(db, consultationId, `${seg.speaker}: ${seg.text}`);
 	}
-	await finishConsultation(consultationId);
+	await finishConsultation(db, consultationId);
 }

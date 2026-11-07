@@ -1,5 +1,5 @@
 import { PROMPT } from "./prompt.ts";
-import type { Anamnesis, AnamnesisExtractor } from "./types.ts";
+import type { Anamnesis, AnamnesisExtractor } from "@ktb/anamnesis";
 
 export class AnthropicExtractor implements AnamnesisExtractor {
 	readonly name = "anthropic";

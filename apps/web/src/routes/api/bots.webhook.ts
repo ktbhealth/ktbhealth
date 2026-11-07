@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
-import { appendTranscript, finishConsultation } from "#/lib/consultations.ts";
+import { appendTranscript, finishConsultation } from "@ktb/consultations";
 
 /**
  * POST /api/bots/webhook — transcript events from the bot provider.
@@ -38,10 +38,10 @@ export const Route = createFileRoute("/api/bots/webhook")({
 					return Response.json({ error: "forbidden" }, { status: 403 });
 				}
 				if (body.end) {
-					await finishConsultation(body.consultationId);
+					await finishConsultation(db, body.consultationId);
 				} else if (body.text) {
 					const line = body.speaker ? `${body.speaker}: ${body.text}` : body.text;
-					await appendTranscript(body.consultationId, line);
+					await appendTranscript(db, body.consultationId, line);
 				}
 				return Response.json({ ok: true });
 			},

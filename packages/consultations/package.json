@@ -1,0 +1,12 @@
+{
+	"name": "@ktb/consultations",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/db": "workspace:*",
+		"drizzle-orm": "^0.45.1"
+	}
+}

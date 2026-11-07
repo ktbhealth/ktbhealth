@@ -1,5 +1,5 @@
-import type { Anamnesis, AnamnesisReview, AnamnesisSectionKey, Confidence } from "./types.ts";
-import { SECTION_LABELS } from "./types.ts";
+import type { Anamnesis, AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
+import { SECTION_LABELS } from "@ktb/anamnesis";
 
 /**
  * Second-opinion pass: a (stronger) model reads the transcript and

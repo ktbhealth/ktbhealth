@@ -120,15 +120,3 @@ export class WebSpeechTranscriber implements Transcriber {
 export function createTranscriber(): Transcriber {
 	return new WebSpeechTranscriber();
 }
-
-import {
-	createWhisperMicTranscriber,
-	createWhisperTabTranscriber,
-	WhisperTranscriber,
-} from "./whisper.ts";
-
-export { WhisperTranscriber, createWhisperMicTranscriber, createWhisperTabTranscriber };
-
-export function createTabAudioTranscriber(): Transcriber {
-	return createWhisperTabTranscriber();
-}
