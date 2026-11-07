@@ -3,10 +3,11 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./services": "./src/services.ts"
 	},
 	"dependencies": {
 		"@ktb/anamnesis": "workspace:*",
-		"effect": "4.0.7"
+		"effect": "4.1.2"
 	}
 }

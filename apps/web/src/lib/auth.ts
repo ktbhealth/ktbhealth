@@ -1,20 +1,20 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 
-import type { SessionUser } from "@ktb/auth";
-import { auth } from "#/lib/platform.ts";
+import { Auth, type SessionUser } from "@ktb/auth";
+import * as Effect from "effect/Effect";
+import { run } from "#/lib/platform.ts";
 
 export type { SessionUser };
 
 export async function getSessionUser(headers?: Headers): Promise<SessionUser | null> {
-	const session = await auth.api.getSession({
-		headers: headers ?? getRequestHeaders(),
-	});
+	const session = await run(
+		Effect.gen(function* () {
+			const auth = yield* Auth;
+			return yield* Effect.promise(() => auth.getSession(headers ?? getRequestHeaders()));
+		}),
+	);
 	if (!session) return null;
-	return {
-		id: session.user.id,
-		email: session.user.email,
-		name: session.user.name ?? null,
-	};
+	return session.user;
 }
 
 export async function ensureSessionUser(headers?: Headers): Promise<SessionUser> {

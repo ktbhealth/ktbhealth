@@ -3,8 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { run } from "#/lib/platform.ts";
-import { extractAnamnesis } from "@ktb/anamnesis-llm";
-import { reviewAnamnesis } from "@ktb/anamnesis-llm";
+import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis-llm/services";
 import type { Anamnesis } from "@ktb/anamnesis";
 import { AnamnesisReviewSchema, AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";
@@ -52,12 +51,26 @@ export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSess
 
 export const extractAnamneseFn = createServerFn({ method: "POST" })
 	.validator((transcript: string) => decodeString(transcript))
-	.handler(({ data: transcript }) => extractAnamnesis(transcript));
+	.handler(({ data: transcript }) =>
+		run(
+			Effect.gen(function* () {
+				const engine = yield* AnamnesisEngine;
+				return yield* engine.extract(transcript);
+			}),
+		),
+	);
 
 /** Second opinion (stronger model): gaps, hypotheses, red flags. */
 export const reviewAnamneseFn = createServerFn({ method: "POST" })
 	.validator((input: { transcript: string; anamnesis: Anamnesis }) => decodeReviewInput(input))
-	.handler(({ data }) => reviewAnamnesis(data.transcript, data.anamnesis));
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const engine = yield* ReviewEngine;
+				return yield* engine.review(data.transcript, data.anamnesis);
+			}),
+		),
+	);
 
 // ---------- patients ----------
 

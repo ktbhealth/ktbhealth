@@ -6,6 +6,8 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
+		"@ktb/anamnesis-llm": "workspace:*",
+		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/bot-recall": "workspace:*",
 		"@ktb/captcha": "workspace:*",
@@ -14,7 +16,7 @@
 		"@ktb/db": "workspace:*",
 		"@ktb/driver-framework": "workspace:*",
 		"@ktb/kernel": "workspace:*",
-		"effect": "4.0.7"
+		"effect": "4.1.2"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20251014.0"

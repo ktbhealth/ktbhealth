@@ -9,6 +9,8 @@ import { makeAuth } from "@ktb/auth-better";
 import { StubCaptchaLive } from "@ktb/captcha-stub";
 import { TurnstileCaptchaLive } from "@ktb/captcha-turnstile";
 import { Captcha } from "@ktb/captcha";
+import { Auth } from "@ktb/auth";
+import { AnamnesisEngineLive, ReviewEngineLive } from "@ktb/anamnesis-llm/services";
 
 /**
  * Plugin registry discovered from the filesystem: every module under
@@ -66,7 +68,33 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		);
 	// Infra layers are provided to plugin layers explicitly: mergeAll does
 	// not wire one sibling's outputs into another's requirements.
-	const core = Layer.mergeAll(BotLive, CaptchaLive, DbLive);
+	// Auth port backed by the same better-auth instance the routes use.
+	const AuthServiceLive = Layer.succeed(
+		Auth,
+		Auth.of({
+			getSession: async (headers) => {
+				const s = await auth.api.getSession({ headers });
+				if (!s) return null;
+				return {
+					user: {
+						id: s.user.id,
+						email: s.user.email,
+						name: s.user.name ?? null,
+					},
+					sessionId: s.session.id,
+					expiresAt: new Date(s.session.expiresAt),
+				};
+			},
+		}),
+	);
+	const core = Layer.mergeAll(
+		BotLive,
+		CaptchaLive,
+		DbLive,
+		AuthServiceLive,
+		AnamnesisEngineLive,
+		ReviewEngineLive,
+	);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),
 	);

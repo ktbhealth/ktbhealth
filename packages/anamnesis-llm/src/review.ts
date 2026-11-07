@@ -234,21 +234,33 @@ const dispatch = (key: string): Promise<ReviewResult> => {
  * degraded result (provider down, bad output) must not be pinned.
  */
 const REVIEW_TTL_MS = 5 * 60_000;
-const REVIEW_CACHE = new Map<string, { expires: number; result: ReviewResult }>();
 
-/** Drop all cached reviews (tests, provider reconfiguration). */
-export const clearReviewCache = (): void => REVIEW_CACHE.clear();
+/**
+ * Build a reviewer with its own TTL cache. Only successful reviews are
+ * stored: a degraded result (provider down, bad output) is never pinned.
+ * Each Effect layer gets an isolated cache — no shared module state.
+ */
+export const makeReviewer = () => {
+	const cache = new Map<string, { expires: number; result: ReviewResult }>();
+	const review = Object.assign(
+		async (transcript: string, anamnesis: Anamnesis): Promise<ReviewResult> => {
+			const key = reviewKey(transcript, anamnesis);
+			const hit = cache.get(key);
+			if (hit && hit.expires > Date.now()) return hit.result;
+			const result = await dispatch(key);
+			if (result.review !== null) {
+				cache.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
+			}
+			return result;
+		},
+		{ clear: () => cache.clear() },
+	);
+	return review;
+};
 
-export async function reviewAnamnesis(
-	transcript: string,
-	anamnesis: Anamnesis,
-): Promise<ReviewResult> {
-	const key = reviewKey(transcript, anamnesis);
-	const hit = REVIEW_CACHE.get(key);
-	if (hit && hit.expires > Date.now()) return hit.result;
-	const result = await dispatch(key);
-	if (result.review !== null) {
-		REVIEW_CACHE.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
-	}
-	return result;
-}
+const defaultReviewer = makeReviewer();
+
+/** Drop all cached reviews of the default reviewer (tests, reconfiguration). */
+export const clearReviewCache = (): void => defaultReviewer.clear();
+
+export const reviewAnamnesis = defaultReviewer;

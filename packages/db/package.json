@@ -15,7 +15,7 @@
 		"@ktb/consultations": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"drizzle-orm": "^0.45.1",
-		"effect": "4.0.7"
+		"effect": "4.1.2"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20251014.0",
