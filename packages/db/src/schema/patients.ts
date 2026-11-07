@@ -1,12 +1,12 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { users } from "./users.ts";
+import { user } from "@ktb/auth-better/schema";
 
 export const patients = sqliteTable("patients", {
 	id: integer().primaryKey({ autoIncrement: true }),
-	ownerId: integer("owner_id")
+	ownerId: text("owner_id")
 		.notNull()
-		.references(() => users.id),
+		.references(() => user.id),
 	name: text().notNull(),
 	createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });

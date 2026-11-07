@@ -1,0 +1,11 @@
+{
+	"name": "@ktb/auth",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"effect": "4.0.7"
+	}
+}

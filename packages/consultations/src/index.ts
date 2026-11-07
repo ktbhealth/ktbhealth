@@ -6,7 +6,7 @@ import { consultations } from "@ktb/db/schema";
 export async function createConsultation(
 	db: DbClient,
 	fields: {
-		userId: number;
+		userId: string;
 		transcript?: string;
 		source: string;
 		status?: string;

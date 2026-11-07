@@ -24,6 +24,8 @@
 		"@huggingface/transformers": "^4.3.2",
 		"@ktb/anamnesis": "workspace:*",
 		"@ktb/anamnesis-llm": "workspace:*",
+		"@ktb/auth": "workspace:*",
+		"@ktb/auth-better": "workspace:*",
 		"@ktb/bot": "workspace:*",
 		"@ktb/bot-recall": "workspace:*",
 		"@ktb/consultations": "workspace:*",

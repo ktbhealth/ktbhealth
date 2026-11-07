@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/consultas/$id/pdf")({
 					consultationId: row.c.id,
 					createdAt: row.c.createdAt,
 					patientName: row.patientName,
-					doctorName: user.isGuest ? null : user.name,
+					doctorName: user.name,
 					consentAt: row.c.consentAt,
 					anamnesis: JSON.parse(row.c.anamnesis) as Anamnesis,
 				});

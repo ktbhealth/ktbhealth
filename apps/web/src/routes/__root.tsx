@@ -3,11 +3,12 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { useState } from "react";
-import { ensureUserFn, signInFn } from "#/lib/fns.ts";
+import { authClient } from "@ktb/auth-better/client";
+import { sessionFn } from "#/lib/fns.ts";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
-	loader: () => ensureUserFn(),
+	loader: () => sessionFn(),
 	head: () => ({
 		meta: [
 			{ charSet: "utf-8" },
@@ -40,7 +41,9 @@ const NAV_ACTIVE = "bg-neutral-100 text-neutral-900";
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const user = Route.useLoaderData();
-	const [name, setName] = useState("");
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
+	const [mode, setMode] = useState<"in" | "up">("in");
 	return (
 		<html lang="pt-BR">
 			<head>
@@ -65,28 +68,52 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 									Consultas
 								</Link>
 								<span className="mx-1.5 h-5 w-px bg-neutral-200" />
-								{user?.isGuest ? (
+								{!user ? (
 									<form
 										onSubmit={async (e) => {
 											e.preventDefault();
-											if (!name.trim()) return;
-											await signInFn({ data: name });
+											if (!email.trim() || !password) return;
+											if (mode === "up") {
+												await authClient.signUp.email({
+													email,
+													password,
+													name: email.split("@")[0] ?? email,
+												});
+											} else {
+												await authClient.signIn.email({ email, password });
+											}
 											location.reload();
 										}}
 										className="flex items-center gap-1.5"
 									>
 										<input
-											value={name}
-											onChange={(e) => setName(e.target.value)}
-											placeholder="seu nome"
-											aria-label="Seu nome"
-											className="w-28 rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-xs"
+											type="email"
+											value={email}
+											onChange={(e) => setEmail(e.target.value)}
+											placeholder="email"
+											aria-label="Email"
+											className="w-36 rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-xs"
+										/>
+										<input
+											type="password"
+											value={password}
+											onChange={(e) => setPassword(e.target.value)}
+											placeholder="senha"
+											aria-label="Senha"
+											className="w-24 rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-xs"
 										/>
 										<button
 											type="submit"
 											className="rounded-lg px-2 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100"
 										>
-											entrar
+											{mode === "in" ? "entrar" : "criar conta"}
+										</button>
+										<button
+											type="button"
+											onClick={() => setMode(mode === "in" ? "up" : "in")}
+											className="text-[11px] text-neutral-400 hover:text-neutral-600"
+										>
+											{mode === "in" ? "cadastrar" : "entrar"}
 										</button>
 									</form>
 								) : (

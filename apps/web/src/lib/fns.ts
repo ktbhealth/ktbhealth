@@ -6,15 +6,11 @@ import { consultations, patients } from "@ktb/db/schema";
 import { type Anamnesis, extractAnamnesis } from "@ktb/anamnesis-llm";
 import { reviewAnamnesis } from "@ktb/anamnesis-llm";
 import type { AnamnesisReview } from "@ktb/anamnesis";
-import { ensureSessionUser, getSessionUser, signIn } from "#/lib/auth.ts";
+import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
 
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
-export const ensureUserFn = createServerFn({ method: "GET" }).handler(() => ensureSessionUser());
-
-export const signInFn = createServerFn({ method: "POST" })
-	.validator((name: string) => name)
-	.handler(({ data: name }) => signIn(name));
+export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const extractAnamneseFn = createServerFn({ method: "POST" })
 	.validator((transcript: string) => transcript)
