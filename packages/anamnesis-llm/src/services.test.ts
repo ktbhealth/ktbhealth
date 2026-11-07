@@ -1,7 +1,8 @@
 import { LanguageModel } from "effect/ai";
 import * as Effect from "effect/Effect";
+import { FetchHttpClient, HttpClient } from "effect/http";
 import * as Layer from "effect/Layer";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
 import {
@@ -15,6 +16,7 @@ import {
 	ReviewEngineLive,
 	selectReviewProvider,
 } from "./services.ts";
+import { reviewViaOllama } from "./review.ts";
 
 const section = (content: string) => ({
 	content,
@@ -220,15 +222,19 @@ describe("ReviewEngineLive selection", () => {
 });
 
 describe("ReviewEngine (ollama)", () => {
+	// FetchHttpClient reads globalThis.fetch once via a cached Context.Reference,
+	// so tests inject the Fetch service explicitly instead of stubGlobal("fetch").
 	const okFetch = () =>
-		vi.fn().mockResolvedValue({
-			ok: true,
-			status: 200,
-			json: async () => ({ message: { content: JSON.stringify(MOCK_REVIEW) } }),
-		});
+		vi.fn<typeof fetch>(
+			async () =>
+				new Response(JSON.stringify({ message: { content: JSON.stringify(MOCK_REVIEW) } }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+		);
 
-	beforeEach(() => vi.unstubAllGlobals());
-	afterEach(() => vi.unstubAllGlobals());
+	const run = <A>(eff: Effect.Effect<A>, fetchImpl: typeof fetch) =>
+		Effect.runPromise(eff.pipe(Effect.provideService(FetchHttpClient.Fetch, fetchImpl)));
 
 	const getEngine = () =>
 		Effect.runPromise(
@@ -239,75 +245,139 @@ describe("ReviewEngine (ollama)", () => {
 
 	it("returns a parsed review and caches it", async () => {
 		const fetchMock = okFetch();
-		vi.stubGlobal("fetch", fetchMock);
 		const engine = await getEngine();
-		const first = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
-		const second = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+		const first = await run(engine.review("t", MOCK_ANAMNESIS), fetchMock);
+		const second = await run(engine.review("t", MOCK_ANAMNESIS), fetchMock);
 		expect(first).toEqual({ review: MOCK_REVIEW, engine: "ollama:qwen3:8b" });
 		expect(second).toEqual(first);
 		expect(fetchMock).toHaveBeenCalledOnce();
 	});
 
 	it("degrades with pull instructions on 404", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
 		const engine = await getEngine();
-		const res = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+		const res = await run(
+			engine.review("t", MOCK_ANAMNESIS),
+			vi.fn<typeof fetch>(async () => new Response("missing", { status: 404 })),
+		);
 		expect(res.review).toBeNull();
 		expect(res.review === null && res.reason).toContain("ollama pull qwen3:8b");
 	});
 
 	it("degrades with serve instructions when fetch fails", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
 		const engine = await getEngine();
-		const res = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+		const res = await run(
+			engine.review("t", MOCK_ANAMNESIS),
+			vi.fn<typeof fetch>().mockRejectedValue(new TypeError("fetch failed")),
+		);
 		expect(res.review).toBeNull();
 		expect(res.review === null && res.reason).toContain("ollama serve");
 	});
 
 	it("degrades on timeout aborts", async () => {
-		const timeout = new Error("The operation timed out");
-		timeout.name = "TimeoutError";
-		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeout));
 		const engine = await getEngine();
-		const res = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+		const res = await run(
+			engine.review("t", MOCK_ANAMNESIS),
+			vi
+				.fn<typeof fetch>()
+				.mockRejectedValue(new DOMException("The operation timed out", "TimeoutError")),
+		);
 		expect(res.review).toBeNull();
 		expect(res.review === null && res.reason).toContain("ollama serve");
 	});
 
-	it("stringifies non-Error rejections in the degrade reason", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockRejectedValue("plain failure"));
-		const engine = await getEngine();
-		const res = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+	it("stringifies non-Error failures in the degrade reason", async () => {
+		// HttpClient.make only allows HttpClientError failures, so a defect
+		// exercises the same non-Error degrade path.
+		const failingClient = HttpClient.make(() => Effect.die("plain failure"));
+		const res = await Effect.runPromise(
+			reviewViaOllama({
+				baseUrl: "http://localhost:11434",
+				model: "qwen3:8b",
+				transcript: "t",
+				anamnesis: MOCK_ANAMNESIS,
+			}).pipe(Effect.provide(Layer.succeed(HttpClient.HttpClient, failingClient))),
+		);
 		expect(res.review).toBeNull();
 		expect(res.review === null && res.reason).toContain("plain failure");
 	});
 
+	it("degrades on defects like circular JSON payloads", async () => {
+		const circular: Record<string, unknown> = { ...MOCK_ANAMNESIS };
+		circular.self = circular;
+		const res = await Effect.runPromise(
+			reviewViaOllama({
+				baseUrl: "http://localhost:11434",
+				model: "qwen3:8b",
+				transcript: "t",
+				anamnesis: circular as unknown as Anamnesis,
+			}).pipe(Effect.provide(FetchHttpClient.layer)),
+		);
+		expect(res.review).toBeNull();
+		expect(res.review === null && res.reason).toContain("Segunda opinião falhou");
+	});
+
+	it("degrades with serve instructions when the request times out", async () => {
+		vi.useFakeTimers();
+		try {
+			const engine = await getEngine();
+			const pending = run(
+				engine.review("t", MOCK_ANAMNESIS),
+				vi.fn<typeof fetch>(() => new Promise<Response>(() => {})),
+			);
+			await vi.advanceTimersByTimeAsync(181_000);
+			const res = await pending;
+			expect(res.review).toBeNull();
+			expect(res.review === null && res.reason).toContain("ollama serve");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("degrades on non-404 HTTP errors and bad JSON", async () => {
-		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
 		const engine = await getEngine();
-		const res = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+		const res = await run(
+			engine.review("t", MOCK_ANAMNESIS),
+			vi.fn<typeof fetch>(async () => new Response("err", { status: 500 })),
+		);
 		expect(res.review).toBeNull();
 		expect(res.review === null && res.reason).toContain("ollama api: 500");
 
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }),
-		);
 		const engine2 = await getEngine();
-		const res2 = await Effect.runPromise(engine2.review("t2", MOCK_ANAMNESIS));
+		const res2 = await run(
+			engine2.review("t2", MOCK_ANAMNESIS),
+			vi.fn<typeof fetch>(async () => new Response("not json", { status: 200 })),
+		);
 		expect(res2.review).toBeNull();
 		expect(res2.review === null && res2.reason).toContain("Segunda opinião falhou");
+
+		const engine3 = await getEngine();
+		const res3 = await run(
+			engine3.review("t3", MOCK_ANAMNESIS),
+			vi.fn<typeof fetch>(
+				async () =>
+					new Response(JSON.stringify({ message: { content: "garbage{" } }), { status: 200 }),
+			),
+		);
+		expect(res3.review).toBeNull();
+		expect(res3.review === null && res3.reason).toContain("Segunda opinião falhou");
+
+		const engine4 = await getEngine();
+		const res4 = await run(
+			engine4.review("t4", MOCK_ANAMNESIS),
+			vi.fn<typeof fetch>(async () => new Response(JSON.stringify({}), { status: 200 })),
+		);
+		expect(res4.review).toBeNull();
+		expect(res4.review === null && res4.reason).toContain("Segunda opinião falhou");
 	});
 
 	it("expires ollama cached reviews after the TTL", async () => {
 		vi.useFakeTimers();
 		try {
 			const fetchMock = okFetch();
-			vi.stubGlobal("fetch", fetchMock);
 			const engine = await getEngine();
-			await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+			await run(engine.review("t", MOCK_ANAMNESIS), fetchMock);
 			vi.setSystemTime(Date.now() + 6 * 60_000);
-			await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
+			await run(engine.review("t", MOCK_ANAMNESIS), fetchMock);
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		} finally {
 			vi.useRealTimers();

@@ -1,6 +1,8 @@
 import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
 import { AnamnesisReviewSchema, decodeAnamnesisReview } from "@ktb/anamnesis/schema";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import { HttpBody, HttpClient, HttpClientError, HttpClientRequest } from "effect/http";
 import * as Schema from "effect/Schema";
 
 /**
@@ -43,58 +45,74 @@ export const REVIEW_OLLAMA_SCHEMA = Schema.toJsonSchemaDocument(AnamnesisReviewS
 const parseReviewJson = (text: string): AnamnesisReview =>
 	decodeAnamnesisReview(JSON.parse(text.replace(/```json|```/g, "").trim()));
 
+/** Transport-level failures mean Ollama itself is unreachable. */
+const isUnavailable = (e: unknown): boolean =>
+	Cause.isTimeoutError(e) ||
+	(HttpClientError.isHttpClientError(e) && e.reason._tag === "TransportError");
+
+const degrade = (
+	options: { readonly baseUrl: string; readonly model: string },
+	e: unknown,
+): ReviewResult =>
+	isUnavailable(e)
+		? {
+				review: null,
+				reason: `Ollama não respondeu em ${options.baseUrl}. Inicie com "ollama serve" e baixe o modelo com "ollama pull ${options.model}" — ou configure ANTHROPIC_API_KEY.`,
+			}
+		: {
+				review: null,
+				reason: `Segunda opinião falhou: ${e instanceof Error ? e.message : String(e)}`,
+			};
+
 /**
  * Local Ollama review over plain HTTP (no official effect/ai client).
  * Degrades to a user-facing reason instead of throwing: provider down,
  * missing model, or bad output are all recoverable states.
+ * Requires `HttpClient` — callers provide `FetchHttpClient.layer`.
  */
 export const reviewViaOllama = (options: {
 	readonly baseUrl: string;
 	readonly model: string;
 	readonly transcript: string;
 	readonly anamnesis: Anamnesis;
-}): Effect.Effect<ReviewResult> =>
-	Effect.tryPromise({
-		try: async (signal) => {
-			const res = await fetch(`${options.baseUrl}/api/chat`, {
-				method: "POST",
+}): Effect.Effect<ReviewResult, never, HttpClient.HttpClient> =>
+	Effect.gen(function* () {
+		const response = yield* HttpClient.execute(
+			HttpClientRequest.post(`${options.baseUrl}/api/chat`, {
 				headers: { "content-type": "application/json" },
-				// first call loads the model into VRAM — be patient
-				signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]),
-				body: JSON.stringify({
+				body: HttpBody.jsonUnsafe({
 					model: options.model,
 					stream: false,
 					think: false,
 					format: REVIEW_OLLAMA_SCHEMA,
+					// first call loads the model into VRAM — be patient
 					options: { temperature: 0.2, num_ctx: 8192 },
 					messages: [
 						{ role: "system", content: REVIEW_PROMPT },
 						{ role: "user", content: reviewUserMessage(options.transcript, options.anamnesis) },
 					],
 				}),
-			});
-			if (res.status === 404) {
-				return {
-					review: null,
-					reason: `Modelo "${options.model}" não está no Ollama. Rode: ollama pull ${options.model}`,
-				} satisfies ReviewResult;
-			}
-			if (!res.ok) throw new Error(`ollama api: ${res.status}`);
-			const data = (await res.json()) as { message?: { content?: string } };
-			return {
-				review: parseReviewJson(data.message?.content ?? ""),
-				engine: `ollama:${options.model}`,
-			} satisfies ReviewResult;
-		},
-		catch: (e) => e,
-	}).pipe(
-		Effect.catch((e) =>
-			Effect.succeed<ReviewResult>({
-				review: null,
-				reason:
-					e instanceof TypeError || (e instanceof Error && e.name === "TimeoutError")
-						? `Ollama não respondeu em ${options.baseUrl}. Inicie com "ollama serve" e baixe o modelo com "ollama pull ${options.model}" — ou configure ANTHROPIC_API_KEY.`
-						: `Segunda opinião falhou: ${e instanceof Error ? e.message : String(e)}`,
 			}),
-		),
+		);
+		if (response.status === 404) {
+			return {
+				review: null,
+				reason: `Modelo "${options.model}" não está no Ollama. Rode: ollama pull ${options.model}`,
+			} satisfies ReviewResult;
+		}
+		if (response.status < 200 || response.status >= 300) {
+			return yield* Effect.fail(new Error(`ollama api: ${response.status}`));
+		}
+		const data = (yield* response.json) as { message?: { content?: string } };
+		const review = yield* Effect.try({
+			try: () => parseReviewJson(data.message?.content ?? ""),
+			catch: (e) => e,
+		});
+		return { review, engine: `ollama:${options.model}` } satisfies ReviewResult;
+	}).pipe(
+		// covers the request and the body read, like the old AbortSignal.timeout
+		Effect.timeout("180 seconds"),
+		Effect.catch((e) => Effect.succeed(degrade(options, e))),
+		// the old tryPromise also degraded synchronous throws (e.g. circular JSON)
+		Effect.catchDefect((d) => Effect.succeed(degrade(options, d))),
 	);

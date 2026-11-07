@@ -11,6 +11,7 @@ import { anthropicLanguageModelLive, openAiLanguageModelLive, type LlmConfig } f
 
 export type { LlmConfig } from "./llm.ts";
 import { REVIEW_PROMPT, reviewUserMessage, reviewViaOllama, type ReviewResult } from "./review.ts";
+import { FetchHttpClient } from "effect/http";
 
 /** Anamnesis extraction port — provider chosen inside the impl. */
 export class AnamnesisEngine extends Context.Service<
@@ -186,7 +187,7 @@ export const makeOllamaReviewEngine = (
 							model: modelName,
 							transcript,
 							anamnesis,
-						});
+						}).pipe(Effect.provide(FetchHttpClient.layer));
 						if (result.review !== null) {
 							cache.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
 						}
