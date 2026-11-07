@@ -28,6 +28,12 @@ const CONF_LABEL: Record<Confidence, string> = {
 	baixa: "confiança baixa",
 };
 
+function fmtElapsed(totalSec: number) {
+	const m = Math.floor(totalSec / 60);
+	const s = totalSec % 60;
+	return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 	return (
 		<span className="flex items-center gap-2">
@@ -117,6 +123,10 @@ export function NovaConsultaPage({
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const [source, setSource] = useState<"gravar" | "bot" | "upload">("gravar");
 	const [resultTab, setResultTab] = useState<"anamnese" | "review">("anamnese");
+	const [mode, setMode] = useState<"live" | "dictation">("live");
+	const [dictating, setDictating] = useState(false);
+	const [elapsedSec, setElapsedSec] = useState(0);
+	const dictationStartRef = useRef(0);
 
 	// Preload Whisper once per page: first visit downloads, later ones
 	// come straight from the browser cache.
@@ -139,6 +149,16 @@ export function NovaConsultaPage({
 			tabRef.current?.stop();
 		};
 	}, []);
+
+	// elapsed clock while dictating
+	useEffect(() => {
+		if (!dictating) return;
+		const i = setInterval(
+			() => setElapsedSec(Math.floor((Date.now() - dictationStartRef.current) / 1000)),
+			500,
+		);
+		return () => clearInterval(i);
+	}, [dictating]);
 
 	// Poll a live bot consultation — transcript grows as events arrive.
 	useEffect(() => {
@@ -246,6 +266,41 @@ export function NovaConsultaPage({
 			}
 		});
 		setTabRecording(true);
+	}
+
+	/**
+	 * Ditado pós-consulta: same mic transcriber (Whisper), single speaker —
+	 * finals land in the transcript without a "Médico:" prefix since the
+	 * narration already describes the whole consultation.
+	 */
+	function toggleDictation() {
+		const t = transcriberRef.current;
+		/* v8 ignore next -- refs are assigned in useEffect before any click */
+		if (!t) return;
+		if (dictating) {
+			t.stop();
+			setDictating(false);
+			return;
+		}
+		setError(null);
+		dictationStartRef.current = Date.now();
+		setElapsedSec(0);
+		t.start((ev) => {
+			if (ev.type === "partial") setPartial(ev.text);
+			if (ev.type === "final") {
+				setTranscript((prev) => `${prev}${prev ? "\n" : ""}${ev.text}`);
+				setPartial("");
+			}
+			if (ev.type === "error") {
+				setError(ev.message);
+				setDictating(false);
+			}
+			if (ev.type === "end") {
+				setDictating(false);
+				setPartial("");
+			}
+		});
+		setDictating(true);
 	}
 
 	async function generate() {
@@ -392,7 +447,7 @@ export function NovaConsultaPage({
 	const step1 = consented && (patientId !== null || patients.length === 0);
 	const step2 = transcript.trim().length > 0;
 	const step3 = anamnesis !== null;
-	const live = recording || tabRecording;
+	const live = recording || tabRecording || dictating;
 	/* v8 ignore next -- patientId only comes from the patients list or createPatient */
 	const dialogPatientName = patientId
 		? (patients.find((p) => p.id === patientId)?.name ?? "paciente")
@@ -421,6 +476,36 @@ export function NovaConsultaPage({
 					<span className="h-px w-6 bg-border" />
 					<Step n={3} label="Revisar" done={step3} />
 				</div>
+			</div>
+
+			{/* ---- modo: consulta ao vivo vs ditado pós-consulta ---- */}
+			<div
+				className="mt-4 flex w-fit items-center gap-1 rounded-lg bg-muted p-0.5 text-sm"
+				role="tablist"
+				aria-label="Modo da consulta"
+			>
+				{(
+					[
+						["live", "Consulta ao vivo"],
+						["dictation", "Ditado pós-consulta"],
+					] as const
+				).map(([key, label]) => (
+					<button
+						key={key}
+						type="button"
+						role="tab"
+						aria-selected={mode === key}
+						disabled={live}
+						onClick={() => setMode(key)}
+						className={`rounded-md px-3 py-1.5 font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+							mode === key
+								? "bg-background text-foreground shadow-sm"
+								: "text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						{label}
+					</button>
+				))}
 			</div>
 
 			{/* ---- 1. preparar: paciente + consentimento ---- */}
@@ -493,34 +578,75 @@ export function NovaConsultaPage({
 				<section className={cardCls}>
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
 						<h2 className="font-semibold">Transcrição</h2>
-						<div className="flex rounded-lg bg-muted p-0.5 text-xs" role="tablist">
-							{(
-								[
-									["gravar", "Gravar"],
-									["upload", "Upload"],
-									["bot", "Teleconsulta (bot)"],
-								] as const
-							).map(([key, label]) => (
-								<button
-									key={key}
-									type="button"
-									role="tab"
-									aria-selected={source === key}
-									onClick={() => setSource(key)}
-									className={`rounded-md px-3 py-1 font-medium transition ${
-										source === key
-											? "bg-background text-foreground shadow-sm"
-											: "text-muted-foreground hover:text-foreground"
-									}`}
-								>
-									{label}
-								</button>
-							))}
-						</div>
+						{mode === "live" ? (
+							<div className="flex rounded-lg bg-muted p-0.5 text-xs" role="tablist">
+								{(
+									[
+										["gravar", "Gravar"],
+										["upload", "Upload"],
+										["bot", "Teleconsulta (bot)"],
+									] as const
+								).map(([key, label]) => (
+									<button
+										key={key}
+										type="button"
+										role="tab"
+										aria-selected={source === key}
+										onClick={() => setSource(key)}
+										className={`rounded-md px-3 py-1 font-medium transition ${
+											source === key
+												? "bg-background text-foreground shadow-sm"
+												: "text-muted-foreground hover:text-foreground"
+										}`}
+									>
+										{label}
+									</button>
+								))}
+							</div>
+						) : null}
 					</div>
 
 					<div className="space-y-4 p-5">
-						{source === "upload" ? (
+						{mode === "dictation" ? (
+							<div className="flex flex-col items-center gap-3 rounded-xl border border-border px-6 py-8 text-center">
+								<p className="max-w-md text-sm text-muted-foreground">
+									A consulta já aconteceu? Narre tudo em voz alta, como se explicasse o caso — uma
+									voz só (a sua): queixa, história, exame e conduta. A narração vira a transcrição
+									que gera a anamnese.
+								</p>
+								<button
+									type="button"
+									onClick={toggleDictation}
+									disabled={!supported || !consented}
+									className={`flex items-center gap-3 rounded-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+										dictating
+											? "bg-red-600 text-white hover:bg-red-700"
+											: "bg-primary text-primary-foreground hover:bg-primary/80"
+									}`}
+								>
+									<span
+										className={`size-3 rounded-full ${dictating ? "animate-pulse bg-white" : "bg-white/70"}`}
+									/>
+									{dictating ? `Parar narração — ${fmtElapsed(elapsedSec)}` : "Iniciar narração"}
+								</button>
+								{dictating ? (
+									<p className="text-xs text-muted-foreground">
+										gravando… {fmtElapsed(elapsedSec)} — a transcrição aparece abaixo em tempo real
+									</p>
+								) : null}
+								{!consented ? (
+									<p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+										Marque o consentimento acima para liberar a narração.
+									</p>
+								) : null}
+								{!supported ? (
+									<p className="text-xs text-amber-600">
+										Gravação não suportada neste browser — use o exemplo ou cole o texto
+										(Chrome/Edge suportam).
+									</p>
+								) : null}
+							</div>
+						) : source === "upload" ? (
 							<label className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition hover:border-foreground/20">
 								<input
 									type="file"

@@ -1086,4 +1086,114 @@ describe("NovaConsultaPage", () => {
 		const dialog = document.querySelector("dialog") as HTMLDialogElement;
 		expect(dialog.textContent).toContain("de Maria");
 	});
+
+	describe("ditado pós-consulta", () => {
+		async function enterDictation(user: ReturnType<typeof userEvent.setup>) {
+			await user.click(screen.getByText("Ditado pós-consulta"));
+		}
+
+		it("switches mode and shows dictation panel without source tabs", async () => {
+			const user = userEvent.setup();
+			renderPage();
+			await enterDictation(user);
+			expect(screen.getByText(/Narre tudo em voz alta/)).toBeTruthy();
+			expect(screen.getByText("Iniciar narração")).toBeTruthy();
+			expect(screen.queryByText("Teleconsulta (bot)")).toBeNull();
+			await user.click(screen.getByText("Consulta ao vivo"));
+			expect(screen.getByText("Teleconsulta (bot)")).toBeTruthy();
+			expect(screen.queryByText("Iniciar narração")).toBeNull();
+		});
+
+		it("requires consent and shows warning", async () => {
+			const user = userEvent.setup();
+			renderPage();
+			await enterDictation(user);
+			expect(screen.getByText(/Marque o consentimento acima para liberar a narração/)).toBeTruthy();
+			const btn = screen.getByText("Iniciar narração").closest("button")!;
+			expect(btn.disabled).toBe(true);
+			await consent(user);
+			expect(btn.disabled).toBe(false);
+			expect(screen.queryByText(/liberar a narração/)).toBeNull();
+		});
+
+		it("shows unsupported message when mic unsupported", async () => {
+			micSupported = false;
+			const user = userEvent.setup();
+			renderPage();
+			await enterDictation(user);
+			expect(screen.getByText(/Gravação não suportada/)).toBeTruthy();
+		});
+
+		it("records narration: partial preview, final without prefix, stop", async () => {
+			const user = userEvent.setup();
+			renderPage();
+			await consent(user);
+			await enterDictation(user);
+			await user.click(screen.getByText("Iniciar narração"));
+			expect(micCb).not.toBeNull();
+			expect(screen.getByText(/gravando… 0:00/)).toBeTruthy();
+
+			act(() => micCb!({ type: "partial", text: "narração parcial" }));
+			await screen.findByText(/narração parcial…/);
+			act(() => micCb!({ type: "final", text: "paciente relata dor de cabeça" }));
+			act(() => micCb!({ type: "final", text: "sem febre" }));
+			await waitFor(() =>
+				expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+					"paciente relata dor de cabeça\nsem febre",
+				),
+			);
+
+			await user.click(screen.getByText(/Parar narração/));
+			expect(micStop).toHaveBeenCalled();
+			expect(screen.getByText("Iniciar narração")).toBeTruthy();
+			expect(screen.queryByText(/gravando…/)).toBeNull();
+		});
+
+		it("elapsed clock ticks while dictating", async () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const user = userEvent.setup({
+				advanceTimers: (ms) => vi.advanceTimersByTime(ms),
+			});
+			renderPage();
+			await consent(user);
+			await enterDictation(user);
+			await user.click(screen.getByText("Iniciar narração"));
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(61_500);
+			});
+			expect(screen.getByText(/Parar narração — 1:01/)).toBeTruthy();
+			vi.useRealTimers();
+		});
+
+		it("dictation error and end events stop recording", async () => {
+			const user = userEvent.setup();
+			renderPage();
+			await consent(user);
+			await enterDictation(user);
+			await user.click(screen.getByText("Iniciar narração"));
+			act(() => micCb!({ type: "error", message: "dict mic denied" }));
+			await screen.findByText("dict mic denied");
+			expect(screen.getByText("Iniciar narração")).toBeTruthy();
+			// restart, then engine end stops it
+			await user.click(screen.getByText("Iniciar narração"));
+			act(() => micCb!({ type: "end" }));
+			expect(screen.getByText("Iniciar narração")).toBeTruthy();
+		});
+
+		it("dictated transcript feeds the anamnesis pipeline", async () => {
+			const user = userEvent.setup();
+			const api = makeApi();
+			renderPage(api);
+			await consent(user);
+			await enterDictation(user);
+			await user.click(screen.getByText("Iniciar narração"));
+			act(() => micCb!({ type: "final", text: "narrei a consulta toda" }));
+			await user.click(screen.getByText(/Parar narração/));
+			await user.click(screen.getByText("Gerar anamnese →"));
+			await screen.findByText("confiança alta");
+			expect(api.extractAnamnese).toHaveBeenCalledWith({
+				data: "narrei a consulta toda",
+			});
+		});
+	});
 });
