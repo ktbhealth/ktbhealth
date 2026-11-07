@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 
+import { createPatient, listPatients } from "@ktb/patients";
 import { db } from "#/lib/platform.ts";
-import { consultations, patients } from "@ktb/db/schema";
+import { consultations } from "@ktb/db/schema";
+import { patients } from "@ktb/patients/schema";
 import { type Anamnesis, extractAnamnesis } from "@ktb/anamnesis-llm";
 import { reviewAnamnesis } from "@ktb/anamnesis-llm";
 import type { AnamnesisReview } from "@ktb/anamnesis";
@@ -26,18 +28,14 @@ export const reviewAnamneseFn = createServerFn({ method: "POST" })
 export const listPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
 	const user = await getSessionUser();
 	if (!user) return [];
-	return db.select().from(patients).where(eq(patients.ownerId, user.id));
+	return listPatients(db, user.id);
 });
 
 export const createPatientFn = createServerFn({ method: "POST" })
 	.validator((name: string) => name)
 	.handler(async ({ data: name }) => {
 		const user = await ensureSessionUser();
-		const rows = await db
-			.insert(patients)
-			.values({ ownerId: user.id, name, createdAt: new Date() })
-			.returning();
-		return rows[0] ?? null;
+		return createPatient(db, user.id, name);
 	});
 
 // ---------- consultations (owner-scoped) ----------

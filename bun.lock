@@ -52,6 +52,7 @@
         "@ktb/export-pdf": "workspace:*",
         "@ktb/infra": "workspace:*",
         "@ktb/kernel": "workspace:*",
+        "@ktb/patients": "workspace:*",
         "@ktb/transcription": "workspace:*",
         "@ktb/transcription-whisper": "workspace:*",
         "@ktbhealth/ui": "workspace:*",
@@ -112,6 +113,13 @@
         "@types/node": "^22.10.2",
       },
     },
+    "packages/authz": {
+      "name": "@ktb/authz",
+      "dependencies": {
+        "effect": "4.0.7",
+        "permix": "^4.4.1",
+      },
+    },
     "packages/bot": {
       "name": "@ktb/bot",
     },
@@ -124,7 +132,10 @@
     "packages/consultations": {
       "name": "@ktb/consultations",
       "dependencies": {
+        "@ktb/auth-better": "workspace:*",
         "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/patients": "workspace:*",
         "drizzle-orm": "^0.45.1",
       },
     },
@@ -132,6 +143,8 @@
       "name": "@ktb/db",
       "dependencies": {
         "@ktb/auth-better": "workspace:*",
+        "@ktb/consultations": "workspace:*",
+        "@ktb/patients": "workspace:*",
         "drizzle-orm": "^0.45.1",
         "effect": "4.0.7",
       },
@@ -172,6 +185,15 @@
         "@tanstack/virtual-file-routes": "1.162.0",
         "drizzle-orm": "^0.45.1",
         "effect": "4.0.7",
+      },
+    },
+    "packages/patients": {
+      "name": "@ktb/patients",
+      "dependencies": {
+        "@ktb/auth-better": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "drizzle-orm": "^0.45.1",
       },
     },
     "packages/transcription": {
@@ -581,6 +603,8 @@
 
     "@ktb/auth-better": ["@ktb/auth-better@workspace:packages/auth-better"],
 
+    "@ktb/authz": ["@ktb/authz@workspace:packages/authz"],
+
     "@ktb/bot": ["@ktb/bot@workspace:packages/bot"],
 
     "@ktb/bot-recall": ["@ktb/bot-recall@workspace:packages/bot-recall"],
@@ -596,6 +620,8 @@
     "@ktb/infra": ["@ktb/infra@workspace:packages/infra"],
 
     "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
+
+    "@ktb/patients": ["@ktb/patients@workspace:packages/patients"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
 
@@ -2038,6 +2064,8 @@
     "pdfkit": ["pdfkit@0.17.2", "", { "dependencies": { "crypto-js": "^4.2.0", "fontkit": "^2.0.4", "jpeg-exif": "^1.1.4", "linebreak": "^1.1.0", "png-js": "^1.0.0" } }, "sha512-UnwF5fXy08f0dnp4jchFYAROKMNTaPqb/xgR8GtCzIcqoTnbOqtp3bwKvO4688oHI6vzEEs8Q6vqqEnC5IUELw=="],
 
     "pend": ["pend@1.2.0", "", {}, "sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg=="],
+
+    "permix": ["permix@4.4.1", "", { "peerDependencies": { "@nestjs/common": ">=10", "@nestjs/core": ">=10", "@orpc/server": ">=1", "@tanstack/react-start": ">=1", "@trpc/server": ">=11", "drizzle-orm": ">=0.30.0 || >=1.0.0-rc.3", "effect": ">=3", "elysia": ">=1", "express": ">=4", "fastify": ">=5", "fastify-plugin": ">=5", "hono": ">=4", "next": ">=14", "react": ">=18", "react-dom": ">=18", "reflect-metadata": ">=0.1.13", "solid-js": ">=1", "svelte": ">=5", "vue": ">=3" }, "optionalPeers": ["@nestjs/common", "@nestjs/core", "@orpc/server", "@tanstack/react-start", "@trpc/server", "drizzle-orm", "effect", "elysia", "express", "fastify", "fastify-plugin", "hono", "next", "react", "react-dom", "reflect-metadata", "solid-js", "svelte", "vue"] }, "sha512-8IvGLtKivQm1bvWbYB3xRVOj4SEw+OiDKsLm7j3uQII3No/+epOaZCy3SUuQWm7mL9uCHWOTfp986jPPY47+eA=="],
 
     "picocolors": ["picocolors@1.1.1", "", {}, "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="],
 

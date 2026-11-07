@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 
+import { consultations } from "./schema.ts";
+
 import type { DbClient } from "@ktb/db";
-import { consultations } from "@ktb/db/schema";
 
 export async function createConsultation(
 	db: DbClient,
@@ -47,3 +48,11 @@ export async function finishConsultation(db: DbClient, consultationId: number) {
 		.set({ status: "done" })
 		.where(eq(consultations.id, consultationId));
 }
+
+import { definePlugin } from "@ktb/kernel";
+
+export const plugin = definePlugin({
+	id: "consultations",
+	nav: [{ to: "/consultas", label: "Consultas" }],
+	tables: { consultations },
+});

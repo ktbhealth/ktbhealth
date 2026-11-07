@@ -5,6 +5,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { useState } from "react";
 import { authClient } from "@ktb/auth-better/client";
 import { sessionFn } from "#/lib/fns.ts";
+import { plugins } from "#/plugins.ts";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -60,13 +61,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 								<span className="text-lg font-bold tracking-tight">anamnese</span>
 							</Link>
 							<div className="flex items-center gap-1.5">
-								<Link
-									to="/consultas"
-									className={NAV_LINK}
-									activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
-								>
-									Consultas
-								</Link>
+								{plugins
+									.flatMap((p) => p.nav ?? [])
+									.map((item) => (
+										<Link
+											key={item.to}
+											to={item.to}
+											className={NAV_LINK}
+											activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+										>
+											{item.label}
+										</Link>
+									))}
 								<span className="mx-1.5 h-5 w-px bg-neutral-200" />
 								{!user ? (
 									<form

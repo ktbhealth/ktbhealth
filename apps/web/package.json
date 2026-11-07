@@ -33,6 +33,7 @@
 		"@ktb/export-pdf": "workspace:*",
 		"@ktb/infra": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/patients": "workspace:*",
 		"@ktb/transcription": "workspace:*",
 		"@ktb/transcription-whisper": "workspace:*",
 		"@ktbhealth/ui": "workspace:*",

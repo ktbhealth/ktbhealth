@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { patients } from "./patients.ts";
+import { patients } from "@ktb/patients/schema";
 import { user } from "@ktb/auth-better/schema";
 
 export const consultations = sqliteTable("consultations", {
