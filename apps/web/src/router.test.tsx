@@ -186,7 +186,7 @@ describe("router integration", () => {
 		await router.load();
 		render(createElement(RouterProvider, { router }));
 		await waitFor(() =>
-			expect(document.querySelector(".bg-neutral-200.uppercase")?.textContent).toBe("?"),
+			expect(document.querySelector(".bg-muted.uppercase")?.textContent).toBe("?"),
 		);
 	});
 

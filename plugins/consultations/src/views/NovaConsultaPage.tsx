@@ -13,13 +13,13 @@ import type { Transcriber, TranscriptionBackend } from "@ktb/transcription";
 const CONF_STYLE: Record<Confidence, string> = {
 	alta: "bg-emerald-50 text-emerald-700 ring-emerald-200",
 	media: "bg-amber-50 text-amber-700 ring-amber-200",
-	baixa: "bg-neutral-100 text-neutral-500 ring-neutral-200",
+	baixa: "bg-muted text-muted-foreground ring-border",
 };
 
 const CONF_BAR: Record<Confidence, string> = {
 	alta: "border-l-emerald-400",
 	media: "border-l-amber-400",
-	baixa: "border-l-neutral-300",
+	baixa: "border-l-border",
 };
 
 const CONF_LABEL: Record<Confidence, string> = {
@@ -33,12 +33,12 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 		<span className="flex items-center gap-2">
 			<span
 				className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
-					done ? "bg-emerald-600 text-white" : "bg-neutral-200 text-neutral-600"
+					done ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
 				}`}
 			>
 				{done ? "✓" : n}
 			</span>
-			<span className={done ? "text-neutral-900" : "text-neutral-500"}>{label}</span>
+			<span className={done ? "text-foreground" : "text-muted-foreground"}>{label}</span>
 		</span>
 	);
 }
@@ -398,11 +398,11 @@ export function NovaConsultaPage({
 		? (patients.find((p) => p.id === patientId)?.name ?? "paciente")
 		: null;
 
-	const cardCls = "rounded-2xl border border-neutral-200 bg-white shadow-sm";
+	const cardCls = "rounded-2xl border border-border bg-card shadow-sm";
 	const btnPrimary =
-		"rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40";
+		"rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-40";
 	const btnGhost =
-		"rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-40";
+		"rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40";
 
 	return (
 		<div>
@@ -410,15 +410,15 @@ export function NovaConsultaPage({
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Nova consulta</h1>
-					<p className="mt-1 text-sm text-neutral-500">
+					<p className="mt-1 text-sm text-muted-foreground">
 						Grave a conversa ou cole a transcrição — a anamnese sai estruturada para revisão.
 					</p>
 				</div>
 				<div className="flex items-center gap-3 text-sm">
 					<Step n={1} label="Preparar" done={step1} />
-					<span className="h-px w-6 bg-neutral-300" />
+					<span className="h-px w-6 bg-border" />
 					<Step n={2} label="Transcrever" done={step2} />
-					<span className="h-px w-6 bg-neutral-300" />
+					<span className="h-px w-6 bg-border" />
 					<Step n={3} label="Revisar" done={step3} />
 				</div>
 			</div>
@@ -428,7 +428,7 @@ export function NovaConsultaPage({
 				<div className="flex flex-wrap items-center gap-x-6 gap-y-3">
 					<div className="flex items-center gap-2">
 						<label
-							className="text-xs font-semibold tracking-wide text-neutral-500 uppercase"
+							className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 							htmlFor="patient-sel"
 						>
 							Paciente
@@ -437,7 +437,7 @@ export function NovaConsultaPage({
 							id="patient-sel"
 							value={patientId ?? ""}
 							onChange={(e) => setPatientId(e.target.value ? Number(e.target.value) : null)}
-							className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm"
+							className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm"
 						>
 							<option value="">sem vínculo</option>
 							{patients.map((p) => (
@@ -453,7 +453,7 @@ export function NovaConsultaPage({
 							onChange={(e) => setPatientName(e.target.value)}
 							placeholder="novo paciente"
 							aria-label="Nome do novo paciente"
-							className="w-40 rounded-lg border border-neutral-300 px-2.5 py-1.5 text-sm"
+							className="w-40 rounded-lg border border-border px-2.5 py-1.5 text-sm"
 						/>
 						<button
 							type="button"
@@ -491,9 +491,9 @@ export function NovaConsultaPage({
 			<div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
 				{/* ================= coluna esquerda: transcrição ================= */}
 				<section className={cardCls}>
-					<div className="flex items-center justify-between border-b border-neutral-100 px-5 py-3">
+					<div className="flex items-center justify-between border-b border-border px-5 py-3">
 						<h2 className="font-semibold">Transcrição</h2>
-						<div className="flex rounded-lg bg-neutral-100 p-0.5 text-xs" role="tablist">
+						<div className="flex rounded-lg bg-muted p-0.5 text-xs" role="tablist">
 							{(
 								[
 									["gravar", "Gravar"],
@@ -509,8 +509,8 @@ export function NovaConsultaPage({
 									onClick={() => setSource(key)}
 									className={`rounded-md px-3 py-1 font-medium transition ${
 										source === key
-											? "bg-white text-neutral-900 shadow-sm"
-											: "text-neutral-500 hover:text-neutral-800"
+											? "bg-background text-foreground shadow-sm"
+											: "text-muted-foreground hover:text-foreground"
 									}`}
 								>
 									{label}
@@ -521,7 +521,7 @@ export function NovaConsultaPage({
 
 					<div className="space-y-4 p-5">
 						{source === "upload" ? (
-							<label className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 transition hover:border-neutral-400">
+							<label className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition hover:border-foreground/20">
 								<input
 									type="file"
 									accept="audio/*"
@@ -533,7 +533,7 @@ export function NovaConsultaPage({
 										e.target.value = "";
 									}}
 								/>
-								<span className="font-medium text-neutral-700">
+								<span className="font-medium text-foreground">
 									{busy ? "Transcrevendo…" : "Enviar gravação"}
 								</span>
 								<span className="text-[11px]">Áudio transcrito no servidor (Whisper)</span>
@@ -548,18 +548,18 @@ export function NovaConsultaPage({
 										className={`flex flex-col items-start rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${
 											recording
 												? "border-red-300 bg-red-50"
-												: "border-neutral-200 hover:border-neutral-400"
+												: "border-border hover:border-foreground/20"
 										}`}
 									>
 										<span className="flex items-center gap-2 text-sm font-medium">
 											{recording ? (
 												<span className="size-2.5 animate-pulse rounded-full bg-red-600" />
 											) : (
-												<span className="size-2.5 rounded-full bg-neutral-400" />
+												<span className="size-2.5 rounded-full bg-muted-foreground" />
 											)}
 											{recording ? "Parar microfone" : "Gravar microfone"}
 										</span>
-										<span className="mt-1 text-[11px] text-neutral-500">
+										<span className="mt-1 text-[11px] text-muted-foreground">
 											Sua voz — aparece como “Médico”
 										</span>
 									</button>
@@ -570,18 +570,18 @@ export function NovaConsultaPage({
 										className={`flex flex-col items-start rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${
 											tabRecording
 												? "border-red-300 bg-red-50"
-												: "border-neutral-200 hover:border-neutral-400"
+												: "border-border hover:border-foreground/20"
 										}`}
 									>
 										<span className="flex items-center gap-2 text-sm font-medium">
 											{tabRecording ? (
 												<span className="size-2.5 animate-pulse rounded-full bg-red-600" />
 											) : (
-												<span className="size-2.5 rounded-full bg-neutral-400" />
+												<span className="size-2.5 rounded-full bg-muted-foreground" />
 											)}
 											{tabRecording ? "Parar aba" : "Capturar aba da chamada"}
 										</span>
-										<span className="mt-1 text-[11px] text-neutral-500">
+										<span className="mt-1 text-[11px] text-muted-foreground">
 											Áudio da call — aparece como “Paciente”
 										</span>
 									</button>
@@ -591,7 +591,7 @@ export function NovaConsultaPage({
 										Marque o consentimento acima para liberar a gravação.
 									</p>
 								) : (
-									<p className="text-[11px] text-neutral-400">
+									<p className="text-[11px] text-muted-foreground">
 										Dica: ligue os dois para separar médico e paciente, e use fone de ouvido para o
 										microfone não captar a caixa de som.
 									</p>
@@ -610,7 +610,7 @@ export function NovaConsultaPage({
 										speaker labels grátis via canais
 									</span>
 								</div>
-								<p className="mt-2 text-xs text-neutral-500">
+								<p className="mt-2 text-xs text-muted-foreground">
 									O bot “Anamnese” entra na sua call (Meet/Zoom/Teams), transcreve com separação por
 									falante e gera o rascunho quando a consulta acaba.
 								</p>
@@ -621,7 +621,7 @@ export function NovaConsultaPage({
 										onChange={(e) => setMeetUrl(e.target.value)}
 										aria-label="Link da teleconsulta"
 										placeholder="https://meet.google.com/xxx-xxxx-xxx"
-										className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm"
+										className="w-full rounded-lg border border-border px-3 py-2 text-sm"
 									/>
 									<button
 										type="button"
@@ -633,7 +633,7 @@ export function NovaConsultaPage({
 									</button>
 								</div>
 								{liveId ? (
-									<p className="mt-2 flex items-center gap-2 text-xs text-neutral-500">
+									<p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
 										{liveStatus === "live" ? (
 											<span className="size-2 animate-pulse rounded-full bg-red-600" />
 										) : (
@@ -649,7 +649,7 @@ export function NovaConsultaPage({
 						{/* estado: modelo / gravação / parcial */}
 						<div className="flex flex-wrap items-center gap-2 text-xs">
 							{modelStatus ? (
-								<span className="rounded-full bg-neutral-100 px-2.5 py-1 text-neutral-600">
+								<span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
 									🧠 {modelStatus}
 								</span>
 							) : null}
@@ -661,7 +661,7 @@ export function NovaConsultaPage({
 							) : null}
 						</div>
 						{partial ? (
-							<p className="rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-500 italic">
+							<p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground italic">
 								{partial}…
 							</p>
 						) : null}
@@ -670,7 +670,7 @@ export function NovaConsultaPage({
 							<div className="mb-1.5 flex items-center justify-between">
 								<label
 									htmlFor="transcript"
-									className="text-xs font-semibold tracking-wide text-neutral-500 uppercase"
+									className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 								>
 									Texto da consulta
 								</label>
@@ -698,7 +698,7 @@ export function NovaConsultaPage({
 								onChange={(e) => setTranscript(e.target.value)}
 								rows={14}
 								placeholder="A transcrição aparece aqui (ou cole o texto da consulta)"
-								className="w-full resize-y rounded-xl border border-neutral-300 px-3 py-2.5 font-mono text-sm leading-relaxed"
+								className="w-full resize-y rounded-xl border border-border px-3 py-2.5 font-mono text-sm leading-relaxed"
 							/>
 						</div>
 
@@ -718,7 +718,7 @@ export function NovaConsultaPage({
 
 				{/* ================= coluna direita: resultado ================= */}
 				<section className={`${cardCls} lg:sticky lg:top-4`}>
-					<div className="flex items-center justify-between border-b border-neutral-100 px-5 py-3">
+					<div className="flex items-center justify-between border-b border-border px-5 py-3">
 						<div className="flex gap-1 text-sm" role="tablist">
 							<button
 								type="button"
@@ -727,8 +727,8 @@ export function NovaConsultaPage({
 								onClick={() => setResultTab("anamnese")}
 								className={`rounded-lg px-3 py-1.5 font-medium transition ${
 									resultTab === "anamnese"
-										? "bg-neutral-900 text-white"
-										: "text-neutral-500 hover:bg-neutral-100"
+										? "bg-primary text-primary-foreground"
+										: "text-muted-foreground hover:bg-muted"
 								}`}
 							>
 								Anamnese
@@ -742,7 +742,7 @@ export function NovaConsultaPage({
 								className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition disabled:opacity-40 ${
 									resultTab === "review"
 										? "bg-indigo-600 text-white"
-										: "text-neutral-500 hover:bg-neutral-100"
+										: "text-muted-foreground hover:bg-muted"
 								}`}
 							>
 								Segunda opinião
@@ -760,17 +760,17 @@ export function NovaConsultaPage({
 							</button>
 						</div>
 						{resultTab === "anamnese" && engine ? (
-							<span className="text-[11px] text-neutral-400">engine: {engine}</span>
+							<span className="text-[11px] text-muted-foreground">engine: {engine}</span>
 						) : null}
 						{resultTab === "review" && reviewEngine ? (
-							<span className="text-[11px] text-neutral-400">{reviewEngine}</span>
+							<span className="text-[11px] text-muted-foreground">{reviewEngine}</span>
 						) : null}
 					</div>
 
 					{!anamnesis ? (
 						<div className="px-5 py-14 text-center">
 							<div className="text-3xl">📋</div>
-							<p className="mx-auto mt-3 max-w-xs text-sm text-neutral-400">
+							<p className="mx-auto mt-3 max-w-xs text-sm text-muted-foreground">
 								A anamnese estruturada aparece aqui. Cada seção mostra a confiança e as frases-fonte
 								que a fundamentam.
 							</p>
@@ -782,12 +782,12 @@ export function NovaConsultaPage({
 								return (
 									<div
 										key={key}
-										className={`rounded-xl border border-l-4 border-neutral-200 bg-white p-3 ${CONF_BAR[sec.confidence]}`}
+										className={`rounded-xl border border-l-4 border-border bg-card p-3 ${CONF_BAR[sec.confidence]}`}
 									>
 										<div className="flex items-center justify-between gap-2">
 											<label
 												htmlFor={`sec-${key}`}
-												className="text-xs font-semibold text-neutral-700"
+												className="text-xs font-semibold text-foreground"
 											>
 												{SECTION_LABELS[key]}
 											</label>
@@ -802,14 +802,14 @@ export function NovaConsultaPage({
 											value={sec.content}
 											onChange={(e) => updateSection(key, e.target.value)}
 											rows={Math.min(5, Math.max(2, Math.ceil(sec.content.length / 70)))}
-											className="mt-1.5 w-full resize-y rounded-lg border border-neutral-200 px-2.5 py-2 text-sm leading-relaxed"
+											className="mt-1.5 w-full resize-y rounded-lg border border-border px-2.5 py-2 text-sm leading-relaxed"
 										/>
 										{sec.evidence.length ? (
 											<details className="mt-1">
-												<summary className="cursor-pointer text-[11px] text-neutral-400 hover:text-neutral-600">
+												<summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-muted-foreground">
 													evidência ({sec.evidence.length})
 												</summary>
-												<ul className="mt-1 list-inside list-disc text-[11px] text-neutral-500">
+												<ul className="mt-1 list-inside list-disc text-[11px] text-muted-foreground">
 													{sec.evidence.map((ev) => (
 														<li key={ev.slice(0, 40)}>“{ev}”</li>
 													))}
@@ -827,9 +827,9 @@ export function NovaConsultaPage({
 								você adicionar.
 							</p>
 							{reviewBusy ? (
-								<p className="py-10 text-center text-sm text-neutral-500">
+								<p className="py-10 text-center text-sm text-muted-foreground">
 									analisando lacunas e hipóteses…
-									<span className="mt-1 block text-xs text-neutral-400">
+									<span className="mt-1 block text-xs text-muted-foreground">
 										modelos locais podem levar mais de um minuto
 									</span>
 								</p>
@@ -844,7 +844,7 @@ export function NovaConsultaPage({
 					)}
 
 					{anamnesis ? (
-						<div className="flex items-center gap-2 border-t border-neutral-100 px-5 py-3">
+						<div className="flex items-center gap-2 border-t border-border px-5 py-3">
 							<button type="button" onClick={copyAnamnesis} className={btnGhost}>
 								Copiar
 							</button>

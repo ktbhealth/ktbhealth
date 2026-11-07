@@ -64,7 +64,7 @@ function TesteCaptura() {
 	return (
 		<div>
 			<h1 className="text-2xl font-bold">Spike — captura de áudio da aba</h1>
-			<p className="mt-2 text-sm text-neutral-600">
+			<p className="mt-2 text-sm text-muted-foreground">
 				1. Abra uma chamada (WhatsApp Web, Meet, YouTube) noutra aba. 2. Clique em iniciar e
 				selecione ESSA aba marcando &quot;compartilhar áudio&quot;. 3. Se o medidor mexer com a
 				fala, o caminho está provado.
@@ -73,27 +73,27 @@ function TesteCaptura() {
 				<button
 					type="button"
 					onClick={start}
-					className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white"
+					className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/80"
 				>
 					Iniciar captura
 				</button>
 				<button
 					type="button"
 					onClick={stop}
-					className="rounded-lg border border-neutral-300 px-4 py-2 text-sm"
+					className="rounded-lg border border-border px-4 py-2 text-sm"
 				>
 					Parar
 				</button>
 			</div>
-			{status ? <p className="mt-3 text-xs text-neutral-500">{status}</p> : null}
+			{status ? <p className="mt-3 text-xs text-muted-foreground">{status}</p> : null}
 			{error ? <p className="mt-3 text-xs text-red-600">{error}</p> : null}
-			<div className="mt-6 h-6 w-full overflow-hidden rounded bg-neutral-100">
+			<div className="mt-6 h-6 w-full overflow-hidden rounded bg-muted">
 				<div
 					className="h-full bg-emerald-500 transition-[width] duration-75"
 					style={{ width: `${Math.min(100, level * 400)}%` }}
 				/>
 			</div>
-			<p className="mt-1 text-xs text-neutral-400">nível: {(level * 100).toFixed(1)}%</p>
+			<p className="mt-1 text-xs text-muted-foreground">nível: {(level * 100).toFixed(1)}%</p>
 		</div>
 	);
 }

@@ -32,12 +32,12 @@ export const Route = createRootRoute({
 		<div className="py-24 text-center">
 			<div className="text-5xl">🔍</div>
 			<h1 className="mt-4 text-2xl font-bold tracking-tight">Página não encontrada</h1>
-			<p className="mt-1 text-sm text-neutral-500">
+			<p className="mt-1 text-sm text-muted-foreground">
 				O endereço não existe ou a consulta não é sua.
 			</p>
 			<Link
 				to="/consultas"
-				className="mt-6 inline-block rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
+				className="mt-6 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
 			>
 				Ir para as consultas
 			</Link>
@@ -46,8 +46,8 @@ export const Route = createRootRoute({
 });
 
 const NAV_LINK =
-	"rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900";
-const NAV_ACTIVE = "bg-neutral-100 text-neutral-900";
+	"rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground";
+const NAV_ACTIVE = "bg-muted text-foreground";
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const user = Route.useLoaderData();
@@ -56,9 +56,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<head>
 				<HeadContent />
 			</head>
-			<body className="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
+			<body className="min-h-screen bg-background text-foreground antialiased">
 				<TooltipProvider>
-					<header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/80 backdrop-blur">
+					<header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
 						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
 							<Link to="/" className="flex items-center gap-2.5">
 								<span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white shadow-sm">
@@ -79,16 +79,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 											{item.label}
 										</Link>
 									))}
-								<span className="mx-1.5 h-5 w-px bg-neutral-200" />
+								<span className="mx-1.5 h-5 w-px bg-border" />
 								{!user ? (
 									<Link to="/entrar" className={NAV_LINK}>
 										Entrar
 									</Link>
 								) : (
 									<DropdownMenu>
-										<DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900">
+										<DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">
 											<Avatar size="sm">
-												<AvatarFallback className="bg-neutral-200 text-[11px] font-semibold uppercase">
+												<AvatarFallback className="bg-muted text-[11px] font-semibold uppercase">
 													{user?.name?.[0] ?? "?"}
 												</AvatarFallback>
 											</Avatar>
@@ -97,8 +97,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										<DropdownMenuContent align="end" className="w-52">
 											<DropdownMenuGroup>
 												<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-													<span className="text-sm font-medium text-neutral-900">{user?.name}</span>
-													<span className="truncate text-xs text-neutral-500">{user?.email}</span>
+													<span className="text-sm font-medium text-foreground">{user?.name}</span>
+													<span className="truncate text-xs text-muted-foreground">
+														{user?.email}
+													</span>
 												</DropdownMenuLabel>
 											</DropdownMenuGroup>
 											<DropdownMenuSeparator />
@@ -116,7 +118,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 								)}
 								<Link
 									to="/consulta/nova"
-									className="ml-1 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-neutral-700"
+									className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 								>
 									+ Nova consulta
 								</Link>
@@ -124,7 +126,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 						</nav>
 					</header>
 					<main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
-					<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-neutral-400">
+					<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
 						Prova de conceito — a anamnese é um rascunho e deve ser revisada pelo médico
 						responsável.
 					</footer>

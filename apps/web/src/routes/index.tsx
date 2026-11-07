@@ -59,20 +59,20 @@ function Home() {
 							documentada.
 						</span>
 					</h1>
-					<p className="mt-5 max-w-xl text-lg leading-relaxed text-neutral-600">
+					<p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">
 						Fale com o paciente, não com a tela. A anamnese sai estruturada da conversa — você só
 						revisa e aprova.
 					</p>
 					<div className="mt-8 flex flex-wrap items-center gap-3">
 						<Link
 							to="/consulta/nova"
-							className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-700"
+							className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/80"
 						>
 							Iniciar consulta →
 						</Link>
 						<Link
 							to="/consultas"
-							className="rounded-xl border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold text-neutral-700 transition hover:bg-neutral-50"
+							className="rounded-xl border border-border bg-card px-6 py-3 text-sm font-semibold text-card-foreground transition hover:bg-muted"
 						>
 							Ver consultas
 						</Link>
@@ -82,38 +82,40 @@ function Home() {
 				{/* mock: cartão de anamnese */}
 				<div className="relative">
 					<div className="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-br from-emerald-100 via-teal-50 to-transparent blur-2xl" />
-					<div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl">
+					<div className="rounded-2xl border border-border bg-card p-5 shadow-xl">
 						<div className="flex items-center justify-between">
 							<span className="text-sm font-semibold">Anamnese</span>
-							<span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500">
+							<span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
 								exemplo
 							</span>
 						</div>
 						<div className="mt-4 space-y-3">
-							<div className="rounded-xl border border-l-4 border-neutral-200 border-l-emerald-400 p-3">
+							<div className="rounded-xl border border-l-4 border-border border-l-emerald-400 p-3">
 								<div className="flex items-center justify-between">
-									<span className="text-xs font-semibold text-neutral-700">Queixa principal</span>
+									<span className="text-xs font-semibold text-card-foreground">
+										Queixa principal
+									</span>
 									<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700 ring-1 ring-emerald-200">
 										confiança alta
 									</span>
 								</div>
-								<p className="mt-1 text-sm text-neutral-700">
+								<p className="mt-1 text-sm text-card-foreground">
 									Cefaleia frontal intensa há 3 dias, com piora noturna.
 								</p>
-								<p className="mt-1.5 text-[11px] text-neutral-400">
+								<p className="mt-1.5 text-[11px] text-muted-foreground">
 									“A dor começou de repente, na região frontal…”
 								</p>
 							</div>
-							<div className="rounded-xl border border-l-4 border-neutral-200 border-l-amber-400 p-3">
+							<div className="rounded-xl border border-l-4 border-border border-l-amber-400 p-3">
 								<div className="flex items-center justify-between">
-									<span className="text-xs font-semibold text-neutral-700">
+									<span className="text-xs font-semibold text-card-foreground">
 										Medicamentos em uso
 									</span>
 									<span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700 ring-1 ring-amber-200">
 										confiança média
 									</span>
 								</div>
-								<p className="mt-1 text-sm text-neutral-700">Losartana 50 mg, 1x ao dia.</p>
+								<p className="mt-1 text-sm text-card-foreground">Losartana 50 mg, 1x ao dia.</p>
 							</div>
 							<div className="rounded-xl bg-indigo-50 p-3 text-xs text-indigo-900">
 								<span className="font-semibold">Segunda opinião:</span> perguntar sobre rigidez de
@@ -129,12 +131,12 @@ function Home() {
 				<h2 className="text-center text-2xl font-bold tracking-tight">Como funciona</h2>
 				<div className="mt-8 grid gap-4 sm:grid-cols-3">
 					{STEPS.map((s) => (
-						<div key={s.n} className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-							<span className="flex size-8 items-center justify-center rounded-full bg-neutral-900 text-sm font-semibold text-white">
+						<div key={s.n} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+							<span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
 								{s.n}
 							</span>
 							<div className="mt-4 font-semibold">{s.title}</div>
-							<p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{s.desc}</p>
+							<p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{s.desc}</p>
 						</div>
 					))}
 				</div>
@@ -147,14 +149,14 @@ function Home() {
 					{FEATURES.map((f) => (
 						<div
 							key={f.title}
-							className="flex gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-neutral-300 hover:shadow"
+							className="flex gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:border-foreground/20 hover:shadow"
 						>
-							<span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-xl">
+							<span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-xl">
 								{f.icon}
 							</span>
 							<div>
 								<div className="font-semibold">{f.title}</div>
-								<p className="mt-1 text-sm leading-relaxed text-neutral-600">{f.desc}</p>
+								<p className="mt-1 text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
 							</div>
 						</div>
 					))}
@@ -162,16 +164,16 @@ function Home() {
 			</section>
 
 			{/* ---------- CTA final ---------- */}
-			<section className="rounded-3xl bg-neutral-900 px-8 py-12 text-center text-white">
+			<section className="rounded-3xl bg-foreground px-8 py-12 text-center text-background">
 				<h2 className="text-2xl font-bold tracking-tight">
 					Termine o dia sem prontuário pendente.
 				</h2>
-				<p className="mx-auto mt-2 max-w-md text-sm text-neutral-300">
+				<p className="mx-auto mt-2 max-w-md text-sm text-background/70">
 					Teste com a transcrição de exemplo, sem precisar de microfone.
 				</p>
 				<Link
 					to="/consulta/nova"
-					className="mt-6 inline-block rounded-xl bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100"
+					className="mt-6 inline-block rounded-xl bg-background px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-muted"
 				>
 					Começar agora →
 				</Link>

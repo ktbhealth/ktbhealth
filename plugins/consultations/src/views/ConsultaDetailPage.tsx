@@ -10,13 +10,13 @@ import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 const CONF_STYLE: Record<Confidence, string> = {
 	alta: "bg-emerald-50 text-emerald-700 ring-emerald-200",
 	media: "bg-amber-50 text-amber-700 ring-amber-200",
-	baixa: "bg-neutral-100 text-neutral-500 ring-neutral-200",
+	baixa: "bg-muted text-muted-foreground ring-border",
 };
 
 const CONF_BAR: Record<Confidence, string> = {
 	alta: "border-l-emerald-400",
 	media: "border-l-amber-400",
-	baixa: "border-l-neutral-300",
+	baixa: "border-l-border",
 };
 
 /** Sections that read better side by side. */
@@ -42,7 +42,7 @@ function Chip({
 	tone?: "neutral" | "green" | "amber";
 }) {
 	const tones = {
-		neutral: "bg-neutral-100 text-neutral-600 ring-neutral-200",
+		neutral: "bg-muted text-muted-foreground ring-border",
 		green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
 		amber: "bg-amber-50 text-amber-700 ring-amber-200",
 	};
@@ -56,7 +56,7 @@ function Chip({
 /** "Médico: texto" lines become chat-style bubbles. */
 function Transcript({ text }: { text: string }) {
 	const lines = text.split("\n").filter((l) => l.trim());
-	if (!lines.length) return <p className="text-sm text-neutral-400">Sem transcrição.</p>;
+	if (!lines.length) return <p className="text-sm text-muted-foreground">Sem transcrição.</p>;
 	return (
 		<div className="space-y-2.5">
 			{lines.map((line, i) => {
@@ -72,13 +72,13 @@ function Transcript({ text }: { text: string }) {
 						{speaker ? (
 							<span
 								className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
-									SPEAKER_STYLE[speaker] ?? "bg-neutral-100 text-neutral-600 ring-neutral-200"
+									SPEAKER_STYLE[speaker] ?? "bg-muted text-muted-foreground ring-border"
 								}`}
 							>
 								{speaker}
 							</span>
 						) : null}
-						<span className="text-neutral-700">{body}</span>
+						<span className="text-foreground">{body}</span>
 					</div>
 				);
 			})}
@@ -120,7 +120,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 
 	return (
 		<div>
-			<Link to="/consultas" className="text-sm text-neutral-500 hover:text-neutral-900">
+			<Link to="/consultas" className="text-sm text-muted-foreground hover:text-foreground">
 				← Consultas
 			</Link>
 
@@ -130,7 +130,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 					<h1 className="text-3xl font-bold tracking-tight">
 						{c.patientName ?? `Consulta #${c.id}`}
 					</h1>
-					<p className="mt-1 text-sm text-neutral-500">
+					<p className="mt-1 text-sm text-muted-foreground">
 						Consulta #{c.id} · {when}
 					</p>
 					<div className="mt-3 flex flex-wrap gap-1.5">
@@ -151,14 +151,14 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 						<button
 							type="button"
 							onClick={copy}
-							className="rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+							className="rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
 						>
 							Copiar
 						</button>
 						<a
 							href={`/api/consultas/${c.id}/pdf`}
 							download
-							className="rounded-lg bg-neutral-900 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-neutral-700"
+							className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 						>
 							⬇ Baixar PDF
 						</a>
@@ -169,7 +169,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 			<div className="mt-8 grid items-start gap-6 lg:grid-cols-[1.35fr_1fr]">
 				{/* ---------- anamnese ---------- */}
 				<section>
-					<h2 className="mb-3 text-sm font-semibold tracking-wide text-neutral-500 uppercase">
+					<h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
 						Anamnese
 					</h2>
 					{c.anamnesis ? (
@@ -181,7 +181,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 								return (
 									<div
 										key={key}
-										className={`rounded-2xl border border-l-4 border-neutral-200 bg-white p-4 shadow-sm ${CONF_BAR[sec.confidence]} ${
+										className={`rounded-2xl border border-l-4 border-border bg-card p-4 shadow-sm ${CONF_BAR[sec.confidence]} ${
 											WIDE.includes(key) ? "sm:col-span-2" : ""
 										}`}
 									>
@@ -195,17 +195,17 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 										</div>
 										<p
 											className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${
-												pending ? "text-amber-700 italic" : "text-neutral-700"
+												pending ? "text-amber-700 italic" : "text-foreground"
 											}`}
 										>
 											{sec.content || "—"}
 										</p>
 										{sec.evidence.length ? (
 											<details className="mt-2">
-												<summary className="cursor-pointer text-[11px] text-neutral-400 hover:text-neutral-600">
+												<summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
 													evidência ({sec.evidence.length})
 												</summary>
-												<ul className="mt-1 list-inside list-disc text-[11px] text-neutral-500">
+												<ul className="mt-1 list-inside list-disc text-[11px] text-muted-foreground">
 													{sec.evidence.map((ev) => (
 														<li key={ev.slice(0, 40)}>“{ev}”</li>
 													))}
@@ -217,9 +217,9 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							})}
 						</div>
 					) : (
-						<div className="rounded-2xl border border-dashed border-neutral-300 bg-white px-6 py-14 text-center">
+						<div className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
 							<div className="text-3xl">📋</div>
-							<p className="mt-2 text-sm text-neutral-500">
+							<p className="mt-2 text-sm text-muted-foreground">
 								Esta consulta ainda não tem anamnese salva.
 							</p>
 						</div>
@@ -227,8 +227,8 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 				</section>
 
 				{/* ---------- lateral: segunda opinião / transcrição ---------- */}
-				<aside className="rounded-2xl border border-neutral-200 bg-white shadow-sm lg:sticky lg:top-20">
-					<div className="flex gap-1 border-b border-neutral-100 p-2 text-sm">
+				<aside className="rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-20">
+					<div className="flex gap-1 border-b border-border p-2 text-sm">
 						{c.review ? (
 							<button
 								type="button"
@@ -237,7 +237,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 								className={`rounded-lg px-3 py-1.5 font-medium transition ${
 									tab === "review"
 										? "bg-indigo-600 text-white"
-										: "text-neutral-500 hover:bg-neutral-100"
+										: "text-muted-foreground hover:bg-muted"
 								}`}
 							>
 								Segunda opinião
@@ -249,8 +249,8 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							aria-pressed={tab === "transcricao"}
 							className={`rounded-lg px-3 py-1.5 font-medium transition ${
 								tab === "transcricao"
-									? "bg-neutral-900 text-white"
-									: "text-neutral-500 hover:bg-neutral-100"
+									? "bg-primary text-primary-foreground"
+									: "text-muted-foreground hover:bg-muted"
 							}`}
 						>
 							Transcrição
