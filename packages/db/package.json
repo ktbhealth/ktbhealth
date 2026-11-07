@@ -10,7 +10,8 @@
 		"db:generate": "drizzle-kit generate"
 	},
 	"dependencies": {
-		"drizzle-orm": "^0.45.1"
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.0.7"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20251104.0",

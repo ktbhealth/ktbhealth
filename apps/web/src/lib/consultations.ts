@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { db } from "@ktb/db";
+import { db } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
 
 export async function createConsultation(fields: {

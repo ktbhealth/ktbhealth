@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@ktb/db";
+import { db } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
 import { appendTranscript, finishConsultation } from "#/lib/consultations.ts";
 

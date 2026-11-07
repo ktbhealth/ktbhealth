@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 
-import { db } from "@ktb/db";
+import { db } from "#/lib/platform.ts";
 import { consultations, patients } from "@ktb/db/schema";
 import { type Anamnesis, extractAnamnesis } from "#/lib/anamnese/index.ts";
 import { reviewAnamnesis } from "#/lib/anamnese/review.ts";

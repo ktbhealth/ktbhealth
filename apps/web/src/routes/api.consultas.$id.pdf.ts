@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "@ktb/db";
+import { db } from "#/lib/platform.ts";
 import { consultations, patients } from "@ktb/db/schema";
 import type { Anamnesis } from "#/lib/anamnese/types.ts";
 import { getSessionUser } from "#/lib/auth.ts";

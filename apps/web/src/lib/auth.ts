@@ -1,7 +1,7 @@
 import { getCookie, setCookie } from "@tanstack/react-start/server";
 import { eq } from "drizzle-orm";
 
-import { db } from "@ktb/db";
+import { db } from "#/lib/platform.ts";
 import { users } from "@ktb/db/schema";
 
 const COOKIE = "an_uid";
