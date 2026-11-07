@@ -1,4 +1,5 @@
-import type { CaptchaVerifier } from "@ktb/captcha";
+import type { CaptchaDriverEnv, CaptchaVerifier } from "@ktb/captcha";
+import type { Driver } from "@ktb/driver-framework";
 import { Captcha } from "@ktb/captcha";
 import * as Layer from "effect/Layer";
 
@@ -24,3 +25,14 @@ export const makeTurnstileVerifier = (secretKey: string): CaptchaVerifier => ({
 /** Live layer for a Turnstile-backed deployment. */
 export const TurnstileCaptchaLive = (secretKey: string) =>
 	Layer.succeed(Captcha, makeTurnstileVerifier(secretKey));
+
+/**
+ * Turnstile driver: eligible when its secret is bound and CAPTCHA_STUB
+ * is not set (the stub keeps precedence for local dev).
+ */
+export const turnstileCaptchaDriver: Driver<CaptchaDriverEnv> = {
+	id: "captcha-turnstile",
+	port: Captcha.key,
+	provides: (env) => TurnstileCaptchaLive(env.TURNSTILE_SECRET_KEY ?? ""),
+	when: (env) => !env.CAPTCHA_STUB && Boolean(env.TURNSTILE_SECRET_KEY),
+};

@@ -9,6 +9,7 @@
 		"@ktb/anamnesis-llm": "workspace:*",
 		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
+		"@ktb/bot": "workspace:*",
 		"@ktb/bot-recall": "workspace:*",
 		"@ktb/captcha": "workspace:*",
 		"@ktb/captcha-stub": "workspace:*",

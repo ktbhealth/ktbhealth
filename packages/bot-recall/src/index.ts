@@ -1,5 +1,6 @@
 import { Bot, StubBotProvider } from "@ktb/bot";
 import * as Layer from "effect/Layer";
+import type { Driver } from "@ktb/driver-framework";
 import type { BotProvider, BotSession } from "@ktb/bot";
 
 const BASE = "https://api.recall.ai/api/v1";
@@ -48,3 +49,14 @@ export function selectBotProvider(): BotProvider {
 
 /** Env-selected layer: Recall when RECALL_API_KEY, stub otherwise. */
 export const BotLive = Layer.sync(Bot, selectBotProvider);
+
+/**
+ * Driver descriptor for the Bot port. BotLive keeps owning provider
+ * selection (Recall vs stub via RECALL_API_KEY at layer build) — the
+ * registry only decides that this is the bot implementation.
+ */
+export const recallDriver: Driver = {
+	id: "bot-recall",
+	port: Bot.key,
+	provides: () => BotLive,
+};

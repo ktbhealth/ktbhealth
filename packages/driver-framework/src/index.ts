@@ -1,6 +1,8 @@
 import { Graph } from "effect";
 import type { Plugin } from "@ktb/kernel";
 
+export * from "./drivers.ts";
+
 interface PluginModule {
 	readonly plugin?: Plugin;
 }

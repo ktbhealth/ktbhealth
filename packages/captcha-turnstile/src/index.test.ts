@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { makeTurnstileVerifier } from "./index.ts";
+import { Captcha } from "@ktb/captcha";
+import { makeTurnstileVerifier, turnstileCaptchaDriver } from "./index.ts";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -50,5 +51,23 @@ describe("turnstile verifier", () => {
 			vi.fn(async () => Promise.reject(new Error("net"))),
 		);
 		expect(await makeTurnstileVerifier("s").verify("t")).toBe(false);
+	});
+});
+
+describe("turnstileCaptchaDriver", () => {
+	it("is eligible only with a secret and no CAPTCHA_STUB", () => {
+		expect(turnstileCaptchaDriver.id).toBe("captcha-turnstile");
+		expect(turnstileCaptchaDriver.port).toBe(Captcha.key);
+		expect(turnstileCaptchaDriver.when?.({})).toBe(false);
+		expect(turnstileCaptchaDriver.when?.({ TURNSTILE_SECRET_KEY: "" })).toBe(false);
+		expect(turnstileCaptchaDriver.when?.({ TURNSTILE_SECRET_KEY: "k" })).toBe(true);
+		expect(turnstileCaptchaDriver.when?.({ CAPTCHA_STUB: "1", TURNSTILE_SECRET_KEY: "k" })).toBe(
+			false,
+		);
+	});
+
+	it("provides a turnstile-backed layer", () => {
+		expect(turnstileCaptchaDriver.provides({ TURNSTILE_SECRET_KEY: "s3cr3t" })).toBeDefined();
+		expect(turnstileCaptchaDriver.provides({})).toBeDefined();
 	});
 });

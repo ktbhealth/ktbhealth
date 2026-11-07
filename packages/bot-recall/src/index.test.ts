@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecallBotProvider, selectBotProvider } from "./index.ts";
+import { Bot } from "@ktb/bot";
+import { BotLive, RecallBotProvider, recallDriver, selectBotProvider } from "./index.ts";
 
 describe("selectBotProvider", () => {
 	const original = process.env.RECALL_API_KEY;
@@ -69,5 +70,14 @@ describe("RecallBotProvider", () => {
 		await expect(provider.join("https://meet.example/x", "https://hook.example/")).rejects.toThrow(
 			"recall api: 401",
 		);
+	});
+});
+
+describe("recallDriver", () => {
+	it("provides the Bot port unconditionally", () => {
+		expect(recallDriver.id).toBe("bot-recall");
+		expect(recallDriver.port).toBe(Bot.key);
+		expect(recallDriver.when?.({})).toBeUndefined();
+		expect(recallDriver.provides({})).toBe(BotLive);
 	});
 });

@@ -1,17 +1,19 @@
-import { discoverPlugins, orderPlugins } from "@ktb/driver-framework";
+import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
-import { BotLive } from "@ktb/bot-recall";
+import { Bot } from "@ktb/bot";
+import { recallDriver } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Binding, Db, DbLive, makeDb, type DbClient } from "@ktb/db";
 import { makeAuth } from "@ktb/auth-better";
-import { StubCaptchaLive } from "@ktb/captcha-stub";
-import { TurnstileCaptchaLive } from "@ktb/captcha-turnstile";
-import { Captcha } from "@ktb/captcha";
+import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
+import { stubCaptchaDriver } from "@ktb/captcha-stub";
+import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
 import { Auth } from "@ktb/auth";
-import { AnamnesisEngineLive, ReviewEngineLive, type LlmConfig } from "@ktb/anamnesis-llm/services";
+import { AnamnesisEngine, ReviewEngine, type LlmConfig } from "@ktb/anamnesis-llm/services";
+import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
 
 /**
  * Plugin registry discovered from the filesystem: every module under
@@ -54,14 +56,31 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		baseURL: env.BETTER_AUTH_URL,
 	});
 
+	// Port→impl selection is data: impl packages export Driver descriptors
+	// and the first enabled driver for a port wins (array order is the
+	// tie-break). Ordering encodes precedence — e.g. the captcha stub
+	// before Turnstile before the disabled verifier; LLM drivers carry
+	// their own when predicates mirroring the old factory branches.
+	// Auth and Db stay manual: they wrap the live auth/db instances
+	// built above, not env-selected impls.
+	const drivers: readonly Driver<unknown>[] = [
+		recallDriver,
+		stubCaptchaDriver,
+		turnstileCaptchaDriver,
+		nullCaptchaDriver,
+		...llmDrivers,
+	];
+	// Drivers are type-erased (Layer.Any); each port maps to exactly one
+	// service, so the concrete layer type is restored here — same shape
+	// the hand-written ternaries used to produce.
+	const layerFor = <S>(port: string, driverEnv: unknown): Layer.Layer<S, never, never> =>
+		requireDriver(drivers, port, driverEnv).provides(driverEnv) as Layer.Layer<S, never, never>;
+
 	// Bot check on credential endpoints. CAPTCHA_STUB (local dev var, never
 	// set in the Alchemy stack) selects the stub; otherwise Turnstile when
 	// its secret is bound; null skips verification entirely.
-	const CaptchaLive = env.CAPTCHA_STUB
-		? StubCaptchaLive
-		: env.TURNSTILE_SECRET_KEY
-			? TurnstileCaptchaLive(env.TURNSTILE_SECRET_KEY)
-			: Layer.succeed(Captcha, null);
+	const BotLive = layerFor<Bot>(Bot.key, env);
+	const CaptchaLive = layerFor<Captcha>(Captcha.key, env);
 
 	// Plugin services compose in topo order: each plugin's layer is
 	// provided the accumulated outputs of everything before it, so a
@@ -107,13 +126,15 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		reviewProvider: env.REVIEW_PROVIDER,
 		ollamaUrl: env.OLLAMA_URL,
 	};
+	const AnamnesisEngineLive = layerFor<AnamnesisEngine>(AnamnesisEngine.key, llmConfig);
+	const ReviewEngineLive = layerFor<ReviewEngine>(ReviewEngine.key, llmConfig);
 	const core = Layer.mergeAll(
 		BotLive,
 		CaptchaLive,
 		DbLive,
 		AuthServiceLive,
-		AnamnesisEngineLive(llmConfig),
-		ReviewEngineLive(llmConfig),
+		AnamnesisEngineLive,
+		ReviewEngineLive,
 	);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),

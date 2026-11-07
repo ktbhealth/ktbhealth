@@ -4,12 +4,14 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./drivers": "./src/drivers.ts",
 		"./services": "./src/services.ts"
 	},
 	"dependencies": {
 		"@effect/ai-anthropic": "4.1.2",
 		"@effect/ai-openai": "4.1.2",
 		"@ktb/anamnesis": "workspace:*",
+		"@ktb/driver-framework": "workspace:*",
 		"effect": "4.1.2"
 	}
 }

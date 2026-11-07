@@ -1,4 +1,5 @@
-import type { CaptchaVerifier } from "@ktb/captcha";
+import type { CaptchaDriverEnv, CaptchaVerifier } from "@ktb/captcha";
+import type { Driver } from "@ktb/driver-framework";
 
 /**
  * Token the stub accepts when a client does send one (e.g. tests that
@@ -21,3 +22,14 @@ export const makeStubVerifier = (): CaptchaVerifier => ({
 
 /** Live layer for local/dev deployments. */
 export const StubCaptchaLive = Layer.succeed(Captcha, makeStubVerifier());
+
+/**
+ * Local-dev driver: eligible only when CAPTCHA_STUB is set. Ordered
+ * before the Turnstile driver so the stub wins when both are present.
+ */
+export const stubCaptchaDriver: Driver<CaptchaDriverEnv> = {
+	id: "captcha-stub",
+	port: Captcha.key,
+	provides: () => StubCaptchaLive,
+	when: (env) => Boolean(env.CAPTCHA_STUB),
+};

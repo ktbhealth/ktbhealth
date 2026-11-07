@@ -7,6 +7,7 @@
 	},
 	"dependencies": {
 		"@ktb/captcha": "workspace:*",
+		"@ktb/driver-framework": "workspace:*",
 		"effect": "4.1.2"
 	}
 }
