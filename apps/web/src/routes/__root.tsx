@@ -13,6 +13,7 @@ import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { SearchXIcon } from "lucide-react";
 import { sessionFn } from "#/lib/fns.ts";
 import { plugins } from "#/plugins.ts";
 import appCss from "../styles.css?url";
@@ -23,14 +24,14 @@ export const Route = createRootRoute({
 		meta: [
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
-			{ title: "anamnese" },
+			{ title: "KTB Health" },
 		],
 		links: [{ rel: "stylesheet", href: appCss }],
 	}),
 	shellComponent: RootDocument,
 	notFoundComponent: () => (
 		<div className="py-24 text-center">
-			<div className="text-5xl">🔍</div>
+			<SearchXIcon className="mx-auto size-12 text-muted-foreground" />
 			<h1 className="mt-4 text-2xl font-bold tracking-tight">Página não encontrada</h1>
 			<p className="mt-1 text-sm text-muted-foreground">
 				O endereço não existe ou a consulta não é sua.
@@ -62,9 +63,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
 							<Link to="/" className="flex items-center gap-2.5">
 								<span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white shadow-sm">
-									a
+									K
 								</span>
-								<span className="text-lg font-bold tracking-tight">anamnese</span>
+								<span className="text-lg font-bold tracking-tight">KTB Health</span>
 							</Link>
 							<div className="flex items-center gap-1.5">
 								{plugins

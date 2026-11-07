@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 const SOURCE_LABEL: Record<string, string> = {
 	browser: "Voz no navegador",
@@ -166,7 +167,8 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 								title="Baixar PDF da anamnese"
 								className="relative z-10 shrink-0 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
 							>
-								⬇ PDF
+								<DownloadIcon className="mr-1 inline size-3.5 -translate-y-px" />
+								PDF
 							</a>
 						) : null}
 					</article>
@@ -180,7 +182,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 
 				{!consultas.length ? (
 					<div className="rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center">
-						<div className="text-4xl">📋</div>
+						<ClipboardListIcon className="mx-auto size-10 text-muted-foreground" />
 						<h2 className="mt-3 font-semibold">Nenhuma consulta ainda</h2>
 						<p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
 							Inicie uma consulta para gravar a conversa e gerar a anamnese.

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { BrainIcon, ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { Dialog } from "@ktbhealth/ui/components/app-dialog";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
@@ -737,8 +738,8 @@ export function NovaConsultaPage({
 									</span>
 								</div>
 								<p className="mt-2 text-xs text-muted-foreground">
-									O bot “Anamnese” entra na sua call (Meet/Zoom/Teams), transcreve com separação por
-									falante e gera o rascunho quando a consulta acaba.
+									O bot “KTB Health” entra na sua call (Meet/Zoom/Teams), transcreve com separação
+									por falante e gera o rascunho quando a consulta acaba.
 								</p>
 								<div className="mt-3 flex gap-2">
 									<input
@@ -776,7 +777,8 @@ export function NovaConsultaPage({
 						<div className="flex flex-wrap items-center gap-2 text-xs">
 							{modelStatus ? (
 								<span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
-									🧠 {modelStatus}
+									<BrainIcon className="mr-1 inline size-3.5" />
+									{modelStatus}
 								</span>
 							) : null}
 							{live ? (
@@ -895,7 +897,7 @@ export function NovaConsultaPage({
 
 					{!anamnesis ? (
 						<div className="px-5 py-14 text-center">
-							<div className="text-3xl">📋</div>
+							<ClipboardListIcon className="mx-auto size-8 text-muted-foreground" />
 							<p className="mx-auto mt-3 max-w-xs text-sm text-muted-foreground">
 								A anamnese estruturada aparece aqui. Cada seção mostra a confiança e as frases-fonte
 								que a fundamentam.
@@ -997,7 +999,8 @@ export function NovaConsultaPage({
 					saveDialog?.kind === "ok" ? (
 						<>
 							<a href={`/api/consultas/${saveDialog.id}/pdf`} download className={btnGhost}>
-								⬇ Baixar PDF
+								<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
+								Baixar PDF
 							</a>
 							<Link to="/consultas/$id" params={{ id: String(saveDialog.id) }} className={btnGhost}>
 								Ver consulta

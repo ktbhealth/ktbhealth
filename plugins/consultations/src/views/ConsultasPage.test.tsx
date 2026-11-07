@@ -88,9 +88,9 @@ describe("ConsultasPage", () => {
 
 	it("shows PDF link only with anamnesis", () => {
 		const { rerender } = render(<ConsultasPage consultas={[item({ hasAnamnesis: true })]} />);
-		expect(screen.getByText("⬇ PDF")).toBeTruthy();
+		expect(screen.getByText("PDF")).toBeTruthy();
 		rerender(<ConsultasPage consultas={[item({ hasAnamnesis: false })]} />);
-		expect(screen.queryByText("⬇ PDF")).toBeNull();
+		expect(screen.queryByText("PDF")).toBeNull();
 	});
 
 	it("filters by search text across fields", async () => {

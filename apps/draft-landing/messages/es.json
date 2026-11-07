@@ -1,9 +1,9 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-	"meta_title": "KTB: inteligencia clínica para conversaciones médicas",
-	"meta_description": "KTB captura, transcribe y estructura consultas médicas para que los médicos escriban menos y escuchen más.",
+	"meta_title": "KTB Health: inteligencia clínica para conversaciones médicas",
+	"meta_description": "KTB Health captura, transcribe y estructura consultas médicas para que los médicos escriban menos y escuchen más.",
 
-	"nav_brand": "KTB",
+	"nav_brand": "KTB Health",
 	"nav_how": "Cómo funciona",
 	"nav_principles": "Principios",
 	"nav_vision": "Visión",
@@ -11,7 +11,7 @@
 
 	"hero_badge": "Proyecto en borrador · Hack Brasil 2026",
 	"hero_title": "Convierte las conversaciones médicas en conocimiento clínico duradero.",
-	"hero_subtitle": "KTB es un escriba ambiental para médicos: captura la consulta, transcribe en PT-BR, estructura la anamnesis clínica y la entrega al médico para revisar y aprobar. Menos teclear, más escuchar.",
+	"hero_subtitle": "KTB Health es un escriba ambiental para médicos: captura la consulta, transcribe en PT-BR, estructura la anamnesis clínica y la entrega al médico para revisar y aprobar. Menos teclear, más escuchar.",
 	"hero_cta_primary": "Ver el repositorio",
 	"hero_cta_secondary": "Cómo funciona",
 
@@ -37,7 +37,7 @@
 
 	"principles_title": "Principios",
 	"principle1_title": "La IA redacta, el médico decide",
-	"principle1_body": "KTB apoya la documentación clínica. No diagnostica ni prescribe; cada registro es revisado y aprobado por un médico.",
+	"principle1_body": "KTB Health apoya la documentación clínica. No diagnostica ni prescribe; cada registro es revisado y aprobado por un médico.",
 	"principle2_title": "Privacidad primero",
 	"principle2_body": "Consentimiento del paciente antes de capturar, cómputo en el dispositivo siempre que sea posible y datos sintéticos en cada demo.",
 	"principle3_title": "Hecho para Brasil",
@@ -47,7 +47,7 @@
 	"who_body": "Médicos que hacen teleconsultas o atención presencial y quieren recuperar su tiempo. Construido primero para el contexto de salud brasileño, con modelo self-serve B2C para médicos individuales.",
 
 	"vision_title": "Visión",
-	"vision_body": "Más allá de la transcripción: una capa inteligente para la información clínica, conectando consultas, documentación e historia del paciente en un flujo clínico continuo. El nombre KTB viene de la raíz árabe K-T-B, asociada con la escritura, los libros y la preservación del conocimiento.",
+	"vision_body": "Más allá de la transcripción: una capa inteligente para la información clínica, conectando consultas, documentación e historia del paciente en un flujo clínico continuo. El nombre KTB Health viene de la raíz árabe K-T-B, asociada con la escritura, los libros y la preservación del conocimiento.",
 
 	"footer_tagline": "Proyecto en borrador construido para Hack Brasil 2026.",
 	"footer_repo": "Código en GitHub",

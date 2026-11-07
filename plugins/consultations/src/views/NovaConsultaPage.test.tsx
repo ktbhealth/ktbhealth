@@ -506,7 +506,7 @@ describe("NovaConsultaPage", () => {
 		expect(api.saveConsultation).toHaveBeenCalled();
 		expect(api.recordConsent).toHaveBeenCalledWith({ data: 42 });
 		// dialog actions
-		expect(screen.getByText("⬇ Baixar PDF")).toBeTruthy();
+		expect(screen.getByText("Baixar PDF")).toBeTruthy();
 		expect(screen.getByText("Ver consulta")).toBeTruthy();
 		await user.click(screen.getByText("Confirmar"));
 		// now shows update label
@@ -727,7 +727,7 @@ describe("NovaConsultaPage", () => {
 	it("model status updates from engine messages", async () => {
 		renderPage();
 		for (const fn of engineSubs) fn({ type: "progress", message: "baixando 50%" });
-		await screen.findByText(/🧠 baixando 50%/);
+		await screen.findByText(/baixando 50%/);
 		for (const fn of engineSubs) fn({ type: "ready", device: "webgpu" });
 		await screen.findByText(/modelo pronto — webgpu/);
 		for (const fn of engineSubs) fn({ type: "error", message: "falhou tudo" });
@@ -763,7 +763,7 @@ describe("NovaConsultaPage", () => {
 		renderPage();
 		for (const fn of engineSubs) fn({ type: "progress" });
 		for (const fn of engineSubs) fn({ type: "progress", message: "quase" });
-		await screen.findByText(/🧠 quase/);
+		await screen.findByText(/quase/);
 	});
 
 	it("poll skips null live consultation responses", async () => {

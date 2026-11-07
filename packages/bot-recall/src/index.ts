@@ -20,7 +20,7 @@ export class RecallBotProvider implements BotProvider {
 			},
 			body: JSON.stringify({
 				meeting_url: meetUrl,
-				bot_name: "Anamnese",
+				bot_name: "KTB Health",
 				transcription_options: { provider: "default" },
 				realtime_endpoints: [
 					{

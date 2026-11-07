@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { ReviewPanel } from "@ktb/anamnesis";
 import { anamnesisToText } from "@ktb/anamnesis";
@@ -160,7 +161,8 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							download
 							className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 						>
-							⬇ Baixar PDF
+							<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
+							Baixar PDF
 						</a>
 					</div>
 				) : null}
@@ -218,7 +220,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 						</div>
 					) : (
 						<div className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
-							<div className="text-3xl">📋</div>
+							<ClipboardListIcon className="mx-auto size-8 text-muted-foreground" />
 							<p className="mt-2 text-sm text-muted-foreground">
 								Esta consulta ainda não tem anamnese salva.
 							</p>
