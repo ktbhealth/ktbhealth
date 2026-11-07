@@ -29,7 +29,10 @@ async function fillCredentials(page: Page, email: string) {
 	await page.getByLabel("Senha").fill(PASSWORD);
 }
 
+// Deployed environments bind real Turnstile keys — automation can't solve
+// the widget, so credential flows only run against the local captcha stub.
 test.describe("auth flow", () => {
+	test.skip(!!process.env.PLAYWRIGHT_BASE_URL, "requires the local captcha stub");
 	test("sign up, sign out via nav menu, sign back in", async ({ page }) => {
 		const { email, name } = uniqueCredentials();
 

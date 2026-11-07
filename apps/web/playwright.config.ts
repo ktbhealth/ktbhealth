@@ -1,5 +1,9 @@
 import { defineConfig } from "@playwright/test";
 
+// PLAYWRIGHT_BASE_URL targets a deployed environment (e.g. the workers.dev
+// URL); when set, no local dev server is started.
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+
 export default defineConfig({
 	testDir: "./tests/e2e",
 	fullyParallel: true,
@@ -7,20 +11,22 @@ export default defineConfig({
 	workers: process.env.CI ? 1 : undefined,
 	reporter: "html",
 	use: {
-		baseURL: "http://localhost:3000",
+		baseURL: externalBaseURL ?? "http://localhost:3000",
 		trace: "on-first-retry",
 	},
-	webServer: {
-		// Plain `vp dev`, not `bun run dev`: arca would inject the real
-		// Turnstile keys and the widget would hit Cloudflare for real.
-		// Without them the captcha port is unbound and auth skips it.
-		command: "bunx vp dev --port 3000",
-		url: "http://localhost:3000",
-		env: {
-			// Local wrangler sees two CF accounts; pick the KTB one.
-			CLOUDFLARE_ACCOUNT_ID: "2c03574ae47e534415b762ab3c474815",
-		},
-		reuseExistingServer: !process.env.CI,
-		timeout: 120_000,
-	},
+	webServer: externalBaseURL
+		? undefined
+		: {
+				// Plain `vp dev`, not `bun run dev`: arca would inject the real
+				// Turnstile keys and the widget would hit Cloudflare for real.
+				// Without them the captcha port is unbound and auth skips it.
+				command: "bunx vp dev --port 3000",
+				url: "http://localhost:3000",
+				env: {
+					// Local wrangler sees two CF accounts; pick the KTB one.
+					CLOUDFLARE_ACCOUNT_ID: "2c03574ae47e534415b762ab3c474815",
+				},
+				reuseExistingServer: !process.env.CI,
+				timeout: 120_000,
+			},
 });
