@@ -14,9 +14,7 @@ async function waitForHydration(page: Page) {
 		const el = document.querySelector("header nav");
 		return (
 			!!el &&
-			Object.keys(el).some(
-				(k) => k.startsWith("__reactFiber$") || k.startsWith("__reactProps$"),
-			)
+			Object.keys(el).some((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactProps$"))
 		);
 	});
 }
@@ -60,9 +58,7 @@ test.describe("auth flow", () => {
 		await page.getByRole("button", { name: "Entrar" }).click();
 		await expect(page).toHaveURL("/");
 		await waitForHydration(page);
-		await expect(
-			page.getByRole("button", { name: new RegExp(name) }),
-		).toBeVisible();
+		await expect(page.getByRole("button", { name: new RegExp(name) })).toBeVisible();
 	});
 
 	test("shows error on invalid credentials", async ({ page }) => {

@@ -1,4 +1,8 @@
 import { Effect } from "effect";
+
+// mocked @alchemy.run/cloudflare makes provider requirements phantom
+const run = <A>(e: Effect.Effect<A, never, unknown>): Promise<A> =>
+	Effect.runPromise(e as Effect.Effect<A, never, never>);
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const staticSiteCalls: Array<{ name: string; spec: Record<string, unknown> }> = [];
@@ -36,9 +40,7 @@ describe("infra ports and cloudflare adapter", () => {
 	});
 
 	it("deployStaticSite uses default build command and returns url", async () => {
-		const out = await Effect.runPromise(
-			deployStaticSite({ name: "site-a", outdir: "dist" }),
-		);
+		const out = await run(deployStaticSite({ name: "site-a", outdir: "dist" }));
 		expect(out.url).toBe("https://site-a.example.com");
 		expect(staticSiteCalls[0]).toEqual({
 			name: "site-a",
@@ -47,14 +49,12 @@ describe("infra ports and cloudflare adapter", () => {
 	});
 
 	it("deployStaticSite honors a custom command", async () => {
-		await Effect.runPromise(
-			deployStaticSite({ name: "site-b", outdir: "public", command: "make site" }),
-		);
+		await run(deployStaticSite({ name: "site-b", outdir: "public", command: "make site" }));
 		expect(staticSiteCalls[0]?.spec.command).toBe("make site");
 	});
 
 	it("deployWorker maps bindings and compatibility flags", async () => {
-		const out = await Effect.runPromise(
+		const out = await run(
 			deployWorker({
 				name: "worker-a",
 				outdir: "dist",
@@ -74,17 +74,13 @@ describe("infra ports and cloudflare adapter", () => {
 	});
 
 	it("deployWorker omits env and compatibility when unset", async () => {
-		await Effect.runPromise(
-			deployWorker({ name: "worker-b", outdir: "dist", main: "main.ts" }),
-		);
+		await run(deployWorker({ name: "worker-b", outdir: "dist", main: "main.ts" }));
 		expect(staticSiteCalls[0]?.spec.env).toBeUndefined();
 		expect(staticSiteCalls[0]?.spec.compatibility).toBeUndefined();
 	});
 
 	it("deployD1 passes the migrations dir", async () => {
-		const out = await Effect.runPromise(
-			deployD1({ name: "db-a", migrationsDir: "packages/db/drizzle" }),
-		);
+		const out = await run(deployD1({ name: "db-a", migrationsDir: "packages/db/drizzle" }));
 		expect(out.db).toEqual({ name: "db-a" });
 		expect(d1Calls[0]).toEqual({
 			name: "db-a",

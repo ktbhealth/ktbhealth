@@ -111,6 +111,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 	});
 
 	function copy() {
+		/* v8 ignore next -- copy button only renders when anamnesis exists */
 		if (!c.anamnesis) return;
 		void navigator.clipboard
 			.writeText(anamnesisToText(c.anamnesis))

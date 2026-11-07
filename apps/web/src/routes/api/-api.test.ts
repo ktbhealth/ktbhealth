@@ -9,8 +9,8 @@ vi.mock("@tanstack/react-start", () => ({
 	createServerFn: () => {
 		const chain = {
 			validator: () => chain,
-			handler: (h: (arg?: { data?: unknown }) => unknown) =>
-				async (arg?: { data?: unknown }) => h(arg ?? {}),
+			handler: (h: (arg?: { data?: unknown }) => unknown) => async (arg?: { data?: unknown }) =>
+				h(arg ?? {}),
 		};
 		return chain;
 	},
@@ -126,13 +126,39 @@ describe("api routes", () => {
 		expect(body.provider).toBe("stub");
 		expect(body.consultationId).toBeGreaterThan(0);
 		// wait for the simulated call to finish appending
-		await vi.waitFor(async () => {
-			const rows = await db
-				.select()
-				.from(consultations)
-				.where(eq(consultations.id, body.consultationId));
-			expect(rows[0]?.status).toBe("done");
-		}, { timeout: 20000 });
+		await vi.waitFor(
+			async () => {
+				const rows = await db
+					.select()
+					.from(consultations)
+					.where(eq(consultations.id, body.consultationId));
+				expect(rows[0]?.status).toBe("done");
+			},
+			{ timeout: 20000 },
+		);
+	});
+
+	it("bots POST with recall provider skips simulation", async () => {
+		vi.stubEnv("RECALL_API_KEY", "recall-key");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string) => {
+				if (String(url).includes("api.recall.ai")) {
+					return { ok: true, json: async () => ({ id: "recall-bot-1" }) };
+				}
+				return { ok: true, json: async () => ({}) };
+			}),
+		);
+		const h = handlersOf(BotsRoute);
+		const res = await h.POST!({
+			request: post("http://x/api/bots", { meetUrl: "https://meet.google.com/rec-1234" }),
+		} as never);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { provider: string; botId: string };
+		expect(body.provider).toBe("recall");
+		expect(body.botId).toBe("recall-bot-1");
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
 	});
 
 	it("bots POST requires auth", async () => {
@@ -232,7 +258,11 @@ describe("api routes", () => {
 		// with anamnesis → PDF bytes
 		await db
 			.update(consultations)
-			.set({ anamnesis: JSON.stringify({ queixa_principal: { content: "x", confidence: "alta", evidence: [] } }) })
+			.set({
+				anamnesis: JSON.stringify({
+					queixa_principal: { content: "x", confidence: "alta", evidence: [] },
+				}),
+			})
 			.where(eq(consultations.id, id));
 		const pdf = await h.GET!({ params: { id: String(id) } } as never);
 		expect(pdf.status).toBe(200);

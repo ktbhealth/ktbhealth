@@ -36,9 +36,7 @@ function loadScript(): Promise<void> {
 	return scriptPromise;
 }
 
-export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as
-	| string
-	| undefined;
+export const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
 
 /** Cloudflare Turnstile widget. Calls onToken with the token, or null on
  * expiry/error. Renders nothing when no site key is configured. */

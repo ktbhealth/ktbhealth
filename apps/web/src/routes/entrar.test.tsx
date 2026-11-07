@@ -23,8 +23,7 @@ vi.mock("@ktb/auth-better/client", () => ({
 
 import { Route } from "./entrar.tsx";
 
-const Page = (Route as unknown as { options: { component: () => ReactElement } }).options
-	.component;
+const Page = (Route as unknown as { options: { component: () => ReactElement } }).options.component;
 
 async function fillAndSubmit() {
 	fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
@@ -74,10 +73,73 @@ describe("entrar page", () => {
 		await waitFor(() => expect(screen.getByText("credenciais inválidas")).toBeTruthy());
 	});
 
+	it("ignores double submit while pending", async () => {
+		let resolveSignIn: ((v: AuthResult) => void) | null = null;
+		signInEmail.mockImplementation(
+			() =>
+				new Promise<AuthResult>((r) => {
+					resolveSignIn = r;
+				}),
+		);
+		render(createElement(Page));
+		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
+		fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
+		const btn = screen.getByRole("button", { name: "Entrar" });
+		await act(async () => {
+			fireEvent.click(btn);
+		});
+		await waitFor(() => expect(btn).toHaveProperty("disabled", true));
+		await act(async () => {
+			fireEvent.click(btn);
+		});
+		expect(signInEmail).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			resolveSignIn?.({ data: { user: {} }, error: null });
+		});
+	});
+
 	it("ignores submit while pending or empty", async () => {
 		render(createElement(Page));
 		// empty submit: button disabled? form onSubmit guards
 		fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
 		expect(signInEmail).not.toHaveBeenCalled();
+	});
+
+	it("form submit guard rejects empty email, empty password and pending", async () => {
+		let resolveSignIn: ((v: AuthResult) => void) | null = null;
+		signInEmail.mockImplementation(
+			() =>
+				new Promise<AuthResult>((r) => {
+					resolveSignIn = r;
+				}),
+		);
+		const { container } = render(createElement(Page));
+		const form = container.querySelector("form")!;
+		// empty email+password → guard returns before pending matters
+		fireEvent.submit(form);
+		expect(signInEmail).not.toHaveBeenCalled();
+		// valid email, empty password → second guard operand
+		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
+		fireEvent.submit(form);
+		expect(signInEmail).not.toHaveBeenCalled();
+		// valid fields → pending starts; submit again while pending → third operand
+		fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
+		fireEvent.submit(form);
+		await waitFor(() => expect(signInEmail).toHaveBeenCalledTimes(1));
+		fireEvent.submit(form);
+		expect(signInEmail).toHaveBeenCalledTimes(1);
+		await act(async () => {
+			resolveSignIn?.({ data: { user: {} }, error: null });
+		});
+	});
+
+	it("shows fallback message when error has no message", async () => {
+		signInEmail.mockResolvedValue({
+			data: null,
+			error: { message: undefined },
+		} as unknown as AuthResult);
+		render(createElement(Page));
+		await fillAndSubmit();
+		await screen.findByText("Não foi possível entrar. Tente novamente.");
 	});
 });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-
 import { ai, auth, BindingLive, db } from "./platform.ts";
 
 describe("platform", () => {

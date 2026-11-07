@@ -174,6 +174,7 @@ export function NovaConsultaPage({
 	}
 
 	async function sendBot() {
+		/* v8 ignore next -- Enviar bot is disabled while meetUrl is empty */
 		if (!meetUrl.trim()) return;
 		setError(null);
 		setSavedId(null);
@@ -197,6 +198,7 @@ export function NovaConsultaPage({
 
 	function toggleRecording() {
 		const t = transcriberRef.current;
+		/* v8 ignore next -- refs are assigned in useEffect before any click */
 		if (!t) return;
 		if (recording) {
 			t.stop();
@@ -224,6 +226,7 @@ export function NovaConsultaPage({
 
 	function toggleTabCapture() {
 		const t = tabRef.current;
+		/* v8 ignore next -- refs are assigned in useEffect before any click */
 		if (!t) return;
 		if (tabRecording) {
 			t.stop();
@@ -250,6 +253,7 @@ export function NovaConsultaPage({
 	}
 
 	async function generate() {
+		/* v8 ignore next -- Gerar anamnese is disabled while transcript is empty */
 		if (!transcript.trim()) return;
 		setBusy(true);
 		setError(null);
@@ -295,6 +299,7 @@ export function NovaConsultaPage({
 
 	/** Returns true when added, false when it was already in the section. */
 	function addHypothesis(text: string): boolean {
+		/* v8 ignore next -- ReviewPanel only renders when anamnesis exists */
 		if (!anamnesis) return false;
 		const cur = anamnesis.hipoteses.content;
 		if (cur.includes(text)) {
@@ -326,6 +331,7 @@ export function NovaConsultaPage({
 	}
 
 	async function save() {
+		/* v8 ignore next -- save button only renders with anamnesis and is disabled while saving */
 		if (!anamnesis || saving) return;
 		setSaving(true);
 		try {
@@ -370,10 +376,15 @@ export function NovaConsultaPage({
 	}
 
 	function updateSection(key: AnamnesisSectionKey, content: string) {
-		setAnamnesis((a) => (a ? { ...a, [key]: { ...a[key], content } } : a));
+		setAnamnesis((a) =>
+			a
+				? { ...a, [key]: { ...a[key], content } }
+				: /* v8 ignore next -- textarea only exists with anamnesis */ a,
+		);
 	}
 
 	function copyAnamnesis() {
+		/* v8 ignore next -- Copiar button only renders with anamnesis */
 		if (!anamnesis) return;
 		const text = anamnesisToText(anamnesis);
 		void navigator.clipboard.writeText(text).then(
@@ -386,6 +397,10 @@ export function NovaConsultaPage({
 	const step2 = transcript.trim().length > 0;
 	const step3 = anamnesis !== null;
 	const live = recording || tabRecording;
+	/* v8 ignore next -- patientId only comes from the patients list or createPatient */
+	const dialogPatientName = patientId
+		? (patients.find((p) => p.id === patientId)?.name ?? "paciente")
+		: null;
 
 	const cardCls = "rounded-2xl border border-neutral-200 bg-white shadow-sm";
 	const btnPrimary =
@@ -879,11 +894,8 @@ export function NovaConsultaPage({
 				{saveDialog?.kind === "ok" ? (
 					<p>
 						A consulta <strong>#{saveDialog.id}</strong>
-						{patientId
-							? /* v8 ignore next -- patientId always resolves to a listed patient */
-							  ` de ${patients.find((p) => p.id === patientId)?.name ?? "paciente"}`
-							: ""}{" "}
-						foi {saveDialog.updated ? "atualizada" : "gravada"} com a anamnese revisada
+						{patientId ? ` de ${dialogPatientName}` : ""} foi{" "}
+						{saveDialog.updated ? "atualizada" : "gravada"} com a anamnese revisada
 						{review ? " e a segunda opinião" : ""}.
 						{consented ? " Consentimento do paciente registrado." : ""}
 					</p>

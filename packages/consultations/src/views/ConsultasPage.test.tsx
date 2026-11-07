@@ -7,7 +7,11 @@ vi.mock("@tanstack/react-router", async () => {
 	const React = await import("react");
 	return {
 		Link: (props: Record<string, unknown>) =>
-			React.createElement("a", { href: String(props.to ?? "#"), ...props }, props.children as never),
+			React.createElement(
+				"a",
+				{ href: String(props.to ?? "#"), ...props },
+				props.children as never,
+			),
 	};
 });
 
@@ -50,7 +54,14 @@ describe("ConsultasPage", () => {
 		render(
 			<ConsultasPage
 				consultas={[
-					item({ status: "live", source: "bot", patientName: null, hasAnamnesis: false, hasReview: false, consentAt: null }),
+					item({
+						status: "live",
+						source: "bot",
+						patientName: null,
+						hasAnamnesis: false,
+						hasReview: false,
+						consentAt: null,
+					}),
 				]}
 			/>,
 		);
@@ -62,7 +73,11 @@ describe("ConsultasPage", () => {
 	});
 
 	it("falls back to transcript when queixa is placeholder", () => {
-		render(<ConsultasPage consultas={[item({ queixa: "A preencher pelo médico", transcript: "fallback text" })]} />);
+		render(
+			<ConsultasPage
+				consultas={[item({ queixa: "A preencher pelo médico", transcript: "fallback text" })]}
+			/>,
+		);
 		expect(screen.getByText("fallback text")).toBeTruthy();
 	});
 

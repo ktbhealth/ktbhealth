@@ -7,10 +7,15 @@ vi.mock("@tanstack/react-router", async () => {
 	const React = await import("react");
 	return {
 		Link: (props: Record<string, unknown>) =>
-			React.createElement("a", { href: String(props.to ?? "#"), ...props }, props.children as never),
+			React.createElement(
+				"a",
+				{ href: String(props.to ?? "#"), ...props },
+				props.children as never,
+			),
 	};
 });
 
+import type { Anamnesis } from "@ktb/anamnesis";
 import type { ConsultaDetail } from "./ConsultaDetailPage.tsx";
 import { ConsultaDetailPage } from "./ConsultaDetailPage.tsx";
 
@@ -28,13 +33,24 @@ const ANAMNESIS = {
 
 const REVIEW = {
 	lacunas: [],
-	hipoteses: [{ diagnostico: "Enxaqueca", probabilidade: "alta" as const, raciocinio: "r", evidence: [], investigar: [] }],
+	hipoteses: [
+		{
+			diagnostico: "Enxaqueca",
+			probabilidade: "alta" as const,
+			raciocinio: "r",
+			evidence: [],
+			investigar: [],
+		},
+	],
 	sinais_de_alerta: ["alerta x"],
 	inconsistencias: [],
 };
 
 const BASE: ConsultaDetail = {
 	id: 10,
+	userId: "u1",
+	patientId: 1,
+	botId: null,
 	createdAt: new Date("2026-11-06T14:30:00"),
 	transcript: "Médico: oi\nPaciente: olá doutor",
 	source: "browser",
@@ -122,5 +138,26 @@ describe("ConsultaDetailPage", () => {
 	it("renders pending section styling and dash for empty content", () => {
 		render(<ConsultaDetailPage c={detail({})} />);
 		expect(screen.getByText(/A preencher pelo médico/)).toBeTruthy();
+	});
+
+	it("tolerates anamnesis missing section keys", () => {
+		const partial = { queixa_principal: SECTION } as unknown as Anamnesis;
+		render(<ConsultaDetailPage c={detail({ anamnesis: partial })} />);
+		expect(screen.getByText("Queixa principal")).toBeTruthy();
+	});
+
+	it("renders transcript lines without speaker prefix and unknown speakers", async () => {
+		const user = userEvent.setup();
+		render(
+			<ConsultaDetailPage
+				c={detail({
+					transcript: "linha solta\nEnfermeiro Chefe: preparado?\nMédico: sim",
+				})}
+			/>,
+		);
+		await user.click(screen.getByText("Transcrição"));
+		expect(await screen.findByText("linha solta")).toBeTruthy();
+		expect(screen.getByText("Enfermeiro Chefe")).toBeTruthy();
+		expect(screen.getByText("Médico")).toBeTruthy();
 	});
 });

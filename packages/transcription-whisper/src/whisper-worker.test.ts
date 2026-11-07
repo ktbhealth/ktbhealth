@@ -29,17 +29,23 @@ function dispatch(self: typeof fakeSelf, data: Record<string, unknown>) {
 describe("whisper-worker", () => {
 	beforeEach(() => {
 		fakeSelf.onmessage = null;
-		fakeSelf.caches = undefined;
-		envObj = { allowLocalModels: true, cacheKey: "transformers-cache", backends: { onnx: { wasm: {} } } };
+		delete fakeSelf.caches;
+		envObj = {
+			allowLocalModels: true,
+			cacheKey: "transformers-cache",
+			backends: { onnx: { wasm: {} } },
+		};
 		pipelineImpl = vi.fn(async (_task: string, _model: string, opts: Record<string, unknown>) => {
 			pipelineCalls.push({ model: _model, opts });
-			(opts.progress_callback as ((p: { progress: number }) => void) | undefined)?.({ progress: 50 });
+			(opts.progress_callback as ((p: { progress: number }) => void) | undefined)?.({
+				progress: 50,
+			});
 			return async (pcm: Float32Array) => ({ text: `texto ${pcm.length}` });
 		}) as never;
 
 		vi.doMock("@huggingface/transformers", () => ({
 			env: envObj,
-			pipeline: (...args: unknown[]) => pipelineImpl(...(args as [string, string, Record<string, unknown>])),
+			pipeline: (...args: unknown[]) => (pipelineImpl as (...a: unknown[]) => unknown)(...args),
 		}));
 		vi.stubGlobal("self", fakeSelf);
 		vi.stubGlobal("postMessage", (m: Record<string, unknown>) => posted.push(m));
@@ -116,7 +122,12 @@ describe("whisper-worker", () => {
 	it("transcribes queued audio after load and cleans junk", async () => {
 		const self = await importWorker();
 		// audio before load → queued in pending
-		await dispatch(self, { type: "audio", id: "t1", pcm: new Float32Array(16000), language: "portuguese" });
+		await dispatch(self, {
+			type: "audio",
+			id: "t1",
+			pcm: new Float32Array(16000),
+			language: "portuguese",
+		});
 		await dispatch(self, { type: "load" });
 		const texts = posted.filter((m) => m.type === "text");
 		expect(texts).toHaveLength(1);
@@ -133,9 +144,9 @@ describe("whisper-worker", () => {
 	});
 
 	it("collapses repeated phrases", async () => {
-		pipelineImpl = vi.fn(
-			async () => async () => ({ text: "o que é o que é o que é o que é fim" }),
-		) as never;
+		pipelineImpl = vi.fn(async () => async () => ({
+			text: "o que é o que é o que é o que é fim",
+		})) as never;
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });
 		await dispatch(self, { type: "audio", id: "t3", pcm: new Float32Array(1600) });
@@ -150,16 +161,37 @@ describe("whisper-worker", () => {
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });
 		await dispatch(self, { type: "audio", id: "t4", pcm: new Float32Array(1600) });
-		expect(posted.some((m) => m.type === "error" && m.id === "t4" && m.message === "asr boom")).toBe(
-			true,
-		);
+		expect(
+			posted.some((m) => m.type === "error" && m.id === "t4" && m.message === "asr boom"),
+		).toBe(true);
 	});
 
 	it("isModelCached returns false when caches API missing", async () => {
-		fakeSelf.caches = undefined;
+		delete fakeSelf.caches;
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });
 		expect(posted.some((m) => m.type === "ready")).toBe(true);
+	});
+
+	it("audio dispatched while draining hits the re-entrancy guard", async () => {
+		const self = await importWorker();
+		await dispatch(self, { type: "load" });
+		// second audio lands while the first drain is still awaiting the pipeline
+		const p1 = dispatch(self, {
+			type: "audio",
+			id: "t7",
+			pcm: new Float32Array(1600),
+			language: "portuguese",
+		});
+		const p2 = dispatch(self, {
+			type: "audio",
+			id: "t8",
+			pcm: new Float32Array(1600),
+			language: "portuguese",
+		});
+		await Promise.all([p1, p2]);
+		const texts = posted.filter((m) => m.type === "text");
+		expect(texts.map((m) => m.id).sort()).toEqual(["t7", "t8"]);
 	});
 
 	it("isModelCached detects cached model files", async () => {
@@ -176,7 +208,9 @@ describe("whisper-worker", () => {
 		vi.stubGlobal("caches", cachesMock);
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });
-		expect(posted.some((m) => m.type === "progress" && String(m.message).includes("em cache"))).toBe(true);
+		expect(
+			posted.some((m) => m.type === "progress" && String(m.message).includes("em cache")),
+		).toBe(true);
 	});
 
 	it("isModelCached returns false on caches error and partial cache", async () => {
@@ -222,6 +256,37 @@ describe("whisper-worker", () => {
 		await dispatch(self, { type: "load" });
 		expect(posted.filter((m) => m.type === "ready").length).toBe(before + 1);
 		expect(pipelineCalls).toHaveLength(1);
+	});
+
+	it("ignores audio messages without pcm", async () => {
+		const self = await importWorker();
+		await dispatch(self, { type: "audio" });
+		await dispatch(self, { type: "load" });
+		const texts = posted.filter((m) => m.type === "text");
+		expect(texts).toHaveLength(0);
+	});
+
+	it("posts empty text when transcriber returns no text", async () => {
+		pipelineImpl = vi.fn(async () => async () => ({})) as never;
+		const self = await importWorker();
+		await dispatch(self, { type: "load" });
+		await dispatch(self, { type: "audio", id: "t5", pcm: new Float32Array(1600) });
+		const texts = posted.filter((m) => m.type === "text");
+		expect(texts[0]).toMatchObject({ id: "t5", text: "" });
+	});
+
+	it("posts String() error for non-Error transcriber failure", async () => {
+		pipelineImpl = vi.fn(async () => async () => {
+			throw "whisper-string-boom";
+		}) as never;
+		const self = await importWorker();
+		await dispatch(self, { type: "load" });
+		await dispatch(self, { type: "audio", id: "t6", pcm: new Float32Array(1600) });
+		expect(
+			posted.some(
+				(m) => m.type === "error" && m.id === "t6" && m.message === "whisper-string-boom",
+			),
+		).toBe(true);
 	});
 
 	it("audio with missing id/language uses defaults", async () => {

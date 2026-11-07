@@ -33,11 +33,13 @@ function SignInPage() {
 		setPending(true);
 		setError(null);
 		const credentials = { email, password, captchaToken: captchaToken ?? undefined };
+		/* v8 ignore next -- split() always yields a first element */
+		const signUpName = email.split("@")[0] ?? email;
 		const res =
 			mode === "up"
 				? await authClient.signUp.email({
 						...credentials,
-						name: email.split("@")[0] ?? email,
+						name: signUpName,
 					} as Parameters<typeof authClient.signUp.email>[0])
 				: await authClient.signIn.email(
 						credentials as Parameters<typeof authClient.signIn.email>[0],

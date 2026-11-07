@@ -4,13 +4,18 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Anamnesis } from "@ktb/anamnesis-llm";
-import type { AnamnesisReview, TranscriptEvent } from "@ktb/anamnesis";
+import type { AnamnesisReview } from "@ktb/anamnesis";
+import type { TranscriptEvent } from "@ktb/transcription";
 import type { NovaApi } from "./NovaConsultaPage.tsx";
 
 // ---------- controllable transcriber mocks ----------
 let micSupported = true;
 let micCb: ((ev: TranscriptEvent) => void) | null = null;
 let tabCb: ((ev: TranscriptEvent) => void) | null = null;
+let statusImpl: () => { state: string; device: string | null } = () => ({
+	state: "idle",
+	device: null,
+});
 const micStop = vi.fn();
 const tabStop = vi.fn();
 const engineSubs = new Set<(m: Record<string, unknown>) => void>();
@@ -37,14 +42,18 @@ vi.mock("@ktb/transcription-whisper", () => ({
 		engineSubs.add(fn);
 		return () => engineSubs.delete(fn);
 	},
-	whisperStatus: () => ({ state: "idle", device: null }),
+	whisperStatus: () => statusImpl(),
 }));
 
 vi.mock("@tanstack/react-router", async () => {
 	const React = await import("react");
 	return {
 		Link: (props: Record<string, unknown>) =>
-			React.createElement("a", { href: String(props.to ?? "#"), ...props }, props.children as never),
+			React.createElement(
+				"a",
+				{ href: String(props.to ?? "#"), ...props },
+				props.children as never,
+			),
 	};
 });
 
@@ -65,7 +74,13 @@ const ANAMNESIS: Anamnesis = {
 const REVIEW: AnamnesisReview = {
 	lacunas: [{ secao: "hda", o_que_falta: "falta x", pergunta_sugerida: "quando?", motivo: "m" }],
 	hipoteses: [
-		{ diagnostico: "Enxaqueca", probabilidade: "alta", raciocinio: "r", evidence: ["e"], investigar: ["i"] },
+		{
+			diagnostico: "Enxaqueca",
+			probabilidade: "alta",
+			raciocinio: "r",
+			evidence: ["e"],
+			investigar: ["i"],
+		},
 	],
 	sinais_de_alerta: [],
 	inconsistencias: [],
@@ -112,6 +127,7 @@ describe("NovaConsultaPage", () => {
 		micSupported = true;
 		micCb = null;
 		tabCb = null;
+		statusImpl = () => ({ state: "idle", device: null });
 		engineSubs.clear();
 		vi.stubGlobal("fetch", vi.fn());
 		// jsdom lacks dialog.showModal
@@ -544,6 +560,33 @@ describe("NovaConsultaPage", () => {
 		expect(api.saveConsultation).not.toHaveBeenCalled();
 	});
 
+	it("updated save dialog shows review and consent notes", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			attachAnamnesis: vi.fn(async () => ({ ok: true })),
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: true,
+				json: async () => ({ consultationId: 5, provider: "stub" }),
+			})),
+		);
+		renderPage(api);
+		await consent(user);
+		await user.click(screen.getByText("Teleconsulta (bot)"));
+		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
+		await user.click(screen.getByText("Enviar bot"));
+		await screen.findByText(/consulta #5/);
+		await fillTranscript("transcrição da call");
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await screen.findByText("confiança alta");
+		await user.click(screen.getByText("Salvar consulta"));
+		await screen.findByText("Consulta atualizada");
+		expect(document.body.textContent).toContain("segunda opinião");
+		expect(document.body.textContent).toContain("Consentimento do paciente registrado");
+	});
+
 	it("save dialog without review omits segunda opiniao text", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
@@ -702,5 +745,339 @@ describe("NovaConsultaPage", () => {
 		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
 		await user.click(screen.getByText("Enviar bot"));
 		await screen.findByText(/call encerrada/, {}, { timeout: 4000 });
+	});
+
+	it("shows ready model status on mount when engine already loaded", () => {
+		statusImpl = () => ({ state: "ready", device: "webgpu" });
+		renderPage();
+		expect(screen.getByText(/modelo pronto — webgpu/)).toBeTruthy();
+	});
+
+	it("progress engine message without text clears status", async () => {
+		renderPage();
+		for (const fn of engineSubs) fn({ type: "progress" });
+		for (const fn of engineSubs) fn({ type: "progress", message: "quase" });
+		await screen.findByText(/🧠 quase/);
+	});
+
+	it("poll skips null live consultation responses", async () => {
+		const user = userEvent.setup();
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const api = makeApi({
+			getLiveConsultation: vi.fn(async () => null),
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: true,
+				json: async () => ({ consultationId: 4, provider: "stub" }),
+			})),
+		);
+		renderPage(api);
+		await user.click(screen.getByText("Teleconsulta (bot)"));
+		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
+		await user.click(screen.getByText("Enviar bot"));
+		await screen.findByText(/consulta #4/);
+		await vi.advanceTimersByTimeAsync(3200);
+		expect(api.getLiveConsultation).toHaveBeenCalled();
+		vi.useRealTimers();
+	});
+
+	it("appends upload transcript to existing text", async () => {
+		const user = userEvent.setup();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: true,
+				json: async () => ({ text: "via upload" }),
+			})),
+		);
+		renderPage();
+		await fillTranscript("existente");
+		await user.click(screen.getByText("Upload"));
+		const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+		fireEvent.change(input, { target: { files: [new File(["x"], "a.webm")] } });
+		await waitFor(() =>
+			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+				"existente\nvia upload",
+			),
+		);
+	});
+
+	it("upload reports generic error for non-Error json failure", async () => {
+		const user = userEvent.setup();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: true,
+				json: async () => {
+					throw "bad-json";
+				},
+			})),
+		);
+		renderPage();
+		await user.click(screen.getByText("Upload"));
+		const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+		fireEvent.change(input, { target: { files: [new File(["x"], "a.webm")] } });
+		await screen.findByText("transcrição falhou");
+	});
+
+	it("mic final events join with newlines", async () => {
+		const user = userEvent.setup();
+		renderPage();
+		await consent(user);
+		await user.click(screen.getByText("Gravar microfone"));
+		act(() => micCb!({ type: "final", text: "primeira" }));
+		act(() => micCb!({ type: "final", text: "segunda" }));
+		await waitFor(() =>
+			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+				"Médico: primeira\nMédico: segunda",
+			),
+		);
+	});
+
+	it("tab partial and consecutive finals", async () => {
+		const user = userEvent.setup();
+		renderPage();
+		await consent(user);
+		await user.click(screen.getByText("Capturar aba da chamada"));
+		act(() => tabCb!({ type: "partial", text: "parcial aba" }));
+		await screen.findByText(/parcial aba/);
+		act(() => tabCb!({ type: "final", text: "um" }));
+		act(() => tabCb!({ type: "final", text: "dois" }));
+		await waitFor(() =>
+			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+				"Paciente: um\nPaciente: dois",
+			),
+		);
+	});
+
+	it("generate surfaces non-Error extractor failures", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			extractAnamnese: vi.fn(async () => {
+				throw "extractor-string";
+			}),
+		});
+		renderPage(api);
+		await fillTranscript("algo");
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await screen.findByText("extractor-string");
+	});
+
+	it("review result without engine key and without reason", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			reviewAnamnese: vi
+				.fn()
+				.mockResolvedValueOnce({ review: REVIEW } as never)
+				.mockResolvedValueOnce({ review: null } as never),
+		});
+		renderPage(api);
+		await generateAnamnesis(user);
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText("Enxaqueca");
+		// regenerate → second review response has no reason key
+		await user.click(screen.getByText("Anamnese"));
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await screen.findByText("confiança alta");
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText("Segunda opinião indisponível.");
+	});
+
+	it("review with nullish engine and non-Error throw", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			reviewAnamnese: vi
+				.fn()
+				.mockResolvedValueOnce({ review: REVIEW, engine: undefined } as never)
+				.mockRejectedValueOnce("review-string"),
+		});
+		renderPage(api);
+		await generateAnamnesis(user);
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText("Enxaqueca");
+		await user.click(screen.getByText("Anamnese"));
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await screen.findByText("confiança alta");
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText("review-string");
+	});
+
+	it("shows review busy spinner and analyzing note", async () => {
+		const user = userEvent.setup();
+		let resolveReview: ((v: unknown) => void) | null = null;
+		const api = makeApi({
+			reviewAnamnese: vi.fn(
+				() =>
+					new Promise((r) => {
+						resolveReview = r;
+					}),
+			) as never,
+		});
+		renderPage(api);
+		await fillTranscript("x");
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await screen.findByText("confiança alta");
+		// review still in flight: switch to review tab shows spinner + analyzing copy
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText(/analisando lacunas e hipóteses/);
+		await act(async () => {
+			resolveReview?.({ review: REVIEW, engine: "e" });
+		});
+		await screen.findByText("Enxaqueca");
+	});
+
+	it("review tab with empty note renders nothing", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			reviewAnamnese: vi.fn(async () => ({ review: null, reason: "" })),
+		});
+		renderPage(api);
+		await generateAnamnesis(user);
+		await user.click(screen.getByText("Segunda opinião"));
+		await waitFor(() => expect(screen.queryByText(/indisponível/)).toBeNull());
+		expect(screen.queryByText("Enxaqueca")).toBeNull();
+	});
+
+	it("addHypothesis treats placeholder content as empty and appends to filled", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			extractAnamnese: vi.fn(async () => ({
+				anamnesis: {
+					...ANAMNESIS,
+					hipoteses: {
+						content: "A preencher pelo médico",
+						confidence: "baixa" as const,
+						evidence: [],
+					},
+				},
+				engine: "heuristic",
+			})),
+		});
+		renderPage(api);
+		await fillTranscript("x");
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText("Enxaqueca");
+		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
+		await user.click(screen.getByText("Anamnese"));
+		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
+		expect(ta.value).toContain("- Enxaqueca — r");
+		expect(ta.value).not.toContain("A preencher");
+	});
+
+	it("addHypothesis appends to existing non-placeholder content", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			extractAnamnese: vi.fn(async () => ({
+				anamnesis: {
+					...ANAMNESIS,
+					hipoteses: {
+						content: "- Outra hipótese",
+						confidence: "baixa" as const,
+						evidence: [],
+					},
+				},
+				engine: "heuristic",
+			})),
+		});
+		renderPage(api);
+		await fillTranscript("x");
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await user.click(screen.getByText("Segunda opinião"));
+		await screen.findByText("Enxaqueca");
+		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
+		await user.click(screen.getByText("Anamnese"));
+		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
+		expect(ta.value).toBe("- Outra hipótese\n- Enxaqueca — r");
+	});
+
+	it("save sends engine unknown and attach failure shows session error", async () => {
+		const user = userEvent.setup();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({
+				ok: true,
+				json: async () => ({ consultationId: 8, provider: "stub" }),
+			})),
+		);
+		const api = makeApi({
+			extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: undefined as never })),
+			attachAnamnesis: vi.fn(async () => ({ ok: false })),
+		});
+		renderPage(api);
+		await user.click(screen.getByText("Teleconsulta (bot)"));
+		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
+		await user.click(screen.getByText("Enviar bot"));
+		await screen.findByText(/consulta #8/);
+		await fillTranscript("transcrição");
+		await user.click(screen.getByText("Gerar anamnese →"));
+		await screen.findByText("confiança alta");
+		await user.click(screen.getByText("Salvar consulta"));
+		await screen.findByText(/sessão expirada/);
+		expect(api.attachAnamnesis).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ engine: "unknown" }),
+			}),
+		);
+	});
+
+	it("save without id in response throws", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({
+			saveConsultation: vi.fn(async () => ({})) as never,
+			extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: undefined as never })),
+		});
+		renderPage(api);
+		await generateAnamnesis(user);
+		await user.click(screen.getByText("Salvar consulta"));
+		await screen.findByText(/não foi possível salvar/);
+		expect(api.saveConsultation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ engine: "unknown" }),
+			}),
+		);
+	});
+
+	it("clearing patient select sets patientId null", async () => {
+		const user = userEvent.setup();
+		const api = makeApi();
+		renderPage(api);
+		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "1" } });
+		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "" } });
+		await generateAnamnesis(user);
+		await user.click(screen.getByText("Salvar consulta"));
+		await screen.findByText("Anamnese salva com sucesso");
+		expect(api.saveConsultation).toHaveBeenCalledWith(
+			expect.objectContaining({ data: expect.objectContaining({ patientId: undefined }) }),
+		);
+	});
+
+	it("sendBot and generate guards reject empty input via disabled-button clicks", async () => {
+		const user = userEvent.setup();
+		const api = makeApi();
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		renderPage(api);
+		await user.click(screen.getByText("Teleconsulta (bot)"));
+		// disabled button still dispatches click in jsdom → inner guard must hold
+		fireEvent.click(screen.getByText("Enviar bot"));
+		expect(fetchMock).not.toHaveBeenCalled();
+		await user.click(screen.getByText("Gravar"));
+		fireEvent.change(screen.getByLabelText("Texto da consulta"), { target: { value: "   " } });
+		fireEvent.click(screen.getByText("Gerar anamnese →"));
+		expect(api.extractAnamnese).not.toHaveBeenCalled();
+	});
+
+	it("save dialog names the selected patient", async () => {
+		const user = userEvent.setup();
+		renderPage();
+		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "1" } });
+		await generateAnamnesis(user);
+		await user.click(screen.getByText("Salvar consulta"));
+		await screen.findByText("Anamnese salva com sucesso");
+		const dialog = document.querySelector("dialog") as HTMLDialogElement;
+		expect(dialog.textContent).toContain("de Maria");
 	});
 });

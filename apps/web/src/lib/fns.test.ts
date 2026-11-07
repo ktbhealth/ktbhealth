@@ -13,9 +13,8 @@ vi.mock("@tanstack/react-start", () => ({
 				validate = v;
 				return chain;
 			},
-			handler: (h: (arg?: { data?: unknown }) => unknown) =>
-				async (arg?: { data?: unknown }) =>
-					h(arg === undefined ? {} : { ...arg, data: validate ? validate(arg.data) : arg.data }),
+			handler: (h: (arg?: { data?: unknown }) => unknown) => async (arg?: { data?: unknown }) =>
+				h(arg === undefined ? {} : { ...arg, data: validate ? validate(arg.data) : arg.data }),
 		};
 		return chain;
 	},
@@ -85,7 +84,11 @@ describe("server fns", () => {
 		expect(await listConsultationsFn()).toEqual([]);
 		expect(await getConsultationFn({ data: 1 })).toBeNull();
 		expect(await getLiveConsultationFn({ data: 1 })).toBeNull();
-		expect(await attachAnamnesisFn({ data: { consultationId: 1, anamnesis: makeAnamnesis("x"), engine: "e" } })).toEqual({ ok: false });
+		expect(
+			await attachAnamnesisFn({
+				data: { consultationId: 1, anamnesis: makeAnamnesis("x"), engine: "e" },
+			}),
+		).toEqual({ ok: false });
 		expect(await recordConsentFn({ data: 1 })).toEqual({ ok: false });
 		await expect(createPatientFn({ data: "X" })).rejects.toThrow("unauthenticated");
 		await expect(
@@ -142,18 +145,77 @@ describe("server fns", () => {
 		expect(await getLiveConsultationFn({ data: 999 })).toBeNull();
 
 		expect(await recordConsentFn({ data: saved.id })).toEqual({ ok: true });
-		expect(await attachAnamnesisFn({
-			data: {
-				consultationId: saved.id,
-				anamnesis: makeAnamnesis("Nova queixa"),
-				engine: "openai",
-				review: null,
-			},
-		})).toEqual({ ok: true });
+		expect(
+			await attachAnamnesisFn({
+				data: {
+					consultationId: saved.id,
+					anamnesis: makeAnamnesis("Nova queixa"),
+					engine: "openai",
+					review: {
+						lacunas: [],
+						hipoteses: [],
+						sinais_de_alerta: [],
+						inconsistencias: [],
+					},
+				},
+			}),
+		).toEqual({ ok: true });
 
 		const after = await getConsultationFn({ data: saved.id });
 		expect(after?.anamnesis?.queixa_principal.content).toBe("Nova queixa");
 		expect(after?.engine).toBe("openai");
+		expect(after?.review).not.toBeNull();
+	});
+
+	it("save without patientId/review and read null fields", async () => {
+		headers.current = new Headers({ cookie });
+		const saved = await saveConsultationFn({
+			data: { transcript: "t2", anamnesis: makeAnamnesis("Q2"), engine: "heuristic" },
+		});
+		const detail = await getConsultationFn({ data: saved.id });
+		expect(detail?.anamnesis).not.toBeNull();
+		expect(detail?.review).toBeNull();
+		expect(detail?.patientName).toBeNull();
+
+		// bare consultation: null anamnesis + null review parse branches
+		const user = await getSessionUserFn();
+		const { createConsultation } = await import("@ktb/consultations");
+		const bare = await createConsultation(db, { userId: user!.id, source: "mic" });
+		const bareDetail = await getConsultationFn({ data: bare });
+		expect(bareDetail?.anamnesis).toBeNull();
+		expect(bareDetail?.review).toBeNull();
+	});
+
+	it("attachAnamnesis with patientId set covers ?? left side", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await createPatientFn({ data: "João" });
+		const saved = await saveConsultationFn({
+			data: { transcript: "t3", anamnesis: makeAnamnesis("Q3"), engine: "e" },
+		});
+		await attachAnamnesisFn({
+			data: {
+				consultationId: saved.id,
+				anamnesis: makeAnamnesis("Q3b"),
+				engine: "e2",
+				patientId: patient.id,
+			},
+		});
+		const detail = await getConsultationFn({ data: saved.id });
+		expect(detail?.patientName).toBe("João");
+	});
+
+	it("listConsultations queixa null via ?? on missing queixa_principal", async () => {
+		headers.current = new Headers({ cookie });
+		const user = await getSessionUserFn();
+		await db.insert(consultations).values({
+			userId: user!.id,
+			transcript: "t",
+			anamnesis: "{}",
+			engine: "e",
+			createdAt: new Date(),
+		});
+		const list = await listConsultationsFn();
+		expect(list.some((c) => c.queixa === null && c.hasAnamnesis)).toBe(true);
 	});
 
 	it("listConsultations tolerates invalid anamnesis JSON", async () => {

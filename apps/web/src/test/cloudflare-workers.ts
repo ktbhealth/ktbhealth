@@ -10,4 +10,5 @@ export const env = {
 	BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!!",
 	BETTER_AUTH_URL: "http://localhost:3000",
 	TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+	CAPTCHA_STUB: process.env.CAPTCHA_STUB,
 };

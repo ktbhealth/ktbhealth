@@ -12,7 +12,7 @@ import {
 	saveConsultationFn,
 } from "#/lib/fns.ts";
 
-const api: NovaApi = {
+export const novaApi: NovaApi = {
 	getLiveConsultation: (input: { data: number }) => getLiveConsultationFn(input),
 	extractAnamnese: (input: { data: string }) => extractAnamneseFn(input),
 	reviewAnamnese: (input: { data: unknown }) => reviewAnamneseFn(input as never),
@@ -26,6 +26,6 @@ export const Route = createFileRoute("/consulta/nova")({
 	loader: () => listPatientsFn(),
 	component: function NovaRoute() {
 		const initialPatients = Route.useLoaderData();
-		return <NovaConsultaPage initialPatients={initialPatients} api={api} />;
+		return <NovaConsultaPage initialPatients={initialPatients} api={novaApi} />;
 	},
 });

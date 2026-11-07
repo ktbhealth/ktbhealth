@@ -97,12 +97,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										<DropdownMenuContent align="end" className="w-52">
 											<DropdownMenuGroup>
 												<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-													<span className="text-sm font-medium text-neutral-900">
-														{user?.name}
-													</span>
-													<span className="truncate text-xs text-neutral-500">
-														{user?.email}
-													</span>
+													<span className="text-sm font-medium text-neutral-900">{user?.name}</span>
+													<span className="truncate text-xs text-neutral-500">{user?.email}</span>
 												</DropdownMenuLabel>
 											</DropdownMenuGroup>
 											<DropdownMenuSeparator />

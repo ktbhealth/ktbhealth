@@ -13,6 +13,5 @@ export const STUB_CAPTCHA_TOKEN = "ktb-captcha-stub";
  * bot check by design.
  */
 export const makeStubVerifier = (): CaptchaVerifier => ({
-	verify: async (token) =>
-		token === undefined || token === "" || token === STUB_CAPTCHA_TOKEN,
+	verify: async (token) => token === undefined || token === "" || token === STUB_CAPTCHA_TOKEN,
 });

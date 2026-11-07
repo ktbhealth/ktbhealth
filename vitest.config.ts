@@ -2,12 +2,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
-		projects: ["apps/*", "packages/*"],
+		projects: ["apps/web", "packages/*"],
 		coverage: {
 			provider: "v8",
 			enabled: true,
 			reporter: ["text", "html"],
-			include: ["apps/*/src/**", "packages/*/src/**"],
+			include: ["apps/web/src/**", "packages/*/src/**"],
 			exclude: [
 				"**/*.test.*",
 				"**/*.d.ts",

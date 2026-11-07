@@ -35,6 +35,34 @@ describe("review", () => {
 		expect(r.inconsistencias).toEqual([]);
 	});
 
+	it("normalise keeps valid secao, tolerates non-array and null", () => {
+		const r = normalizeReview({
+			lacunas: [
+				{ secao: "alergias", o_que_falta: "penicilina?", pergunta_sugerida: "?", motivo: "m" },
+			],
+			inconsistencias: "not-an-array",
+		});
+		expect(r.lacunas[0]?.secao).toBe("alergias");
+		expect(r.inconsistencias).toEqual([]);
+		expect(normalizeReview(null).lacunas).toEqual([]);
+	});
+
+	it("anthropic response without text content degrades", async () => {
+		vi.stubEnv("REVIEW_PROVIDER", "anthropic");
+		vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({ content: [{ type: "tool_use" }] }),
+			}),
+		);
+		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
+		expect(r.review).toBeNull();
+		expect("reason" in r && r.reason).toMatch(/Segunda opinião falhou/);
+	});
+
 	it("parses fenced JSON", () => {
 		const r = parseReview('```json\n{"hipoteses":[{"diagnostico":"Sinusite"}]}\n```');
 		expect(r.hipoteses[0]?.diagnostico).toBe("Sinusite");
@@ -106,10 +134,7 @@ describe("review", () => {
 
 	it("ollama non-404 HTTP error throws into degrade path", async () => {
 		vi.stubEnv("REVIEW_PROVIDER", "ollama");
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({ ok: false, status: 500 }),
-		);
+		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
 		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
 		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
 		expect(r.review).toBeNull();

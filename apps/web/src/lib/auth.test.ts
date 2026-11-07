@@ -52,4 +52,15 @@ describe("auth helpers", () => {
 		const u = await ensureSessionUser();
 		expect(u.email).toBe("dra@x.com");
 	});
+
+	it("maps a missing user name to null", async () => {
+		const spy = vi.spyOn(auth.api, "getSession").mockResolvedValue({
+			user: { id: "u1", email: "e@x.com", name: undefined },
+			session: {},
+		} as never);
+		headers.current = new Headers({ cookie: sessionCookie });
+		const u = await getSessionUser();
+		expect(u?.name).toBeNull();
+		spy.mockRestore();
+	});
 });

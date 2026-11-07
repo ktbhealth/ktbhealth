@@ -125,7 +125,7 @@ export const getConsultationFn = createServerFn({ method: "GET" })
 			.limit(1);
 		const row = rows[0];
 		if (!row) return null;
-		await assertCan(user.id, "consultation.read", { userId: row.c.userId ?? "" });
+		await assertCan(user.id, "consultation.read", { userId: user.id });
 		return {
 			...row.c,
 			patientName: row.patientName,

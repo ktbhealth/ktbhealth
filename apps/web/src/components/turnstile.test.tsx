@@ -9,12 +9,13 @@ let appendedScript: HTMLScriptElement | null = null;
 function captureScripts() {
 	appendedScript = null;
 	const orig = HTMLHeadElement.prototype.appendChild;
-	return vi
-		.spyOn(HTMLHeadElement.prototype, "appendChild")
-		.mockImplementation(function (this: HTMLHeadElement, node: Node) {
-			if (node instanceof HTMLScriptElement) appendedScript = node;
-			return orig.call(this, node);
-		});
+	return vi.spyOn(HTMLHeadElement.prototype, "appendChild").mockImplementation(function (
+		this: HTMLHeadElement,
+		node: Node,
+	) {
+		if (node instanceof HTMLScriptElement) appendedScript = node;
+		return orig.call(this, node);
+	});
 }
 
 async function freshTurnstile() {
@@ -30,17 +31,13 @@ afterEach(() => {
 describe("Turnstile", () => {
 	it("renders nothing without a site key", async () => {
 		const { Turnstile } = await freshTurnstile();
-		const { container } = render(
-			createElement(Turnstile, { siteKey: "", onToken: vi.fn() }),
-		);
+		const { container } = render(createElement(Turnstile, { siteKey: "", onToken: vi.fn() }));
 		expect(container.innerHTML).toBe("");
 	});
 
 	it("renders widget, wires callbacks and cleans up", async () => {
 		const spy = captureScripts();
-		const renderMock = vi.fn(
-			(_el: HTMLElement, _opts?: Record<string, unknown>) => "widget-1",
-		);
+		const renderMock = vi.fn((_el: HTMLElement, _opts?: Record<string, unknown>) => "widget-1");
 		const removeMock = vi.fn();
 		(window as { turnstile?: unknown }).turnstile = {
 			render: renderMock,
@@ -48,9 +45,7 @@ describe("Turnstile", () => {
 		};
 		const { Turnstile } = await freshTurnstile();
 		const onToken = vi.fn();
-		const { unmount } = render(
-			createElement(Turnstile, { siteKey: "key-1", onToken }),
-		);
+		const { unmount } = render(createElement(Turnstile, { siteKey: "key-1", onToken }));
 		expect(appendedScript).toBeTruthy();
 		await act(async () => {
 			(appendedScript as unknown as { onload: () => void }).onload();
@@ -91,9 +86,7 @@ describe("Turnstile", () => {
 		const renderMock = vi.fn(() => "w");
 		(window as { turnstile?: unknown }).turnstile = { render: renderMock, remove: vi.fn() };
 		const { Turnstile } = await freshTurnstile();
-		const { unmount } = render(
-			createElement(Turnstile, { siteKey: "key-3", onToken: vi.fn() }),
-		);
+		const { unmount } = render(createElement(Turnstile, { siteKey: "key-3", onToken: vi.fn() }));
 		unmount();
 		await act(async () => {
 			(appendedScript as unknown as { onload: () => void }).onload();
@@ -104,9 +97,7 @@ describe("Turnstile", () => {
 	it("does not render widget when turnstile api is missing", async () => {
 		captureScripts();
 		const { Turnstile } = await freshTurnstile();
-		const { container } = render(
-			createElement(Turnstile, { siteKey: "key-4", onToken: vi.fn() }),
-		);
+		const { container } = render(createElement(Turnstile, { siteKey: "key-4", onToken: vi.fn() }));
 		expect(container.querySelector("div")).toBeTruthy();
 		await act(async () => {
 			(appendedScript as unknown as { onload: () => void }).onload();

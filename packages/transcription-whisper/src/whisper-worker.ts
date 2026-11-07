@@ -10,7 +10,7 @@ env.allowLocalModels = false;
 // The ort wasm bundle (~26 MB) exceeds the Cloudflare Workers static-asset
 // limit, so it is not emitted into dist/client; fetch it from the same CDN
 // transformers.js uses by default. Keep in sync with onnxruntime-web.
-env.backends.onnx.wasm.wasmPaths = {
+env.backends.onnx.wasm!.wasmPaths = {
 	mjs: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.mjs",
 	wasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.wasm",
 };
@@ -150,6 +150,7 @@ function clean(text: string): string {
 }
 
 async function transcribe(id: string, pcm: Float32Array, language: string) {
+	/* v8 ignore next -- drain() only calls transcribe when transcriber is set */
 	if (!transcriber) return;
 	try {
 		const out = await transcriber(pcm, {
@@ -178,6 +179,7 @@ async function drain() {
 	draining = true;
 	while (transcriber && pending.length) {
 		const next = pending.shift();
+		/* v8 ignore next -- shift() is defined while pending.length > 0 */
 		if (next) await transcribe(next.id, next.pcm, next.language);
 	}
 	draining = false;
