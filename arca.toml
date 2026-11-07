@@ -8,14 +8,18 @@
 kind = "cf"
 url = "https://arca.ktbhealth.workers.dev"
 token_env = "ARCA_CF_TOKEN" # bearer fallback; scoped HMAC below
+cache = ["dev", "preview"] # prod reads live — no stale-prod footgun
 
 # Scoped token refs in the local vault — the ref path is the
 # token_id the worker's ARCA_VAULT_TOKENS map keys on.
 [vaults.ktb.tokens]
 dev = "arca://ktb/cf-token-dev"
+preview = "arca://ktb/cf-token-dev"
 prod = "arca://ktb/cf-token-prod"
 
 [envs]
+dev = { vault = "ktb" }
+preview = { vault = "ktb" }
 prod = { vault = "ktb" }
 
 [secrets]
