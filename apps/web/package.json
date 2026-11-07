@@ -7,7 +7,7 @@
 	},
 	"scripts": {
 		"dev": "arca run -- vp dev --port 3000",
-		"build": "vp build",
+		"build": "vp build && node scripts/strip-oversized-assets.mjs",
 		"preview": "vp preview",
 		"test": "vp test",
 		"deploy": "arca run -- 'vp build && wrangler deploy'",
@@ -15,7 +15,7 @@
 		"db:migrate:local": "wrangler d1 migrations apply ktb --local",
 		"db:migrate": "arca run -- wrangler d1 migrations apply ktb --remote",
 		"infra:dev": "alchemy dev",
-		"infra:deploy": "arca run -- alchemy deploy",
+		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && arca run -- alchemy deploy",
 		"infra:destroy": "alchemy destroy",
 		"test:e2e": "playwright test",
 		"test:coverage": "vp test"

@@ -21,6 +21,7 @@ export const cloudflareWorker: DeployWorker<Providers> = Effect.fnUntraced(funct
 		command: spec.command ?? BUILD_COMMAND,
 		outdir: spec.outdir,
 		main: spec.main,
+		bundle: spec.bundle,
 		env: spec.bindings as Cloudflare.Workers.WorkerBindingProps | undefined,
 		compatibility: spec.compatibilityFlags?.length
 			? { flags: [...spec.compatibilityFlags] }

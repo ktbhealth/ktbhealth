@@ -6,6 +6,15 @@
 import { env, pipeline } from "@huggingface/transformers";
 
 env.allowLocalModels = false;
+
+// The ort wasm bundle (~26 MB) exceeds the Cloudflare Workers static-asset
+// limit, so it is not emitted into dist/client; fetch it from the same CDN
+// transformers.js uses by default. Keep in sync with onnxruntime-web.
+env.backends.onnx.wasm.wasmPaths = {
+	mjs: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.mjs",
+	wasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.wasm",
+};
+
 postMessage({ type: "progress", message: "worker iniciado" });
 
 type TranscriberFn = (

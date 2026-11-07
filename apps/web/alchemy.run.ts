@@ -1,6 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
 import { deployD1, deployWorker } from "@ktb/infra";
 
 export default Alchemy.Stack(
@@ -12,15 +13,21 @@ export default Alchemy.Stack(
 	Effect.gen(function* () {
 		const { db } = yield* deployD1({
 			name: "db",
-			migrationsDir: "../../packages/db/drizzle",
+			migrationsDir: "../../packages/db/alchemy-migrations",
 		});
 
 		const site = yield* deployWorker({
 			name: "web",
-			command: "bun run build",
 			outdir: "dist/client",
-			main: "@tanstack/react-start/server-entry",
-			bindings: { DB: db, AI: Cloudflare.Workers.AI },
+			main: "dist/server/index.js",
+			bundle: false,
+			bindings: {
+				DB: db,
+				AI: Cloudflare.Workers.AI(),
+				...(process.env.BETTER_AUTH_SECRET
+					? { BETTER_AUTH_SECRET: Redacted.make(process.env.BETTER_AUTH_SECRET) }
+					: {}),
+			},
 			compatibilityFlags: ["nodejs_compat"],
 		});
 

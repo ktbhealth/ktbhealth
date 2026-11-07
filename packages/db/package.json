@@ -7,7 +7,7 @@
 		"./schema": "./src/schema.ts"
 	},
 	"scripts": {
-		"db:generate": "drizzle-kit generate"
+		"db:generate": "drizzle-kit generate && node scripts/sync-alchemy-migrations.mjs"
 	},
 	"dependencies": {
 		"@ktb/auth-better": "workspace:*",

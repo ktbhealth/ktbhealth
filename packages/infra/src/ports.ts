@@ -10,8 +10,16 @@ export interface StaticSiteSpec {
 }
 
 export interface WorkerSpec extends StaticSiteSpec {
-	/** SSR worker entrypoint, e.g. "@tanstack/react-start/server-entry". */
+	/**
+	 * Worker entrypoint path or file:// URL. With `bundle: false` it must
+	 * point at a complete, runtime-ready ESM module produced by the build.
+	 */
 	readonly main: string;
+	/**
+	 * When false, `main` and sibling modules upload byte-for-byte with no
+	 * bundling (Wrangler's `no_bundle` contract). Default: provider bundles.
+	 */
+	readonly bundle?: boolean;
 	readonly bindings?: Record<string, unknown>;
 	readonly compatibilityFlags?: readonly string[];
 }
