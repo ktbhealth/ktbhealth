@@ -10,6 +10,9 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"jsx": "react-jsx",
-		"lib": ["ES2023", "DOM", "DOM.Iterable"]
+		"lib": ["ES2023", "DOM", "DOM.Iterable"],
+		"paths": {
+			"@ktbhealth/ui/*": ["../../packages/ui/src/*"]
+		}
 	}
 }

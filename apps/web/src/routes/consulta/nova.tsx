@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Dialog } from "#/components/Dialog.tsx";
-import { ReviewPanel } from "#/components/ReviewPanel.tsx";
-import { Toast, type ToastData } from "#/components/Toast.tsx";
+import { Dialog } from "@ktbhealth/ui/components/app-dialog";
+import { ReviewPanel } from "@ktb/anamnesis";
+import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis-llm";
 import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";

@@ -89,6 +89,13 @@
     },
     "packages/anamnesis": {
       "name": "@ktb/anamnesis",
+      "dependencies": {
+        "react": "^19.2.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+      },
     },
     "packages/anamnesis-llm": {
       "name": "@ktb/anamnesis-llm",
@@ -132,11 +139,19 @@
     "packages/consultations": {
       "name": "@ktb/consultations",
       "dependencies": {
+        "@ktb/anamnesis": "workspace:*",
         "@ktb/auth-better": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/patients": "workspace:*",
+        "@ktbhealth/ui": "workspace:*",
+        "@tanstack/react-router": "1.170.46",
         "drizzle-orm": "^0.45.1",
+        "react": "^19.2.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
       },
     },
     "packages/db": {

@@ -4,13 +4,22 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./schema": "./src/schema.ts"
+		"./schema": "./src/schema.ts",
+		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {
+		"@ktb/anamnesis": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
-		"drizzle-orm": "^0.45.1"
+		"@ktbhealth/ui": "workspace:*",
+		"@tanstack/react-router": "1.170.46",
+		"drizzle-orm": "^0.45.1",
+		"react": "^19.2.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0"
 	}
 }
