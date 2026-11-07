@@ -1,0 +1,11 @@
+# ktb — arca secret surface.
+# Refs are committed; values live in the vault, never in the repo.
+# Store with: printf '%s' "$VAL" | arca put arca://ktb/<name>
+
+[secrets]
+# Note: `arca run` requires every declared ref to resolve. Keep
+# cf-api-token commented until you `arca put` it — the alchemy
+# profile already covers deploys.
+# CLOUDFLARE_API_TOKEN = "arca://ktb/cf-api-token"
+BETTER_AUTH_SECRET = "arca://ktb/better-auth-secret"
+BETTER_AUTH_URL = "arca://ktb/better-auth-url"

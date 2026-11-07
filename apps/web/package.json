@@ -6,16 +6,16 @@
 		"#/*": "./src/*"
 	},
 	"scripts": {
-		"dev": "vp dev --port 3000",
+		"dev": "arca run -- vp dev --port 3000",
 		"build": "vp build",
 		"preview": "vp preview",
 		"test": "vp test",
-		"deploy": "vp build && wrangler deploy",
+		"deploy": "arca run -- 'vp build && wrangler deploy'",
 		"cf-typegen": "wrangler types",
 		"db:migrate:local": "wrangler d1 migrations apply ktb --local",
-		"db:migrate": "wrangler d1 migrations apply ktb --remote",
+		"db:migrate": "arca run -- wrangler d1 migrations apply ktb --remote",
 		"infra:dev": "alchemy dev",
-		"infra:deploy": "alchemy deploy",
+		"infra:deploy": "arca run -- alchemy deploy",
 		"infra:destroy": "alchemy destroy",
 		"test:e2e": "playwright test",
 		"test:coverage": "vp test"
