@@ -118,7 +118,11 @@
     "packages/auth": {
       "name": "@ktb/auth",
       "dependencies": {
+        "drizzle-orm": "^0.45.1",
         "effect": "4.0.7",
+      },
+      "devDependencies": {
+        "@ktb/db": "workspace:*",
       },
     },
     "packages/auth-better": {
@@ -202,7 +206,7 @@
     "packages/db": {
       "name": "@ktb/db",
       "dependencies": {
-        "@ktb/auth-better": "workspace:*",
+        "@ktb/auth": "workspace:*",
         "@ktb/consultations": "workspace:*",
         "@ktb/patients": "workspace:*",
         "drizzle-orm": "^0.45.1",

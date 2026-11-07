@@ -3,9 +3,14 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./schema": "./src/schema.ts"
 	},
 	"dependencies": {
+		"drizzle-orm": "^0.45.1",
 		"effect": "4.0.7"
+	},
+	"devDependencies": {
+		"@ktb/db": "workspace:*"
 	}
 }

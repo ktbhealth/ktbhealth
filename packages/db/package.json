@@ -11,7 +11,7 @@
 		"db:generate": "drizzle-kit generate && node scripts/sync-alchemy-migrations.mjs"
 	},
 	"dependencies": {
-		"@ktb/auth-better": "workspace:*",
+		"@ktb/auth": "workspace:*",
 		"@ktb/consultations": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"drizzle-orm": "^0.45.1",

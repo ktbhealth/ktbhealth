@@ -34,7 +34,7 @@ export default defineConfig({
 				// or platform APIs. Composition roots (apps/*, @ktb/db schema
 				// aggregation) are the only places allowed to wire impls.
 				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,patients,consultations,export-pdf,ui}/**/*.{ts,tsx}",
+					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,patients,consultations,export-pdf,ui,db}/**/*.{ts,tsx}",
 				],
 				rules: {
 					"no-restricted-imports": [

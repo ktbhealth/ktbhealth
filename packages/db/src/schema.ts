@@ -2,4 +2,4 @@
 // sees one entry point. Add `export *` per plugin domain.
 export * from "@ktb/patients/schema";
 export * from "@ktb/consultations/schema";
-export * from "@ktb/auth-better/schema";
+export * from "@ktb/auth/schema";
