@@ -38,5 +38,5 @@ pnpm dev   # http://localhost:3000
 
 ## Status
 
-Exploration in progress — active roadmap, ADRs, and backlog live under
-[`project/`](project/) on the `project` branch.
+Exploration in progress — active roadmap, ADRs, and backlog live on the
+[`project`](https://github.com/luisfuturist/tool-telemedicine-transcription/tree/project) branch.
