@@ -2,11 +2,11 @@
 # Refs are committed; values live in the vault, never in the repo.
 # Store with: printf '%s' "$VAL" | arca put arca://ktb/<name>
 
-# Remote vault: self-hosted CF Worker + D1 (ktb account). Deployed
-# from crates/arca-vault-cf/worker (9aia/arca).
+# Remote vault: self-hosted CF Worker + D1, exclusive to the ktbhealth
+# account. Deployed from crates/arca-vault-cf/worker (9aia/arca).
 [vaults.ktb]
 kind = "cf"
-url = "https://arca-vault.luisfuturist.workers.dev"
+url = "https://arca-vault.ktbhealth.workers.dev"
 token_env = "ARCA_CF_TOKEN" # bearer fallback; scoped HMAC below
 
 # Scoped token refs in the local vault — the ref path is the
