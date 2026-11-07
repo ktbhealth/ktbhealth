@@ -15,14 +15,12 @@ export default Alchemy.Stack(
 			migrationsDir: "../../packages/db/drizzle",
 		});
 
-		const ai = yield* Cloudflare.Workers.AI().pipe(Effect.provide(Cloudflare.Workers.AIBinding));
-
 		const site = yield* deployWorker({
 			name: "web",
 			command: "bun run build",
 			outdir: "dist/client",
 			main: "@tanstack/react-start/server-entry",
-			bindings: { DB: db, AI: ai },
+			bindings: { DB: db, AI: Cloudflare.Workers.AI },
 			compatibilityFlags: ["nodejs_compat"],
 		});
 
