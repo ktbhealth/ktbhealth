@@ -9,7 +9,9 @@
 		"dev": "vp dev --port 3001",
 		"build": "vp build",
 		"preview": "vp preview",
-		"deploy": "vp build && gh-pages -d dist/client -t"
+		"plan": "alchemy plan",
+		"deploy": "alchemy deploy",
+		"destroy": "alchemy destroy"
 	},
 	"dependencies": {
 		"@inlang/paraglide-js": "2.29.3",
@@ -17,16 +19,20 @@
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/react-router": "1.170.46",
 		"@tanstack/react-start": "1.169.4",
+		"effect": "4.0.7",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"tailwindcss": "^4.1.18"
 	},
 	"devDependencies": {
+		"@alchemy.run/cloudflare": "2.0.0-beta.84",
+		"@effect/platform-bun": "4.0.7",
+		"@effect/platform-node": "4.0.7",
 		"@types/node": "^22.10.2",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"@vitejs/plugin-react": "^6.0.1",
-		"gh-pages": "^6.3.0",
+		"alchemy": "2.0.0-beta.84",
 		"vite": "npm:@voidzero-dev/vite-plus-core@1.5.0"
 	}
 }

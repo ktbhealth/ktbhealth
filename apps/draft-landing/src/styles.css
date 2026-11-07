@@ -1,0 +1,4 @@
+@import "@ktbhealth/ui/styles/globals.css";
+
+/* The shared globals only @source apps/web; scan this app too. */
+@source "./**/*.{ts,tsx}";

@@ -7,4 +7,13 @@
 	"observability": {
 		"enabled": true,
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "ktb",
+			// Replace with `bunx wrangler d1 create ktb` output before deploy.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "../../packages/db/drizzle",
+		},
+	],
 }

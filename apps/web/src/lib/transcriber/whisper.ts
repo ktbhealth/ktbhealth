@@ -42,7 +42,7 @@ export class WhisperTranscriber implements Transcriber {
 		return (
 			typeof navigator !== "undefined" &&
 			typeof Worker !== "undefined" &&
-			Boolean(navigator.mediaDevices?.getUserMedia)
+			Boolean(navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices))
 		);
 	}
 

@@ -9,6 +9,7 @@ export default defineConfig({
 	},
 
 	lint: {
+		ignorePatterns: ["apps/draft-landing/alchemy.run.ts", "apps/draft-landing/infra/**"],
 		plugins: ["typescript", "react"],
 		options: {
 			typeAware: true,

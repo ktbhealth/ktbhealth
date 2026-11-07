@@ -64,7 +64,7 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 function NovaConsulta() {
 	const initialPatients = Route.useLoaderData();
 	const [recording, setRecording] = useState(false);
-	const [supported, setSupported] = useState(false);
+	const [supported] = useState(() => createWhisperMicTranscriber().supported);
 	const [transcript, setTranscript] = useState("");
 	const [partial, setPartial] = useState("");
 	const [anamnesis, setAnamnesis] = useState<Anamnesis | null>(null);
@@ -86,11 +86,19 @@ function NovaConsulta() {
 	const [consented, setConsented] = useState(false);
 	const [patientId, setPatientId] = useState<number | null>(null);
 	const [patientName, setPatientName] = useState("");
-	const [patients, setPatients] = useState<Array<{ id: number; name: string }>>([]);
+	const [patients, setPatients] = useState<Array<{ id: number; name: string }>>(() =>
+		initialPatients.map((p: { id: number; name: string }) => ({
+			id: p.id,
+			name: p.name,
+		})),
+	);
 	const transcriberRef = useRef<ReturnType<typeof createWhisperMicTranscriber> | null>(null);
 	const tabRef = useRef<ReturnType<typeof createWhisperTabTranscriber> | null>(null);
 	const [tabRecording, setTabRecording] = useState(false);
-	const [modelStatus, setModelStatus] = useState<string | null>(null);
+	const [modelStatus, setModelStatus] = useState<string | null>(() => {
+		const st = whisperStatus();
+		return st.state === "ready" ? `modelo pronto — ${st.device}` : null;
+	});
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const [source, setSource] = useState<"gravar" | "bot">("gravar");
 	const [resultTab, setResultTab] = useState<"anamnese" | "review">("anamnese");
@@ -98,8 +106,6 @@ function NovaConsulta() {
 	// Preload Whisper once per page: first visit downloads, later ones
 	// come straight from the browser cache.
 	useEffect(() => {
-		const st = whisperStatus();
-		if (st.state === "ready") setModelStatus(`modelo pronto — ${st.device}`);
 		const off = subscribeWhisper((m) => {
 			if (m.type === "progress") setModelStatus(m.message ?? null);
 			if (m.type === "ready") setModelStatus(`modelo pronto — ${m.device}`);
@@ -110,19 +116,9 @@ function NovaConsulta() {
 	}, []);
 
 	useEffect(() => {
-		setPatients(
-			initialPatients.map((p: { id: number; name: string }) => ({
-				id: p.id,
-				name: p.name,
-			})),
-		);
-	}, [initialPatients]);
-
-	useEffect(() => {
 		const t = createWhisperMicTranscriber();
 		transcriberRef.current = t;
 		tabRef.current = createWhisperTabTranscriber();
-		setSupported(t.supported);
 		return () => {
 			t.stop();
 			tabRef.current?.stop();

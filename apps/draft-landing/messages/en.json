@@ -1,0 +1,55 @@
+{
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"meta_title": "KTB: clinical intelligence for medical conversations",
+	"meta_description": "KTB captures, transcribes, and structures medical consultations so doctors spend less time typing and more time listening.",
+
+	"nav_brand": "KTB",
+	"nav_how": "How it works",
+	"nav_principles": "Principles",
+	"nav_vision": "Vision",
+	"nav_repo": "GitHub",
+
+	"hero_badge": "Draft project · Hack Brasil 2026",
+	"hero_title": "Turn medical conversations into lasting clinical knowledge.",
+	"hero_subtitle": "KTB is an ambient scribe for doctors: it captures the consultation, transcribes in PT-BR, structures the clinical anamnesis, and hands it to the physician to review and approve. Less typing, more listening.",
+	"hero_cta_primary": "See the repository",
+	"hero_cta_secondary": "How it works",
+
+	"problem_title": "The problem",
+	"problem_body": "Brazilian doctors spend about 40% of a consultation documenting instead of listening. Poorly recorded anamnesis means clinical errors, legal exposure, and a 15-minute consult turning into 25 minutes of charting. Existing EMRs make it worse: the physician types looking at the screen, not at the patient.",
+	"problem_stat1_num": "40%",
+	"problem_stat1_label": "of consultation time spent on documentation",
+	"problem_stat2_num": "15 → 25 min",
+	"problem_stat2_label": "a consult that grows with charting",
+	"problem_stat3_num": "1 patient",
+	"problem_stat3_label": "who gets a physician staring at a screen",
+
+	"steps_title": "How it works",
+	"steps_subtitle": "From conversation to approved clinical record in four steps.",
+	"step1_title": "Capture",
+	"step1_body": "Audio from the teleconsult or the exam room, straight from the browser. No bots joining your calls.",
+	"step2_title": "Transcribe",
+	"step2_body": "Whisper runs client-side first; a server pass only when needed. Accurate PT-BR, cheap by design.",
+	"step3_title": "Structure",
+	"step3_body": "An LLM drafts the clinical anamnesis: chief complaint, history of present illness, background, physical exam, hypotheses, plan.",
+	"step4_title": "Review",
+	"step4_body": "The physician reviews, edits, and approves. The structured record is ready to export.",
+
+	"principles_title": "Principles",
+	"principle1_title": "AI drafts, the physician decides",
+	"principle1_body": "KTB supports clinical documentation. It does not diagnose or prescribe; every record is reviewed and approved by a human doctor.",
+	"principle2_title": "Privacy first",
+	"principle2_body": "Patient consent before capture, compute on-device whenever possible, and synthetic data in every demo.",
+	"principle3_title": "Built for Brazil",
+	"principle3_body": "PT-BR clinical language, local anamnesis structure, and workflows that match how Brazilian physicians actually practice.",
+
+	"who_title": "Who it is for",
+	"who_body": "Physicians running teleconsultations or in-person visits who want their time back. Built for the Brazilian healthcare context first, with B2C self-serve for individual doctors.",
+
+	"vision_title": "Vision",
+	"vision_body": "Beyond transcription: an intelligent layer for clinical information, connecting consultations, documentation, and patient history into a continuous clinical workflow. The name KTB comes from the Arabic root K-T-B, associated with writing, books, and preserving knowledge.",
+
+	"footer_tagline": "Draft project built for Hack Brasil 2026.",
+	"footer_repo": "Source on GitHub",
+	"footer_disclaimer": "Demos use synthetic patient data only."
+}

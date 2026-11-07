@@ -1,6 +1,10 @@
 {
 	"name": "ktb",
 	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
 	"type": "module",
 	"scripts": {
 		"dev": "vp dev",
@@ -11,15 +15,20 @@
 		"format": "vp fmt",
 		"test": "vp -C apps/web test",
 		"deploy": "vp -C apps/web deploy",
-		"cf-typegen": "pnpm -C apps/web cf-typegen",
-		"db:generate": "pnpm -C packages/db db:generate",
-		"db:migrate": "pnpm -C packages/db db:migrate",
-		"db:push": "pnpm -C packages/db db:push",
-		"db:pull": "pnpm -C packages/db db:pull",
-		"db:studio": "pnpm -C packages/db db:studio"
+		"cf-typegen": "bun --cwd apps/web cf-typegen",
+		"db:generate": "bun --cwd packages/db db:generate",
+		"db:migrate": "bun --cwd apps/web db:migrate",
+		"db:migrate:local": "bun --cwd apps/web db:migrate:local",
+		"db:studio": "bun --cwd packages/db db:studio"
 	},
 	"devDependencies": {
 		"typescript": "^6.0.2",
 		"vite-plus": "1.5.0"
-	}
+	},
+	"trustedDependencies": [
+		"esbuild",
+		"lightningcss",
+		"msw",
+		"workerd"
+	]
 }

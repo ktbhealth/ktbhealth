@@ -56,27 +56,29 @@ describe("review", () => {
 	it("uses Ollama with a JSON schema, thinking off, and parses the result", async () => {
 		vi.stubEnv("REVIEW_PROVIDER", "ollama");
 		vi.stubEnv("REVIEW_MODEL", "");
-		const fetchMock = vi.fn().mockResolvedValue({
-			ok: true,
-			status: 200,
-			json: async () => ({
-				message: {
-					content: JSON.stringify({
-						lacunas: [],
-						hipoteses: [
-							{
-								diagnostico: "Cefaleia tensional",
-								probabilidade: "media",
-								evidence: [],
-								investigar: [],
-							},
-						],
-						sinais_de_alerta: [],
-						inconsistencias: [],
-					}),
-				},
-			}),
-		});
+		const fetchMock = vi
+			.fn<(url: string, init: { body: string }) => Promise<unknown>>()
+			.mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					message: {
+						content: JSON.stringify({
+							lacunas: [],
+							hipoteses: [
+								{
+									diagnostico: "Cefaleia tensional",
+									probabilidade: "media",
+									evidence: [],
+									investigar: [],
+								},
+							],
+							sinais_de_alerta: [],
+							inconsistencias: [],
+						}),
+					},
+				}),
+			});
 		vi.stubGlobal("fetch", fetchMock);
 		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
 		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
@@ -91,7 +93,12 @@ describe("review", () => {
 
 	it("tells the user to pull the model when Ollama returns 404", async () => {
 		vi.stubEnv("REVIEW_PROVIDER", "ollama");
-		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn<(url: string, init: { body: string }) => Promise<unknown>>()
+				.mockResolvedValue({ ok: false, status: 404 }),
+		);
 		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
 		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
 		expect("reason" in r && r.reason).toMatch(/ollama pull qwen3:8b/);
@@ -101,25 +108,27 @@ describe("review", () => {
 		vi.stubEnv("REVIEW_PROVIDER", "");
 		vi.stubEnv("ANTHROPIC_API_KEY", "k");
 		vi.stubEnv("REVIEW_MODEL", "modelo-x");
-		const fetchMock = vi.fn().mockResolvedValue({
-			ok: true,
-			json: async () => ({
-				content: [
-					{
-						type: "text",
-						text: JSON.stringify({
-							hipoteses: [
-								{
-									diagnostico: "Meningite",
-									probabilidade: "media",
-									evidence: ["febre"],
-								},
-							],
-						}),
-					},
-				],
-			}),
-		});
+		const fetchMock = vi
+			.fn<(url: string, init: { body: string }) => Promise<unknown>>()
+			.mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					content: [
+						{
+							type: "text",
+							text: JSON.stringify({
+								hipoteses: [
+									{
+										diagnostico: "Meningite",
+										probabilidade: "media",
+										evidence: ["febre"],
+									},
+								],
+							}),
+						},
+					],
+				}),
+			});
 		vi.stubGlobal("fetch", fetchMock);
 		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
 		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
@@ -133,7 +142,12 @@ describe("review", () => {
 	it("degrades to a reason (never throws) when the API fails", async () => {
 		vi.stubEnv("REVIEW_PROVIDER", "");
 		vi.stubEnv("ANTHROPIC_API_KEY", "k");
-		vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn<(url: string, init: { body: string }) => Promise<unknown>>()
+				.mockResolvedValue({ ok: false, status: 500 }),
+		);
 		const a = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
 		const r = await reviewAnamnesis(SAMPLE_TRANSCRIPT, a);
 		expect(r.review).toBeNull();
