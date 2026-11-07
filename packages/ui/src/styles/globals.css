@@ -4,7 +4,9 @@
 
 /* This file lives in a workspace package (node_modules-symlinked), so
    Tailwind's auto content detection skips it; scan sources explicitly. */
-@source "../../../apps/web/src/**/*.{ts,tsx}";
+@source "../../../../apps/web/src/**/*.{ts,tsx}";
+@source "../../../../plugins/**/*.{ts,tsx}";
+@source "../../../../packages/anamnesis/src/**/*.{ts,tsx}";
 @source "../../src/**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
