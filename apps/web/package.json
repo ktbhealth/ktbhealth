@@ -26,6 +26,7 @@
 		"@ktb/anamnesis-llm": "workspace:*",
 		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
+		"@ktb/authz": "workspace:*",
 		"@ktb/bot": "workspace:*",
 		"@ktb/bot-recall": "workspace:*",
 		"@ktb/consultations": "workspace:*",

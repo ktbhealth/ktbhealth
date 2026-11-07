@@ -9,6 +9,12 @@ import { type Anamnesis, extractAnamnesis } from "@ktb/anamnesis-llm";
 import { reviewAnamnesis } from "@ktb/anamnesis-llm";
 import type { AnamnesisReview } from "@ktb/anamnesis";
 import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
+import { AuthzLive, type can, requireCan } from "@ktb/authz";
+import * as Effect from "effect/Effect";
+
+const assertCan = async (userId: string, ...args: Parameters<typeof can>) => {
+	await Effect.runPromise(requireCan(...args).pipe(Effect.provide(AuthzLive(userId))));
+};
 
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
@@ -35,6 +41,7 @@ export const createPatientFn = createServerFn({ method: "POST" })
 	.validator((name: string) => name)
 	.handler(async ({ data: name }) => {
 		const user = await ensureSessionUser();
+		await assertCan(user.id, "patient.create");
 		return createPatient(db, user.id, name);
 	});
 
@@ -118,6 +125,7 @@ export const getConsultationFn = createServerFn({ method: "GET" })
 			.limit(1);
 		const row = rows[0];
 		if (!row) return null;
+		await assertCan(user.id, "consultation.read", { userId: row.c.userId ?? "" });
 		return {
 			...row.c,
 			patientName: row.patientName,
