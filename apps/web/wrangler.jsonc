@@ -7,6 +7,9 @@
 	"observability": {
 		"enabled": true,
 	},
+	// Local dev only: this file is not used by the Alchemy deploy. Selects
+	// @ktb/captcha-stub so credential endpoints pass without a real widget.
+	"vars": { "CAPTCHA_STUB": "1" },
 	"ai": { "binding": "AI" },
 	"d1_databases": [
 		{

@@ -1,0 +1,11 @@
+{
+	"name": "@ktb/captcha-stub",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/captcha": "workspace:*"
+	}
+}

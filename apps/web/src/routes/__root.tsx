@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback } from "@ktbhealth/ui/components/avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -94,14 +95,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 											<span className="max-w-32 truncate">{user?.name}</span>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end" className="w-52">
-											<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-												<span className="text-sm font-medium text-neutral-900">
-													{user?.name}
-												</span>
-												<span className="truncate text-xs text-neutral-500">
-													{user?.email}
-												</span>
-											</DropdownMenuLabel>
+											<DropdownMenuGroup>
+												<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+													<span className="text-sm font-medium text-neutral-900">
+														{user?.name}
+													</span>
+													<span className="truncate text-xs text-neutral-500">
+														{user?.email}
+													</span>
+												</DropdownMenuLabel>
+											</DropdownMenuGroup>
 											<DropdownMenuSeparator />
 											<DropdownMenuItem
 												variant="destructive"

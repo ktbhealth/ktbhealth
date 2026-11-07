@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import * as Layer from "effect/Layer";
 import { Binding, makeDb } from "@ktb/db";
 import { makeAuth } from "@ktb/auth-better";
+import { makeStubVerifier } from "@ktb/captcha-stub";
 import { makeTurnstileVerifier } from "@ktb/captcha-turnstile";
 import type { CaptchaVerifier } from "@ktb/captcha";
 
@@ -16,8 +17,11 @@ export const auth = makeAuth(db, {
 	baseURL: env.BETTER_AUTH_URL,
 });
 
-// Bot check on credential endpoints. Null when no secret is bound (local
-// dev without arca): the auth route skips verification in that case.
-export const captcha: CaptchaVerifier | null = env.TURNSTILE_SECRET_KEY
-	? makeTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
-	: null;
+// Bot check on credential endpoints. CAPTCHA_STUB (wrangler dev var, never
+// set in the Alchemy stack) selects the local stub; otherwise Turnstile when
+// its secret is bound; null skips verification entirely.
+export const captcha: CaptchaVerifier | null = env.CAPTCHA_STUB
+	? makeStubVerifier()
+	: env.TURNSTILE_SECRET_KEY
+		? makeTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
+		: null;

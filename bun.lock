@@ -53,6 +53,7 @@
         "@ktb/bot": "workspace:*",
         "@ktb/bot-recall": "workspace:*",
         "@ktb/captcha": "workspace:*",
+        "@ktb/captcha-stub": "workspace:*",
         "@ktb/captcha-turnstile": "workspace:*",
         "@ktb/consultations": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -148,6 +149,12 @@
     },
     "packages/captcha": {
       "name": "@ktb/captcha",
+    },
+    "packages/captcha-stub": {
+      "name": "@ktb/captcha-stub",
+      "dependencies": {
+        "@ktb/captcha": "workspace:*",
+      },
     },
     "packages/captcha-turnstile": {
       "name": "@ktb/captcha-turnstile",
@@ -660,6 +667,8 @@
     "@ktb/bot-recall": ["@ktb/bot-recall@workspace:packages/bot-recall"],
 
     "@ktb/captcha": ["@ktb/captcha@workspace:packages/captcha"],
+
+    "@ktb/captcha-stub": ["@ktb/captcha-stub@workspace:packages/captcha-stub"],
 
     "@ktb/captcha-turnstile": ["@ktb/captcha-turnstile@workspace:packages/captcha-turnstile"],
 

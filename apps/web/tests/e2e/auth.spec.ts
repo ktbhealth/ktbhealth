@@ -1,0 +1,75 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const PASSWORD = "senha-forte-123";
+
+function uniqueCredentials() {
+	const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@test.dev`;
+	return { email, name: email.split("@")[0] };
+}
+
+/** React attaches __reactFiber$/__reactProps$ expandos during hydration;
+ * their presence on the nav means event handlers are live. */
+async function waitForHydration(page: Page) {
+	await page.waitForFunction(() => {
+		const el = document.querySelector("header nav");
+		return (
+			!!el &&
+			Object.keys(el).some(
+				(k) => k.startsWith("__reactFiber$") || k.startsWith("__reactProps$"),
+			)
+		);
+	});
+}
+
+async function gotoApp(page: Page, path: string) {
+	await page.goto(path);
+	await waitForHydration(page);
+}
+
+async function fillCredentials(page: Page, email: string) {
+	await page.getByLabel("Email").fill(email);
+	await page.getByLabel("Senha").fill(PASSWORD);
+}
+
+test.describe("auth flow", () => {
+	test("sign up, sign out via nav menu, sign back in", async ({ page }) => {
+		const { email, name } = uniqueCredentials();
+
+		// Sign up through the "Criar conta" tab.
+		await gotoApp(page, "/entrar");
+		await page.getByRole("tab", { name: "Criar conta" }).click();
+		await fillCredentials(page, email);
+		await page.getByRole("button", { name: "Criar conta" }).click();
+
+		// Sign-up signs in; the app does a full reload to "/".
+		await expect(page).toHaveURL("/");
+		await waitForHydration(page);
+		const trigger = page.getByRole("button", { name: new RegExp(name) });
+		await expect(trigger).toBeVisible();
+
+		// Sign out through the avatar dropdown.
+		await trigger.click();
+		await page.getByRole("menuitem", { name: "Sair" }).click();
+		await expect(page).toHaveURL("/");
+		await waitForHydration(page);
+		await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+
+		// Sign back in (the "Entrar" tab is the default).
+		await gotoApp(page, "/entrar");
+		await fillCredentials(page, email);
+		await page.getByRole("button", { name: "Entrar" }).click();
+		await expect(page).toHaveURL("/");
+		await waitForHydration(page);
+		await expect(
+			page.getByRole("button", { name: new RegExp(name) }),
+		).toBeVisible();
+	});
+
+	test("shows error on invalid credentials", async ({ page }) => {
+		await gotoApp(page, "/entrar");
+		await fillCredentials(page, `nobody-${Date.now()}@test.dev`);
+		await page.getByRole("button", { name: "Entrar" }).click();
+		await expect(page.getByText(/invalid email or password/i)).toBeVisible();
+		await expect(page).toHaveURL("/entrar");
+	});
+});

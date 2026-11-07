@@ -29,6 +29,7 @@
 		"@ktb/bot": "workspace:*",
 		"@ktb/bot-recall": "workspace:*",
 		"@ktb/captcha": "workspace:*",
+		"@ktb/captcha-stub": "workspace:*",
 		"@ktb/captcha-turnstile": "workspace:*",
 		"@ktb/consultations": "workspace:*",
 		"@ktb/db": "workspace:*",
