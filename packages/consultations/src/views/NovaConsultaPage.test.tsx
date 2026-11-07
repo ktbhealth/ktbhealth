@@ -3,25 +3,31 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Anamnesis } from "@ktb/anamnesis-llm";
+import type { Anamnesis } from "@ktb/anamnesis";
 import type { AnamnesisReview } from "@ktb/anamnesis";
-import type { TranscriptEvent } from "@ktb/transcription";
+import type {
+	Transcriber,
+	TranscriptionBackend,
+	TranscriptionEngineMessage,
+	TranscriptionStatus,
+	TranscriptEvent,
+} from "@ktb/transcription";
 import type { NovaApi } from "./NovaConsultaPage.tsx";
 
 // ---------- controllable transcriber mocks ----------
 let micSupported = true;
 let micCb: ((ev: TranscriptEvent) => void) | null = null;
 let tabCb: ((ev: TranscriptEvent) => void) | null = null;
-let statusImpl: () => { state: string; device: string | null } = () => ({
+let statusImpl: () => TranscriptionStatus = () => ({
 	state: "idle",
 	device: null,
 });
 const micStop = vi.fn();
 const tabStop = vi.fn();
-const engineSubs = new Set<(m: Record<string, unknown>) => void>();
+const engineSubs = new Set<(m: TranscriptionEngineMessage) => void>();
 
-vi.mock("@ktb/transcription-whisper", () => ({
-	createWhisperMicTranscriber: () => ({
+const backend: TranscriptionBackend = {
+	mic: (): Transcriber => ({
 		get supported() {
 			return micSupported;
 		},
@@ -30,20 +36,20 @@ vi.mock("@ktb/transcription-whisper", () => ({
 		},
 		stop: micStop,
 	}),
-	createWhisperTabTranscriber: () => ({
+	tab: (): Transcriber => ({
 		supported: true,
 		start: (cb: (ev: TranscriptEvent) => void) => {
 			tabCb = cb;
 		},
 		stop: tabStop,
 	}),
-	loadWhisper: vi.fn(),
-	subscribeWhisper: (fn: (m: Record<string, unknown>) => void) => {
+	status: () => statusImpl(),
+	subscribe: (fn: (m: TranscriptionEngineMessage) => void) => {
 		engineSubs.add(fn);
 		return () => engineSubs.delete(fn);
 	},
-	whisperStatus: () => statusImpl(),
-}));
+	load: vi.fn(),
+};
 
 vi.mock("@tanstack/react-router", async () => {
 	const React = await import("react");
@@ -105,7 +111,7 @@ const PATIENTS = [
 ];
 
 function renderPage(api = makeApi(), patients = PATIENTS) {
-	return render(<NovaConsultaPage initialPatients={patients} api={api} />);
+	return render(<NovaConsultaPage initialPatients={patients} api={api} backend={backend} />);
 }
 
 async function consent(user: ReturnType<typeof userEvent.setup>) {

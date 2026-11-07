@@ -1,11 +1,10 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 import { patients } from "@ktb/patients/schema";
-import { user } from "@ktb/auth-better/schema";
 
 export const consultations = sqliteTable("consultations", {
 	id: integer().primaryKey({ autoIncrement: true }),
-	userId: text("user_id").references(() => user.id),
+	userId: text("user_id"),
 	patientId: integer("patient_id").references(() => patients.id),
 	/** Transcript-only by design — audio never leaves the browser. */
 	transcript: text().notNull(),

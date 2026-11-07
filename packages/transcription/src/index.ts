@@ -120,3 +120,32 @@ export class WebSpeechTranscriber implements Transcriber {
 export function createTranscriber(): Transcriber {
 	return new WebSpeechTranscriber();
 }
+
+// ---------- engine backend port ----------
+
+export interface TranscriptionEngineMessage {
+	readonly type: string;
+	readonly id?: string;
+	readonly text?: string;
+	readonly message?: string;
+	readonly device?: string;
+	readonly cached?: boolean;
+}
+
+export interface TranscriptionStatus {
+	readonly state: "idle" | "loading" | "ready";
+	readonly device: string | null;
+}
+
+/**
+ * Client-side transcription backend port. Views depend on this shape;
+ * implementations (whisper worker, future engines) are injected by the
+ * composition root — never imported by domain packages.
+ */
+export interface TranscriptionBackend {
+	mic(): Transcriber;
+	tab(): Transcriber;
+	status(): TranscriptionStatus;
+	subscribe(fn: (m: TranscriptionEngineMessage) => void): () => void;
+	load(): void;
+}

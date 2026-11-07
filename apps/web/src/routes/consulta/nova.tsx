@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { NovaConsultaPage, type NovaApi } from "@ktb/consultations/views";
+import { whisperBackend } from "@ktb/transcription-whisper";
 import {
 	attachAnamnesisFn,
 	createPatientFn,
@@ -26,6 +27,8 @@ export const Route = createFileRoute("/consulta/nova")({
 	loader: () => listPatientsFn(),
 	component: function NovaRoute() {
 		const initialPatients = Route.useLoaderData();
-		return <NovaConsultaPage initialPatients={initialPatients} api={novaApi} />;
+		return (
+			<NovaConsultaPage initialPatients={initialPatients} api={novaApi} backend={whisperBackend} />
+		);
 	},
 });

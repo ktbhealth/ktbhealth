@@ -5,16 +5,10 @@ import { Dialog } from "@ktbhealth/ui/components/app-dialog";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 import { ReviewPanel } from "@ktb/anamnesis";
 import { anamnesisToText } from "@ktb/anamnesis";
-import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis-llm";
+import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis";
 import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
-import {
-	createWhisperMicTranscriber,
-	createWhisperTabTranscriber,
-	loadWhisper,
-	subscribeWhisper,
-	whisperStatus,
-} from "@ktb/transcription-whisper";
+import type { Transcriber, TranscriptionBackend } from "@ktb/transcription";
 
 const CONF_STYLE: Record<Confidence, string> = {
 	alta: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -78,12 +72,14 @@ export interface NovaApi {
 export function NovaConsultaPage({
 	initialPatients,
 	api,
+	backend,
 }: {
 	initialPatients: Array<{ id: number; name: string }>;
 	api: NovaApi;
+	backend: TranscriptionBackend;
 }) {
 	const [recording, setRecording] = useState(false);
-	const [supported] = useState(() => createWhisperMicTranscriber().supported);
+	const [supported] = useState(() => backend.mic().supported);
 	const [transcript, setTranscript] = useState("");
 	const [partial, setPartial] = useState("");
 	const [anamnesis, setAnamnesis] = useState<Anamnesis | null>(null);
@@ -111,11 +107,11 @@ export function NovaConsultaPage({
 			name: p.name,
 		})),
 	);
-	const transcriberRef = useRef<ReturnType<typeof createWhisperMicTranscriber> | null>(null);
-	const tabRef = useRef<ReturnType<typeof createWhisperTabTranscriber> | null>(null);
+	const transcriberRef = useRef<Transcriber | null>(null);
+	const tabRef = useRef<Transcriber | null>(null);
 	const [tabRecording, setTabRecording] = useState(false);
 	const [modelStatus, setModelStatus] = useState<string | null>(() => {
-		const st = whisperStatus();
+		const st = backend.status();
 		return st.state === "ready" ? `modelo pronto — ${st.device}` : null;
 	});
 	const [toast, setToast] = useState<ToastData | null>(null);
@@ -125,19 +121,19 @@ export function NovaConsultaPage({
 	// Preload Whisper once per page: first visit downloads, later ones
 	// come straight from the browser cache.
 	useEffect(() => {
-		const off = subscribeWhisper((m) => {
+		const off = backend.subscribe((m) => {
 			if (m.type === "progress") setModelStatus(m.message ?? null);
 			if (m.type === "ready") setModelStatus(`modelo pronto — ${m.device}`);
 			if (m.type === "error" && !m.id) setModelStatus(`modelo indisponível: ${m.message}`);
 		});
-		loadWhisper();
+		backend.load();
 		return off;
 	}, []);
 
 	useEffect(() => {
-		const t = createWhisperMicTranscriber();
+		const t = backend.mic();
 		transcriberRef.current = t;
-		tabRef.current = createWhisperTabTranscriber();
+		tabRef.current = backend.tab();
 		return () => {
 			t.stop();
 			tabRef.current?.stop();
