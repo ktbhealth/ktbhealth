@@ -43,6 +43,8 @@ export default defineConfig({
 							patterns: [
 								"**/apps/**",
 								"@ktb/web",
+								"@ktb/app-host",
+								"@ktb/app-host/**",
 								"@ktb/auth-better",
 								"@ktb/auth-better/**",
 								"@ktb/bot-recall",

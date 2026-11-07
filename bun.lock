@@ -47,6 +47,7 @@
         "@huggingface/transformers": "^4.3.2",
         "@ktb/anamnesis": "workspace:*",
         "@ktb/anamnesis-llm": "workspace:*",
+        "@ktb/app-host": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/auth-better": "workspace:*",
         "@ktb/authz": "workspace:*",
@@ -113,6 +114,24 @@
       "dependencies": {
         "@ktb/anamnesis": "workspace:*",
         "effect": "4.0.7",
+      },
+    },
+    "packages/app-host": {
+      "name": "@ktb/app-host",
+      "dependencies": {
+        "@ktb/auth-better": "workspace:*",
+        "@ktb/bot-recall": "workspace:*",
+        "@ktb/captcha": "workspace:*",
+        "@ktb/captcha-stub": "workspace:*",
+        "@ktb/captcha-turnstile": "workspace:*",
+        "@ktb/consultations": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/patients": "workspace:*",
+        "effect": "4.0.7",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20251014.0",
       },
     },
     "packages/auth": {
@@ -668,6 +687,8 @@
     "@ktb/anamnesis": ["@ktb/anamnesis@workspace:packages/anamnesis"],
 
     "@ktb/anamnesis-llm": ["@ktb/anamnesis-llm@workspace:packages/anamnesis-llm"],
+
+    "@ktb/app-host": ["@ktb/app-host@workspace:packages/app-host"],
 
     "@ktb/auth": ["@ktb/auth@workspace:packages/auth"],
 
