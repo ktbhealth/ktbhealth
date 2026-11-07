@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureSessionUser } from "#/lib/auth.ts";
-import { db } from "#/lib/platform.ts";
+import { withDb } from "#/lib/platform.ts";
 import { STUB_CALL } from "@ktb/bot";
 import { BotLive } from "@ktb/bot-recall";
 import { Bot } from "@ktb/bot";
@@ -29,12 +29,14 @@ export const Route = createFileRoute("/api/bots")({
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureSessionUser();
 
-				const consultationId = await createConsultation(db, {
-					userId: user.id,
-					source: "bot",
-					status: "live",
-					botId: session.botId,
-				});
+				const consultationId = await withDb((db) =>
+					createConsultation(db, {
+						userId: user.id,
+						source: "bot",
+						status: "live",
+						botId: session.botId,
+					}),
+				);
 				if (!consultationId) {
 					return Response.json({ error: "failed to create consultation" }, { status: 500 });
 				}
@@ -54,9 +56,11 @@ export const Route = createFileRoute("/api/bots")({
 });
 
 async function simulateCall(consultationId: number) {
-	for (const seg of STUB_CALL) {
-		await new Promise((r) => setTimeout(r, seg.delayMs));
-		await appendTranscript(db, consultationId, `${seg.speaker}: ${seg.text}`);
-	}
-	await finishConsultation(db, consultationId);
+	await withDb(async (db) => {
+		for (const seg of STUB_CALL) {
+			await new Promise((r) => setTimeout(r, seg.delayMs));
+			await appendTranscript(db, consultationId, `${seg.speaker}: ${seg.text}`);
+		}
+		await finishConsultation(db, consultationId);
+	});
 }

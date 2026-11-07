@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "#/lib/platform.ts";
+import { withDb } from "#/lib/platform.ts";
 import { consultations, patients } from "@ktb/db/schema";
 import type { Anamnesis } from "@ktb/anamnesis";
 import { getSessionUser } from "#/lib/auth.ts";
@@ -17,12 +17,14 @@ export const Route = createFileRoute("/api/consultas/$id/pdf")({
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
 
-				const rows = await db
-					.select({ c: consultations, patientName: patients.name })
-					.from(consultations)
-					.leftJoin(patients, eq(consultations.patientId, patients.id))
-					.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
-					.limit(1);
+				const rows = await withDb((db) =>
+					db
+						.select({ c: consultations, patientName: patients.name })
+						.from(consultations)
+						.leftJoin(patients, eq(consultations.patientId, patients.id))
+						.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
+						.limit(1),
+				);
 				const row = rows[0];
 				if (!row) return Response.json({ error: "not found" }, { status: 404 });
 				if (!row.c.anamnesis)

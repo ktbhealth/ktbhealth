@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { and, eq } from "drizzle-orm";
 
-import { db } from "#/lib/platform.ts";
+import { withDb } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
 import { appendTranscript, finishConsultation } from "@ktb/consultations";
 
@@ -24,26 +24,25 @@ export const Route = createFileRoute("/api/bots/webhook")({
 					final?: boolean;
 					end?: boolean;
 				};
-				if (!body.consultationId || !body.botId) {
+				const { consultationId, botId } = body;
+				if (!consultationId || !botId) {
 					return Response.json({ error: "missing consultationId/botId" }, { status: 400 });
 				}
-				const owned = await db
-					.select({ id: consultations.id })
-					.from(consultations)
-					.where(
-						and(eq(consultations.id, body.consultationId), eq(consultations.botId, body.botId)),
-					)
-					.limit(1);
-				if (!owned.length) {
-					return Response.json({ error: "forbidden" }, { status: 403 });
-				}
-				if (body.end) {
-					await finishConsultation(db, body.consultationId);
-				} else if (body.text) {
-					const line = body.speaker ? `${body.speaker}: ${body.text}` : body.text;
-					await appendTranscript(db, body.consultationId, line);
-				}
-				return Response.json({ ok: true });
+				return withDb(async (db) => {
+					const owned = await db
+						.select({ id: consultations.id })
+						.from(consultations)
+						.where(and(eq(consultations.id, consultationId), eq(consultations.botId, botId)))
+						.limit(1);
+					if (!owned.length) return Response.json({ error: "forbidden" }, { status: 403 });
+					if (body.end) {
+						await finishConsultation(db, consultationId);
+					} else if (body.text) {
+						const line = body.speaker ? `${body.speaker}: ${body.text}` : body.text;
+						await appendTranscript(db, consultationId, line);
+					}
+					return Response.json({ ok: true });
+				});
 			},
 		},
 	},

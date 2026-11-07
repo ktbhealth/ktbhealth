@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, desc, eq } from "drizzle-orm";
 
 import { createPatient, listPatients } from "@ktb/patients";
-import { db } from "#/lib/platform.ts";
+import { withDb } from "#/lib/platform.ts";
 import { consultations } from "@ktb/db/schema";
 import { patients } from "@ktb/patients/schema";
 import { extractAnamnesis } from "@ktb/anamnesis-llm";
@@ -84,7 +84,7 @@ export const reviewAnamneseFn = createServerFn({ method: "POST" })
 export const listPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
 	const user = await getSessionUser();
 	if (!user) return [];
-	return listPatients(db, user.id);
+	return withDb((db) => listPatients(db, user.id));
 });
 
 export const createPatientFn = createServerFn({ method: "POST" })
@@ -92,7 +92,7 @@ export const createPatientFn = createServerFn({ method: "POST" })
 	.handler(async ({ data: name }) => {
 		const user = await ensureSessionUser();
 		await assertCan(user.id, "patient.create");
-		return createPatient(db, user.id, name);
+		return withDb((db) => createPatient(db, user.id, name));
 	});
 
 // ---------- consultations (owner-scoped) ----------
@@ -101,41 +101,45 @@ export const saveConsultationFn = createServerFn({ method: "POST" })
 	.validator((input) => decodeSaveInput(input))
 	.handler(async ({ data }) => {
 		const user = await ensureSessionUser();
-		const rows = await db
-			.insert(consultations)
-			.values({
-				userId: user.id,
-				patientId: data.patientId ?? null,
-				transcript: data.transcript,
-				anamnesis: JSON.stringify(data.anamnesis),
-				engine: data.engine,
-				review: data.review ? JSON.stringify(data.review) : null,
-				createdAt: new Date(),
-			})
-			.returning({ id: consultations.id });
+		const rows = await withDb((db) =>
+			db
+				.insert(consultations)
+				.values({
+					userId: user.id,
+					patientId: data.patientId ?? null,
+					transcript: data.transcript,
+					anamnesis: JSON.stringify(data.anamnesis),
+					engine: data.engine,
+					review: data.review ? JSON.stringify(data.review) : null,
+					createdAt: new Date(),
+				})
+				.returning({ id: consultations.id }),
+		);
 		return { id: rows[0]?.id };
 	});
 
 export const listConsultationsFn = createServerFn({ method: "GET" }).handler(async () => {
 	const user = await getSessionUser();
 	if (!user) return [];
-	const rows = await db
-		.select({
-			id: consultations.id,
-			engine: consultations.engine,
-			createdAt: consultations.createdAt,
-			transcript: consultations.transcript,
-			source: consultations.source,
-			status: consultations.status,
-			consentAt: consultations.consentAt,
-			anamnesis: consultations.anamnesis,
-			review: consultations.review,
-			patientName: patients.name,
-		})
-		.from(consultations)
-		.leftJoin(patients, eq(consultations.patientId, patients.id))
-		.where(eq(consultations.userId, user.id))
-		.orderBy(desc(consultations.id));
+	const rows = await withDb((db) =>
+		db
+			.select({
+				id: consultations.id,
+				engine: consultations.engine,
+				createdAt: consultations.createdAt,
+				transcript: consultations.transcript,
+				source: consultations.source,
+				status: consultations.status,
+				consentAt: consultations.consentAt,
+				anamnesis: consultations.anamnesis,
+				review: consultations.review,
+				patientName: patients.name,
+			})
+			.from(consultations)
+			.leftJoin(patients, eq(consultations.patientId, patients.id))
+			.where(eq(consultations.userId, user.id))
+			.orderBy(desc(consultations.id)),
+	);
 	return rows.map(({ anamnesis, review, ...c }) => {
 		const parsed = parseStored(anamnesis, decodeAnamnesisOption);
 		return {
@@ -152,12 +156,14 @@ export const getConsultationFn = createServerFn({ method: "GET" })
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return null;
-		const rows = await db
-			.select({ c: consultations, patientName: patients.name })
-			.from(consultations)
-			.leftJoin(patients, eq(consultations.patientId, patients.id))
-			.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
-			.limit(1);
+		const rows = await withDb((db) =>
+			db
+				.select({ c: consultations, patientName: patients.name })
+				.from(consultations)
+				.leftJoin(patients, eq(consultations.patientId, patients.id))
+				.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
+				.limit(1),
+		);
 		const row = rows[0];
 		if (!row) return null;
 		await assertCan(user.id, "consultation.read", { userId: user.id });
@@ -174,14 +180,16 @@ export const getLiveConsultationFn = createServerFn({ method: "GET" })
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return null;
-		const rows = await db
-			.select({
-				transcript: consultations.transcript,
-				status: consultations.status,
-			})
-			.from(consultations)
-			.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
-			.limit(1);
+		const rows = await withDb((db) =>
+			db
+				.select({
+					transcript: consultations.transcript,
+					status: consultations.status,
+				})
+				.from(consultations)
+				.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
+				.limit(1),
+		);
 		return rows[0] ?? null;
 	});
 
@@ -190,16 +198,18 @@ export const attachAnamnesisFn = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const user = await getSessionUser();
 		if (!user) return { ok: false };
-		await db
-			.update(consultations)
-			.set({
-				anamnesis: JSON.stringify(data.anamnesis),
-				engine: data.engine,
-				review: data.review ? JSON.stringify(data.review) : null,
-				patientId: data.patientId ?? null,
-				status: "done",
-			})
-			.where(and(eq(consultations.id, data.consultationId), eq(consultations.userId, user.id)));
+		await withDb((db) =>
+			db
+				.update(consultations)
+				.set({
+					anamnesis: JSON.stringify(data.anamnesis),
+					engine: data.engine,
+					review: data.review ? JSON.stringify(data.review) : null,
+					patientId: data.patientId ?? null,
+					status: "done",
+				})
+				.where(and(eq(consultations.id, data.consultationId), eq(consultations.userId, user.id))),
+		);
 		return { ok: true };
 	});
 
@@ -209,9 +219,11 @@ export const recordConsentFn = createServerFn({ method: "POST" })
 	.handler(async ({ data: id }) => {
 		const user = await getSessionUser();
 		if (!user) return { ok: false };
-		await db
-			.update(consultations)
-			.set({ consentAt: new Date() })
-			.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)));
+		await withDb((db) =>
+			db
+				.update(consultations)
+				.set({ consentAt: new Date() })
+				.where(and(eq(consultations.id, id), eq(consultations.userId, user.id))),
+		);
 		return { ok: true };
 	});
