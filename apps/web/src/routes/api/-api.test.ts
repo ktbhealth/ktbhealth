@@ -19,10 +19,25 @@ vi.mock("@tanstack/react-start", () => ({
 let failCreateConsultation = false;
 vi.mock("@ktb/consultations", async (importOriginal) => {
 	const m = await importOriginal<typeof import("@ktb/consultations")>();
+	const { Effect, Layer } = await import("effect");
+	// Wrap the real layer so `create` can be forced to fail in tests; the
+	// service methods are reached through `run`, not module exports.
+	const ConsultationsLive = Layer.effect(
+		m.Consultations,
+		Effect.gen(function* () {
+			const svc = yield* Effect.provide(m.Consultations, m.ConsultationsLive);
+			return m.Consultations.of({
+				...svc,
+				create: (fields: Parameters<typeof svc.create>[0]) =>
+					failCreateConsultation ? Effect.succeed(null) : svc.create(fields),
+			});
+		}),
+	);
 	return {
 		...m,
-		createConsultation: (...args: Parameters<typeof m.createConsultation>) =>
-			failCreateConsultation ? Promise.resolve(0) : m.createConsultation(...args),
+		ConsultationsLive,
+		// app-host composes plugin.services, not the named export.
+		plugin: { ...m.plugin, services: ConsultationsLive },
 	};
 });
 
@@ -255,12 +270,20 @@ describe("api routes", () => {
 		const noAnamnesis = await h.GET!({ params: { id: String(id) } } as never);
 		expect(noAnamnesis.status).toBe(409);
 
-		// with anamnesis → PDF bytes
+		// with anamnesis → PDF bytes (full schema-valid anamnesis)
+		const sec = { content: "x", confidence: "alta", evidence: [] };
 		await db
 			.update(consultations)
 			.set({
 				anamnesis: JSON.stringify({
-					queixa_principal: { content: "x", confidence: "alta", evidence: [] },
+					queixa_principal: sec,
+					hda: sec,
+					antecedentes: sec,
+					alergias: sec,
+					medicamentos_em_uso: sec,
+					exame_fisico: sec,
+					hipoteses: sec,
+					conduta: sec,
 				}),
 			})
 			.where(eq(consultations.id, id));

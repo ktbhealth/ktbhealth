@@ -8,6 +8,7 @@ import {
 	appendTranscript,
 	createConsultation,
 	finishConsultation,
+	ownsBot,
 	plugin,
 } from "./index.ts";
 import * as Effect from "effect/Effect";
@@ -70,6 +71,18 @@ describe("consultations repo", () => {
 		await appendTranscript(db, 9999, "orphan");
 	});
 
+	it("ownsBot matches consultation by botId", async () => {
+		const id = await createConsultation(db, {
+			userId: "u1",
+			source: "bot",
+			status: "live",
+			botId: "bot-1",
+		});
+		expect(await ownsBot(db, id!, "bot-1")).toBe(true);
+		expect(await ownsBot(db, id!, "other-bot")).toBe(false);
+		expect(await ownsBot(db, 9999, "bot-1")).toBe(false);
+	});
+
 	it("createConsultation returns null when insert yields no row", async () => {
 		const stub = {
 			insert: () => ({
@@ -89,9 +102,15 @@ describe("ConsultationsLive", () => {
 		const id = await runtime.runPromise(
 			Effect.gen(function* () {
 				const c = yield* Consultations;
-				const created = yield* c.create({ userId: "u1", source: "browser" });
+				const created = yield* c.create({
+					userId: "u1",
+					source: "browser",
+					botId: "svc-bot",
+				});
 				yield* c.appendTranscript(created!, "svc chunk");
 				yield* c.finish(created!);
+				expect(yield* c.ownedByBot(created!, "svc-bot")).toBe(true);
+				expect(yield* c.ownedByBot(created!, "nope")).toBe(false);
 				return created;
 			}),
 		);

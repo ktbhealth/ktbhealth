@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { and, eq } from "drizzle-orm";
+import { Effect } from "effect";
 
-import { withDb } from "#/lib/platform.ts";
-import { consultations, patients } from "@ktb/db/schema";
-import type { Anamnesis } from "@ktb/anamnesis";
+import { Consultations } from "@ktb/consultations";
 import { getSessionUser } from "#/lib/auth.ts";
+import { run } from "#/lib/platform.ts";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
 /** GET /api/consultas/:id/pdf — owner-only download of the anamnese PDF. */
@@ -17,31 +16,28 @@ export const Route = createFileRoute("/api/consultas/$id/pdf")({
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
 
-				const rows = await withDb((db) =>
-					db
-						.select({ c: consultations, patientName: patients.name })
-						.from(consultations)
-						.leftJoin(patients, eq(consultations.patientId, patients.id))
-						.where(and(eq(consultations.id, id), eq(consultations.userId, user.id)))
-						.limit(1),
+				const detail = await run(
+					Effect.gen(function* () {
+						const consultations = yield* Consultations;
+						return yield* consultations.get(id, user.id);
+					}),
 				);
-				const row = rows[0];
-				if (!row) return Response.json({ error: "not found" }, { status: 404 });
-				if (!row.c.anamnesis)
+				if (!detail) return Response.json({ error: "not found" }, { status: 404 });
+				if (!detail.anamnesis)
 					return Response.json({ error: "consulta sem anamnese salva" }, { status: 409 });
 
 				const pdf = await renderAnamnesisPdf({
-					consultationId: row.c.id,
-					createdAt: row.c.createdAt,
-					patientName: row.patientName,
+					consultationId: detail.id,
+					createdAt: detail.createdAt,
+					patientName: detail.patientName,
 					doctorName: user.name,
-					consentAt: row.c.consentAt,
-					anamnesis: JSON.parse(row.c.anamnesis) as Anamnesis,
+					consentAt: detail.consentAt,
+					anamnesis: detail.anamnesis,
 				});
 				return new Response(new Uint8Array(pdf), {
 					headers: {
 						"content-type": "application/pdf",
-						"content-disposition": `attachment; filename="anamnese-consulta-${row.c.id}.pdf"`,
+						"content-disposition": `attachment; filename="anamnese-consulta-${detail.id}.pdf"`,
 						"cache-control": "private, no-store",
 					},
 				});

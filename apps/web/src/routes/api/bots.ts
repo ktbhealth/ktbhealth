@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureSessionUser } from "#/lib/auth.ts";
-import { withDb } from "#/lib/platform.ts";
+import { run } from "#/lib/platform.ts";
 import { STUB_CALL } from "@ktb/bot";
 import { BotLive } from "@ktb/bot-recall";
 import { Bot } from "@ktb/bot";
 import { Effect } from "effect";
-import { appendTranscript, createConsultation, finishConsultation } from "@ktb/consultations";
+import { Consultations } from "@ktb/consultations";
 
 /**
  * POST /api/bots — send a bot into a teleconsult.
@@ -29,12 +29,15 @@ export const Route = createFileRoute("/api/bots")({
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureSessionUser();
 
-				const consultationId = await withDb((db) =>
-					createConsultation(db, {
-						userId: user.id,
-						source: "bot",
-						status: "live",
-						botId: session.botId,
+				const consultationId = await run(
+					Effect.gen(function* () {
+						const consultations = yield* Consultations;
+						return yield* consultations.create({
+							userId: user.id,
+							source: "bot",
+							status: "live",
+							botId: session.botId,
+						});
 					}),
 				);
 				if (!consultationId) {
@@ -56,11 +59,14 @@ export const Route = createFileRoute("/api/bots")({
 });
 
 async function simulateCall(consultationId: number) {
-	await withDb(async (db) => {
-		for (const seg of STUB_CALL) {
-			await new Promise((r) => setTimeout(r, seg.delayMs));
-			await appendTranscript(db, consultationId, `${seg.speaker}: ${seg.text}`);
-		}
-		await finishConsultation(db, consultationId);
-	});
+	await run(
+		Effect.gen(function* () {
+			const consultations = yield* Consultations;
+			for (const seg of STUB_CALL) {
+				yield* Effect.promise(() => new Promise<void>((r) => setTimeout(r, seg.delayMs)));
+				yield* consultations.appendTranscript(consultationId, `${seg.speaker}: ${seg.text}`);
+			}
+			yield* consultations.finish(consultationId);
+		}),
+	);
 }

@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { and, eq } from "drizzle-orm";
+import { Effect } from "effect";
 
-import { withDb } from "#/lib/platform.ts";
-import { consultations } from "@ktb/db/schema";
-import { appendTranscript, finishConsultation } from "@ktb/consultations";
+import { Consultations } from "@ktb/consultations";
+import { run } from "#/lib/platform.ts";
 
 /**
  * POST /api/bots/webhook — transcript events from the bot provider.
@@ -28,21 +27,21 @@ export const Route = createFileRoute("/api/bots/webhook")({
 				if (!consultationId || !botId) {
 					return Response.json({ error: "missing consultationId/botId" }, { status: 400 });
 				}
-				return withDb(async (db) => {
-					const owned = await db
-						.select({ id: consultations.id })
-						.from(consultations)
-						.where(and(eq(consultations.id, consultationId), eq(consultations.botId, botId)))
-						.limit(1);
-					if (!owned.length) return Response.json({ error: "forbidden" }, { status: 403 });
-					if (body.end) {
-						await finishConsultation(db, consultationId);
-					} else if (body.text) {
-						const line = body.speaker ? `${body.speaker}: ${body.text}` : body.text;
-						await appendTranscript(db, consultationId, line);
-					}
-					return Response.json({ ok: true });
-				});
+				return run(
+					Effect.gen(function* () {
+						const consultations = yield* Consultations;
+						if (!(yield* consultations.ownedByBot(consultationId, botId))) {
+							return Response.json({ error: "forbidden" }, { status: 403 });
+						}
+						if (body.end) {
+							yield* consultations.finish(consultationId);
+						} else if (body.text) {
+							const line = body.speaker ? `${body.speaker}: ${body.text}` : body.text;
+							yield* consultations.appendTranscript(consultationId, line);
+						}
+						return Response.json({ ok: true });
+					}),
+				);
 			},
 		},
 	},

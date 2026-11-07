@@ -107,6 +107,16 @@ export async function finishConsultation(db: DbClient, consultationId: number) {
 		.where(eq(consultations.id, consultationId));
 }
 
+/** Bot-webhook ownership check: the botId binds consultation ↔ provider session. */
+export async function ownsBot(db: DbClient, consultationId: number, botId: string) {
+	const rows = await db
+		.select({ id: consultations.id })
+		.from(consultations)
+		.where(and(eq(consultations.id, consultationId), eq(consultations.botId, botId)))
+		.limit(1);
+	return rows.length > 0;
+}
+
 async function saveConsultation(db: DbClient, userId: string, data: SaveConsultationInput) {
 	const rows = await db
 		.insert(consultations)
@@ -218,6 +228,7 @@ export class Consultations extends Context.Service<
 		}) => Effect.Effect<number | null>;
 		readonly appendTranscript: (consultationId: number, text: string) => Effect.Effect<void>;
 		readonly finish: (consultationId: number) => Effect.Effect<void>;
+		readonly ownedByBot: (consultationId: number, botId: string) => Effect.Effect<boolean>;
 		readonly save: (userId: string, input: SaveConsultationInput) => Effect.Effect<{ id: number }>;
 		readonly list: (userId: string) => Effect.Effect<ConsultationSummary[]>;
 		readonly get: (id: number, userId: string) => Effect.Effect<ConsultationDetail | null>;
@@ -238,6 +249,7 @@ export const ConsultationsLive = Layer.effect(
 			create: (fields) => Effect.promise(() => createConsultation(db, fields)),
 			appendTranscript: (id, text) => Effect.promise(() => appendTranscript(db, id, text)),
 			finish: (id) => Effect.promise(() => finishConsultation(db, id)),
+			ownedByBot: (id, botId) => Effect.promise(() => ownsBot(db, id, botId)),
 			save: (userId, input) => Effect.promise(() => saveConsultation(db, userId, input)),
 			list: (userId) => Effect.promise(() => listConsultations(db, userId)),
 			get: (id, userId) => Effect.promise(() => getConsultation(db, id, userId)),
