@@ -50,9 +50,6 @@ describe("novaApi wiring", () => {
 			"unauthenticated",
 		);
 		await expect(
-			novaApi.reviewAnamnese({ data: { transcript: "t", anamnesis: ANAMNESIS } } as never),
-		).rejects.toThrow("unauthenticated");
-		await expect(
 			novaApi.attachAnamnesis({
 				data: { consultationId: 1, anamnesis: ANAMNESIS, engine: "e" },
 			} as never),

@@ -31,21 +31,6 @@ const ANAMNESIS = {
 	conduta: { content: "", confidence: "baixa" as const, evidence: [] },
 };
 
-const REVIEW = {
-	lacunas: [],
-	hipoteses: [
-		{
-			diagnostico: "Enxaqueca",
-			probabilidade: "alta" as const,
-			raciocinio: "r",
-			evidence: [],
-			investigar: [],
-		},
-	],
-	sinais_de_alerta: ["alerta x"],
-	inconsistencias: [],
-};
-
 const BASE: ConsultaDetail = {
 	id: 10,
 	userId: "u1",
@@ -59,7 +44,6 @@ const BASE: ConsultaDetail = {
 	consentAt: new Date("2026-11-06T14:00:00"),
 	patientName: "Maria",
 	anamnesis: ANAMNESIS,
-	review: REVIEW,
 };
 
 const detail = (over: Partial<ConsultaDetail>): ConsultaDetail => ({ ...BASE, ...over });
@@ -67,7 +51,7 @@ const detail = (over: Partial<ConsultaDetail>): ConsultaDetail => ({ ...BASE, ..
 afterEach(cleanup);
 
 describe("ConsultaDetailPage", () => {
-	it("renders full detail with anamnesis and review", () => {
+	it("renders full detail with anamnesis and transcript", () => {
 		render(<ConsultaDetailPage c={detail({})} />);
 		expect(screen.getByText("Maria")).toBeTruthy();
 		expect(screen.getByText(/Consulta #10/)).toBeTruthy();
@@ -76,18 +60,16 @@ describe("ConsultaDetailPage", () => {
 		expect(screen.getByText("Voz no navegador")).toBeTruthy();
 		expect(screen.getByText("Dor")).toBeTruthy();
 		expect(screen.getByText(/evidência \(1\)/)).toBeTruthy();
-		// review tab is default when review exists
-		expect(screen.getByText(/Apoio à decisão gerado por IA/)).toBeTruthy();
-		expect(screen.getByText("alerta x")).toBeTruthy();
+		expect(screen.getByText("olá doutor")).toBeTruthy();
+		expect(screen.queryByText("Segunda opinião")).toBeNull();
 	});
 
-	it("renders minimal detail: no anamnesis/review/patient/consent", () => {
+	it("renders minimal detail: no anamnesis/patient/consent", () => {
 		render(
 			<ConsultaDetailPage
 				c={detail({
 					patientName: null,
 					anamnesis: null,
-					review: null,
 					consentAt: null,
 					engine: null,
 					source: null,
@@ -100,20 +82,10 @@ describe("ConsultaDetailPage", () => {
 		expect(screen.getByText("em andamento")).toBeTruthy();
 		expect(screen.getByText(/ainda não tem anamnese/)).toBeTruthy();
 		expect(screen.getByText("olá doutor")).toBeTruthy();
-		expect(screen.queryByText("Segunda opinião")).toBeNull();
-	});
-
-	it("switches between review and transcript tabs", async () => {
-		const user = userEvent.setup();
-		render(<ConsultaDetailPage c={detail({})} />);
-		await user.click(screen.getByText("Transcrição"));
-		expect(screen.getByText("olá doutor")).toBeTruthy();
-		await user.click(screen.getByText("Segunda opinião"));
-		expect(screen.getByText("Enxaqueca")).toBeTruthy();
 	});
 
 	it("shows empty transcript message", () => {
-		render(<ConsultaDetailPage c={detail({ transcript: "  \n ", review: null })} />);
+		render(<ConsultaDetailPage c={detail({ transcript: "  \n " })} />);
 		expect(screen.getByText("Sem transcrição.")).toBeTruthy();
 	});
 
@@ -146,8 +118,7 @@ describe("ConsultaDetailPage", () => {
 		expect(screen.getByText("Queixa principal")).toBeTruthy();
 	});
 
-	it("renders transcript lines without speaker prefix and unknown speakers", async () => {
-		const user = userEvent.setup();
+	it("renders transcript lines without speaker prefix and unknown speakers", () => {
 		render(
 			<ConsultaDetailPage
 				c={detail({
@@ -155,8 +126,7 @@ describe("ConsultaDetailPage", () => {
 				})}
 			/>,
 		);
-		await user.click(screen.getByText("Transcrição"));
-		expect(await screen.findByText("linha solta")).toBeTruthy();
+		expect(screen.getByText("linha solta")).toBeTruthy();
 		expect(screen.getByText("Enfermeiro Chefe")).toBeTruthy();
 		expect(screen.getByText("Médico")).toBeTruthy();
 	});

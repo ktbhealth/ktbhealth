@@ -13,7 +13,7 @@ import { stubCaptchaDriver } from "@ktb/captcha-stub";
 import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
 import { Auth } from "@ktb/auth";
 import { AuthzLive, Principal } from "@ktb/authz";
-import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
+import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
 
@@ -40,9 +40,6 @@ export interface AppEnv {
 	readonly OPENAI_API_KEY?: string;
 	readonly LLM_BASE_URL?: string;
 	readonly LLM_MODEL?: string;
-	readonly REVIEW_MODEL?: string;
-	readonly REVIEW_PROVIDER?: string;
-	readonly OLLAMA_URL?: string;
 	readonly WORKERS_AI_MODEL?: string;
 	/** Workers AI binding — optional; any object with `run(model, inputs)`. */
 	readonly AI?: {
@@ -129,22 +126,11 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		openAiApiKey: env.LLM_API_KEY ?? env.OPENAI_API_KEY,
 		openAiBaseUrl: env.LLM_BASE_URL,
 		openAiModel: env.LLM_MODEL,
-		reviewModel: env.REVIEW_MODEL,
-		reviewProvider: env.REVIEW_PROVIDER,
-		ollamaUrl: env.OLLAMA_URL,
 		workersAi: env.AI,
 		workersAiModel: env.WORKERS_AI_MODEL,
 	};
 	const AnamnesisEngineLive = layerFor<AnamnesisEngine>(AnamnesisEngine.key, llmConfig);
-	const ReviewEngineLive = layerFor<ReviewEngine>(ReviewEngine.key, llmConfig);
-	const core = Layer.mergeAll(
-		BotLive,
-		CaptchaLive,
-		DbLive,
-		AuthServiceLive,
-		AnamnesisEngineLive,
-		ReviewEngineLive,
-	);
+	const core = Layer.mergeAll(BotLive, CaptchaLive, DbLive, AuthServiceLive, AnamnesisEngineLive);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),
 		// Single-line JSON logs → workerd console / wrangler observability.

@@ -33,7 +33,6 @@ import {
 	listConsultationsFn,
 	listPatientsFn,
 	recordConsentFn,
-	reviewAnamneseFn,
 	saveConsultationFn,
 	sessionFn,
 } from "./fns.ts";
@@ -98,9 +97,6 @@ describe("server fns", () => {
 		).rejects.toThrow("unauthenticated");
 		// LLM helpers are paid endpoints — anonymous calls must not proxy them.
 		await expect(extractAnamneseFn({ data: "t" })).rejects.toThrow("unauthenticated");
-		await expect(
-			reviewAnamneseFn({ data: { transcript: "t", anamnesis: makeAnamnesis("q") } }),
-		).rejects.toThrow("unauthenticated");
 	});
 
 	it("full patient + consultation lifecycle", async () => {
@@ -115,19 +111,6 @@ describe("server fns", () => {
 				anamnesis: makeAnamnesis("Dor de cabeça"),
 				engine: "heuristic",
 				patientId: patient!.id,
-				review: {
-					lacunas: [
-						{
-							secao: "queixa_principal",
-							o_que_falta: "duração dos sintomas",
-							pergunta_sugerida: "Há quanto tempo os sintomas começaram?",
-							motivo: "define cronicidade",
-						},
-					],
-					hipoteses: [],
-					sinais_de_alerta: [],
-					inconsistencias: [],
-				},
 			},
 		});
 		expect(saved.id!).toBeGreaterThan(0);
@@ -135,13 +118,11 @@ describe("server fns", () => {
 		const list = await listConsultationsFn();
 		expect(list).toHaveLength(1);
 		expect(list[0]?.hasAnamnesis).toBe(true);
-		expect(list[0]?.hasReview).toBe(true);
 		expect(list[0]?.queixa).toBe("Dor de cabeça");
 		expect(list[0]?.patientName).toBe("Maria Silva");
 
 		const detail = await getConsultationFn({ data: saved.id! });
 		expect(detail?.anamnesis?.queixa_principal.content).toBe("Dor de cabeça");
-		expect(detail?.review?.lacunas[0]?.o_que_falta).toBe("duração dos sintomas");
 		expect(detail?.patientName).toBe("Maria Silva");
 
 		expect(await getLiveConsultationFn({ data: saved.id! })).toMatchObject({
@@ -156,12 +137,6 @@ describe("server fns", () => {
 					consultationId: saved.id!,
 					anamnesis: makeAnamnesis("Nova queixa"),
 					engine: "openai",
-					review: {
-						lacunas: [],
-						hipoteses: [],
-						sinais_de_alerta: [],
-						inconsistencias: [],
-					},
 				},
 			}),
 		).toEqual({ ok: true });
@@ -169,26 +144,23 @@ describe("server fns", () => {
 		const after = await getConsultationFn({ data: saved.id! });
 		expect(after?.anamnesis?.queixa_principal.content).toBe("Nova queixa");
 		expect(after?.engine).toBe("openai");
-		expect(after?.review).not.toBeNull();
 	});
 
-	it("save without patientId/review and read null fields", async () => {
+	it("save without patientId and read null fields", async () => {
 		headers.current = new Headers({ cookie });
 		const saved = await saveConsultationFn({
 			data: { transcript: "t2", anamnesis: makeAnamnesis("Q2"), engine: "heuristic" },
 		});
 		const detail = await getConsultationFn({ data: saved.id! });
 		expect(detail?.anamnesis).not.toBeNull();
-		expect(detail?.review).toBeNull();
 		expect(detail?.patientName).toBeNull();
 
-		// bare consultation: null anamnesis + null review parse branches
+		// bare consultation: null anamnesis parse branch
 		const user = await getSessionUserFn();
 		const { createConsultation } = await import("@ktb/consultations");
 		const bare = await createConsultation(db, { userId: user!.id, source: "mic" });
 		const bareDetail = await getConsultationFn({ data: bare });
 		expect(bareDetail?.anamnesis).toBeNull();
-		expect(bareDetail?.review).toBeNull();
 	});
 
 	it("attachAnamnesis with patientId set covers ?? left side", async () => {
@@ -237,16 +209,11 @@ describe("server fns", () => {
 		expect(list.some((c) => c.queixa === null && c.hasAnamnesis)).toBe(true);
 	});
 
-	it("extract and review fns return structured results", async () => {
+	it("extract fn returns a structured result", async () => {
 		headers.current = new Headers({ cookie });
 		const extracted = await extractAnamneseFn({ data: SAMPLE_TRANSCRIPT });
 		expect(extracted.anamnesis.queixa_principal.content).toBeTruthy();
 		expect(extracted.engine).toBeTruthy();
-
-		const reviewed = await reviewAnamneseFn({
-			data: { transcript: SAMPLE_TRANSCRIPT, anamnesis: extracted.anamnesis },
-		});
-		expect("review" in reviewed || "reason" in reviewed).toBe(true);
 	});
 
 	it("services deny cross-user access via the bound principal", async () => {

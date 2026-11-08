@@ -2,12 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
-import { ReviewPanel } from "@ktb/anamnesis";
 import { anamnesisToText } from "@ktb/anamnesis";
 import { SECTION_LABELS } from "@ktb/anamnesis";
-import type { Anamnesis, AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
+import type { Anamnesis, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
-import { Alert } from "@ktbhealth/ui/components/alert";
 import {
 	Empty,
 	EmptyDescription,
@@ -101,7 +99,6 @@ export interface ConsultaDetail {
 	patientId: number | null;
 	transcript: string;
 	anamnesis: Anamnesis | null;
-	review: AnamnesisReview | null;
 	engine: string | null;
 	source: string | null;
 	status: string;
@@ -112,7 +109,6 @@ export interface ConsultaDetail {
 }
 
 export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
-	const [tab, setTab] = useState<"review" | "transcricao">(c.review ? "review" : "transcricao");
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const when = new Date(c.createdAt).toLocaleString("pt-BR", {
 		dateStyle: "long",
@@ -239,47 +235,13 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 					)}
 				</section>
 
-				{/* ---------- lateral: segunda opinião / transcrição ---------- */}
+				{/* ---------- lateral: transcrição ---------- */}
 				<aside className="rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-20">
-					<div className="flex gap-1 border-b border-border p-2 text-sm">
-						{c.review ? (
-							<button
-								type="button"
-								onClick={() => setTab("review")}
-								aria-pressed={tab === "review"}
-								className={`rounded-lg px-3 py-1.5 font-medium transition ${
-									tab === "review"
-										? "bg-indigo-600 text-white"
-										: "text-muted-foreground hover:bg-muted"
-								}`}
-							>
-								Segunda opinião
-							</button>
-						) : null}
-						<button
-							type="button"
-							onClick={() => setTab("transcricao")}
-							aria-pressed={tab === "transcricao"}
-							className={`rounded-lg px-3 py-1.5 font-medium transition ${
-								tab === "transcricao"
-									? "bg-primary text-primary-foreground"
-									: "text-muted-foreground hover:bg-muted"
-							}`}
-						>
-							Transcrição
-						</button>
+					<div className="border-b border-border px-5 py-3">
+						<h2 className="text-sm font-semibold">Transcrição</h2>
 					</div>
 					<div className="max-h-[70vh] overflow-y-auto p-5">
-						{tab === "review" && c.review ? (
-							<>
-								<Alert className="mb-4 border-indigo-200 bg-indigo-50 text-[11px] text-indigo-900">
-									Apoio à decisão gerado por IA. Sugestões não fazem parte do prontuário.
-								</Alert>
-								<ReviewPanel review={c.review} />
-							</>
-						) : (
-							<Transcript text={c.transcript} />
-						)}
+						<Transcript text={c.transcript} />
 					</div>
 				</aside>
 			</div>

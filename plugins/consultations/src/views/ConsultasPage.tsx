@@ -36,13 +36,12 @@ function Badge({
 	tone = "neutral",
 }: {
 	children: React.ReactNode;
-	tone?: "neutral" | "green" | "amber" | "indigo" | "red";
+	tone?: "neutral" | "green" | "amber" | "red";
 }) {
 	const tones = {
 		neutral: "bg-muted text-muted-foreground ring-border",
 		green: "bg-primary/10 text-primary ring-primary/20",
 		amber: "bg-amber-50 text-amber-700 ring-amber-200",
-		indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200",
 		red: "bg-red-50 text-red-700 ring-red-200",
 	};
 	return (
@@ -63,7 +62,6 @@ export interface ConsultaListItem {
 	patientName: string | null;
 	queixa: string | null;
 	hasAnamnesis: boolean;
-	hasReview: boolean;
 }
 
 export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) {
@@ -165,7 +163,6 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 								) : (
 									<Badge tone="amber">Sem anamnese</Badge>
 								)}
-								{c.hasReview ? <Badge tone="indigo">2ª opinião</Badge> : null}
 								{c.consentAt ? <Badge tone="green">Consentimento ✓</Badge> : null}
 								<Badge>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</Badge>
 							</div>

@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Anamnesis } from "@ktb/anamnesis";
-import type { AnamnesisReview } from "@ktb/anamnesis";
 import type {
 	SessionStats,
 	Transcriber,
@@ -87,26 +86,10 @@ const ANAMNESIS: Anamnesis = {
 	conduta: SECTION,
 };
 
-const REVIEW: AnamnesisReview = {
-	lacunas: [{ secao: "hda", o_que_falta: "falta x", pergunta_sugerida: "quando?", motivo: "m" }],
-	hipoteses: [
-		{
-			diagnostico: "Enxaqueca",
-			probabilidade: "alta",
-			raciocinio: "r",
-			evidence: ["e"],
-			investigar: ["i"],
-		},
-	],
-	sinais_de_alerta: [],
-	inconsistencias: [],
-};
-
 function makeApi(overrides: Partial<NovaApi> = {}): NovaApi {
 	return {
 		getLiveConsultation: vi.fn(async () => null),
 		extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: "heuristic" })),
-		reviewAnamnese: vi.fn(async () => ({ review: REVIEW, engine: "anthropic:x" })),
 		attachAnamnesis: vi.fn(async () => ({ ok: true })),
 		saveConsultation: vi.fn(async () => ({ id: 42 })),
 		recordConsent: vi.fn(async () => ({ ok: true })),
@@ -418,17 +401,13 @@ describe("NovaConsultaPage", () => {
 		await screen.findByText(/bot falhou: HTTP 200/);
 	});
 
-	it("generates anamnesis and runs review", async () => {
+	it("generates anamnesis", async () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
 		await generateAnamnesis(user);
 		expect(api.extractAnamnese).toHaveBeenCalled();
-		expect(api.reviewAnamnese).toHaveBeenCalled();
-		// switch to review tab
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		expect(screen.getByText(/Apoio à decisão/)).toBeTruthy();
+		expect(screen.getByText("engine: heuristic")).toBeTruthy();
 	});
 
 	it("generate guards empty transcript and surfaces errors", async () => {
@@ -444,30 +423,6 @@ describe("NovaConsultaPage", () => {
 		await fillTranscript("algo");
 		await user.click(screen.getByText("Gerar anamnese →"));
 		await screen.findByText("llm down");
-	});
-
-	it("review failure sets reviewNote", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			reviewAnamnese: vi.fn(async () => ({ review: null, reason: "sem modelo" })),
-		});
-		renderPage(api);
-		await generateAnamnesis(user);
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("sem modelo");
-	});
-
-	it("review exception sets reviewNote", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			reviewAnamnese: vi.fn(async () => {
-				throw new Error("review exploded");
-			}),
-		});
-		renderPage(api);
-		await generateAnamnesis(user);
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("review exploded");
 	});
 
 	it("edits a section textarea", async () => {
@@ -495,6 +450,8 @@ describe("NovaConsultaPage", () => {
 		await user.click(screen.getByText("Copiar"));
 		await waitFor(() => expect(writeText).toHaveBeenCalled());
 		await screen.findByText(/Anamnese copiada/);
+		await user.click(screen.getByLabelText("Fechar aviso"));
+		await waitFor(() => expect(screen.queryByText(/Anamnese copiada/)).toBeNull());
 	});
 
 	it("copy failure sets error", async () => {
@@ -580,7 +537,7 @@ describe("NovaConsultaPage", () => {
 		expect(api.saveConsultation).not.toHaveBeenCalled();
 	});
 
-	it("updated save dialog shows review and consent notes", async () => {
+	it("updated save dialog shows consent note", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
 			attachAnamnesis: vi.fn(async () => ({ ok: true })),
@@ -603,16 +560,13 @@ describe("NovaConsultaPage", () => {
 		await screen.findByText("confiança alta");
 		await user.click(screen.getByText("Salvar consulta"));
 		await screen.findByText("Consulta atualizada");
-		expect(document.body.textContent).toContain("segunda opinião");
 		expect(document.body.textContent).toContain("Consentimento do paciente registrado");
+		expect(document.body.textContent).not.toContain("segunda opinião");
 	});
 
-	it("save dialog without review omits segunda opiniao text", async () => {
+	it("save dialog never mentions segunda opiniao", async () => {
 		const user = userEvent.setup();
-		const api = makeApi({
-			reviewAnamnese: vi.fn(async () => ({ review: null, reason: "offline" })),
-		});
-		renderPage(api);
+		renderPage();
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Salvar consulta"));
 		const dialog = await screen.findByText("Anamnese salva com sucesso");
@@ -632,59 +586,6 @@ describe("NovaConsultaPage", () => {
 		await user.click(screen.getByText("Salvar consulta"));
 		await screen.findByText("Não foi possível salvar");
 		expect(screen.getByText("string error")).toBeTruthy();
-	});
-
-	it("addHypothesis via review panel", async () => {
-		const user = userEvent.setup();
-		renderPage();
-		await generateAnamnesis(user);
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		// hipoteses section starts empty placeholder
-		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
-		await screen.findByText("Hipótese adicionada à anamnese");
-		// switch back and check content
-		await user.click(screen.getByText("Anamnese"));
-		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
-		expect(ta.value).toContain("Enxaqueca: r");
-	});
-
-	it("addHypothesis returns false when already present", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			extractAnamnese: vi.fn(async () => ({
-				anamnesis: {
-					...ANAMNESIS,
-					hipoteses: { content: "- Enxaqueca: r", confidence: "baixa" as const, evidence: [] },
-				},
-				engine: "heuristic",
-			})),
-		});
-		renderPage(api);
-		await fillTranscript("x");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
-		await screen.findByText("Essa hipótese já está na anamnese");
-	});
-
-	it("toast action switches tab and scrolls to section", async () => {
-		const user = userEvent.setup();
-		const scrollIntoView = vi.fn();
-		const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
-		Element.prototype.scrollIntoView = scrollIntoView;
-		renderPage();
-		await fillTranscript("x");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
-		const ver = await screen.findByText("Ver");
-		await user.click(ver);
-		expect(screen.getByText("Anamnese")).toBeTruthy();
-		await waitFor(() => expect(scrollIntoView).toHaveBeenCalled(), { timeout: 500 });
-		await waitFor(() => expect(focusSpy).toHaveBeenCalled(), { timeout: 500 });
 	});
 
 	it("dialog closes via backdrop click", async () => {
@@ -719,23 +620,14 @@ describe("NovaConsultaPage", () => {
 		);
 	});
 
-	it("engine and reviewEngine labels render", async () => {
+	it("engine label renders", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
-			reviewAnamnese: vi.fn(async () => ({ review: REVIEW, engine: "openai:gpt" })),
+			extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: "openai:gpt" })),
 		});
 		renderPage(api);
 		await generateAnamnesis(user);
-		expect(screen.getByText("engine: heuristic")).toBeTruthy();
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("openai:gpt");
-	});
-
-	it("review badge shows count", async () => {
-		const user = userEvent.setup();
-		renderPage();
-		await generateAnamnesis(user);
-		await waitFor(() => expect(screen.getByText("2")).toBeTruthy());
+		expect(screen.getByText("engine: openai:gpt")).toBeTruthy();
 	});
 
 	it("model status updates from engine messages", async () => {
@@ -883,134 +775,6 @@ describe("NovaConsultaPage", () => {
 		await fillTranscript("algo");
 		await user.click(screen.getByText("Gerar anamnese →"));
 		await screen.findByText("extractor-string");
-	});
-
-	it("review result without engine key and without reason", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			reviewAnamnese: vi
-				.fn()
-				.mockResolvedValueOnce({ review: REVIEW } as never)
-				.mockResolvedValueOnce({ review: null } as never),
-		});
-		renderPage(api);
-		await generateAnamnesis(user);
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		// regenerate → second review response has no reason key
-		await user.click(screen.getByText("Anamnese"));
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await screen.findByText("confiança alta");
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Segunda opinião indisponível.");
-	});
-
-	it("review with nullish engine and non-Error throw", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			reviewAnamnese: vi
-				.fn()
-				.mockResolvedValueOnce({ review: REVIEW, engine: undefined } as never)
-				.mockRejectedValueOnce("review-string"),
-		});
-		renderPage(api);
-		await generateAnamnesis(user);
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		await user.click(screen.getByText("Anamnese"));
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await screen.findByText("confiança alta");
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("review-string");
-	});
-
-	it("shows review busy spinner and analyzing note", async () => {
-		const user = userEvent.setup();
-		let resolveReview: ((v: unknown) => void) | null = null;
-		const api = makeApi({
-			reviewAnamnese: vi.fn(
-				() =>
-					new Promise((r) => {
-						resolveReview = r;
-					}),
-			) as never,
-		});
-		renderPage(api);
-		await fillTranscript("x");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await screen.findByText("confiança alta");
-		// review still in flight: switch to review tab shows spinner + analyzing copy
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText(/analisando lacunas e hipóteses/);
-		await act(async () => {
-			resolveReview?.({ review: REVIEW, engine: "e" });
-		});
-		await screen.findByText("Enxaqueca");
-	});
-
-	it("review tab with empty note renders nothing", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			reviewAnamnese: vi.fn(async () => ({ review: null, reason: "" })),
-		});
-		renderPage(api);
-		await generateAnamnesis(user);
-		await user.click(screen.getByText("Segunda opinião"));
-		await waitFor(() => expect(screen.queryByText(/indisponível/)).toBeNull());
-		expect(screen.queryByText("Enxaqueca")).toBeNull();
-	});
-
-	it("addHypothesis treats placeholder content as empty and appends to filled", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			extractAnamnese: vi.fn(async () => ({
-				anamnesis: {
-					...ANAMNESIS,
-					hipoteses: {
-						content: "A preencher pelo médico",
-						confidence: "baixa" as const,
-						evidence: [],
-					},
-				},
-				engine: "heuristic",
-			})),
-		});
-		renderPage(api);
-		await fillTranscript("x");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
-		await user.click(screen.getByText("Anamnese"));
-		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
-		expect(ta.value).toContain("- Enxaqueca: r");
-		expect(ta.value).not.toContain("A preencher");
-	});
-
-	it("addHypothesis appends to existing non-placeholder content", async () => {
-		const user = userEvent.setup();
-		const api = makeApi({
-			extractAnamnese: vi.fn(async () => ({
-				anamnesis: {
-					...ANAMNESIS,
-					hipoteses: {
-						content: "- Outra hipótese",
-						confidence: "baixa" as const,
-						evidence: [],
-					},
-				},
-				engine: "heuristic",
-			})),
-		});
-		renderPage(api);
-		await fillTranscript("x");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await user.click(screen.getByText("Segunda opinião"));
-		await screen.findByText("Enxaqueca");
-		await user.click(screen.getAllByText("+ adicionar às hipóteses")[0]!);
-		await user.click(screen.getByText("Anamnese"));
-		const ta = document.getElementById("sec-hipoteses") as HTMLTextAreaElement;
-		expect(ta.value).toBe("- Outra hipótese\n- Enxaqueca: r");
 	});
 
 	it("save sends engine unknown and attach failure shows session error", async () => {

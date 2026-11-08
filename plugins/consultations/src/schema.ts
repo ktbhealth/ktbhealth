@@ -10,7 +10,7 @@ export const consultations = sqliteTable("consultations", {
 	transcript: text().notNull(),
 	/** Serialized Anamnesis (structured, reviewed/editable). */
 	anamnesis: text(),
-	/** Serialized AnamnesisReview (second opinion — decision support). */
+	/** Retained legacy column: second-opinion review was removed. */
 	review: text(),
 	/** Which AnamnesisExtractor produced the draft. */
 	engine: text(),

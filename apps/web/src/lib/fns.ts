@@ -3,9 +3,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { run, runAs } from "#/lib/platform.ts";
-import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
-import type { Anamnesis } from "@ktb/anamnesis";
-import { AnamnesisReviewSchema, AnamnesisSchema } from "@ktb/anamnesis/schema";
+import { AnamnesisEngine } from "@ktb/anamnesis/services";
+import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";
 import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
 import * as Effect from "effect/Effect";
@@ -20,17 +19,11 @@ import * as Effect from "effect/Effect";
 const decodeString = Schema.decodeUnknownSync(Schema.String);
 const decodeNumber = Schema.decodeUnknownSync(Schema.Number);
 
-const ReviewInput = Schema.Struct({
-	transcript: Schema.String,
-	anamnesis: AnamnesisSchema,
-});
-
 const SaveInput = Schema.Struct({
 	transcript: Schema.String,
 	anamnesis: AnamnesisSchema,
 	engine: Schema.String,
 	patientId: Schema.optionalKey(Schema.Number),
-	review: Schema.optionalKey(Schema.NullOr(AnamnesisReviewSchema)),
 });
 
 const AttachInput = Schema.Struct({
@@ -38,10 +31,8 @@ const AttachInput = Schema.Struct({
 	anamnesis: AnamnesisSchema,
 	engine: Schema.String,
 	patientId: Schema.optionalKey(Schema.Number),
-	review: Schema.optionalKey(Schema.NullOr(AnamnesisReviewSchema)),
 });
 
-const decodeReviewInput = Schema.decodeUnknownSync(ReviewInput);
 const decodeSaveInput = Schema.decodeUnknownSync(SaveInput);
 const decodeAttachInput = Schema.decodeUnknownSync(AttachInput);
 
@@ -59,19 +50,6 @@ export const extractAnamneseFn = createServerFn({ method: "POST" })
 			Effect.gen(function* () {
 				const engine = yield* AnamnesisEngine;
 				return yield* engine.extract(transcript);
-			}),
-		);
-	});
-
-/** Second opinion (stronger model): gaps, hypotheses, red flags. */
-export const reviewAnamneseFn = createServerFn({ method: "POST" })
-	.validator((input: { transcript: string; anamnesis: Anamnesis }) => decodeReviewInput(input))
-	.handler(async ({ data }) => {
-		await ensureSessionUser();
-		return run(
-			Effect.gen(function* () {
-				const engine = yield* ReviewEngine;
-				return yield* engine.review(data.transcript, data.anamnesis);
 			}),
 		);
 	});

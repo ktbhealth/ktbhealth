@@ -12,11 +12,9 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
-import { Spinner } from "@ktbhealth/ui/components/spinner";
-import { ReviewPanel } from "@ktb/anamnesis";
 import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis";
-import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
+import type { AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import {
 	needsServerFallback,
@@ -69,19 +67,12 @@ export interface NovaApi {
 		status: string | null;
 	} | null>;
 	extractAnamnese(input: { data: string }): Promise<{ anamnesis: Anamnesis; engine: string }>;
-	reviewAnamnese(input: { data: { transcript: string; anamnesis: Anamnesis } }): Promise<{
-		review?: AnamnesisReview | null;
-		engine?: string | null;
-		ok?: boolean;
-		reason?: string;
-	}>;
 	attachAnamnesis(input: {
 		data: {
 			consultationId: number;
 			anamnesis: Anamnesis;
 			engine: string;
 			patientId?: number;
-			review?: AnamnesisReview | null;
 		};
 	}): Promise<{ ok: boolean }>;
 	saveConsultation(input: { data: unknown }): Promise<{ id: number; updated?: boolean }>;
@@ -105,10 +96,6 @@ export function NovaConsultaPage({
 	const [anamnesis, setAnamnesis] = useState<Anamnesis | null>(null);
 	const [engine, setEngine] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
-	const [review, setReview] = useState<AnamnesisReview | null>(null);
-	const [reviewBusy, setReviewBusy] = useState(false);
-	const [reviewNote, setReviewNote] = useState<string | null>(null);
-	const [reviewEngine, setReviewEngine] = useState<string | null>(null);
 	const [savedId, setSavedId] = useState<number | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [saveDialog, setSaveDialog] = useState<
@@ -139,7 +126,6 @@ export function NovaConsultaPage({
 	});
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const [source, setSource] = useState<"gravar" | "bot" | "upload">("gravar");
-	const [resultTab, setResultTab] = useState<"anamnese" | "review">("anamnese");
 	const [mode, setMode] = useState<"live" | "dictation">("live");
 	const [dictating, setDictating] = useState(false);
 	const [elapsedSec, setElapsedSec] = useState(0);
@@ -369,14 +355,9 @@ export function NovaConsultaPage({
 		setError(null);
 		setSavedId(null);
 		try {
-			setReview(null);
-			setReviewNote(null);
-			setResultTab("anamnese");
 			const res = await api.extractAnamnese({ data: transcript });
 			setAnamnesis(res.anamnesis);
 			setEngine(res.engine);
-			// second opinion runs in the background — anamnese shows first
-			void runReview(transcript, res.anamnesis);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -384,60 +365,8 @@ export function NovaConsultaPage({
 		}
 	}
 
-	async function runReview(t: string, a: Anamnesis) {
-		setReviewBusy(true);
-		try {
-			const r = await api.reviewAnamnese({
-				data: { transcript: t, anamnesis: a },
-			});
-			if (r.review) {
-				setReview(r.review);
-				setReviewEngine("engine" in r ? (r.engine ?? null) : null);
-			} else {
-				setReviewNote("reason" in r ? String(r.reason) : "Segunda opinião indisponível.");
-			}
-		} catch (e) {
-			setReviewNote(e instanceof Error ? e.message : String(e));
-		} finally {
-			setReviewBusy(false);
-		}
-	}
-
 	function showToast(t: Omit<ToastData, "id">) {
 		setToast({ id: Date.now(), ...t });
-	}
-
-	/** Returns true when added, false when it was already in the section. */
-	function addHypothesis(text: string): boolean {
-		/* v8 ignore next -- ReviewPanel only renders when anamnesis exists */
-		if (!anamnesis) return false;
-		const cur = anamnesis.hipoteses.content;
-		if (cur.includes(text)) {
-			showToast({ text: "Essa hipótese já está na anamnese" });
-			return false;
-		}
-		const empty = !cur.trim() || cur.startsWith("A preencher pelo médico");
-		setAnamnesis({
-			...anamnesis,
-			hipoteses: {
-				...anamnesis.hipoteses,
-				content: empty ? `- ${text}` : `${cur}\n- ${text}`,
-			},
-		});
-		showToast({
-			text: "Hipótese adicionada à anamnese",
-			actionLabel: "Ver",
-			onAction: () => {
-				setResultTab("anamnese");
-				// wait for the tab to render, then focus the section
-				setTimeout(() => {
-					const el = document.getElementById("sec-hipoteses");
-					el?.scrollIntoView({ behavior: "smooth", block: "center" });
-					el?.focus();
-				}, 50);
-			},
-		});
-		return true;
 	}
 
 	async function save() {
@@ -455,7 +384,6 @@ export function NovaConsultaPage({
 						anamnesis,
 						engine: engine ?? "unknown",
 						patientId: patientId ?? undefined,
-						review,
 					},
 				});
 				if (!r.ok) throw new Error("sessão expirada. Recarregue a página");
@@ -466,7 +394,6 @@ export function NovaConsultaPage({
 						anamnesis,
 						engine: engine ?? "unknown",
 						patientId: patientId ?? undefined,
-						review,
 					},
 				});
 				id = res.id ?? null;
@@ -907,51 +834,9 @@ export function NovaConsultaPage({
 				{/* ================= coluna direita: resultado ================= */}
 				<section className={`${cardCls} lg:sticky lg:top-4`}>
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
-						<div className="flex gap-1 text-sm" role="tablist">
-							<button
-								type="button"
-								role="tab"
-								aria-selected={resultTab === "anamnese"}
-								onClick={() => setResultTab("anamnese")}
-								className={`rounded-lg px-3 py-1.5 font-medium transition ${
-									resultTab === "anamnese"
-										? "bg-primary text-primary-foreground"
-										: "text-muted-foreground hover:bg-muted"
-								}`}
-							>
-								Anamnese
-							</button>
-							<button
-								type="button"
-								role="tab"
-								aria-selected={resultTab === "review"}
-								onClick={() => setResultTab("review")}
-								disabled={!anamnesis}
-								className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition disabled:opacity-40 ${
-									resultTab === "review"
-										? "bg-indigo-600 text-white"
-										: "text-muted-foreground hover:bg-muted"
-								}`}
-							>
-								Segunda opinião
-								{reviewBusy ? (
-									<Spinner className="size-3" />
-								) : review ? (
-									<span
-										className={`rounded-full px-1.5 text-[10px] ${
-											resultTab === "review" ? "bg-white/25" : "bg-indigo-100 text-indigo-700"
-										}`}
-									>
-										{review.hipoteses.length + review.lacunas.length}
-									</span>
-								) : null}
-							</button>
-						</div>
-						{resultTab === "anamnese" && engine ? (
+						<span className="text-sm font-medium">Anamnese</span>
+						{engine ? (
 							<span className="text-[11px] text-muted-foreground">engine: {engine}</span>
-						) : null}
-						{resultTab === "review" && reviewEngine ? (
-							<span className="text-[11px] text-muted-foreground">{reviewEngine}</span>
 						) : null}
 					</div>
 
@@ -968,7 +853,7 @@ export function NovaConsultaPage({
 								</EmptyDescription>
 							</EmptyHeader>
 						</Empty>
-					) : resultTab === "anamnese" ? (
+					) : (
 						<div className="max-h-[68vh] space-y-3 overflow-y-auto p-5">
 							{(Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]).map((key) => {
 								const sec = anamnesis[key];
@@ -1012,28 +897,6 @@ export function NovaConsultaPage({
 									</div>
 								);
 							})}
-						</div>
-					) : (
-						<div className="max-h-[68vh] overflow-y-auto p-5">
-							<Alert className="mb-4 border-indigo-200 bg-indigo-50 text-[11px] text-indigo-900">
-								Apoio à decisão. Sugestões para o médico avaliar. Não fazem parte do prontuário até
-								você adicionar.
-							</Alert>
-							{reviewBusy ? (
-								<p className="py-10 text-center text-sm text-muted-foreground">
-									<Spinner className="mx-auto mb-3 size-5 text-primary" />
-									analisando lacunas e hipóteses…
-									<span className="mt-1 block text-xs text-muted-foreground">
-										modelos locais podem levar mais de um minuto
-									</span>
-								</p>
-							) : review ? (
-								<ReviewPanel review={review} onAddHypothesis={addHypothesis} />
-							) : reviewNote ? (
-								<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-									{reviewNote}
-								</Alert>
-							) : null}
 						</div>
 					)}
 
@@ -1090,8 +953,7 @@ export function NovaConsultaPage({
 					<p>
 						A consulta <strong>#{saveDialog.id}</strong>
 						{patientId ? ` de ${dialogPatientName}` : ""} foi{" "}
-						{saveDialog.updated ? "atualizada" : "gravada"} com a anamnese revisada
-						{review ? " e a segunda opinião" : ""}.
+						{saveDialog.updated ? "atualizada" : "gravada"} com a anamnese revisada.
 						{consented ? " Consentimento do paciente registrado." : ""}
 					</p>
 				) : (

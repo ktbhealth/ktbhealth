@@ -8,8 +8,8 @@ import { index, route } from "@tanstack/virtual-file-routes";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin } from "@ktb/kernel";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
-import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
-import { decodeAnamnesisOption, decodeAnamnesisReviewOption } from "@ktb/anamnesis/schema";
+import type { Anamnesis } from "@ktb/anamnesis";
+import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
 import { consultations } from "./schema.ts";
 
@@ -20,7 +20,6 @@ export interface SaveConsultationInput {
 	readonly anamnesis: Anamnesis;
 	readonly engine: string;
 	readonly patientId?: number;
-	readonly review?: AnamnesisReview | null;
 }
 
 export interface AttachAnamnesisInput {
@@ -28,7 +27,6 @@ export interface AttachAnamnesisInput {
 	readonly anamnesis: Anamnesis;
 	readonly engine: string;
 	readonly patientId?: number;
-	readonly review?: AnamnesisReview | null;
 }
 
 export interface ConsultationSummary {
@@ -41,14 +39,12 @@ export interface ConsultationSummary {
 	readonly consentAt: Date | null;
 	readonly patientName: string | null;
 	readonly hasAnamnesis: boolean;
-	readonly hasReview: boolean;
 	readonly queixa: string | null;
 }
 
 export type ConsultationDetail = Omit<ConsultationRow, "anamnesis" | "review"> & {
 	readonly patientName: string | null;
 	readonly anamnesis: Anamnesis | null;
-	readonly review: AnamnesisReview | null;
 };
 
 /** Stored JSON columns → typed domain objects, null on any drift. */
@@ -128,7 +124,6 @@ async function saveConsultation(db: DbClient, userId: string, data: SaveConsulta
 			transcript: data.transcript,
 			anamnesis: JSON.stringify(data.anamnesis),
 			engine: data.engine,
-			review: data.review ? JSON.stringify(data.review) : null,
 			createdAt: new Date(),
 		})
 		.returning({ id: consultations.id });
@@ -146,19 +141,17 @@ async function listConsultations(db: DbClient, userId: string): Promise<Consulta
 			status: consultations.status,
 			consentAt: consultations.consentAt,
 			anamnesis: consultations.anamnesis,
-			review: consultations.review,
 			patientName: patients.name,
 		})
 		.from(consultations)
 		.leftJoin(patients, eq(consultations.patientId, patients.id))
 		.where(eq(consultations.userId, userId))
 		.orderBy(desc(consultations.id));
-	return rows.map(({ anamnesis, review, ...c }) => {
+	return rows.map(({ anamnesis, ...c }) => {
 		const parsed = parseStored(anamnesis, decodeAnamnesisOption);
 		return {
 			...c,
 			hasAnamnesis: anamnesis !== null,
-			hasReview: review !== null,
 			queixa: parsed?.queixa_principal.content ?? null,
 		};
 	});
@@ -187,7 +180,6 @@ async function getConsultation(db: DbClient, id: number): Promise<ConsultationDe
 		...row.c,
 		patientName: row.patientName,
 		anamnesis: parseStored(row.c.anamnesis, decodeAnamnesisOption),
-		review: parseStored(row.c.review, decodeAnamnesisReviewOption),
 	};
 }
 
@@ -210,7 +202,6 @@ async function attachAnamnesis(db: DbClient, userId: string, data: AttachAnamnes
 		.set({
 			anamnesis: JSON.stringify(data.anamnesis),
 			engine: data.engine,
-			review: data.review ? JSON.stringify(data.review) : null,
 			patientId: data.patientId ?? null,
 			status: "done",
 		})

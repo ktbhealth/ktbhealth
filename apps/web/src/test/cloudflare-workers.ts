@@ -16,7 +16,4 @@ export const env = {
 	OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 	LLM_BASE_URL: process.env.LLM_BASE_URL,
 	LLM_MODEL: process.env.LLM_MODEL,
-	REVIEW_MODEL: process.env.REVIEW_MODEL,
-	REVIEW_PROVIDER: process.env.REVIEW_PROVIDER,
-	OLLAMA_URL: process.env.OLLAMA_URL,
 };

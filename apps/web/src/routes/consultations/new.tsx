@@ -9,7 +9,6 @@ import {
 	getLiveConsultationFn,
 	listPatientsFn,
 	recordConsentFn,
-	reviewAnamneseFn,
 	saveConsultationFn,
 } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
@@ -17,7 +16,6 @@ import { requireSession } from "#/lib/guard.ts";
 export const novaApi: NovaApi = {
 	getLiveConsultation: (input: { data: number }) => getLiveConsultationFn(input),
 	extractAnamnese: (input: { data: string }) => extractAnamneseFn(input),
-	reviewAnamnese: (input: { data: unknown }) => reviewAnamneseFn(input as never),
 	attachAnamnesis: (input: { data: unknown }) => attachAnamnesisFn(input as never),
 	saveConsultation: (input: { data: unknown }) => saveConsultationFn(input as never),
 	recordConsent: (input: { data: number }) => recordConsentFn(input),

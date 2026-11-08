@@ -4,10 +4,9 @@ import * as Schema from "effect/Schema";
 
 import type { Anamnesis } from "@ktb/anamnesis";
 import { HeuristicExtractor } from "@ktb/anamnesis";
-import { AnamnesisEngine, ReviewEngine, type ReviewResult } from "@ktb/anamnesis/services";
-import { AnamnesisSchema, AnamnesisReviewSchema } from "@ktb/anamnesis/schema";
+import { AnamnesisEngine } from "@ktb/anamnesis/services";
+import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { PROMPT } from "./prompt.ts";
-import { REVIEW_PROMPT, reviewUserMessage } from "./review.ts";
 
 /**
  * Minimal Workers AI binding surface — structurally typed so the host
@@ -63,9 +62,6 @@ const extractJson = (text: string): unknown => {
 	return JSON.parse(text.slice(start, end + 1));
 };
 
-const REVIEW_TTL_MS = 5 * 60_000;
-const degraded = (reason: string): ReviewResult => ({ review: null, reason });
-
 /** AnamnesisEngine backed by the Workers AI binding (JSON mode via prompt). */
 export const makeWorkersAiAnamnesisEngine = (
 	ai: WorkersAiBinding,
@@ -96,56 +92,5 @@ export const makeWorkersAiAnamnesisEngine = (
 					),
 				),
 			),
-		}),
-	);
-
-/** ReviewEngine backed by the Workers AI binding, with the same TTL cache. */
-export const makeWorkersAiReviewEngine = (
-	ai: WorkersAiBinding,
-	model: string,
-): Layer.Layer<ReviewEngine> =>
-	Layer.effect(
-		ReviewEngine,
-		Effect.sync(() => {
-			const cache = new Map<string, { expires: number; result: ReviewResult }>();
-			const engine = `workers-ai:${model}`;
-			return ReviewEngine.of({
-				review: Effect.fn("ReviewEngine.review")((transcript: string, anamnesis: Anamnesis) =>
-					Effect.gen(function* () {
-						const key = JSON.stringify([engine, transcript, anamnesis]);
-						const hit = cache.get(key);
-						if (hit && hit.expires > Date.now()) return hit.result;
-						const result = yield* runChat(
-							ai,
-							model,
-							REVIEW_PROMPT,
-							reviewUserMessage(transcript, anamnesis),
-						).pipe(
-							Effect.flatMap((text) =>
-								Effect.try({ try: () => extractJson(text), catch: (e) => e }).pipe(
-									Effect.flatMap((raw) => Schema.decodeUnknownEffect(AnamnesisReviewSchema)(raw)),
-								),
-							),
-							Effect.map((review) => ({ review, engine }) satisfies ReviewResult),
-							Effect.catch((error) =>
-								Effect.logWarning(`workers-ai review failed`, {
-									engine,
-									error: String(error),
-								}).pipe(
-									Effect.as(
-										degraded(
-											`Segunda opinião falhou: ${error instanceof Error ? error.message : String(error)}`,
-										),
-									),
-								),
-							),
-						);
-						if (result.review !== null) {
-							cache.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
-						}
-						return result;
-					}),
-				),
-			});
 		}),
 	);

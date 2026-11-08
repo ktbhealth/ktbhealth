@@ -44,7 +44,7 @@ const STEPS = [
 	{
 		icon: ClipboardCheckIcon,
 		title: "Revise e salve",
-		desc: "Edite o que quiser, veja a segunda opinião da IA, confirme e baixe o PDF.",
+		desc: "Edite o que quiser, confira a evidência de cada seção, confirme e baixe o PDF.",
 	},
 ];
 
@@ -67,7 +67,7 @@ const FAQ = [
 	},
 	{
 		q: "Posso escolher qual modelo de IA usar?",
-		a: "Sim. A extração e a revisão suportam Anthropic, OpenAI, Workers AI da Cloudflare, Ollama local e um motor heurístico de fallback. A escolha é configuração, não código.",
+		a: "Sim. A extração suporta Anthropic, OpenAI, Workers AI da Cloudflare, Ollama local e um motor heurístico de fallback. A escolha é configuração, não código.",
 	},
 ];
 
@@ -171,10 +171,10 @@ function ProductMock() {
 							<p className="mt-1 text-sm">Losartana 50 mg, 1x ao dia.</p>
 						</div>
 						<div className="flex items-start gap-2 rounded-lg bg-accent p-3 text-xs text-accent-foreground">
-							<SparklesIcon className="mt-0.5 size-3.5 shrink-0" />
+							<CheckIcon className="mt-0.5 size-3.5 shrink-0" />
 							<span>
-								<span className="font-semibold">Segunda opinião:</span> perguntar sobre rigidez de
-								nuca e fotofobia.
+								<span className="font-semibold">Você revisa:</span> cada seção mostra a frase-fonte
+								antes de salvar.
 							</span>
 						</div>
 					</div>
@@ -325,19 +325,19 @@ function Home() {
 					<Card className="transition hover:ring-foreground/20">
 						<CardHeader>
 							<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-								<SparklesIcon className="size-5" />
+								<ClipboardCheckIcon className="size-5" />
 							</span>
-							<CardTitle className="mt-3 text-base">Segunda opinião da IA</CardTitle>
+							<CardTitle className="mt-3 text-base">Revisão e aprovação</CardTitle>
 							<CardDescription className="text-sm leading-relaxed">
-								Aponta lacunas, perguntas que ainda cabem e hipóteses com raciocínio. Você decide o
-								que entra.
+								Você edita cada seção, confere a evidência e aprova. Nada entra no prontuário sem o
+								seu ok.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-2">
 							{[
-								"Perguntar sobre rigidez de nuca",
-								"Confirmar dose e frequência",
-								"Sugerir retorno em 7 dias",
+								"Edição livre por seção",
+								"Evidência frase a frase",
+								"PDF pronto para exportar",
 							].map((s) => (
 								<div
 									key={s}

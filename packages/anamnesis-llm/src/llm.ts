@@ -17,10 +17,6 @@ export interface LlmConfig {
 	readonly openAiApiKey?: string;
 	readonly openAiBaseUrl?: string;
 	readonly openAiModel?: string;
-	readonly reviewModel?: string;
-	readonly reviewProvider?: string;
-	readonly ollamaUrl?: string;
-	readonly ollamaModel?: string;
 	readonly workersAi?: import("./workers-ai.ts").WorkersAiBinding;
 	readonly workersAiModel?: string;
 }

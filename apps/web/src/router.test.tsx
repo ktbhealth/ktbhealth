@@ -94,7 +94,6 @@ async function signInRouterUser() {
 			transcript: SAMPLE_TRANSCRIPT,
 			anamnesis: fullAnamnesis,
 			engine: "heuristic",
-			review: { lacunas: [], hipoteses: [], sinais_de_alerta: [], inconsistencias: [] },
 		},
 	});
 	consultationId = saved.id!;

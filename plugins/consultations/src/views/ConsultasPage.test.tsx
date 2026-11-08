@@ -28,7 +28,6 @@ const BASE: ConsultaListItem = {
 	patientName: "Maria Silva",
 	queixa: "Dor de cabeça",
 	hasAnamnesis: true,
-	hasReview: true,
 };
 
 const item = (over: Partial<ConsultaListItem>): ConsultaListItem => ({ ...BASE, ...over });
@@ -50,7 +49,7 @@ describe("ConsultasPage", () => {
 		expect(screen.getByText("Dor de cabeça")).toBeTruthy();
 	});
 
-	it("renders badges for live/anamnesis/review/consent/source", () => {
+	it("renders badges for live/anamnesis/consent/source", () => {
 		render(
 			<ConsultasPage
 				consultas={[
@@ -59,7 +58,6 @@ describe("ConsultasPage", () => {
 						source: "bot",
 						patientName: null,
 						hasAnamnesis: false,
-						hasReview: false,
 						consentAt: null,
 					}),
 				]}

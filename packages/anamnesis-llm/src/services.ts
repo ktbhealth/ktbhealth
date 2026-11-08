@@ -4,19 +4,13 @@ import { LanguageModel, Prompt } from "effect/ai";
 
 import type { Anamnesis } from "@ktb/anamnesis";
 import { HeuristicExtractor } from "@ktb/anamnesis";
-import { AnamnesisEngine, ReviewEngine, type ReviewResult } from "@ktb/anamnesis/services";
-import { AnamnesisSchema, AnamnesisReviewSchema } from "@ktb/anamnesis/schema";
+import { AnamnesisEngine } from "@ktb/anamnesis/services";
+import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { PROMPT } from "./prompt.ts";
 import { anthropicLanguageModelLive, openAiLanguageModelLive, type LlmConfig } from "./llm.ts";
 
 export type { LlmConfig } from "./llm.ts";
-import { REVIEW_PROMPT, reviewUserMessage, reviewViaOllama } from "./review.ts";
-import {
-	DEFAULT_WORKERS_AI_MODEL,
-	makeWorkersAiAnamnesisEngine,
-	makeWorkersAiReviewEngine,
-} from "./workers-ai.ts";
-import { FetchHttpClient } from "effect/http";
+import { DEFAULT_WORKERS_AI_MODEL, makeWorkersAiAnamnesisEngine } from "./workers-ai.ts";
 
 // Port tags live in the domain package (@ktb/anamnesis/services); this
 // module only provides the Live layers — impl → port direction.
@@ -81,117 +75,8 @@ export const heuristicAnamnesisEngineLive: Layer.Layer<AnamnesisEngine> = Layer.
 	}),
 );
 
-export type ReviewProvider = "anthropic" | "openai" | "workers-ai" | "ollama";
-
-/** REVIEW_PROVIDER forces one; otherwise cloud key, Workers AI, then local. */
-export const selectReviewProvider = (cfg: LlmConfig): ReviewProvider => {
-	if (
-		cfg.reviewProvider === "anthropic" ||
-		cfg.reviewProvider === "openai" ||
-		cfg.reviewProvider === "workers-ai" ||
-		cfg.reviewProvider === "ollama"
-	)
-		return cfg.reviewProvider;
-	if (cfg.anthropicApiKey) return "anthropic";
-	if (cfg.openAiApiKey) return "openai";
-	if (cfg.workersAi) return "workers-ai";
-	return "ollama";
-};
-
-const REVIEW_TTL_MS = 5 * 60_000;
-
-const degraded = (reason: string): ReviewResult => ({ review: null, reason });
-
 /**
- * Cloud review engine backed by a LanguageModel. Requires `LanguageModel`;
- * failures degrade to `{ review: null, reason }` and are never cached.
- */
-export const makeReviewEngine = (
-	provider: "anthropic" | "openai",
-	modelName: string,
-): Layer.Layer<ReviewEngine, never, LanguageModel.LanguageModel> =>
-	Layer.effect(
-		ReviewEngine,
-		Effect.gen(function* () {
-			const model = yield* LanguageModel.LanguageModel;
-			const cache = new Map<string, { expires: number; result: ReviewResult }>();
-			const engine = `${provider}:${modelName}`;
-			return ReviewEngine.of({
-				review: Effect.fn("ReviewEngine.review")((transcript: string, anamnesis: Anamnesis) =>
-					Effect.gen(function* () {
-						const key = JSON.stringify([engine, transcript, anamnesis]);
-						const hit = cache.get(key);
-						if (hit && hit.expires > Date.now()) return hit.result;
-						const result = yield* model
-							.generateObject({
-								objectName: "anamnesis_review",
-								schema: AnamnesisReviewSchema,
-								prompt: [
-									Prompt.systemMessage({ content: REVIEW_PROMPT }),
-									Prompt.userMessage({
-										content: [Prompt.textPart({ text: reviewUserMessage(transcript, anamnesis) })],
-									}),
-								],
-							})
-							.pipe(
-								Effect.map((r) => ({ review: r.value, engine }) satisfies ReviewResult),
-								Effect.catch((error) =>
-									Effect.logWarning(`review failed`, {
-										engine,
-										error: String(error),
-									}).pipe(
-										Effect.as(
-											degraded(
-												`Segunda opinião falhou: ${error instanceof Error ? error.message : String(error)}`,
-											),
-										),
-									),
-								),
-							);
-						if (result.review !== null) {
-							cache.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
-						}
-						return result;
-					}),
-				),
-			});
-		}),
-	);
-
-/** Ollama review engine — plain HTTP, own TTL cache, never throws. */
-export const makeOllamaReviewEngine = (
-	baseUrl: string,
-	modelName: string,
-): Layer.Layer<ReviewEngine> =>
-	Layer.effect(
-		ReviewEngine,
-		Effect.sync(() => {
-			const cache = new Map<string, { expires: number; result: ReviewResult }>();
-			const engine = `ollama:${modelName}`;
-			return ReviewEngine.of({
-				review: Effect.fn("ReviewEngine.review")((transcript: string, anamnesis: Anamnesis) =>
-					Effect.gen(function* () {
-						const key = JSON.stringify([engine, transcript, anamnesis]);
-						const hit = cache.get(key);
-						if (hit && hit.expires > Date.now()) return hit.result;
-						const result = yield* reviewViaOllama({
-							baseUrl,
-							model: modelName,
-							transcript,
-							anamnesis,
-						}).pipe(Effect.provide(FetchHttpClient.layer));
-						if (result.review !== null) {
-							cache.set(key, { expires: Date.now() + REVIEW_TTL_MS, result });
-						}
-						return result;
-					}),
-				),
-			});
-		}),
-	);
-
-/**
- * Self-contained engine layers chosen from injected config — the
+ * Self-contained engine layer chosen from injected config — the
  * composition root supplies env-derived values; no process.env here.
  */
 export const AnamnesisEngineLive = (cfg: LlmConfig): Layer.Layer<AnamnesisEngine> => {
@@ -223,37 +108,4 @@ export const AnamnesisEngineLive = (cfg: LlmConfig): Layer.Layer<AnamnesisEngine
 		);
 	}
 	return heuristicAnamnesisEngineLive;
-};
-
-export const ReviewEngineLive = (cfg: LlmConfig): Layer.Layer<ReviewEngine> => {
-	const provider = selectReviewProvider(cfg);
-	if (provider === "anthropic" && cfg.anthropicApiKey) {
-		return makeReviewEngine("anthropic", cfg.reviewModel ?? "claude-sonnet-5-5").pipe(
-			Layer.provide(
-				anthropicLanguageModelLive({
-					apiKey: cfg.anthropicApiKey,
-					model: cfg.reviewModel ?? "claude-sonnet-5-5",
-				}),
-			),
-		);
-	}
-	if (provider === "openai" && cfg.openAiApiKey) {
-		const model = cfg.reviewModel ?? cfg.openAiModel ?? "gpt-4o";
-		return makeReviewEngine("openai", model).pipe(
-			Layer.provide(
-				openAiLanguageModelLive({
-					apiKey: cfg.openAiApiKey,
-					baseUrl: cfg.openAiBaseUrl,
-					model,
-				}),
-			),
-		);
-	}
-	if (provider === "workers-ai" && cfg.workersAi) {
-		return makeWorkersAiReviewEngine(cfg.workersAi, cfg.workersAiModel ?? DEFAULT_WORKERS_AI_MODEL);
-	}
-	return makeOllamaReviewEngine(
-		cfg.ollamaUrl ?? "http://localhost:11434",
-		cfg.ollamaModel ?? "qwen3:8b",
-	);
 };

@@ -1,12 +1,11 @@
 import * as Effect from "effect/Effect";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Anamnesis, AnamnesisReview } from "@ktb/anamnesis";
-import { AnamnesisEngine, ReviewEngine } from "@ktb/anamnesis/services";
+import type { Anamnesis } from "@ktb/anamnesis";
+import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import {
 	DEFAULT_WORKERS_AI_MODEL,
 	makeWorkersAiAnamnesisEngine,
-	makeWorkersAiReviewEngine,
 	type WorkersAiBinding,
 } from "./workers-ai.ts";
 
@@ -25,21 +24,6 @@ const MOCK_ANAMNESIS: Anamnesis = {
 	exame_fisico: section("N/A"),
 	hipoteses: section("Enxaqueca"),
 	conduta: section("Dipirona"),
-};
-
-const MOCK_REVIEW: AnamnesisReview = {
-	lacunas: [],
-	hipoteses: [
-		{
-			diagnostico: "Enxaqueca",
-			probabilidade: "media",
-			raciocinio: "padrão típico",
-			evidence: ["dor de cabeça"],
-			investigar: ["exame neurológico"],
-		},
-	],
-	sinais_de_alerta: [],
-	inconsistencias: [],
 };
 
 const fakeAi = (run: WorkersAiBinding["run"]): WorkersAiBinding => ({ run });
@@ -106,73 +90,6 @@ describe("workers-ai anamnesis engine", () => {
 			expect(res.engine).toBe("workers-ai:m!fallback");
 			expect(res.anamnesis.queixa_principal.content).toBeTruthy();
 		}
-	});
-});
-
-describe("workers-ai review engine", () => {
-	it("reviews, caches, and degrades on failure", async () => {
-		const run = vi.fn(async () => jsonResponse(MOCK_REVIEW));
-		const layer = makeWorkersAiReviewEngine(fakeAi(run), "rm");
-		const engine = await Effect.runPromise(
-			Effect.gen(function* () {
-				return yield* ReviewEngine;
-			}).pipe(Effect.provide(layer)),
-		);
-		const first = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
-		expect(first.review).not.toBeNull();
-		expect(first.review !== null && first.engine).toBe("workers-ai:rm");
-		const second = await Effect.runPromise(engine.review("t", MOCK_ANAMNESIS));
-		expect(run).toHaveBeenCalledTimes(1);
-		expect(second.review).not.toBeNull();
-
-		const bad = await Effect.runPromise(
-			Effect.gen(function* () {
-				return yield* ReviewEngine;
-			}).pipe(
-				Effect.provide(
-					makeWorkersAiReviewEngine(
-						fakeAi(async () => {
-							throw new Error("boom");
-						}),
-						"rm",
-					),
-				),
-			),
-		);
-		const degraded = await Effect.runPromise(bad.review("t2", MOCK_ANAMNESIS));
-		expect(degraded.review === null && degraded.reason).toContain("Segunda opinião falhou");
-
-		const degradedBadJson = await Effect.runPromise(
-			Effect.gen(function* () {
-				return yield* ReviewEngine;
-			}).pipe(
-				Effect.provide(
-					makeWorkersAiReviewEngine(
-						fakeAi(async () => ({ response: "junk" })),
-						"rm",
-					),
-				),
-			),
-		);
-		const res = await Effect.runPromise(degradedBadJson.review("t4", MOCK_ANAMNESIS));
-		expect(res.review === null && res.reason).toContain("Segunda opinião falhou");
-
-		const badRaw = await Effect.runPromise(
-			Effect.gen(function* () {
-				return yield* ReviewEngine;
-			}).pipe(
-				Effect.provide(
-					makeWorkersAiReviewEngine(
-						fakeAi(async () => {
-							throw "raw failure";
-						}),
-						"rm",
-					),
-				),
-			),
-		);
-		const degradedRaw = await Effect.runPromise(badRaw.review("t3", MOCK_ANAMNESIS));
-		expect(degradedRaw.review === null && degradedRaw.reason).toContain("raw failure");
 	});
 });
 
