@@ -94,7 +94,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 					</p>
 				</div>
 				<Link
-					to="/consulta/nova"
+					to="/consultations/new"
 					className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 				>
 					+ Nova consulta
@@ -143,7 +143,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 						<div className="min-w-0 flex-1">
 							<div className="flex flex-wrap items-baseline gap-x-2">
 								<Link
-									to="/consultas/$id"
+									to="/consultations/$id"
 									params={{ id: String(c.id) }}
 									className="font-semibold after:absolute after:inset-0 after:content-['']"
 								>
@@ -172,7 +172,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 						</div>
 						{c.hasAnamnesis ? (
 							<a
-								href={`/api/consultas/${c.id}/pdf`}
+								href={`/api/consultations/${c.id}/pdf`}
 								download
 								title="Baixar PDF da anamnese"
 								className="relative z-10 shrink-0 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
@@ -202,7 +202,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 							</EmptyDescription>
 						</EmptyHeader>
 						<EmptyContent>
-							<Link to="/consulta/nova" className={buttonVariants()}>
+							<Link to="/consultations/new" className={buttonVariants()}>
 								Iniciar consulta
 							</Link>
 						</EmptyContent>

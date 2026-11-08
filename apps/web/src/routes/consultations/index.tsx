@@ -4,7 +4,7 @@ import { ConsultasPage } from "@ktb/consultations/views";
 import { listConsultationsFn } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
 
-export const Route = createFileRoute("/consultas/")({
+export const Route = createFileRoute("/consultations/")({
 	staleTime: 30_000,
 	beforeLoad: () => requireSession(),
 	loader: () => listConsultationsFn(),

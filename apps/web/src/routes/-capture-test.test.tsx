@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
-import { Route } from "./teste-captura.tsx";
+import { Route } from "./capture-test.tsx";
 
 const Page = (Route as unknown as { options: { component: () => ReactElement } }).options.component;
 

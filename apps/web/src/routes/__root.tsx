@@ -37,7 +37,7 @@ export const Route = createRootRoute({
 				O endereço não existe ou a consulta não é sua.
 			</p>
 			<Link
-				to="/consultas"
+				to="/consultations"
 				className="mt-6 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
 			>
 				Ir para as consultas
@@ -59,7 +59,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			</head>
 			<body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
 				<TooltipProvider>
-					<header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+					<header className="sticky top-0 z-40 border-b border-border bg-background">
 						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
 							<Link to="/" className="flex items-center gap-2.5">
 								<span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">
@@ -82,7 +82,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 									))}
 								<span className="mx-1.5 h-5 w-px bg-border" />
 								{!user ? (
-									<Link to="/entrar" className={NAV_LINK}>
+									<Link to="/login" className={NAV_LINK}>
 										Entrar
 									</Link>
 								) : (
@@ -118,7 +118,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 									</DropdownMenu>
 								)}
 								<Link
-									to="/consulta/nova"
+									to="/consultations/new"
 									className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 								>
 									+ Nova consulta

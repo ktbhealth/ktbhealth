@@ -28,7 +28,7 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
-import { novaApi } from "./nova.tsx";
+import { novaApi } from "./new.tsx";
 
 describe("novaApi wiring", () => {
 	const sec = { content: "x", confidence: "media" as const, evidence: [] as string[] };

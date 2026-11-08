@@ -47,7 +47,7 @@ import { eq } from "drizzle-orm";
 import { Route as AuthRoute } from "./auth.$.ts";
 import { Route as BotsRoute } from "./bots.ts";
 import { Route as WebhookRoute } from "./bots.webhook.ts";
-import { Route as PdfRoute } from "./consultas.$id.pdf.ts";
+import { Route as PdfRoute } from "./consultations.$id.pdf.ts";
 import { Route as TranscribeRoute } from "./transcribe.ts";
 
 const handlersOf = (r: unknown) =>

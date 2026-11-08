@@ -105,7 +105,7 @@ export default defineConfig({
 				// Deploy-target code consumes ports and domain packages only;
 				// impl adapters are wired exclusively in the composition root
 				// (lib/platform.ts, lib/plugins.ts — excepted below) and in
-				// documented client-side injection points (nova.tsx, entrar.tsx,
+				// documented client-side injection points (new.tsx, login.tsx,
 				// __root.tsx). Tests may mock impls freely.
 				files: ["apps/web/src/{lib,components,routes}/**/*.{ts,tsx}"],
 				rules: {
@@ -138,15 +138,15 @@ export default defineConfig({
 				// Documented exceptions to the impl-import ban above:
 				// - platform.ts / plugins.ts are the composition root wiring
 				//   @ktb/app-host into the deploy target.
-				// - nova.tsx injects the whisper backend client-side.
-				// - entrar.tsx / __root.tsx use the better-auth client SDK,
+				// - new.tsx injects the whisper backend client-side.
+				// - login.tsx / __root.tsx use the better-auth client SDK,
 				//   which is inherently impl-bound.
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
 					"apps/web/src/plugins.ts",
-					"apps/web/src/routes/consulta/nova.tsx",
-					"apps/web/src/routes/entrar.tsx",
+					"apps/web/src/routes/consultations/new.tsx",
+					"apps/web/src/routes/login.tsx",
 					"apps/web/src/routes/__root.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
 				],

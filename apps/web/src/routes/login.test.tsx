@@ -21,7 +21,7 @@ vi.mock("@ktb/auth-better/client", () => ({
 	},
 }));
 
-import { Route } from "./entrar.tsx";
+import { Route } from "./login.tsx";
 
 const Page = (Route as unknown as { options: { component: () => ReactElement } }).options.component;
 

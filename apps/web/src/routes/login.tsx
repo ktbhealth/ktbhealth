@@ -14,7 +14,7 @@ import { Label } from "@ktbhealth/ui/components/label";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { Turnstile } from "@ktbhealth/ui/components/turnstile";
 
-export const Route = createFileRoute("/entrar")({
+export const Route = createFileRoute("/login")({
 	head: () => ({ meta: [{ title: "Entrar | KTB Health" }] }),
 	component: SignInPage,
 });

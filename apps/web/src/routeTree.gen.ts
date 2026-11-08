@@ -10,30 +10,30 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as indexRouteImport } from './routes/index'
-import { Route as entrarRouteImport } from './routes/entrar'
-import { Route as testeCapturaRouteImport } from './routes/teste-captura'
+import { Route as captureTestRouteImport } from './routes/capture-test'
+import { Route as loginRouteImport } from './routes/login'
 import { Route as ApiBotsRouteImport } from './routes/api/bots'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
-import { Route as consultaNovaRouteImport } from './routes/consulta/nova'
-import { Route as consultasIndexRouteImport } from './routes/consultas/index'
-import { Route as consultasIdRouteImport } from './routes/consultas/$id'
+import { Route as consultationsIndexRouteImport } from './routes/consultations/index'
+import { Route as consultationsIdRouteImport } from './routes/consultations/$id'
+import { Route as consultationsNewRouteImport } from './routes/consultations/new'
 import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
-import { Route as ApiConsultasDotidDotpdfRouteImport } from './routes/api/consultas.$id.pdf'
+import { Route as ApiConsultationsDotidDotpdfRouteImport } from './routes/api/consultations.$id.pdf'
 
 const indexRoute = indexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const entrarRoute = entrarRouteImport.update({
-  id: '/entrar',
-  path: '/entrar',
+const captureTestRoute = captureTestRouteImport.update({
+  id: '/capture-test',
+  path: '/capture-test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const testeCapturaRoute = testeCapturaRouteImport.update({
-  id: '/teste-captura',
-  path: '/teste-captura',
+const loginRoute = loginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBotsRoute = ApiBotsRouteImport.update({
@@ -46,19 +46,19 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
-const consultaNovaRoute = consultaNovaRouteImport.update({
-  id: '/consulta/nova',
-  path: '/consulta/nova',
+const consultationsIndexRoute = consultationsIndexRouteImport.update({
+  id: '/consultations/',
+  path: '/consultations/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const consultasIndexRoute = consultasIndexRouteImport.update({
-  id: '/consultas/',
-  path: '/consultas/',
+const consultationsIdRoute = consultationsIdRouteImport.update({
+  id: '/consultations/$id',
+  path: '/consultations/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const consultasIdRoute = consultasIdRouteImport.update({
-  id: '/consultas/$id',
-  path: '/consultas/$id',
+const consultationsNewRoute = consultationsNewRouteImport.update({
+  id: '/consultations/new',
+  path: '/consultations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthDotsplatRoute = ApiAuthDotsplatRouteImport.update({
@@ -71,105 +71,106 @@ const ApiBotsDotwebhookRoute = ApiBotsDotwebhookRouteImport.update({
   path: '/webhook',
   getParentRoute: () => ApiBotsRoute,
 } as any)
-const ApiConsultasDotidDotpdfRoute = ApiConsultasDotidDotpdfRouteImport.update({
-  id: '/api/consultas/$id/pdf',
-  path: '/api/consultas/$id/pdf',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const ApiConsultationsDotidDotpdfRoute =
+  ApiConsultationsDotidDotpdfRouteImport.update({
+    id: '/api/consultations/$id/pdf',
+    path: '/api/consultations/$id/pdf',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof indexRoute
-  '/entrar': typeof entrarRoute
-  '/teste-captura': typeof testeCapturaRoute
+  '/capture-test': typeof captureTestRoute
+  '/login': typeof loginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/transcribe': typeof ApiTranscribeRoute
-  '/consulta/nova': typeof consultaNovaRoute
-  '/consultas/$id': typeof consultasIdRoute
-  '/consultas/': typeof consultasIndexRoute
+  '/consultations/$id': typeof consultationsIdRoute
+  '/consultations/new': typeof consultationsNewRoute
+  '/consultations/': typeof consultationsIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
-  '/api/consultas/$id/pdf': typeof ApiConsultasDotidDotpdfRoute
+  '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
 }
 export interface FileRoutesByTo {
   '/': typeof indexRoute
-  '/entrar': typeof entrarRoute
-  '/teste-captura': typeof testeCapturaRoute
+  '/capture-test': typeof captureTestRoute
+  '/login': typeof loginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/transcribe': typeof ApiTranscribeRoute
-  '/consulta/nova': typeof consultaNovaRoute
-  '/consultas/$id': typeof consultasIdRoute
-  '/consultas': typeof consultasIndexRoute
+  '/consultations/$id': typeof consultationsIdRoute
+  '/consultations/new': typeof consultationsNewRoute
+  '/consultations': typeof consultationsIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
-  '/api/consultas/$id/pdf': typeof ApiConsultasDotidDotpdfRoute
+  '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof indexRoute
-  '/entrar': typeof entrarRoute
-  '/teste-captura': typeof testeCapturaRoute
+  '/capture-test': typeof captureTestRoute
+  '/login': typeof loginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/transcribe': typeof ApiTranscribeRoute
-  '/consulta/nova': typeof consultaNovaRoute
-  '/consultas/$id': typeof consultasIdRoute
-  '/consultas/': typeof consultasIndexRoute
+  '/consultations/$id': typeof consultationsIdRoute
+  '/consultations/new': typeof consultationsNewRoute
+  '/consultations/': typeof consultationsIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
-  '/api/consultas/$id/pdf': typeof ApiConsultasDotidDotpdfRoute
+  '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/entrar'
-    | '/teste-captura'
+    | '/capture-test'
+    | '/login'
     | '/api/bots'
     | '/api/transcribe'
-    | '/consulta/nova'
-    | '/consultas/$id'
-    | '/consultas/'
+    | '/consultations/$id'
+    | '/consultations/new'
+    | '/consultations/'
     | '/api/auth/$'
     | '/api/bots/webhook'
-    | '/api/consultas/$id/pdf'
+    | '/api/consultations/$id/pdf'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/entrar'
-    | '/teste-captura'
+    | '/capture-test'
+    | '/login'
     | '/api/bots'
     | '/api/transcribe'
-    | '/consulta/nova'
-    | '/consultas/$id'
-    | '/consultas'
+    | '/consultations/$id'
+    | '/consultations/new'
+    | '/consultations'
     | '/api/auth/$'
     | '/api/bots/webhook'
-    | '/api/consultas/$id/pdf'
+    | '/api/consultations/$id/pdf'
   id:
     | '__root__'
     | '/'
-    | '/entrar'
-    | '/teste-captura'
+    | '/capture-test'
+    | '/login'
     | '/api/bots'
     | '/api/transcribe'
-    | '/consulta/nova'
-    | '/consultas/$id'
-    | '/consultas/'
+    | '/consultations/$id'
+    | '/consultations/new'
+    | '/consultations/'
     | '/api/auth/$'
     | '/api/bots/webhook'
-    | '/api/consultas/$id/pdf'
+    | '/api/consultations/$id/pdf'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   indexRoute: typeof indexRoute
-  entrarRoute: typeof entrarRoute
-  testeCapturaRoute: typeof testeCapturaRoute
+  captureTestRoute: typeof captureTestRoute
+  loginRoute: typeof loginRoute
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
   ApiTranscribeRoute: typeof ApiTranscribeRoute
-  consultaNovaRoute: typeof consultaNovaRoute
-  consultasIdRoute: typeof consultasIdRoute
-  consultasIndexRoute: typeof consultasIndexRoute
+  consultationsIdRoute: typeof consultationsIdRoute
+  consultationsNewRoute: typeof consultationsNewRoute
+  consultationsIndexRoute: typeof consultationsIndexRoute
   ApiAuthDotsplatRoute: typeof ApiAuthDotsplatRoute
-  ApiConsultasDotidDotpdfRoute: typeof ApiConsultasDotidDotpdfRoute
+  ApiConsultationsDotidDotpdfRoute: typeof ApiConsultationsDotidDotpdfRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -181,18 +182,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof indexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/entrar': {
-      id: '/entrar'
-      path: '/entrar'
-      fullPath: '/entrar'
-      preLoaderRoute: typeof entrarRouteImport
+    '/capture-test': {
+      id: '/capture-test'
+      path: '/capture-test'
+      fullPath: '/capture-test'
+      preLoaderRoute: typeof captureTestRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/teste-captura': {
-      id: '/teste-captura'
-      path: '/teste-captura'
-      fullPath: '/teste-captura'
-      preLoaderRoute: typeof testeCapturaRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof loginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/bots': {
@@ -209,25 +210,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/consulta/nova': {
-      id: '/consulta/nova'
-      path: '/consulta/nova'
-      fullPath: '/consulta/nova'
-      preLoaderRoute: typeof consultaNovaRouteImport
+    '/consultations/': {
+      id: '/consultations/'
+      path: '/consultations'
+      fullPath: '/consultations/'
+      preLoaderRoute: typeof consultationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/consultas/': {
-      id: '/consultas/'
-      path: '/consultas'
-      fullPath: '/consultas/'
-      preLoaderRoute: typeof consultasIndexRouteImport
+    '/consultations/$id': {
+      id: '/consultations/$id'
+      path: '/consultations/$id'
+      fullPath: '/consultations/$id'
+      preLoaderRoute: typeof consultationsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/consultas/$id': {
-      id: '/consultas/$id'
-      path: '/consultas/$id'
-      fullPath: '/consultas/$id'
-      preLoaderRoute: typeof consultasIdRouteImport
+    '/consultations/new': {
+      id: '/consultations/new'
+      path: '/consultations/new'
+      fullPath: '/consultations/new'
+      preLoaderRoute: typeof consultationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -244,11 +245,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBotsDotwebhookRouteImport
       parentRoute: typeof ApiBotsRoute
     }
-    '/api/consultas/$id/pdf': {
-      id: '/api/consultas/$id/pdf'
-      path: '/api/consultas/$id/pdf'
-      fullPath: '/api/consultas/$id/pdf'
-      preLoaderRoute: typeof ApiConsultasDotidDotpdfRouteImport
+    '/api/consultations/$id/pdf': {
+      id: '/api/consultations/$id/pdf'
+      path: '/api/consultations/$id/pdf'
+      fullPath: '/api/consultations/$id/pdf'
+      preLoaderRoute: typeof ApiConsultationsDotidDotpdfRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -267,15 +268,15 @@ const ApiBotsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
-  entrarRoute: entrarRoute,
-  testeCapturaRoute: testeCapturaRoute,
+  captureTestRoute: captureTestRoute,
+  loginRoute: loginRoute,
   ApiBotsRoute: ApiBotsRouteWithChildren,
   ApiTranscribeRoute: ApiTranscribeRoute,
-  consultaNovaRoute: consultaNovaRoute,
-  consultasIdRoute: consultasIdRoute,
-  consultasIndexRoute: consultasIndexRoute,
+  consultationsIdRoute: consultationsIdRoute,
+  consultationsNewRoute: consultationsNewRoute,
+  consultationsIndexRoute: consultationsIndexRoute,
   ApiAuthDotsplatRoute: ApiAuthDotsplatRoute,
-  ApiConsultasDotidDotpdfRoute: ApiConsultasDotidDotpdfRoute,
+  ApiConsultationsDotidDotpdfRoute: ApiConsultationsDotidDotpdfRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

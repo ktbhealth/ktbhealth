@@ -6,8 +6,8 @@ import { getSessionUser } from "#/lib/auth.ts";
 import { runAs } from "#/lib/platform.ts";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
-/** GET /api/consultas/:id/pdf — owner-only download of the anamnese PDF. */
-export const Route = createFileRoute("/api/consultas/$id/pdf")({
+/** GET /api/consultations/:id/pdf — owner-only download of the anamnese PDF. */
+export const Route = createFileRoute("/api/consultations/$id/pdf")({
 	server: {
 		handlers: {
 			GET: async ({ params }) => {

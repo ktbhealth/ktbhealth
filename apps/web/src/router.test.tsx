@@ -110,17 +110,16 @@ describe("router integration", () => {
 		expect(plugins.length).toBeGreaterThan(0);
 		expect(routes).toBeDefined();
 		// Plugin-declared subtrees are spliced into the host tree: the
-		// consultations plugin owns /consultas (+/$id) and /consulta/nova.
-		const consultas = routes.children?.find((n) => n.type === "route" && n.path === "consultas");
-		expect(consultas).toMatchObject({
+		// consultations plugin owns /consultations (+/$id and /new).
+		const consultations = routes.children?.find(
+			(n) => n.type === "route" && n.path === "consultations",
+		);
+		expect(consultations).toMatchObject({
 			children: [
-				{ type: "index", file: "consultas/index.tsx" },
-				{ type: "route", path: "$id", file: "consultas/$id.tsx" },
+				{ type: "index", file: "consultations/index.tsx" },
+				{ type: "route", path: "$id", file: "consultations/$id.tsx" },
+				{ type: "route", path: "new", file: "consultations/new.tsx" },
 			],
-		});
-		const consulta = routes.children?.find((n) => n.type === "route" && n.path === "consulta");
-		expect(consulta).toMatchObject({
-			children: [{ type: "route", path: "nova", file: "consulta/nova.tsx" }],
 		});
 	});
 
@@ -135,16 +134,16 @@ describe("router integration", () => {
 		expect(screen.getByText("Consultas")).toBeTruthy();
 
 		await act(async () => {
-			await router.navigate({ to: "/entrar" });
+			await router.navigate({ to: "/login" });
 		});
 		await waitFor(() => expect(screen.getByLabelText("Email")).toBeTruthy());
 		expect(screen.getByLabelText("Senha")).toBeTruthy();
 
 		await act(async () => {
-			await router.navigate({ to: "/consultas" });
+			await router.navigate({ to: "/consultations" });
 		});
 		// anonymous → route guard redirects to sign-in
-		await waitFor(() => expect(router.state.location.pathname).toBe("/entrar"));
+		await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
 	});
 
 	it("authenticated user sees name in nav and consultation detail", async () => {
@@ -163,11 +162,11 @@ describe("router integration", () => {
 			fireEvent.click(sair);
 		});
 		await act(async () => {
-			await router.navigate({ to: "/consultas" });
+			await router.navigate({ to: "/consultations" });
 		});
 		await waitFor(() => expect(document.body.textContent).toContain("conteúdo queixa_principal"));
 		await act(async () => {
-			await router.navigate({ to: "/consultas/$id", params: { id: String(consultationId) } });
+			await router.navigate({ to: "/consultations/$id", params: { id: String(consultationId) } });
 		});
 		await waitFor(() => expect(document.body.textContent).toContain("conteúdo queixa_principal"));
 	});
@@ -200,7 +199,7 @@ describe("router integration", () => {
 		await router.load();
 		render(createElement(RouterProvider, { router }));
 		await act(async () => {
-			await router.navigate({ to: "/consultas/$id", params: { id: "99999" } });
+			await router.navigate({ to: "/consultations/$id", params: { id: "99999" } });
 		});
 		await waitFor(() =>
 			expect(document.body.textContent).toMatch(/não encontrada|não é sua|Consultas/),
@@ -212,7 +211,7 @@ describe("router integration", () => {
 		await router.load();
 		render(createElement(RouterProvider, { router }));
 		await act(async () => {
-			await router.navigate({ to: "/consulta/nova" });
+			await router.navigate({ to: "/consultations/new" });
 		});
 		await waitFor(() => expect(document.body.textContent).toMatch(/consulta|anamnese|gravar/i));
 	});
@@ -222,7 +221,7 @@ describe("router integration", () => {
 		await router.load();
 		render(createElement(RouterProvider, { router }));
 		await act(async () => {
-			await router.navigate({ to: "/teste-captura" });
+			await router.navigate({ to: "/capture-test" });
 		});
 		await waitFor(() => expect(document.body.textContent).toMatch(/captura|aba|áudio/i));
 	});

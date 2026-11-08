@@ -129,7 +129,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 
 	return (
 		<div>
-			<Link to="/consultas" className="text-sm text-muted-foreground hover:text-foreground">
+			<Link to="/consultations" className="text-sm text-muted-foreground hover:text-foreground">
 				← Consultas
 			</Link>
 
@@ -165,7 +165,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							Copiar
 						</button>
 						<a
-							href={`/api/consultas/${c.id}/pdf`}
+							href={`/api/consultations/${c.id}/pdf`}
 							download
 							className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 						>

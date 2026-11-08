@@ -24,7 +24,7 @@ export const novaApi: NovaApi = {
 	createPatient: (input: { data: string }) => createPatientFn(input),
 };
 
-export const Route = createFileRoute("/consulta/nova")({
+export const Route = createFileRoute("/consultations/new")({
 	beforeLoad: () => requireSession(),
 	loader: () => listPatientsFn(),
 	component: function NovaRoute() {

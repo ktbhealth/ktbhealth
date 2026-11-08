@@ -97,7 +97,7 @@ function BrowserFrame({ children }: { children: React.ReactNode }) {
 					<span className="size-2.5 rounded-full bg-primary" />
 				</div>
 				<div className="mx-auto flex w-full max-w-xs items-center justify-center rounded-md bg-background px-3 py-1 text-[11px] text-muted-foreground">
-					ktb.health/consulta/nova
+					ktb.health/consultations/new
 				</div>
 				<div className="w-10" />
 			</div>
@@ -201,11 +201,11 @@ function Home() {
 					e aprova. O contexto de cada consulta fica guardado para a próxima.
 				</p>
 				<div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-					<Link to="/consulta/nova" className={buttonVariants({ size: "lg" })}>
+					<Link to="/consultations/new" className={buttonVariants({ size: "lg" })}>
 						Iniciar consulta
 						<ArrowRightIcon />
 					</Link>
-					<Link to="/consultas" className={buttonVariants({ variant: "outline", size: "lg" })}>
+					<Link to="/consultations" className={buttonVariants({ variant: "outline", size: "lg" })}>
 						Ver consultas
 					</Link>
 				</div>
@@ -421,7 +421,7 @@ function Home() {
 							Teste com a transcrição de exemplo, sem precisar de microfone.
 						</p>
 						<Link
-							to="/consulta/nova"
+							to="/consultations/new"
 							className={buttonVariants({ variant: "secondary", size: "lg" }) + " mt-8"}
 						>
 							Começar agora

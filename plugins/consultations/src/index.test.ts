@@ -348,26 +348,22 @@ describe("ConsultationsLive", () => {
 describe("plugin", () => {
 	it("has id, nav, tables", () => {
 		expect(plugin.id).toBe("consultations");
-		expect(plugin.nav?.[0]?.to).toBe("/consultas");
+		expect(plugin.nav?.[0]?.to).toBe("/consultations");
 		expect(plugin.tables?.consultations).toBeDefined();
 	});
 
-	it("owns the consultas route subtree", () => {
+	it("owns the consultations route subtree", () => {
 		const paths = (plugin.routes ?? []).map((n) => (n.type === "route" ? n.path : n.type));
-		expect(paths).toEqual(["consultas", "consulta"]);
-		const [consultas, consulta] = plugin.routes ?? [];
-		expect(consultas).toMatchObject({
+		expect(paths).toEqual(["consultations"]);
+		const [consultations] = plugin.routes ?? [];
+		expect(consultations).toMatchObject({
 			type: "route",
-			path: "consultas",
+			path: "consultations",
 			children: [
-				{ type: "index", file: "consultas/index.tsx" },
-				{ type: "route", path: "$id", file: "consultas/$id.tsx" },
+				{ type: "index", file: "consultations/index.tsx" },
+				{ type: "route", path: "$id", file: "consultations/$id.tsx" },
+				{ type: "route", path: "new", file: "consultations/new.tsx" },
 			],
-		});
-		expect(consulta).toMatchObject({
-			type: "route",
-			path: "consulta",
-			children: [{ type: "route", path: "nova", file: "consulta/nova.tsx" }],
 		});
 	});
 });

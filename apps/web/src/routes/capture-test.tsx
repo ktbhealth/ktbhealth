@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
-export const Route = createFileRoute("/teste-captura")({
+export const Route = createFileRoute("/capture-test")({
 	component: TesteCaptura,
 });
 

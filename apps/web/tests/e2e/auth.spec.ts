@@ -37,7 +37,7 @@ test.describe("auth flow", () => {
 		const { email, name } = uniqueCredentials();
 
 		// Sign up through the "Criar conta" tab.
-		await gotoApp(page, "/entrar");
+		await gotoApp(page, "/login");
 		await page.getByRole("tab", { name: "Criar conta" }).click();
 		await fillCredentials(page, email);
 		await page.getByRole("button", { name: "Criar conta" }).click();
@@ -56,7 +56,7 @@ test.describe("auth flow", () => {
 		await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
 
 		// Sign back in (the "Entrar" tab is the default).
-		await gotoApp(page, "/entrar");
+		await gotoApp(page, "/login");
 		await fillCredentials(page, email);
 		await page.getByRole("button", { name: "Entrar" }).click();
 		await expect(page).toHaveURL("/");
@@ -65,10 +65,10 @@ test.describe("auth flow", () => {
 	});
 
 	test("shows error on invalid credentials", async ({ page }) => {
-		await gotoApp(page, "/entrar");
+		await gotoApp(page, "/login");
 		await fillCredentials(page, `nobody-${Date.now()}@test.dev`);
 		await page.getByRole("button", { name: "Entrar" }).click();
 		await expect(page.getByText(/invalid email or password/i)).toBeVisible();
-		await expect(page).toHaveURL("/entrar");
+		await expect(page).toHaveURL("/login");
 	});
 });

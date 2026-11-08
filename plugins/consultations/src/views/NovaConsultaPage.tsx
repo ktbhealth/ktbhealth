@@ -1015,11 +1015,15 @@ export function NovaConsultaPage({
 				actions={
 					saveDialog?.kind === "ok" ? (
 						<>
-							<a href={`/api/consultas/${saveDialog.id}/pdf`} download className={btnGhost}>
+							<a href={`/api/consultations/${saveDialog.id}/pdf`} download className={btnGhost}>
 								<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
 								Baixar PDF
 							</a>
-							<Link to="/consultas/$id" params={{ id: String(saveDialog.id) }} className={btnGhost}>
+							<Link
+								to="/consultations/$id"
+								params={{ id: String(saveDialog.id) }}
+								className={btnGhost}
+							>
 								Ver consulta
 							</Link>
 							<button type="button" onClick={() => setSaveDialog(null)} className={btnPrimary}>

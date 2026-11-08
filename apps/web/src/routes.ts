@@ -15,7 +15,7 @@ const routePlugins: readonly Plugin[] = [consultationsPlugin, patientsPlugin];
 export const routes = rootRoute("__root.tsx", [
 	index("index.tsx"),
 	...routePlugins.flatMap((p) => p.routes ?? []),
-	route("teste-captura", "teste-captura.tsx"),
-	route("entrar", "entrar.tsx"),
+	route("capture-test", "capture-test.tsx"),
+	route("login", "login.tsx"),
 	physical("/api", "api"),
 ]);

@@ -3,7 +3,7 @@
 //
 // Estratégia: lança Chromium com flags que auto-selecionam a aba alvo no
 // seletor de captura, abre uma aba "fonte" que emite um tom via Web Audio e
-// chama /teste-captura em outra aba. Se o medidor de nível subir, o caminho
+// chama /capture-test em outra aba. Se o medidor de nível subir, o caminho
 // getDisplayMedia -> áudio de aba -> Web Audio está provado de ponta a ponta.
 //
 // Flags relevantes do Chromium:
@@ -66,7 +66,7 @@ test("getDisplayMedia captures tab audio end-to-end", async () => {
 			if (m.type() === "error") console.log("[page error]", m.text());
 		});
 		page.on("pageerror", (e) => console.log("[pageerror]", e.message));
-		await page.goto("/teste-captura");
+		await page.goto("/capture-test");
 		await page.waitForLoadState("networkidle");
 
 		// O SSR entrega o botão antes da hidratação; clica até o handler

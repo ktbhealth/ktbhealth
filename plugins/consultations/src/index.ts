@@ -386,10 +386,13 @@ export const plugin = definePlugin({
 	// the route modules there wire these paths to this plugin's views and to
 	// host server functions, which plugins cannot import.
 	routes: [
-		route("consultas", [index("consultas/index.tsx"), route("$id", "consultas/$id.tsx")]),
-		route("consulta", [route("nova", "consulta/nova.tsx")]),
+		route("consultations", [
+			index("consultations/index.tsx"),
+			route("$id", "consultations/$id.tsx"),
+			route("new", "consultations/new.tsx"),
+		]),
 	],
-	nav: [{ to: "/consultas", label: "Consultas" }],
+	nav: [{ to: "/consultations", label: "Consultas" }],
 	tables: { consultations },
 	services: ConsultationsLive,
 });
