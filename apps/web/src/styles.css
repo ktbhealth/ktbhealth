@@ -1,5 +1,9 @@
 @import "@ktbhealth/ui/styles/globals.css";
 
+/* @ktbhealth/ui is a node_modules git dependency — automatic content
+   detection ignores node_modules, so scan its sources explicitly. */
+@source "../node_modules/@ktbhealth/ui/packages/react/src";
+
 #app {
 	min-height: 100%;
 }
