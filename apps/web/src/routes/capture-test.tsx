@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import * as m from "#/paraglide/messages.js";
 
 export const Route = createFileRoute("/capture-test")({
 	component: CaptureTest,
@@ -18,7 +19,7 @@ function CaptureTest() {
 
 	async function start() {
 		setError(null);
-		setStatus("requesting tab…");
+		setStatus(m.capture_status_requesting());
 		try {
 			const stream = await navigator.mediaDevices.getDisplayMedia({
 				video: true,
@@ -27,7 +28,7 @@ function CaptureTest() {
 			for (const t of stream.getVideoTracks()) t.stop();
 			const track = stream.getAudioTracks()[0];
 			if (!track) {
-				setError("shared tab has no audio. Enable 'share audio'");
+				setError(m.capture_error_no_audio());
 				return;
 			}
 			refs.current.stream = stream;
@@ -38,7 +39,7 @@ function CaptureTest() {
 			analyser.fftSize = 256;
 			src.connect(analyser);
 			const data = new Uint8Array(analyser.frequencyBinCount);
-			setStatus(`capturing · track: ${track.label} | ${track.readyState}`);
+			setStatus(m.capture_status_capturing({ track: track.label, state: track.readyState }));
 
 			const tick = () => {
 				analyser.getByteTimeDomainData(data);
@@ -63,26 +64,22 @@ function CaptureTest() {
 
 	return (
 		<div>
-			<h1 className="text-2xl font-bold">Spike: tab audio capture</h1>
-			<p className="mt-2 text-sm text-muted-foreground">
-				1. Open a call (WhatsApp Web, Meet, YouTube) in another tab. 2. Click start and select THAT
-				tab with &quot;share audio&quot; enabled. 3. If the meter moves with speech, the path is
-				proven.
-			</p>
+			<h1 className="text-2xl font-bold">{m.capture_title()}</h1>
+			<p className="mt-2 text-sm text-muted-foreground">{m.capture_desc()}</p>
 			<div className="mt-6 flex gap-2">
 				<button
 					type="button"
 					onClick={start}
 					className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/80"
 				>
-					Start capture
+					{m.capture_start()}
 				</button>
 				<button
 					type="button"
 					onClick={stop}
 					className="rounded-lg border border-border px-4 py-2 text-sm"
 				>
-					Stop
+					{m.capture_stop()}
 				</button>
 			</div>
 			{status ? <p className="mt-3 text-xs text-muted-foreground">{status}</p> : null}
@@ -93,7 +90,9 @@ function CaptureTest() {
 					style={{ width: `${Math.min(100, level * 400)}%` }}
 				/>
 			</div>
-			<p className="mt-1 text-xs text-muted-foreground">level: {(level * 100).toFixed(1)}%</p>
+			<p className="mt-1 text-xs text-muted-foreground">
+				{m.capture_level({ level: (level * 100).toFixed(1) })}
+			</p>
 		</div>
 	);
 }

@@ -27,55 +27,9 @@ import {
 	SparklesIcon,
 	StethoscopeIcon,
 } from "lucide-react";
+import * as m from "#/paraglide/messages.js";
 
 export const Route = createFileRoute("/")({ component: Home });
-
-const STEPS = [
-	{
-		icon: MicIcon,
-		title: "Talk",
-		desc: "Record the microphone, capture the video call tab, or paste the transcript. Doctor and patient come out separated.",
-	},
-	{
-		icon: SparklesIcon,
-		title: "Generate the anamnesis",
-		desc: "In seconds, the text becomes 8 medical record sections, each with the consultation sentence that grounds it.",
-	},
-	{
-		icon: ClipboardCheckIcon,
-		title: "Review and save",
-		desc: "Edit whatever you want, check the evidence for each section, confirm, and download the PDF.",
-	},
-];
-
-const FAQ = [
-	{
-		q: "Does the consultation audio leave my computer?",
-		a: "Transcription runs in your browser with local Whisper. The audio never leaves the machine. Only the resulting text is sent to structure the anamnesis, and you can point to your own model (including a local one via Ollama) to keep everything in your environment.",
-	},
-	{
-		q: "Does the AI diagnose or prescribe?",
-		a: "No. KTB Health generates a structured draft from what was said in the consultation. Each field shows the confidence and the source sentences, and the final record is always reviewed and approved by a physician.",
-	},
-	{
-		q: "Does it work for teleconsultations?",
-		a: "Yes. The bot joins Meet, Zoom, Teams, and WhatsApp Web calls, or you can capture the browser tab audio directly. For in-person visits, dictation mode transcribes your narration with the same Whisper.",
-	},
-	{
-		q: "How does patient consent work?",
-		a: "Every consultation requires an explicit declaration that the patient was informed and consented to the recording. The consent record stays linked to the consultation and the generated anamnesis.",
-	},
-	{
-		q: "Can I choose which AI model to use?",
-		a: "Yes. Extraction supports Anthropic, OpenAI, Cloudflare Workers AI, local Ollama, and a heuristic fallback engine. The choice is configuration, not code.",
-	},
-];
-
-const STATS = [
-	{ value: "8", label: "medical record sections" },
-	{ value: "pt-BR", label: "local transcription" },
-	{ value: "100%", label: "human review" },
-];
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
 	return (
@@ -114,26 +68,24 @@ function ProductMock() {
 				<div className="border-b border-border p-5 sm:border-b-0 sm:border-r">
 					<div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
 						<AudioLinesIcon className="size-3.5" />
-						Live transcription
+						{m.mock_live_transcription()}
 					</div>
 					<div className="mt-4 space-y-3 text-sm">
 						<div>
-							<span className="text-xs font-semibold text-primary">Dr. Ana</span>
-							<p className="mt-0.5 text-muted-foreground">When did the pain start?</p>
+							<span className="text-xs font-semibold text-primary">{m.mock_dr_ana()}</span>
+							<p className="mt-0.5 text-muted-foreground">{m.mock_q1()}</p>
 						</div>
 						<div>
-							<span className="text-xs font-semibold text-primary">Patient</span>
-							<p className="mt-0.5 text-muted-foreground">
-								Suddenly, in the frontal region. It gets worse at night and knocks me down.
-							</p>
+							<span className="text-xs font-semibold text-primary">{m.mock_patient()}</span>
+							<p className="mt-0.5 text-muted-foreground">{m.mock_a1()}</p>
 						</div>
 						<div>
-							<span className="text-xs font-semibold text-primary">Dr. Ana</span>
-							<p className="mt-0.5 text-muted-foreground">Do you take any medication?</p>
+							<span className="text-xs font-semibold text-primary">{m.mock_dr_ana()}</span>
+							<p className="mt-0.5 text-muted-foreground">{m.mock_q2()}</p>
 						</div>
 						<div className="flex items-center gap-1.5 pt-1">
 							<span className="size-2 animate-pulse rounded-full bg-red-500" />
-							<span className="text-xs text-muted-foreground">recording…</span>
+							<span className="text-xs text-muted-foreground">{m.mock_recording()}</span>
 						</div>
 					</div>
 				</div>
@@ -142,39 +94,36 @@ function ProductMock() {
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
 							<FileTextIcon className="size-3.5" />
-							Anamnesis
+							{m.mock_anamnesis()}
 						</div>
 						<Badge variant="outline" className="text-[10px] font-normal">
-							sample
+							{m.mock_sample()}
 						</Badge>
 					</div>
 					<div className="mt-4 space-y-3">
 						<div className="rounded-lg border border-border border-l-4 border-l-primary bg-card p-3">
 							<div className="flex items-center justify-between gap-2">
-								<span className="text-xs font-semibold">Chief complaint</span>
+								<span className="text-xs font-semibold">{m.mock_cc()}</span>
 								<Badge className="bg-primary/10 text-[10px] text-primary ring-1 ring-primary/20 hover:bg-primary/15">
-									high confidence
+									{m.mock_conf_high()}
 								</Badge>
 							</div>
-							<p className="mt-1 text-sm">Intense frontal headache for 3 days, worse at night.</p>
-							<p className="mt-1 text-[11px] text-muted-foreground">
-								“The pain started suddenly, in the frontal region…”
-							</p>
+							<p className="mt-1 text-sm">{m.mock_cc_text()}</p>
+							<p className="mt-1 text-[11px] text-muted-foreground">{m.mock_cc_evidence()}</p>
 						</div>
 						<div className="rounded-lg border border-border border-l-4 border-l-amber-400 bg-card p-3">
 							<div className="flex items-center justify-between gap-2">
-								<span className="text-xs font-semibold">Current medications</span>
+								<span className="text-xs font-semibold">{m.mock_meds()}</span>
 								<Badge className="bg-amber-50 text-[10px] text-amber-700 ring-1 ring-amber-200 hover:bg-amber-50">
-									medium confidence
+									{m.mock_conf_med()}
 								</Badge>
 							</div>
-							<p className="mt-1 text-sm">Losartan 50 mg, once daily.</p>
+							<p className="mt-1 text-sm">{m.mock_meds_text()}</p>
 						</div>
 						<div className="flex items-start gap-2 rounded-lg bg-accent p-3 text-xs text-accent-foreground">
 							<CheckIcon className="mt-0.5 size-3.5 shrink-0" />
 							<span>
-								<span className="font-semibold">You review:</span> each section shows the source
-								sentence before saving.
+								<span className="font-semibold">{m.mock_review_lead()}</span> {m.mock_review_rest()}
 							</span>
 						</div>
 					</div>
@@ -185,32 +134,58 @@ function ProductMock() {
 }
 
 function Home() {
+	const steps = [
+		{ icon: MicIcon, title: m.step1_title(), desc: m.step1_desc() },
+		{ icon: SparklesIcon, title: m.step2_title(), desc: m.step2_desc() },
+		{ icon: ClipboardCheckIcon, title: m.step3_title(), desc: m.step3_desc() },
+	];
+	const stats = [
+		{ value: "8", label: m.home_stats_1() },
+		{ value: "pt-BR", label: m.home_stats_2() },
+		{ value: "100%", label: m.home_stats_3() },
+	];
+	const faq = [
+		{ q: m.faq1_q(), a: m.faq1_a() },
+		{ q: m.faq2_q(), a: m.faq2_a() },
+		{ q: m.faq3_q(), a: m.faq3_a() },
+		{ q: m.faq4_q(), a: m.faq4_a() },
+		{ q: m.faq5_q(), a: m.faq5_a() },
+	];
+	const reviewItems = [m.feat_review_i1(), m.feat_review_i2(), m.feat_review_i3()];
+	const privacyItems = [
+		{ icon: MicIcon, t: m.feat_privacy_p1() },
+		{ icon: LockIcon, t: m.feat_privacy_p2() },
+		{ icon: BotIcon, t: m.feat_privacy_p3() },
+	];
+	const anamChips = [
+		{ t: m.mock_cc(), c: m.mock_conf_high_short(), cls: "border-l-primary" },
+		{ t: m.feat_hpi(), c: m.mock_conf_med_short(), cls: "border-l-amber-400" },
+	];
 	return (
 		<div className="space-y-24">
 			{/* ---------- hero ---------- */}
 			<section className="mx-auto max-w-6xl px-6 pt-16 text-center">
 				<Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1">
 					<span className="size-1.5 rounded-full bg-primary" />
-					Clinical documentation by voice
+					{m.home_hero_badge()}
 				</Badge>
 				<h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-					Your consultation, <span className="text-primary">documented.</span>
+					{m.home_hero_title_a()} <span className="text-primary">{m.home_hero_title_b()}</span>
 				</h1>
 				<p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-					Talk to the patient, not to the screen. The conversation becomes a structured anamnesis.
-					You only review and approve. Each consultation context is kept for the next one.
+					{m.home_hero_subtitle()}
 				</p>
 				<div className="mt-8 flex flex-wrap items-center justify-center gap-3">
 					<Link to="/consultations/new" className={buttonVariants({ size: "lg" })}>
-						Start consultation
+						{m.home_cta_start()}
 						<ArrowRightIcon />
 					</Link>
 					<Link to="/consultations" className={buttonVariants({ variant: "outline", size: "lg" })}>
-						View consultations
+						{m.home_cta_view()}
 					</Link>
 				</div>
 				<dl className="mx-auto mt-14 grid max-w-xl grid-cols-3 gap-6 border-t border-border pt-8">
-					{STATS.map((s) => (
+					{stats.map((s) => (
 						<div key={s.label}>
 							<dt className="text-2xl font-bold tracking-tight">{s.value}</dt>
 							<dd className="mt-1 text-xs text-muted-foreground">{s.label}</dd>
@@ -230,16 +205,13 @@ function Home() {
 			{/* ---------- how it works ---------- */}
 			<section className="border-t border-border bg-muted/40 py-16">
 				<div className="mx-auto max-w-6xl px-6">
-					<SectionHeading
-						eyebrow="How it works"
-						title="From conversation to medical record in three steps"
-					/>
+					<SectionHeading eyebrow={m.home_steps_eyebrow()} title={m.home_steps_title()} />
 					<ol className="relative mt-12 grid gap-8 sm:grid-cols-3">
 						<span
 							aria-hidden
 							className="absolute top-5 right-[16%] left-[16%] hidden border-t border-dashed border-border sm:block"
 						/>
-						{STEPS.map((s, i) => (
+						{steps.map((s, i) => (
 							<li key={s.title} className="relative">
 								<span className="flex size-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
 									{i + 1}
@@ -261,7 +233,7 @@ function Home() {
 
 			{/* ---------- features (bento) ---------- */}
 			<section className="mx-auto max-w-6xl px-6 py-16">
-				<SectionHeading eyebrow="Why KTB" title="Built for the exam room, not the paperwork" />
+				<SectionHeading eyebrow={m.home_features_eyebrow()} title={m.home_features_title()} />
 				<div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 					{/* flagship tile */}
 					<Card className="sm:col-span-2 transition hover:ring-foreground/20">
@@ -269,10 +241,9 @@ function Home() {
 							<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
 								<AudioLinesIcon className="size-5" />
 							</span>
-							<CardTitle className="mt-3 text-base">Transcription in your browser</CardTitle>
+							<CardTitle className="mt-3 text-base">{m.feat_trans_title()}</CardTitle>
 							<CardDescription className="text-sm leading-relaxed">
-								Whisper runs locally in pt-BR, separating doctor and patient by voice. The audio
-								does not leave your computer. Only the text is processed.
+								{m.feat_trans_desc()}
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -295,17 +266,13 @@ function Home() {
 							<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
 								<FileTextIcon className="size-5" />
 							</span>
-							<CardTitle className="mt-3 text-base">Anamnesis with evidence</CardTitle>
+							<CardTitle className="mt-3 text-base">{m.feat_anam_title()}</CardTitle>
 							<CardDescription className="text-sm leading-relaxed">
-								Each field shows the confidence and the source sentences. You review the text
-								without re-listening to the consultation.
+								{m.feat_anam_desc()}
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-2">
-							{[
-								{ t: "Chief complaint", c: "high", cls: "border-l-primary" },
-								{ t: "History of illness", c: "medium", cls: "border-l-amber-400" },
-							].map((s) => (
+							{anamChips.map((s) => (
 								<div
 									key={s.t}
 									className={`flex items-center justify-between rounded-lg border border-l-4 border-border bg-muted/40 px-3 py-2 text-xs ${s.cls}`}
@@ -324,18 +291,13 @@ function Home() {
 							<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
 								<ClipboardCheckIcon className="size-5" />
 							</span>
-							<CardTitle className="mt-3 text-base">Review and approval</CardTitle>
+							<CardTitle className="mt-3 text-base">{m.feat_review_title()}</CardTitle>
 							<CardDescription className="text-sm leading-relaxed">
-								You edit each section, check the evidence, and approve. Nothing enters the record
-								without your ok.
+								{m.feat_review_desc()}
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-2">
-							{[
-								"Free editing per section",
-								"Sentence-by-sentence evidence",
-								"PDF ready to export",
-							].map((s) => (
+							{reviewItems.map((s) => (
 								<div
 									key={s}
 									className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
@@ -353,21 +315,16 @@ function Home() {
 								<span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
 									<ShieldCheckIcon className="size-5" />
 								</span>
-								<CardTitle className="mt-3 text-base">Privacy by design</CardTitle>
+								<CardTitle className="mt-3 text-base">{m.feat_privacy_title()}</CardTitle>
 								<CardDescription className="text-sm leading-relaxed">
-									Local transcription, recorded patient consent, and the option to run 100% in your
-									environment, with your own model on your GPU.
+									{m.feat_privacy_desc()}
 								</CardDescription>
 							</div>
 							<LockIcon className="mt-1 size-5 shrink-0 text-muted-foreground" />
 						</CardHeader>
 						<CardContent>
 							<div className="flex flex-wrap gap-2">
-								{[
-									{ icon: MicIcon, t: "Audio never leaves the machine" },
-									{ icon: LockIcon, t: "Consent per consultation" },
-									{ icon: BotIcon, t: "Bot with its own identifier" },
-								].map((p) => (
+								{privacyItems.map((p) => (
 									<span
 										key={p.t}
 										className="flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground"
@@ -382,17 +339,16 @@ function Home() {
 				</div>
 				<p className="mx-auto mt-8 flex max-w-md items-center justify-center gap-2 text-center text-sm text-muted-foreground">
 					<StethoscopeIcon className="size-4 shrink-0" />
-					Every consultation becomes lasting context. The next one already starts with the history
-					on screen.
+					{m.home_context_note()}
 				</p>
 			</section>
 
 			{/* ---------- FAQ ---------- */}
 			<section className="border-t border-border bg-muted/40 py-16">
 				<div className="mx-auto max-w-3xl px-6">
-					<SectionHeading eyebrow="Questions" title="Frequently asked questions" />
+					<SectionHeading eyebrow={m.home_faq_eyebrow()} title={m.home_faq_title()} />
 					<Accordion multiple className="mt-10">
-						{FAQ.map((f, i) => (
+						{faq.map((f, i) => (
 							<AccordionItem key={f.q} value={`faq-${i}`}>
 								<AccordionTrigger className="py-4 text-base">{f.q}</AccordionTrigger>
 								<AccordionContent className="text-muted-foreground leading-relaxed">
@@ -412,17 +368,15 @@ function Home() {
 						className="absolute -top-24 left-1/2 h-48 w-[36rem] -translate-x-1/2 rounded-full bg-white/10 blur-3xl"
 					/>
 					<div className="relative">
-						<h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-							End the day with no pending paperwork.
-						</h2>
+						<h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{m.home_cta_title()}</h2>
 						<p className="mx-auto mt-3 max-w-md text-sm text-primary-foreground/75">
-							Try it with the sample transcript, no microphone needed.
+							{m.home_cta_sub()}
 						</p>
 						<Link
 							to="/consultations/new"
 							className={buttonVariants({ variant: "secondary", size: "lg" }) + " mt-8"}
 						>
-							Start now
+							{m.home_cta_button()}
 							<ArrowRightIcon />
 						</Link>
 					</div>

@@ -21,6 +21,7 @@
 	},
 	"dependencies": {
 		"@huggingface/transformers": "^4.3.2",
+		"@inlang/paraglide-js": "2.29.3",
 		"@ktb/anamnesis": "workspace:*",
 		"@ktb/app-host": "workspace:*",
 		"@ktb/auth": "workspace:*",

@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
@@ -23,6 +24,13 @@ const config = defineConfig({
 		...(process.env.VITEST ? [] : [cloudflare({ viteEnvironment: { name: "ssr" } })]),
 		devtools(),
 		tailwindcss(),
+		paraglideVitePlugin({
+			project: "./project.inlang",
+			outdir: "./src/paraglide",
+			strategy: ["cookie", "baseLocale"],
+			cookieName: "ktb-locale",
+			emitTsDeclarations: true,
+		}),
 		...tanstackStart(),
 		viteReact(),
 	],
