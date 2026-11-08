@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -44,6 +44,12 @@ const BASE: ConsultationDetail = {
 	consentAt: new Date("2026-11-06T14:00:00"),
 	patientName: "Maria",
 	anamnesis: ANAMNESIS,
+	audioKey: null,
+	audioStatus: "none",
+	audioError: null,
+	serverTranscript: null,
+	correctedTranscript: null,
+	enhancementEngine: null,
 };
 
 const detail = (over: Partial<ConsultationDetail>): ConsultationDetail => ({ ...BASE, ...over });
@@ -169,6 +175,122 @@ describe("ConsultationDetailPage", () => {
 	it("hides history UI when count is zero", () => {
 		render(<ConsultationDetailPage c={detail({})} history={{ count: 0, visits: [] }} />);
 		expect(screen.queryByText(/previous consultation/)).toBeNull();
+	});
+
+	it("shows corrected/original tabs, status chip and audio player", () => {
+		render(
+			<ConsultationDetailPage
+				c={detail({
+					audioKey: "audio/u1/10/x.webm",
+					audioStatus: "done",
+					serverTranscript: "Médico: oi\nPaciente: olá",
+					correctedTranscript: "Médico: Olá.\nPaciente: Olá, doutor.",
+				})}
+				history={null}
+			/>,
+		);
+		// corrected is the default tab
+		expect(screen.getByText("Olá, doutor.")).toBeTruthy();
+		expect(screen.getByText("Corrected")).toBeTruthy();
+		expect(screen.getByText("Original")).toBeTruthy();
+		expect(screen.getByText("enhanced ✓")).toBeTruthy();
+		const audio = document.querySelector("audio") as HTMLAudioElement;
+		expect(audio.src).toContain("/api/consultations/10/audio");
+	});
+
+	it("original tab shows labeled server and browser transcripts", async () => {
+		const user = userEvent.setup();
+		render(
+			<ConsultationDetailPage
+				c={detail({
+					audioKey: "k",
+					audioStatus: "done",
+					serverTranscript: "server raw text",
+					correctedTranscript: "clean corrected",
+				})}
+				history={null}
+			/>,
+		);
+		await user.click(screen.getByText("Original"));
+		expect(screen.getByText("server raw text")).toBeTruthy();
+		expect(screen.getByText("server · whisper large-v3-turbo")).toBeTruthy();
+		// browser transcript differs → shown as a second labeled block
+		expect(screen.getByText("browser")).toBeTruthy();
+		expect(screen.getByText("olá doutor")).toBeTruthy();
+		await user.click(screen.getByText("Corrected"));
+		expect(screen.getByText("clean corrected")).toBeTruthy();
+		expect(screen.getByText("llm corrected")).toBeTruthy();
+	});
+
+	it("hides tabs when there is no corrected transcript and shows raw originals", () => {
+		render(
+			<ConsultationDetailPage
+				c={detail({
+					audioKey: "k",
+					audioStatus: "done",
+					serverTranscript: "server raw text",
+				})}
+				history={null}
+			/>,
+		);
+		expect(screen.queryByText("Corrected")).toBeNull();
+		expect(screen.getByText("server raw text")).toBeTruthy();
+		expect(screen.getByText("browser")).toBeTruthy();
+	});
+
+	it("shows enhancing and failed status chips", () => {
+		const { unmount } = render(
+			<ConsultationDetailPage
+				c={detail({ audioKey: "k", audioStatus: "processing" })}
+				history={null}
+			/>,
+		);
+		expect(screen.getByText(/enhancing transcript/)).toBeTruthy();
+		unmount();
+		render(
+			<ConsultationDetailPage
+				c={detail({ audioKey: "k", audioStatus: "failed" })}
+				history={null}
+			/>,
+		);
+		expect(screen.getByText(/enhancement failed — showing original/)).toBeTruthy();
+	});
+
+	it("polls getConsultation while the pipeline is in flight", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		const api = {
+			getConsultation: vi
+				.fn()
+				.mockResolvedValueOnce({
+					audioStatus: "processing",
+					audioKey: "k",
+					serverTranscript: null,
+					correctedTranscript: null,
+				})
+				.mockResolvedValue({
+					audioStatus: "done",
+					audioKey: "k",
+					serverTranscript: "server raw",
+					correctedTranscript: "clean corrected",
+				}),
+		};
+		render(
+			<ConsultationDetailPage
+				c={detail({ audioKey: "k", audioStatus: "queued" })}
+				history={null}
+				api={api}
+			/>,
+		);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(0);
+		});
+		expect(api.getConsultation).toHaveBeenCalled();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(3100);
+		});
+		await screen.findByText("clean corrected");
+		expect(screen.getByText("enhanced ✓")).toBeTruthy();
+		vi.useRealTimers();
 	});
 
 	it("renders transcript lines without speaker prefix and unknown speakers", () => {

@@ -1189,4 +1189,108 @@ describe("NewConsultationPage", () => {
 			await waitFor(() => expect(transcriptValue()).toBe("Doctor: local fica"));
 		});
 	});
+
+	describe("audio upload + server transcript", () => {
+		const audioBlob = new Blob(["audio"], { type: "audio/webm" });
+
+		function audioDetail(over: Record<string, unknown> = {}) {
+			return {
+				id: 42,
+				transcript: "paciente relata dor",
+				audioKey: "audio/u/42/x.webm",
+				audioStatus: "queued",
+				serverTranscript: null,
+				correctedTranscript: null,
+				...over,
+			};
+		}
+
+		it("uploads the session recording after save and tracks the pipeline", async () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+			tabRecFn = async () => audioBlob;
+			const api = makeApi({
+				getConsultation: vi
+					.fn()
+					.mockResolvedValueOnce(audioDetail())
+					.mockResolvedValue(
+						audioDetail({
+							audioStatus: "done",
+							serverTranscript: "server raw",
+							correctedTranscript: "clean corrected",
+						}),
+					),
+			});
+			const fetchMock = vi.fn(async () => ({
+				ok: true,
+				json: async () => ({ ok: true, audioStatus: "queued" }),
+			}));
+			vi.stubGlobal("fetch", fetchMock);
+			renderPage(api);
+			await consent(user);
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+
+			await waitFor(() =>
+				expect(fetchMock).toHaveBeenCalledWith(
+					"/api/consultations/42/audio",
+					expect.objectContaining({ method: "POST" }),
+				),
+			);
+			await screen.findByText(/enhancing transcript/);
+
+			// pipeline finishes → corrected transcript appears (default tab)
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3100);
+			});
+			await screen.findByText("clean corrected");
+			expect(screen.getByText("enhanced ✓")).toBeTruthy();
+
+			// generate uses the text on the viewed (corrected) tab
+			await user.click(screen.getByText("Generate anamnesis →"));
+			await waitFor(() =>
+				expect(api.extractAnamnesis).toHaveBeenLastCalledWith({
+					data: { transcript: "clean corrected", patientId: undefined },
+				}),
+			);
+			expect(screen.getByText(/llm corrected transcript/)).toBeTruthy();
+
+			// original tab exposes the raw ASR outputs
+			await user.click(screen.getByText("Original"));
+			await screen.findByText("server raw");
+			await screen.findByText("server · whisper large-v3-turbo");
+			// browser transcript also appears in the editable textarea
+			expect(screen.getAllByText("paciente relata dor").length).toBeGreaterThan(1);
+			vi.useRealTimers();
+		});
+
+		it("audio upload failure warns but does not block saving", async () => {
+			const user = userEvent.setup();
+			micRecFn = async () => audioBlob;
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => ({ ok: false, status: 500 })),
+			);
+			renderPage();
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+			await screen.findByText(/Audio could not be uploaded/);
+		});
+
+		it("does not call the audio endpoint without a recording", async () => {
+			const user = userEvent.setup();
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			renderPage();
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+			await act(async () => {
+				await new Promise((r) => setTimeout(r, 0));
+			});
+			expect(fetchMock).not.toHaveBeenCalledWith("/api/consultations/42/audio", expect.anything());
+		});
+	});
 });

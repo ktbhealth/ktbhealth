@@ -7,6 +7,7 @@ import {
 	attachAnamnesisFn,
 	createPatientFn,
 	extractAnamnesisFn,
+	getConsultationFn,
 	getLiveConsultationFn,
 	listPatientsFn,
 	recordConsentFn,
@@ -23,6 +24,7 @@ export const newConsultationApi: NewConsultationApi = {
 	saveConsultation: (input: { data: unknown }) => saveConsultationFn(input as never),
 	recordConsent: (input: { data: number }) => recordConsentFn(input),
 	createPatient: (input: { data: string }) => createPatientFn(input),
+	getConsultation: (input: { data: number }) => getConsultationFn(input),
 };
 
 export const Route = createFileRoute("/consultations/new")({

@@ -35,6 +35,12 @@ import {
 } from "@ktb/transcription";
 
 import { CONF_BAR, CONF_STYLE } from "./-ui.ts";
+import {
+	AudioTranscriptPanel,
+	useConsultationAudio,
+	type ConsultationAudioInfo,
+	type TranscriptView,
+} from "./-transcript.tsx";
 
 function fmtElapsed(totalSec: number) {
 	const m = Math.floor(totalSec / 60);
@@ -76,6 +82,8 @@ export interface NewConsultationApi {
 	saveConsultation(input: { data: unknown }): Promise<{ id: number; updated?: boolean }>;
 	recordConsent(input: { data: number }): Promise<{ ok: boolean }>;
 	createPatient(input: { data: string }): Promise<{ id: number; name: string } | null>;
+	/** Optional: refetch after audio upload to track server transcription. */
+	getConsultation?(input: { data: number }): Promise<ConsultationAudioInfo | null>;
 }
 
 export function NewConsultationPage({
@@ -128,6 +136,12 @@ export function NewConsultationPage({
 	const [dictating, setDictating] = useState(false);
 	const [elapsedSec, setElapsedSec] = useState(0);
 	const dictationStartRef = useRef(0);
+	// Audio pipeline (P-015/P-018): after save, the session recording is
+	// uploaded and the detail is polled for server/corrected transcripts.
+	const [audioConsultId, setAudioConsultId] = useState<number | null>(null);
+	const [viewedText, setViewedText] = useState<TranscriptView | null>(null);
+	const uploadedAudioFor = useRef(new Set<number>());
+	const pendingUploadBlob = useRef<Blob | null>(null);
 
 	// Preload Whisper once per page: first visit downloads, later ones
 	// come straight from the browser cache.
@@ -173,6 +187,13 @@ export function NewConsultationPage({
 		return () => clearInterval(interval);
 	}, [liveId, liveStatus]);
 
+	// Poll the saved consultation while the server pipeline works on the
+	// uploaded audio (queued → processing → done/failed).
+	const audioDetail = useConsultationAudio(
+		audioConsultId !== null ? api.getConsultation : undefined,
+		audioConsultId,
+	);
+
 	async function transcribeAudioBlob(blob: Blob, filename: string): Promise<string> {
 		const form = new FormData();
 		form.append("audio", blob, filename);
@@ -183,6 +204,7 @@ export function NewConsultationPage({
 	}
 
 	async function uploadAudio(file: File) {
+		pendingUploadBlob.current = file;
 		setBusy(true);
 		setError(null);
 		try {
@@ -346,15 +368,47 @@ export function NewConsultationPage({
 		setDictating(true);
 	}
 
+	/**
+	 * P-015 client half: push the session recording to R2 after the
+	 * consultation exists. The endpoint keeps a single audio object per
+	 * consultation, so only one blob is uploaded — the call-tab capture
+	 * (both parties) wins over the mic, which wins over an uploaded file.
+	 * Fire-and-forget: a failure surfaces as a toast, never blocks save.
+	 */
+	async function uploadSessionAudio(id: number) {
+		if (uploadedAudioFor.current.has(id)) return;
+		try {
+			const [tabBlob, micBlob] = await Promise.all([
+				tabRef.current?.recording?.() ?? Promise.resolve(null),
+				transcriberRef.current?.recording?.() ?? Promise.resolve(null),
+			]);
+			const blob = tabBlob ?? micBlob ?? pendingUploadBlob.current;
+			if (!blob || blob.size === 0) return;
+			uploadedAudioFor.current.add(id);
+			const res = await fetch(`/api/consultations/${id}/audio`, {
+				method: "POST",
+				headers: { "content-type": (blob.type || "audio/webm").split(";")[0] },
+				body: blob,
+			});
+			if (!res.ok) throw new Error(`audio upload failed (${res.status})`);
+			setAudioConsultId(id);
+		} catch (e) {
+			showToast({
+				text: `Audio could not be uploaded (${e instanceof Error ? e.message : "error"}). The consultation was saved without it.`,
+			});
+		}
+	}
+
 	async function generate() {
+		const text = viewedText?.text ?? transcript;
 		/* v8 ignore next -- Generate anamnesis is disabled while transcript is empty */
-		if (!transcript.trim()) return;
+		if (!text.trim()) return;
 		setBusy(true);
 		setError(null);
 		setSavedId(null);
 		try {
 			const res = await api.extractAnamnesis({
-				data: { transcript, patientId: patientId ?? undefined },
+				data: { transcript: text, patientId: patientId ?? undefined },
 			});
 			setAnamnesis(res.anamnesis);
 			setEngine(res.engine);
@@ -401,6 +455,7 @@ export function NewConsultationPage({
 			if (!id) throw new Error("could not save the consultation");
 			if (consented) await api.recordConsent({ data: id });
 			setSavedId(id);
+			void uploadSessionAudio(id);
 			setSaveDialog({ kind: "ok", id, updated: Boolean(existing) });
 		} catch (e) {
 			setSaveDialog({
@@ -434,6 +489,9 @@ export function NewConsultationPage({
 	const step2 = transcript.trim().length > 0;
 	const step3 = anamnesis !== null;
 	const live = recording || tabRecording || dictating;
+	// Anamnesis is generated from the transcript version on screen —
+	// the corrected/server text once the audio pipeline panel is up.
+	const extractText = viewedText?.text ?? transcript;
 	/* v8 ignore next -- patientId only comes from the patients list or createPatient */
 	const dialogPatientName = patientId
 		? (patients.find((p) => p.id === patientId)?.name ?? "patient")
@@ -789,15 +847,37 @@ export function NewConsultationPage({
 							/>
 						</div>
 
+						{audioDetail || audioConsultId !== null ? (
+							<div className="rounded-xl border border-border p-3">
+								<p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+									Server transcript
+								</p>
+								<AudioTranscriptPanel
+									consultationId={audioConsultId}
+									audioStatus={audioDetail?.audioStatus ?? "queued"}
+									hasAudio={Boolean(audioDetail?.audioKey)}
+									browserText={transcript}
+									serverText={audioDetail?.serverTranscript}
+									correctedText={audioDetail?.correctedTranscript}
+									onActiveText={setViewedText}
+								/>
+							</div>
+						) : null}
+
 						<Button
 							type="button"
 							onClick={generate}
-							disabled={busy || !transcript.trim()}
+							disabled={busy || !extractText.trim()}
 							className="h-auto w-full px-4 py-2.5"
 						>
 							{busy ? <Spinner /> : null}
 							{busy ? "Generating anamnesis…" : "Generate anamnesis →"}
 						</Button>
+						{viewedText ? (
+							<p className="text-[11px] text-muted-foreground">
+								anamnesis generated from the {viewedText.source} transcript
+							</p>
+						) : null}
 						{error ? (
 							<Alert variant="destructive" className="px-3 py-2 text-xs">
 								{error}

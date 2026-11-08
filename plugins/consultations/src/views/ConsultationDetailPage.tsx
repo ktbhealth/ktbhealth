@@ -16,7 +16,12 @@ import {
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
 
-import { BADGE_TONES, CONF_BAR, CONF_STYLE, SOURCE_LABEL, SPEAKER_STYLE } from "./-ui.ts";
+import { BADGE_TONES, CONF_BAR, CONF_STYLE, SOURCE_LABEL } from "./-ui.ts";
+import {
+	AudioTranscriptPanel,
+	useConsultationAudio,
+	type ConsultationAudioInfo,
+} from "./-transcript.tsx";
 
 /** Sections that read better side by side. */
 const WIDE: AnamnesisSectionKey[] = ["queixa_principal", "hda", "hipoteses", "conduta"];
@@ -35,39 +40,6 @@ function Chip({
 	);
 }
 
-/** "Doctor: text" lines become chat-style bubbles. */
-function Transcript({ text }: { text: string }) {
-	const lines = text.split("\n").filter((l) => l.trim());
-	if (!lines.length) return <p className="text-sm text-muted-foreground">No transcript.</p>;
-	return (
-		<div className="space-y-2.5">
-			{lines.map((line, i) => {
-				const m = line.match(/^([\p{L} ]{2,20}):\s*(.*)$/u);
-				const speaker = m?.[1];
-				const body = m ? m[2] : line;
-				return (
-					<div
-						// biome-ignore lint/suspicious/noArrayIndexKey: static, ordered transcript lines
-						key={i}
-						className="text-sm leading-relaxed"
-					>
-						{speaker ? (
-							<span
-								className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
-									SPEAKER_STYLE[speaker] ?? "bg-muted text-muted-foreground ring-border"
-								}`}
-							>
-								{speaker}
-							</span>
-						) : null}
-						<span className="text-foreground">{body}</span>
-					</div>
-				);
-			})}
-		</div>
-	);
-}
-
 export interface ConsultationDetail {
 	id: number;
 	userId: string | null;
@@ -81,16 +53,40 @@ export interface ConsultationDetail {
 	consentAt: Date | null;
 	createdAt: Date;
 	patientName: string | null;
+	/** Audio pipeline fields (P-015..P-017) — null/none on older rows. */
+	audioKey: string | null;
+	audioStatus: string;
+	audioError: string | null;
+	serverTranscript: string | null;
+	correctedTranscript: string | null;
+	enhancementEngine: string | null;
 }
+
+/** Optional live refetch — enables polling while the audio pipeline runs. */
+export interface ConsultationDetailApi {
+	getConsultation(input: { data: number }): Promise<ConsultationAudioInfo | null>;
+}
+
+const PIPELINE_IN_FLIGHT = new Set(["stored", "queued", "processing"]);
 
 export function ConsultationDetailPage({
 	c,
 	history,
+	api,
 }: {
 	c: ConsultationDetail;
 	history: PatientHistory | null;
+	api?: ConsultationDetailApi;
 }) {
 	const [toast, setToast] = useState<ToastData | null>(null);
+	// Poll only when the loader data says the pipeline may still be
+	// running (or the LLM cleanup is pending); the hook stops itself
+	// once the job reaches a terminal state.
+	const pipelineActive =
+		PIPELINE_IN_FLIGHT.has(c.audioStatus) ||
+		(c.audioStatus === "done" && Boolean(c.serverTranscript) && !c.correctedTranscript);
+	const live = useConsultationAudio(api && pipelineActive ? api.getConsultation : undefined, c.id);
+	const v = live ?? c;
 	const when = new Date(c.createdAt).toLocaleString("en-US", {
 		dateStyle: "long",
 		timeStyle: "short",
@@ -246,7 +242,14 @@ export function ConsultationDetailPage({
 						<h2 className="text-sm font-semibold">Transcript</h2>
 					</div>
 					<div className="max-h-[70vh] overflow-y-auto p-5">
-						<Transcript text={c.transcript} />
+						<AudioTranscriptPanel
+							consultationId={c.id}
+							audioStatus={v.audioStatus}
+							hasAudio={Boolean(v.audioKey)}
+							browserText={v.transcript}
+							serverText={v.serverTranscript}
+							correctedText={v.correctedTranscript}
+						/>
 					</div>
 				</aside>
 			</div>
