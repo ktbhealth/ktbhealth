@@ -18,6 +18,38 @@ export interface Transcriber {
 	readonly supported: boolean;
 	start(onEvent: (event: TranscriptEvent) => void): void;
 	stop(): void;
+	/**
+	 * Optional: quality stats of the last finished session. Adapters that
+	 * cannot score confidence may omit this — the page then never falls
+	 * back to server transcription.
+	 */
+	sessionStats?(): SessionStats;
+	/**
+	 * Optional: audio captured during the last session, for server-side
+	 * re-transcription when `sessionStats` reports low confidence.
+	 * Resolves null when nothing was recorded or the session is live.
+	 */
+	recording?(): Promise<Blob | null>;
+}
+
+export interface SessionStats {
+	/** Seconds of audio that passed the speech gate. */
+	voicedSec: number;
+	/** Total characters emitted as final transcript. */
+	chars: number;
+}
+
+/** Below this many transcript chars per voiced second, Whisper output is suspect. */
+export const FALLBACK_MIN_CHARS_PER_VOICED_SEC = 2.5;
+/** Ignore stats from sessions shorter than this — too little signal. */
+export const FALLBACK_MIN_VOICED_SEC = 6;
+
+/** Heuristic for ADR-0002: client compute first, server only on fallback. */
+export function needsServerFallback(stats: SessionStats): boolean {
+	return (
+		stats.voicedSec >= FALLBACK_MIN_VOICED_SEC &&
+		stats.chars < stats.voicedSec * FALLBACK_MIN_CHARS_PER_VOICED_SEC
+	);
 }
 
 /** Minimal shape of the browser SpeechRecognition we rely on. */

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createTranscriber, WebSpeechTranscriber } from "./index.ts";
+import { createTranscriber, needsServerFallback, WebSpeechTranscriber } from "./index.ts";
 
 describe("WebSpeechTranscriber in node environment", () => {
 	it("reports not supported in node environment", () => {
@@ -165,5 +165,25 @@ describe("createTranscriber factory", () => {
 	it("returns a WebSpeechTranscriber instance", () => {
 		const t = createTranscriber();
 		expect(t).toBeInstanceOf(WebSpeechTranscriber);
+	});
+});
+
+describe("needsServerFallback", () => {
+	it("triggers on little transcript per voiced second", () => {
+		expect(needsServerFallback({ voicedSec: 10, chars: 10 })).toBe(true);
+	});
+
+	it("does not trigger on healthy output", () => {
+		expect(needsServerFallback({ voicedSec: 10, chars: 100 })).toBe(false);
+	});
+
+	it("ignores sessions below the minimum voiced duration", () => {
+		expect(needsServerFallback({ voicedSec: 5, chars: 0 })).toBe(false);
+	});
+
+	it("boundary: exactly at the chars-per-second threshold", () => {
+		// 6s voiced * 2.5 = 15 chars is the boundary (strict <)
+		expect(needsServerFallback({ voicedSec: 6, chars: 14 })).toBe(true);
+		expect(needsServerFallback({ voicedSec: 6, chars: 15 })).toBe(false);
 	});
 });

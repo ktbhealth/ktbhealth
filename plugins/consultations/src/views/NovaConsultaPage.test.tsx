@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Anamnesis } from "@ktb/anamnesis";
 import type { AnamnesisReview } from "@ktb/anamnesis";
 import type {
+	SessionStats,
 	Transcriber,
 	TranscriptionBackend,
 	TranscriptionEngineMessage,
@@ -25,6 +26,11 @@ let statusImpl: () => TranscriptionStatus = () => ({
 const micStop = vi.fn();
 const tabStop = vi.fn();
 const engineSubs = new Set<(m: TranscriptionEngineMessage) => void>();
+// Optional fallback hooks — null means the transcriber lacks the method.
+let micStatsFn: (() => SessionStats) | null = null;
+let micRecFn: (() => Promise<Blob | null>) | null = null;
+let tabStatsFn: (() => SessionStats) | null = null;
+let tabRecFn: (() => Promise<Blob | null>) | null = null;
 
 const backend: TranscriptionBackend = {
 	mic: (): Transcriber => ({
@@ -35,6 +41,8 @@ const backend: TranscriptionBackend = {
 			micCb = cb;
 		},
 		stop: micStop,
+		...(micStatsFn ? { sessionStats: micStatsFn } : {}),
+		...(micRecFn ? { recording: micRecFn } : {}),
 	}),
 	tab: (): Transcriber => ({
 		supported: true,
@@ -42,6 +50,8 @@ const backend: TranscriptionBackend = {
 			tabCb = cb;
 		},
 		stop: tabStop,
+		...(tabStatsFn ? { sessionStats: tabStatsFn } : {}),
+		...(tabRecFn ? { recording: tabRecFn } : {}),
 	}),
 	status: () => statusImpl(),
 	subscribe: (fn: (m: TranscriptionEngineMessage) => void) => {
@@ -133,6 +143,10 @@ describe("NovaConsultaPage", () => {
 		micSupported = true;
 		micCb = null;
 		tabCb = null;
+		micStatsFn = null;
+		micRecFn = null;
+		tabStatsFn = null;
+		tabRecFn = null;
 		statusImpl = () => ({ state: "idle", device: null });
 		engineSubs.clear();
 		vi.stubGlobal("fetch", vi.fn());
@@ -1194,6 +1208,188 @@ describe("NovaConsultaPage", () => {
 			expect(api.extractAnamnese).toHaveBeenCalledWith({
 				data: "narrei a consulta toda",
 			});
+		});
+	});
+
+	describe("server fallback on low confidence", () => {
+		const LOW: SessionStats = { voicedSec: 10, chars: 5 };
+		const HIGH: SessionStats = { voicedSec: 10, chars: 200 };
+		const blob = new Blob(["audio"], { type: "audio/webm" });
+
+		function transcriptValue() {
+			return (screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value;
+		}
+
+		async function flushFallback() {
+			await act(async () => {
+				await new Promise((r) => setTimeout(r, 0));
+			});
+		}
+
+		it("mic session re-transcribes on the server and keeps the Médico label", async () => {
+			const user = userEvent.setup();
+			const fetchMock = vi.fn(async () => ({
+				ok: true,
+				json: async () => ({ text: "transcrição do servidor" }),
+			}));
+			vi.stubGlobal("fetch", fetchMock);
+			micStatsFn = () => LOW;
+			micRecFn = async () => blob;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "final", text: "lixo local" }));
+			act(() => micCb!({ type: "end" }));
+			await waitFor(() => expect(transcriptValue()).toBe("Médico: transcrição do servidor"));
+			expect(fetchMock).toHaveBeenCalledWith(
+				"/api/transcribe",
+				expect.objectContaining({ method: "POST" }),
+			);
+		});
+
+		it("splices the server result after pre-existing transcript", async () => {
+			const user = userEvent.setup();
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => ({
+					ok: true,
+					json: async () => ({ text: "só o trecho novo" }),
+				})),
+			);
+			micStatsFn = () => LOW;
+			micRecFn = async () => blob;
+			renderPage();
+			fireEvent.change(screen.getByLabelText("Texto da consulta"), {
+				target: { value: "anotação anterior" },
+			});
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "final", text: "lixo local" }));
+			act(() => micCb!({ type: "end" }));
+			await waitFor(() =>
+				expect(transcriptValue()).toBe("anotação anterior\nMédico: só o trecho novo"),
+			);
+		});
+
+		it("tab session falls back with the Paciente label", async () => {
+			const user = userEvent.setup();
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => ({
+					ok: true,
+					json: async () => ({ text: "paciente no servidor" }),
+				})),
+			);
+			tabStatsFn = () => LOW;
+			tabRecFn = async () => blob;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Capturar aba da chamada"));
+			act(() => tabCb!({ type: "final", text: "lixo" }));
+			act(() => tabCb!({ type: "end" }));
+			await waitFor(() => expect(transcriptValue()).toBe("Paciente: paciente no servidor"));
+		});
+
+		it("dictation falls back without a speaker label", async () => {
+			const user = userEvent.setup();
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => ({
+					ok: true,
+					json: async () => ({ text: "narração refeita" }),
+				})),
+			);
+			micStatsFn = () => LOW;
+			micRecFn = async () => blob;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Ditado pós-consulta"));
+			await user.click(screen.getByText("Iniciar narração"));
+			act(() => micCb!({ type: "final", text: "lixo local" }));
+			act(() => micCb!({ type: "end" }));
+			await waitFor(() => expect(transcriptValue()).toBe("narração refeita"));
+		});
+
+		it("does not fall back when confidence is healthy", async () => {
+			const user = userEvent.setup();
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			micStatsFn = () => HIGH;
+			micRecFn = async () => blob;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "final", text: "transcrição boa" }));
+			act(() => micCb!({ type: "end" }));
+			await flushFallback();
+			await waitFor(() => expect(transcriptValue()).toBe("Médico: transcrição boa"));
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
+		it("does not fall back without a recording to upload", async () => {
+			const user = userEvent.setup();
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			micStatsFn = () => LOW;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "end" }));
+			await flushFallback();
+			await waitFor(() => expect(screen.getByText("Gravar microfone")).toBeTruthy());
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
+		it("keeps the local transcript when the recording is empty", async () => {
+			const user = userEvent.setup();
+			const fetchMock = vi.fn();
+			vi.stubGlobal("fetch", fetchMock);
+			micStatsFn = () => LOW;
+			micRecFn = async () => null;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "final", text: "local fica" }));
+			act(() => micCb!({ type: "end" }));
+			await flushFallback();
+			await waitFor(() => expect(transcriptValue()).toBe("Médico: local fica"));
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
+		it("keeps the local transcript when the server returns empty text", async () => {
+			const user = userEvent.setup();
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => ({ ok: true, json: async () => ({ text: "   " }) })),
+			);
+			micStatsFn = () => LOW;
+			micRecFn = async () => blob;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "final", text: "local fica" }));
+			act(() => micCb!({ type: "end" }));
+			await flushFallback();
+			await waitFor(() => expect(transcriptValue()).toBe("Médico: local fica"));
+		});
+
+		it("keeps the local transcript when the upload fails", async () => {
+			const user = userEvent.setup();
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => {
+					throw new Error("network down");
+				}),
+			);
+			micStatsFn = () => LOW;
+			micRecFn = async () => blob;
+			renderPage();
+			await consent(user);
+			await user.click(screen.getByText("Gravar microfone"));
+			act(() => micCb!({ type: "final", text: "local fica" }));
+			act(() => micCb!({ type: "end" }));
+			await flushFallback();
+			await waitFor(() => expect(transcriptValue()).toBe("Médico: local fica"));
 		});
 	});
 });

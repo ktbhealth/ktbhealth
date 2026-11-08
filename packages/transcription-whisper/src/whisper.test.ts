@@ -64,12 +64,35 @@ function makeStream(withAudio = true, withVideo = false) {
 	};
 }
 
-async function setup(opts?: { supported?: boolean; stream?: ReturnType<typeof makeStream> }) {
+class MockMediaRecorder {
+	static instances: MockMediaRecorder[] = [];
+	state: "inactive" | "recording" = "inactive";
+	mimeType = "audio/webm";
+	ondataavailable: ((e: { data: Blob }) => void) | null = null;
+	onstop: (() => void) | null = null;
+	start = vi.fn(() => {
+		this.state = "recording";
+	});
+	stop = vi.fn(() => {
+		this.state = "inactive";
+		this.onstop?.();
+	});
+	constructor(public stream: unknown) {
+		MockMediaRecorder.instances.push(this);
+	}
+}
+
+async function setup(opts?: {
+	supported?: boolean;
+	stream?: ReturnType<typeof makeStream>;
+	mediaRecorder?: boolean;
+}) {
 	vi.resetModules();
 	mockWorkerPost = vi.fn();
 	engineSubscribers.clear();
 	MockAudioContext.instances = [];
 	MockAudioContext.lastProcessor = null;
+	MockMediaRecorder.instances = [];
 
 	vi.doMock("./whisper-engine.ts", () => ({
 		loadWhisper: vi.fn(),
@@ -101,6 +124,7 @@ async function setup(opts?: { supported?: boolean; stream?: ReturnType<typeof ma
 	vi.stubGlobal("navigator", nav);
 	vi.stubGlobal("Worker", MockWorker);
 	vi.stubGlobal("AudioContext", MockAudioContext);
+	if (opts?.mediaRecorder !== false) vi.stubGlobal("MediaRecorder", MockMediaRecorder);
 
 	const mod = (await import("./whisper.ts")) as WhisperModule;
 	return { mod, stream, nav };
@@ -355,6 +379,90 @@ describe("WhisperTranscriber", () => {
 		const { mod } = await setup();
 		const t = new mod.WhisperTranscriber(async () => makeStream() as never);
 		expect(() => t.stop()).not.toThrow();
+	});
+
+	it("sessionStats starts at zero and accumulates voiced seconds and chars", async () => {
+		const { mod } = await setup();
+		const t = new mod.WhisperTranscriber(async () => makeStream() as never);
+		expect(t.sessionStats()).toEqual({ voicedSec: 0, chars: 0 });
+		const events: TranscriptEvent[] = [];
+		t.start((e) => events.push(e));
+		await vi.waitFor(() => expect(MockAudioContext.lastProcessor).not.toBeNull());
+		const id = (t as unknown as { id: string }).id;
+
+		const proc = MockAudioContext.lastProcessor!;
+		const loud = new Float32Array(4096).fill(0.2);
+		const silent = new Float32Array(4096).fill(0.001);
+		for (let i = 0; i < 17; i++)
+			proc.onaudioprocess!({ inputBuffer: { getChannelData: () => loud } });
+		proc.onaudioprocess!({ inputBuffer: { getChannelData: () => silent } });
+		proc.onaudioprocess!({ inputBuffer: { getChannelData: () => silent } });
+		expect(t.sessionStats().voicedSec).toBeGreaterThan(0);
+
+		emitEngine({ type: "text", id, text: "olá mundo" });
+		expect(t.sessionStats().chars).toBe("olá mundo".length);
+		t.stop();
+	});
+
+	it("records session audio; recording() resolves the blob after stop", async () => {
+		const { mod } = await setup();
+		const t = new mod.WhisperTranscriber(async () => makeStream() as never);
+		t.start(() => {});
+		await vi.waitFor(() => expect(MockAudioContext.instances).toHaveLength(1));
+		const rec = MockMediaRecorder.instances[0]!;
+		expect(rec.state).toBe("recording");
+		// live session: no blob yet
+		await expect(t.recording()).resolves.toBeNull();
+		rec.ondataavailable!({ data: new Blob([]) });
+		rec.ondataavailable!({ data: new Blob(["audio"]) });
+		t.stop();
+		const blob = await t.recording();
+		expect(blob).toBeInstanceOf(Blob);
+		expect(blob?.type).toBe("audio/webm");
+	});
+
+	it("recording() resolves null without MediaRecorder support", async () => {
+		const { mod } = await setup({ mediaRecorder: false });
+		const t = new mod.WhisperTranscriber(async () => makeStream() as never);
+		t.start(() => {});
+		await vi.waitFor(() => expect(MockAudioContext.instances).toHaveLength(1));
+		t.stop();
+		await expect(t.recording()).resolves.toBeNull();
+	});
+
+	it("recording() resolves null when MediaRecorder fails to start", async () => {
+		const { mod } = await setup();
+		vi.stubGlobal(
+			"MediaRecorder",
+			class {
+				constructor() {
+					throw new Error("no codec");
+				}
+			},
+		);
+		const t = new mod.WhisperTranscriber(async () => makeStream() as never);
+		t.start(() => {});
+		await vi.waitFor(() => expect(MockAudioContext.instances).toHaveLength(1));
+		t.stop();
+		await expect(t.recording()).resolves.toBeNull();
+	});
+
+	it("stop while boot is in flight still stops the recorder", async () => {
+		const { mod } = await setup();
+		let release!: (s: unknown) => void;
+		const gate = new Promise((r) => {
+			release = r;
+		});
+		const t = new mod.WhisperTranscriber(async () => {
+			await gate;
+			return makeStream() as never;
+		});
+		t.start(() => {});
+		t.stop();
+		release(makeStream());
+		await vi.waitFor(() => expect(MockMediaRecorder.instances).toHaveLength(1));
+		expect(MockMediaRecorder.instances[0]!.stop).toHaveBeenCalled();
+		await expect(t.recording()).resolves.toBeNull();
 	});
 
 	it("factories create mic and tab transcribers", async () => {

@@ -1,4 +1,4 @@
-import type { Transcriber, TranscriptEvent } from "@ktb/transcription";
+import type { SessionStats, Transcriber, TranscriptEvent } from "@ktb/transcription";
 import {
 	type EngineMessage,
 	loadWhisper,
@@ -32,6 +32,13 @@ export class WhisperTranscriber implements Transcriber {
 	private stopping = false;
 	private inflight = 0;
 	private emit: ((event: TranscriptEvent) => void) | null = null;
+	// Session stats for the server-fallback heuristic (ADR-0002).
+	private voicedSec = 0;
+	private sessionChars = 0;
+	// Parallel MediaRecorder capture — only uploaded when confidence is low.
+	private recorder: MediaRecorder | null = null;
+	private recorderChunks: Blob[] = [];
+	private recorderDone: Promise<Blob | null> | null = null;
 
 	constructor(
 		private acquire: () => Promise<MediaStream>,
@@ -57,6 +64,11 @@ export class WhisperTranscriber implements Transcriber {
 		this.stopping = false;
 		this.inflight = 0;
 		this.emit = onEvent;
+		this.voicedSec = 0;
+		this.sessionChars = 0;
+		this.recorder = null;
+		this.recorderChunks = [];
+		this.recorderDone = null;
 		if (this.hint) onEvent({ type: "partial", text: this.hint });
 		void this.boot(onEvent).catch((e) =>
 			onEvent({
@@ -75,6 +87,8 @@ export class WhisperTranscriber implements Transcriber {
 			return;
 		}
 		audio.onended = () => this.stop();
+		this.startRecorder(this.stream);
+		if (this.stopping) this.recorder?.stop();
 
 		this.active = true;
 		this.unsubscribe = subscribeWhisper((msg: EngineMessage) => {
@@ -83,7 +97,11 @@ export class WhisperTranscriber implements Transcriber {
 				onEvent({ type: "partial", text: `[modelo pronto (${msg.device})]` });
 			if (msg.type === "text" && msg.id === this.id) {
 				this.inflight = Math.max(0, this.inflight - 1);
-				if (msg.text?.trim()) onEvent({ type: "final", text: msg.text.trim() });
+				const text = msg.text?.trim();
+				if (text) {
+					this.sessionChars += text.length;
+					onEvent({ type: "final", text });
+				}
 				this.finishIfDone();
 			}
 			if (msg.type === "error" && (!msg.id || msg.id === this.id)) {
@@ -137,6 +155,7 @@ export class WhisperTranscriber implements Transcriber {
 		this.rms = [];
 		this.bufferedSec = 0;
 		this.inflight++;
+		this.voicedSec += total / 16000;
 		console.log(`[whisper] enviando ${(total / 16000).toFixed(1)}s de áudio`);
 		sendAudio(this.id, pcm);
 	}
@@ -151,10 +170,45 @@ export class WhisperTranscriber implements Transcriber {
 		this.emit?.({ type: "end" });
 	}
 
+	/** Quality stats of the current/last session — read after `end`. */
+	sessionStats(): SessionStats {
+		return { voicedSec: this.voicedSec, chars: this.sessionChars };
+	}
+
+	/** Last session's audio blob; null while still recording or if unsupported. */
+	recording(): Promise<Blob | null> {
+		if (this.recorder && this.recorder.state === "recording") return Promise.resolve(null);
+		return this.recorderDone ?? Promise.resolve(null);
+	}
+
+	private startRecorder(stream: MediaStream) {
+		if (typeof MediaRecorder === "undefined") return;
+		try {
+			this.recorderChunks = [];
+			const rec = new MediaRecorder(stream);
+			this.recorder = rec;
+			rec.ondataavailable = (e) => {
+				if (e.data.size) this.recorderChunks.push(e.data);
+			};
+			this.recorderDone = new Promise<Blob | null>((resolve) => {
+				rec.onstop = () =>
+					resolve(
+						this.recorderChunks.length
+							? new Blob(this.recorderChunks, { type: rec.mimeType })
+							: null,
+					);
+			});
+			rec.start(1000);
+		} catch {
+			this.recorder = null;
+		}
+	}
+
 	stop(): void {
 		if (this.stopping) return;
 		this.stopping = true;
 		this.flush();
+		if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop();
 		for (const t of this.stream?.getTracks() ?? []) t.stop();
 		void this.ctx?.close();
 		this.stream = null;

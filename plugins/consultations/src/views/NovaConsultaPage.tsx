@@ -18,7 +18,11 @@ import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis";
 import type { AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
-import type { Transcriber, TranscriptionBackend } from "@ktb/transcription";
+import {
+	needsServerFallback,
+	type Transcriber,
+	type TranscriptionBackend,
+} from "@ktb/transcription";
 
 const CONF_STYLE: Record<Confidence, string> = {
 	alta: "bg-primary/10 text-primary ring-primary/20",
@@ -125,6 +129,9 @@ export function NovaConsultaPage({
 	);
 	const transcriberRef = useRef<Transcriber | null>(null);
 	const tabRef = useRef<Transcriber | null>(null);
+	// Transcript length when each capture session started — lets the
+	// server fallback splice out the low-confidence local output.
+	const sessionSnapshot = useRef({ mic: 0, tab: 0, dict: 0 });
 	const [tabRecording, setTabRecording] = useState(false);
 	const [modelStatus, setModelStatus] = useState<string | null>(() => {
 		const st = backend.status();
@@ -182,20 +189,56 @@ export function NovaConsultaPage({
 		return () => clearInterval(interval);
 	}, [liveId, liveStatus]);
 
+	async function transcribeAudioBlob(blob: Blob, filename: string): Promise<string> {
+		const form = new FormData();
+		form.append("audio", blob, filename);
+		const res = await fetch("/api/transcribe", { method: "POST", body: form });
+		if (!res.ok) throw new Error(`transcrição falhou (${res.status})`);
+		const { text } = (await res.json()) as { text: string };
+		return text;
+	}
+
 	async function uploadAudio(file: File) {
 		setBusy(true);
 		setError(null);
 		try {
-			const form = new FormData();
-			form.append("audio", file);
-			const res = await fetch("/api/transcribe", { method: "POST", body: form });
-			if (!res.ok) throw new Error(`transcrição falhou (${res.status})`);
-			const { text } = (await res.json()) as { text: string };
+			const text = await transcribeAudioBlob(file, file.name);
 			setTranscript((t) => (t ? `${t}\n${text}` : text));
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "transcrição falhou");
 		} finally {
 			setBusy(false);
+		}
+	}
+
+	/**
+	 * ADR-0002 fallback: when a finished capture session looks low-quality
+	 * (little transcript per voiced second), re-transcribe the recorded
+	 * audio on the server and splice the result in place of the local
+	 * lines. No-op for transcribers without stats/recording support.
+	 */
+	async function maybeServerFallback(mode: "mic" | "tab" | "dict") {
+		const t = mode === "tab" ? tabRef.current : transcriberRef.current;
+		/* v8 ignore next -- refs are assigned in useEffect before any capture ends */
+		if (!t) return;
+		const stats = t.sessionStats?.();
+		if (!stats || !needsServerFallback(stats)) return;
+		const blob = await t.recording?.();
+		if (!blob) return;
+		setModelStatus("confiança baixa, reprocessando no servidor…");
+		try {
+			const text = await transcribeAudioBlob(blob, "sessao.webm");
+			if (!text.trim()) return;
+			const snap = sessionSnapshot.current[mode];
+			const label = mode === "mic" ? "Médico:" : mode === "tab" ? "Paciente:" : "";
+			setTranscript((prev) => {
+				const base = prev.slice(0, snap).replace(/\s+$/, "");
+				const line = label ? `${label} ${text}` : text;
+				return base ? `${base}\n${line}` : line;
+			});
+			setModelStatus("transcrição refeita no servidor");
+		} catch {
+			setModelStatus(null);
 		}
 	}
 
@@ -232,6 +275,7 @@ export function NovaConsultaPage({
 			return;
 		}
 		setError(null);
+		sessionSnapshot.current.mic = transcript.length;
 		t.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
@@ -245,6 +289,7 @@ export function NovaConsultaPage({
 			if (ev.type === "end") {
 				setRecording(false);
 				setPartial("");
+				void maybeServerFallback("mic");
 			}
 		});
 		setRecording(true);
@@ -260,6 +305,7 @@ export function NovaConsultaPage({
 			return;
 		}
 		setError(null);
+		sessionSnapshot.current.tab = transcript.length;
 		t.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
@@ -273,6 +319,7 @@ export function NovaConsultaPage({
 			if (ev.type === "end") {
 				setTabRecording(false);
 				setPartial("");
+				void maybeServerFallback("tab");
 			}
 		});
 		setTabRecording(true);
@@ -295,6 +342,7 @@ export function NovaConsultaPage({
 		setError(null);
 		dictationStartRef.current = Date.now();
 		setElapsedSec(0);
+		sessionSnapshot.current.dict = transcript.length;
 		t.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
@@ -308,6 +356,7 @@ export function NovaConsultaPage({
 			if (ev.type === "end") {
 				setDictating(false);
 				setPartial("");
+				void maybeServerFallback("dict");
 			}
 		});
 		setDictating(true);
