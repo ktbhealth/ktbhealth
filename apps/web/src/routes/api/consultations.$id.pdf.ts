@@ -6,7 +6,7 @@ import { getSessionUser } from "#/lib/auth.ts";
 import { runAs } from "#/lib/platform.ts";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
-/** GET /api/consultations/:id/pdf — owner-only download of the anamnese PDF. */
+/** GET /api/consultations/:id/pdf — owner-only download of the anamnesis PDF. */
 export const Route = createFileRoute("/api/consultations/$id/pdf")({
 	server: {
 		handlers: {
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/consultations/$id/pdf")({
 				);
 				if (!detail) return Response.json({ error: "not found" }, { status: 404 });
 				if (!detail.anamnesis)
-					return Response.json({ error: "consulta sem anamnese salva" }, { status: 409 });
+					return Response.json({ error: "consultation has no saved anamnesis" }, { status: 409 });
 
 				const pdf = await renderAnamnesisPdf({
 					consultationId: detail.id,
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/api/consultations/$id/pdf")({
 				return new Response(new Uint8Array(pdf), {
 					headers: {
 						"content-type": "application/pdf",
-						"content-disposition": `attachment; filename="anamnese-consulta-${detail.id}.pdf"`,
+						"content-disposition": `attachment; filename="anamnesis-consultation-${detail.id}.pdf"`,
 						"cache-control": "private, no-store",
 					},
 				});

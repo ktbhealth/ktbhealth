@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
 export const Route = createFileRoute("/capture-test")({
-	component: TesteCaptura,
+	component: CaptureTest,
 });
 
-/** Spike: prova que o áudio de uma aba (ex.: WhatsApp Web call) é capturável. */
-function TesteCaptura() {
+/** Spike: proves that tab audio (e.g. a WhatsApp Web call) is capturable. */
+function CaptureTest() {
 	const [level, setLevel] = useState(0);
 	const [status, setStatus] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ function TesteCaptura() {
 
 	async function start() {
 		setError(null);
-		setStatus("solicitando aba…");
+		setStatus("requesting tab…");
 		try {
 			const stream = await navigator.mediaDevices.getDisplayMedia({
 				video: true,
@@ -27,7 +27,7 @@ function TesteCaptura() {
 			for (const t of stream.getVideoTracks()) t.stop();
 			const track = stream.getAudioTracks()[0];
 			if (!track) {
-				setError("aba compartilhada sem áudio. Marque 'compartilhar áudio'");
+				setError("shared tab has no audio. Enable 'share audio'");
 				return;
 			}
 			refs.current.stream = stream;
@@ -38,7 +38,7 @@ function TesteCaptura() {
 			analyser.fftSize = 256;
 			src.connect(analyser);
 			const data = new Uint8Array(analyser.frequencyBinCount);
-			setStatus(`capturando · track: ${track.label} | ${track.readyState}`);
+			setStatus(`capturing · track: ${track.label} | ${track.readyState}`);
 
 			const tick = () => {
 				analyser.getByteTimeDomainData(data);
@@ -63,11 +63,11 @@ function TesteCaptura() {
 
 	return (
 		<div>
-			<h1 className="text-2xl font-bold">Spike: captura de áudio da aba</h1>
+			<h1 className="text-2xl font-bold">Spike: tab audio capture</h1>
 			<p className="mt-2 text-sm text-muted-foreground">
-				1. Abra uma chamada (WhatsApp Web, Meet, YouTube) noutra aba. 2. Clique em iniciar e
-				selecione ESSA aba marcando &quot;compartilhar áudio&quot;. 3. Se o medidor mexer com a
-				fala, o caminho está provado.
+				1. Open a call (WhatsApp Web, Meet, YouTube) in another tab. 2. Click start and select THAT
+				tab with &quot;share audio&quot; enabled. 3. If the meter moves with speech, the path is
+				proven.
 			</p>
 			<div className="mt-6 flex gap-2">
 				<button
@@ -75,14 +75,14 @@ function TesteCaptura() {
 					onClick={start}
 					className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/80"
 				>
-					Iniciar captura
+					Start capture
 				</button>
 				<button
 					type="button"
 					onClick={stop}
 					className="rounded-lg border border-border px-4 py-2 text-sm"
 				>
-					Parar
+					Stop
 				</button>
 			</div>
 			{status ? <p className="mt-3 text-xs text-muted-foreground">{status}</p> : null}
@@ -93,7 +93,7 @@ function TesteCaptura() {
 					style={{ width: `${Math.min(100, level * 400)}%` }}
 				/>
 			</div>
-			<p className="mt-1 text-xs text-muted-foreground">nível: {(level * 100).toFixed(1)}%</p>
+			<p className="mt-1 text-xs text-muted-foreground">level: {(level * 100).toFixed(1)}%</p>
 		</div>
 	);
 }

@@ -173,7 +173,9 @@ describe("WhisperTranscriber", () => {
 		const events: TranscriptEvent[] = [];
 		t.start((e) => events.push(e));
 		await vi.waitFor(() =>
-			expect(events.some((e) => e.type === "error" && e.message === "stream sem áudio")).toBe(true),
+			expect(events.some((e) => e.type === "error" && e.message === "stream has no audio")).toBe(
+				true,
+			),
 		);
 	});
 
@@ -270,7 +272,7 @@ describe("WhisperTranscriber", () => {
 
 		const id = (t as unknown as { id: string }).id;
 		expect(
-			events.some((e) => e.type === "partial" && e.text === "[finalizando transcrição…]"),
+			events.some((e) => e.type === "partial" && e.text === "[finalizing transcription…]"),
 		).toBe(true);
 		emitEngine({ type: "text", id, text: "fim" });
 		expect(events.at(-1)?.type).toBe("end");

@@ -42,7 +42,7 @@ export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSess
 
 // LLM helpers touch no owned data but still require a session: they proxy
 // paid model calls and must not be an open endpoint.
-export const extractAnamneseFn = createServerFn({ method: "POST" })
+export const extractAnamnesisFn = createServerFn({ method: "POST" })
 	.validator((transcript: string) => decodeString(transcript))
 	.handler(async ({ data: transcript }) => {
 		await ensureSessionUser();

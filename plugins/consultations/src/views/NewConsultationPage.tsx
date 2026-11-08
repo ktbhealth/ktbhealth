@@ -14,7 +14,7 @@ import {
 } from "@ktbhealth/ui/components/empty";
 import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis";
-import type { AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
+import { CONFIDENCE_LABELS, type AnamnesisSectionKey, type Confidence } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import {
 	needsServerFallback,
@@ -32,12 +32,6 @@ const CONF_BAR: Record<Confidence, string> = {
 	alta: "border-l-primary",
 	media: "border-l-amber-400",
 	baixa: "border-l-border",
-};
-
-const CONF_LABEL: Record<Confidence, string> = {
-	alta: "confiança alta",
-	media: "confiança média",
-	baixa: "confiança baixa",
 };
 
 function fmtElapsed(totalSec: number) {
@@ -61,12 +55,12 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 	);
 }
 
-export interface NovaApi {
+export interface NewConsultationApi {
 	getLiveConsultation(input: { data: number }): Promise<{
 		transcript: string;
 		status: string | null;
 	} | null>;
-	extractAnamnese(input: { data: string }): Promise<{ anamnesis: Anamnesis; engine: string }>;
+	extractAnamnesis(input: { data: string }): Promise<{ anamnesis: Anamnesis; engine: string }>;
 	attachAnamnesis(input: {
 		data: {
 			consultationId: number;
@@ -80,13 +74,13 @@ export interface NovaApi {
 	createPatient(input: { data: string }): Promise<{ id: number; name: string } | null>;
 }
 
-export function NovaConsultaPage({
+export function NewConsultationPage({
 	initialPatients,
 	api,
 	backend,
 }: {
 	initialPatients: Array<{ id: number; name: string }>;
-	api: NovaApi;
+	api: NewConsultationApi;
 	backend: TranscriptionBackend;
 }) {
 	const [recording, setRecording] = useState(false);
@@ -122,10 +116,10 @@ export function NovaConsultaPage({
 	const [tabRecording, setTabRecording] = useState(false);
 	const [modelStatus, setModelStatus] = useState<string | null>(() => {
 		const st = backend.status();
-		return st.state === "ready" ? `modelo pronto (${st.device})` : null;
+		return st.state === "ready" ? `model ready (${st.device})` : null;
 	});
 	const [toast, setToast] = useState<ToastData | null>(null);
-	const [source, setSource] = useState<"gravar" | "bot" | "upload">("gravar");
+	const [source, setSource] = useState<"record" | "bot" | "upload">("record");
 	const [mode, setMode] = useState<"live" | "dictation">("live");
 	const [dictating, setDictating] = useState(false);
 	const [elapsedSec, setElapsedSec] = useState(0);
@@ -136,8 +130,8 @@ export function NovaConsultaPage({
 	useEffect(() => {
 		const off = backend.subscribe((m) => {
 			if (m.type === "progress") setModelStatus(m.message ?? null);
-			if (m.type === "ready") setModelStatus(`modelo pronto (${m.device})`);
-			if (m.type === "error" && !m.id) setModelStatus(`modelo indisponível: ${m.message}`);
+			if (m.type === "ready") setModelStatus(`model ready (${m.device})`);
+			if (m.type === "error" && !m.id) setModelStatus(`model unavailable: ${m.message}`);
 		});
 		backend.load();
 		return off;
@@ -179,7 +173,7 @@ export function NovaConsultaPage({
 		const form = new FormData();
 		form.append("audio", blob, filename);
 		const res = await fetch("/api/transcribe", { method: "POST", body: form });
-		if (!res.ok) throw new Error(`transcrição falhou (${res.status})`);
+		if (!res.ok) throw new Error(`transcription failed (${res.status})`);
 		const { text } = (await res.json()) as { text: string };
 		return text;
 	}
@@ -191,7 +185,7 @@ export function NovaConsultaPage({
 			const text = await transcribeAudioBlob(file, file.name);
 			setTranscript((t) => (t ? `${t}\n${text}` : text));
 		} catch (e) {
-			setError(e instanceof Error ? e.message : "transcrição falhou");
+			setError(e instanceof Error ? e.message : "transcription failed");
 		} finally {
 			setBusy(false);
 		}
@@ -211,25 +205,25 @@ export function NovaConsultaPage({
 		if (!stats || !needsServerFallback(stats)) return;
 		const blob = await t.recording?.();
 		if (!blob) return;
-		setModelStatus("confiança baixa, reprocessando no servidor…");
+		setModelStatus("low confidence, reprocessing on the server…");
 		try {
-			const text = await transcribeAudioBlob(blob, "sessao.webm");
+			const text = await transcribeAudioBlob(blob, "session.webm");
 			if (!text.trim()) return;
 			const snap = sessionSnapshot.current[mode];
-			const label = mode === "mic" ? "Médico:" : mode === "tab" ? "Paciente:" : "";
+			const label = mode === "mic" ? "Doctor:" : mode === "tab" ? "Patient:" : "";
 			setTranscript((prev) => {
 				const base = prev.slice(0, snap).replace(/\s+$/, "");
 				const line = label ? `${label} ${text}` : text;
 				return base ? `${base}\n${line}` : line;
 			});
-			setModelStatus("transcrição refeita no servidor");
+			setModelStatus("transcription redone on the server");
 		} catch {
 			setModelStatus(null);
 		}
 	}
 
 	async function sendBot() {
-		/* v8 ignore next -- Enviar bot is disabled while meetUrl is empty */
+		/* v8 ignore next -- Send bot is disabled while meetUrl is empty */
 		if (!meetUrl.trim()) return;
 		setError(null);
 		setSavedId(null);
@@ -244,7 +238,7 @@ export function NovaConsultaPage({
 			error?: string;
 		};
 		if (!res.ok || !data.consultationId) {
-			setError(data.error ?? `bot falhou: HTTP ${res.status}`);
+			setError(data.error ?? `bot failed: HTTP ${res.status}`);
 			return;
 		}
 		setLiveId(data.consultationId);
@@ -265,7 +259,7 @@ export function NovaConsultaPage({
 		t.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
-				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Médico: ${ev.text}`);
+				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Doctor: ${ev.text}`);
 				setPartial("");
 			}
 			if (ev.type === "error") {
@@ -295,7 +289,7 @@ export function NovaConsultaPage({
 		t.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
-				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Paciente: ${ev.text}`);
+				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Patient: ${ev.text}`);
 				setPartial("");
 			}
 			if (ev.type === "error") {
@@ -312,9 +306,9 @@ export function NovaConsultaPage({
 	}
 
 	/**
-	 * Ditado pós-consulta: same mic transcriber (Whisper), single speaker —
-	 * finals land in the transcript without a "Médico:" prefix since the
-	 * narration already describes the whole consultation.
+	 * Post-consultation dictation: same mic transcriber (Whisper), single
+	 * speaker — finals land in the transcript without a "Doctor:" prefix
+	 * since the narration already describes the whole consultation.
 	 */
 	function toggleDictation() {
 		const t = transcriberRef.current;
@@ -349,13 +343,13 @@ export function NovaConsultaPage({
 	}
 
 	async function generate() {
-		/* v8 ignore next -- Gerar anamnese is disabled while transcript is empty */
+		/* v8 ignore next -- Generate anamnesis is disabled while transcript is empty */
 		if (!transcript.trim()) return;
 		setBusy(true);
 		setError(null);
 		setSavedId(null);
 		try {
-			const res = await api.extractAnamnese({ data: transcript });
+			const res = await api.extractAnamnesis({ data: transcript });
 			setAnamnesis(res.anamnesis);
 			setEngine(res.engine);
 		} catch (e) {
@@ -386,7 +380,7 @@ export function NovaConsultaPage({
 						patientId: patientId ?? undefined,
 					},
 				});
-				if (!r.ok) throw new Error("sessão expirada. Recarregue a página");
+				if (!r.ok) throw new Error("session expired. Reload the page");
 			} else {
 				const res = await api.saveConsultation({
 					data: {
@@ -398,7 +392,7 @@ export function NovaConsultaPage({
 				});
 				id = res.id ?? null;
 			}
-			if (!id) throw new Error("não foi possível salvar a consulta");
+			if (!id) throw new Error("could not save the consultation");
 			if (consented) await api.recordConsent({ data: id });
 			setSavedId(id);
 			setSaveDialog({ kind: "ok", id, updated: Boolean(existing) });
@@ -421,12 +415,12 @@ export function NovaConsultaPage({
 	}
 
 	function copyAnamnesis() {
-		/* v8 ignore next -- Copiar button only renders with anamnesis */
+		/* v8 ignore next -- Copy button only renders with anamnesis */
 		if (!anamnesis) return;
 		const text = anamnesisToText(anamnesis);
 		void navigator.clipboard.writeText(text).then(
-			() => showToast({ text: "Anamnese copiada para a área de transferência" }),
-			() => setError("Não foi possível copiar. Selecione o texto manualmente."),
+			() => showToast({ text: "Anamnesis copied to clipboard" }),
+			() => setError("Could not copy. Select the text manually."),
 		);
 	}
 
@@ -436,7 +430,7 @@ export function NovaConsultaPage({
 	const live = recording || tabRecording || dictating;
 	/* v8 ignore next -- patientId only comes from the patients list or createPatient */
 	const dialogPatientName = patientId
-		? (patients.find((p) => p.id === patientId)?.name ?? "paciente")
+		? (patients.find((p) => p.id === patientId)?.name ?? "patient")
 		: null;
 
 	const cardCls = "rounded-2xl border border-border bg-card shadow-sm";
@@ -447,33 +441,34 @@ export function NovaConsultaPage({
 
 	return (
 		<div>
-			{/* ---- cabeçalho + progresso ---- */}
+			{/* ---- header + progress ---- */}
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Nova consulta</h1>
+					<h1 className="text-3xl font-bold tracking-tight">New consultation</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Grave a conversa ou cole a transcrição. A anamnese sai estruturada para revisão.
+						Record the conversation or paste the transcript. The anamnesis comes out structured for
+						review.
 					</p>
 				</div>
 				<div className="flex items-center gap-3 text-sm">
-					<Step n={1} label="Preparar" done={step1} />
+					<Step n={1} label="Prepare" done={step1} />
 					<span className="h-px w-6 bg-border" />
-					<Step n={2} label="Transcrever" done={step2} />
+					<Step n={2} label="Transcribe" done={step2} />
 					<span className="h-px w-6 bg-border" />
-					<Step n={3} label="Revisar" done={step3} />
+					<Step n={3} label="Review" done={step3} />
 				</div>
 			</div>
 
-			{/* ---- modo: consulta ao vivo vs ditado pós-consulta ---- */}
+			{/* ---- mode: live consultation vs post-consultation dictation ---- */}
 			<div
 				className="mt-4 flex w-fit items-center gap-1 rounded-lg bg-muted p-0.5 text-sm"
 				role="tablist"
-				aria-label="Modo da consulta"
+				aria-label="Consultation mode"
 			>
 				{(
 					[
-						["live", "Consulta ao vivo"],
-						["dictation", "Ditado pós-consulta"],
+						["live", "Live consultation"],
+						["dictation", "Post-consultation dictation"],
 					] as const
 				).map(([key, label]) => (
 					<button
@@ -494,7 +489,7 @@ export function NovaConsultaPage({
 				))}
 			</div>
 
-			{/* ---- 1. preparar: paciente + consentimento ---- */}
+			{/* ---- 1. prepare: patient + consent ---- */}
 			<section className={`${cardCls} mt-6 p-4`}>
 				<div className="flex flex-wrap items-center gap-x-6 gap-y-3">
 					<div className="flex items-center gap-2">
@@ -502,7 +497,7 @@ export function NovaConsultaPage({
 							className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 							htmlFor="patient-sel"
 						>
-							Paciente
+							Patient
 						</label>
 						<select
 							id="patient-sel"
@@ -510,7 +505,7 @@ export function NovaConsultaPage({
 							onChange={(e) => setPatientId(e.target.value ? Number(e.target.value) : null)}
 							className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm"
 						>
-							<option value="">sem vínculo</option>
+							<option value="">unlinked</option>
 							{patients.map((p) => (
 								<option key={p.id} value={p.id}>
 									{p.name}
@@ -522,8 +517,8 @@ export function NovaConsultaPage({
 						<input
 							value={patientName}
 							onChange={(e) => setPatientName(e.target.value)}
-							placeholder="novo paciente"
-							aria-label="Nome do novo paciente"
+							placeholder="new patient"
+							aria-label="New patient name"
 							className="w-40 rounded-lg border border-border px-2.5 py-1.5 text-sm"
 						/>
 						<button
@@ -539,7 +534,7 @@ export function NovaConsultaPage({
 							}}
 							className={btnGhost}
 						>
-							+ paciente
+							+ patient
 						</button>
 					</div>
 					<label
@@ -554,23 +549,23 @@ export function NovaConsultaPage({
 							checked={consented}
 							onChange={(e) => setConsented(e.target.checked)}
 						/>
-						Declaro que o paciente foi informado e consentiu com a gravação
+						I declare that the patient was informed and consented to the recording
 					</label>
 				</div>
 			</section>
 
 			<div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-				{/* ================= coluna esquerda: transcrição ================= */}
+				{/* ================= left column: transcript ================= */}
 				<section className={cardCls}>
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
-						<h2 className="font-semibold">Transcrição</h2>
+						<h2 className="font-semibold">Transcript</h2>
 						{mode === "live" ? (
 							<div className="flex rounded-lg bg-muted p-0.5 text-xs" role="tablist">
 								{(
 									[
-										["gravar", "Gravar"],
+										["record", "Record"],
 										["upload", "Upload"],
-										["bot", "Teleconsulta (bot)"],
+										["bot", "Teleconsult (bot)"],
 									] as const
 								).map(([key, label]) => (
 									<button
@@ -596,9 +591,9 @@ export function NovaConsultaPage({
 						{mode === "dictation" ? (
 							<div className="flex flex-col items-center gap-3 rounded-xl border border-border px-6 py-8 text-center">
 								<p className="max-w-md text-sm text-muted-foreground">
-									A consulta já aconteceu? Narre tudo em voz alta, como se explicasse o caso, uma
-									voz só (a sua): queixa, história, exame e conduta. A narração vira a transcrição
-									que gera a anamnese.
+									The consultation already happened? Narrate everything out loud, as if explaining
+									the case, in a single voice (yours): chief complaint, history, exam, and plan. The
+									narration becomes the transcript that generates the anamnesis.
 								</p>
 								<button
 									type="button"
@@ -613,22 +608,22 @@ export function NovaConsultaPage({
 									<span
 										className={`size-3 rounded-full ${dictating ? "animate-pulse bg-white" : "bg-white/70"}`}
 									/>
-									{dictating ? `Parar narração (${fmtElapsed(elapsedSec)})` : "Iniciar narração"}
+									{dictating ? `Stop dictation (${fmtElapsed(elapsedSec)})` : "Start dictation"}
 								</button>
 								{dictating ? (
 									<p className="text-xs text-muted-foreground">
-										gravando… {fmtElapsed(elapsedSec)}. A transcrição aparece abaixo em tempo real
+										recording… {fmtElapsed(elapsedSec)}. The transcript appears below in real time
 									</p>
 								) : null}
 								{!consented ? (
 									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-										Marque o consentimento acima para liberar a narração.
+										Check the consent box above to enable dictation.
 									</Alert>
 								) : null}
 								{!supported ? (
 									<p className="text-xs text-amber-600">
-										Gravação não suportada neste browser. Use o exemplo ou cole o texto (Chrome/Edge
-										suportam).
+										Recording is not supported in this browser. Use the sample or paste the text
+										(Chrome/Edge support it).
 									</p>
 								) : null}
 							</div>
@@ -646,11 +641,11 @@ export function NovaConsultaPage({
 									}}
 								/>
 								<span className="font-medium text-foreground">
-									{busy ? "Transcrevendo…" : "Enviar gravação"}
+									{busy ? "Transcribing…" : "Upload recording"}
 								</span>
-								<span className="text-[11px]">Áudio transcrito no servidor (Whisper)</span>
+								<span className="text-[11px]">Audio transcribed on the server (Whisper)</span>
 							</label>
-						) : source === "gravar" ? (
+						) : source === "record" ? (
 							<>
 								<div className="grid gap-3 sm:grid-cols-2">
 									<button
@@ -669,10 +664,10 @@ export function NovaConsultaPage({
 											) : (
 												<span className="size-2.5 rounded-full bg-muted-foreground" />
 											)}
-											{recording ? "Parar microfone" : "Gravar microfone"}
+											{recording ? "Stop microphone" : "Record microphone"}
 										</span>
 										<span className="mt-1 text-[11px] text-muted-foreground">
-											Sua voz, aparece como “Médico”
+											Your voice, shown as “Doctor”
 										</span>
 									</button>
 									<button
@@ -691,27 +686,27 @@ export function NovaConsultaPage({
 											) : (
 												<span className="size-2.5 rounded-full bg-muted-foreground" />
 											)}
-											{tabRecording ? "Parar aba" : "Capturar aba da chamada"}
+											{tabRecording ? "Stop tab" : "Capture call tab"}
 										</span>
 										<span className="mt-1 text-[11px] text-muted-foreground">
-											Áudio da call, aparece como “Paciente”
+											Call audio, shown as “Patient”
 										</span>
 									</button>
 								</div>
 								{!consented ? (
 									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-										Marque o consentimento acima para liberar a gravação.
+										Check the consent box above to enable recording.
 									</Alert>
 								) : (
 									<p className="text-[11px] text-muted-foreground">
-										Dica: ligue os dois para separar médico e paciente, e use fone de ouvido para o
-										microfone não captar a caixa de som.
+										Tip: enable both to separate doctor and patient, and use headphones so the
+										microphone does not pick up the speakers.
 									</p>
 								)}
 								{!supported ? (
 									<p className="text-xs text-amber-600">
-										Gravação não suportada neste browser. Use o exemplo ou cole o texto (Chrome/Edge
-										suportam).
+										Recording is not supported in this browser. Use the sample or paste the text
+										(Chrome/Edge support it).
 									</p>
 								) : null}
 							</>
@@ -719,19 +714,19 @@ export function NovaConsultaPage({
 							<div>
 								<div className="flex items-center gap-2">
 									<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary ring-1 ring-primary/20">
-										speaker labels grátis via canais
+										free speaker labels via channels
 									</span>
 								</div>
 								<p className="mt-2 text-xs text-muted-foreground">
-									O bot “KTB Health” entra na sua call (Meet/Zoom/Teams), transcreve com separação
-									por falante e gera o rascunho quando a consulta acaba.
+									The “KTB Health” bot joins your call (Meet/Zoom/Teams), transcribes with speaker
+									separation, and generates the draft when the consultation ends.
 								</p>
 								<div className="mt-3 flex gap-2">
 									<input
 										type="url"
 										value={meetUrl}
 										onChange={(e) => setMeetUrl(e.target.value)}
-										aria-label="Link da teleconsulta"
+										aria-label="Teleconsult link"
 										placeholder="https://meet.google.com/xxx-xxxx-xxx"
 										className="w-full rounded-lg border border-border px-3 py-2 text-sm"
 									/>
@@ -741,7 +736,7 @@ export function NovaConsultaPage({
 										disabled={!meetUrl.trim() || liveStatus === "live"}
 										className={`${btnPrimary} shrink-0`}
 									>
-										{liveStatus === "live" ? "bot na call…" : "Enviar bot"}
+										{liveStatus === "live" ? "bot in call…" : "Send bot"}
 									</button>
 								</div>
 								{liveId ? (
@@ -751,14 +746,14 @@ export function NovaConsultaPage({
 										) : (
 											<span className="size-2 rounded-full bg-primary" />
 										)}
-										consulta #{liveId} ·{" "}
-										{liveStatus === "live" ? "transcrevendo ao vivo" : "call encerrada"}
+										consultation #{liveId} ·{" "}
+										{liveStatus === "live" ? "transcribing live" : "call ended"}
 									</p>
 								) : null}
 							</div>
 						)}
 
-						{/* estado: modelo / gravação / parcial */}
+						{/* state: model / recording / partial */}
 						<div className="flex flex-wrap items-center gap-2 text-xs">
 							{modelStatus ? (
 								<span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">
@@ -769,7 +764,7 @@ export function NovaConsultaPage({
 							{live ? (
 								<span className="flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700">
 									<span className="size-2 animate-pulse rounded-full bg-red-600" />
-									gravando… fale normalmente
+									recording… speak normally
 								</span>
 							) : null}
 						</div>
@@ -785,7 +780,7 @@ export function NovaConsultaPage({
 									htmlFor="transcript"
 									className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 								>
-									Texto da consulta
+									Consultation text
 								</label>
 								<div className="flex gap-2">
 									<button
@@ -793,7 +788,7 @@ export function NovaConsultaPage({
 										onClick={() => setTranscript(SAMPLE_TRANSCRIPT)}
 										className={btnGhost}
 									>
-										Usar exemplo
+										Use sample
 									</button>
 									<button
 										type="button"
@@ -801,7 +796,7 @@ export function NovaConsultaPage({
 										disabled={!transcript}
 										className={btnGhost}
 									>
-										Limpar
+										Clear
 									</button>
 								</div>
 							</div>
@@ -810,7 +805,7 @@ export function NovaConsultaPage({
 								value={transcript}
 								onChange={(e) => setTranscript(e.target.value)}
 								rows={14}
-								placeholder="A transcrição aparece aqui (ou cole o texto da consulta)"
+								placeholder="The transcript appears here (or paste the consultation text)"
 								className="w-full resize-y rounded-xl border border-border px-3 py-2.5 font-mono text-sm leading-relaxed"
 							/>
 						</div>
@@ -821,7 +816,7 @@ export function NovaConsultaPage({
 							disabled={busy || !transcript.trim()}
 							className={`${btnPrimary} w-full py-2.5`}
 						>
-							{busy ? "Gerando anamnese…" : "Gerar anamnese →"}
+							{busy ? "Generating anamnesis…" : "Generate anamnesis →"}
 						</button>
 						{error ? (
 							<Alert variant="destructive" className="px-3 py-2 text-xs">
@@ -831,10 +826,10 @@ export function NovaConsultaPage({
 					</div>
 				</section>
 
-				{/* ================= coluna direita: resultado ================= */}
+				{/* ================= right column: result ================= */}
 				<section className={`${cardCls} lg:sticky lg:top-4`}>
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
-						<span className="text-sm font-medium">Anamnese</span>
+						<span className="text-sm font-medium">Anamnesis</span>
 						{engine ? (
 							<span className="text-[11px] text-muted-foreground">engine: {engine}</span>
 						) : null}
@@ -846,10 +841,10 @@ export function NovaConsultaPage({
 								<EmptyMedia variant="icon">
 									<ClipboardListIcon />
 								</EmptyMedia>
-								<EmptyTitle>Aguardando anamnese</EmptyTitle>
+								<EmptyTitle>Waiting for anamnesis</EmptyTitle>
 								<EmptyDescription className="max-w-xs">
-									A anamnese estruturada aparece aqui. Cada seção mostra a confiança e as
-									frases-fonte que a fundamentam.
+									The structured anamnesis appears here. Each section shows the confidence and the
+									source sentences that ground it.
 								</EmptyDescription>
 							</EmptyHeader>
 						</Empty>
@@ -872,7 +867,7 @@ export function NovaConsultaPage({
 											<span
 												className={`rounded-full px-2 py-0.5 text-[10px] ring-1 ${CONF_STYLE[sec.confidence]}`}
 											>
-												{CONF_LABEL[sec.confidence]}
+												{CONFIDENCE_LABELS[sec.confidence]}
 											</span>
 										</div>
 										<textarea
@@ -885,7 +880,7 @@ export function NovaConsultaPage({
 										{sec.evidence.length ? (
 											<details className="mt-1">
 												<summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-muted-foreground">
-													evidência ({sec.evidence.length})
+													evidence ({sec.evidence.length})
 												</summary>
 												<ul className="mt-1 list-inside list-disc text-[11px] text-muted-foreground">
 													{sec.evidence.map((ev) => (
@@ -903,10 +898,10 @@ export function NovaConsultaPage({
 					{anamnesis ? (
 						<div className="flex items-center gap-2 border-t border-border px-5 py-3">
 							<button type="button" onClick={copyAnamnesis} className={btnGhost}>
-								Copiar
+								Copy
 							</button>
 							<button type="button" onClick={save} disabled={saving} className={btnPrimary}>
-								{saving ? "Salvando…" : savedId ? "Atualizar consulta" : "Salvar consulta"}
+								{saving ? "Saving…" : savedId ? "Update consultation" : "Save consultation"}
 							</button>
 						</div>
 					) : null}
@@ -919,42 +914,42 @@ export function NovaConsultaPage({
 				tone={saveDialog?.kind === "error" ? "error" : "success"}
 				title={
 					saveDialog?.kind === "error"
-						? "Não foi possível salvar"
+						? "Could not save"
 						: saveDialog?.updated
-							? "Consulta atualizada"
-							: "Anamnese salva com sucesso"
+							? "Consultation updated"
+							: "Anamnesis saved successfully"
 				}
 				actions={
 					saveDialog?.kind === "ok" ? (
 						<>
 							<a href={`/api/consultations/${saveDialog.id}/pdf`} download className={btnGhost}>
 								<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
-								Baixar PDF
+								Download PDF
 							</a>
 							<Link
 								to="/consultations/$id"
 								params={{ id: String(saveDialog.id) }}
 								className={btnGhost}
 							>
-								Ver consulta
+								View consultation
 							</Link>
 							<button type="button" onClick={() => setSaveDialog(null)} className={btnPrimary}>
-								Confirmar
+								Confirm
 							</button>
 						</>
 					) : (
 						<button type="button" onClick={() => setSaveDialog(null)} className={btnPrimary}>
-							Entendi
+							Got it
 						</button>
 					)
 				}
 			>
 				{saveDialog?.kind === "ok" ? (
 					<p>
-						A consulta <strong>#{saveDialog.id}</strong>
-						{patientId ? ` de ${dialogPatientName}` : ""} foi{" "}
-						{saveDialog.updated ? "atualizada" : "gravada"} com a anamnese revisada.
-						{consented ? " Consentimento do paciente registrado." : ""}
+						Consultation <strong>#{saveDialog.id}</strong>
+						{patientId ? ` for ${dialogPatientName}` : ""} was{" "}
+						{saveDialog.updated ? "updated" : "saved"} with the reviewed anamnesis.
+						{consented ? " Patient consent recorded." : ""}
 					</p>
 				) : (
 					<p>{saveDialog?.kind === "error" ? saveDialog.message : ""}</p>

@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { NovaConsultaPage, type NovaApi } from "@ktb/consultations/views";
+import { NewConsultationPage, type NewConsultationApi } from "@ktb/consultations/views";
 import { whisperBackend } from "@ktb/transcription-whisper";
 import {
 	attachAnamnesisFn,
 	createPatientFn,
-	extractAnamneseFn,
+	extractAnamnesisFn,
 	getLiveConsultationFn,
 	listPatientsFn,
 	recordConsentFn,
@@ -13,9 +13,9 @@ import {
 } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
 
-export const novaApi: NovaApi = {
+export const newConsultationApi: NewConsultationApi = {
 	getLiveConsultation: (input: { data: number }) => getLiveConsultationFn(input),
-	extractAnamnese: (input: { data: string }) => extractAnamneseFn(input),
+	extractAnamnesis: (input: { data: string }) => extractAnamnesisFn(input),
 	attachAnamnesis: (input: { data: unknown }) => attachAnamnesisFn(input as never),
 	saveConsultation: (input: { data: unknown }) => saveConsultationFn(input as never),
 	recordConsent: (input: { data: number }) => recordConsentFn(input),
@@ -25,10 +25,14 @@ export const novaApi: NovaApi = {
 export const Route = createFileRoute("/consultations/new")({
 	beforeLoad: () => requireSession(),
 	loader: () => listPatientsFn(),
-	component: function NovaRoute() {
+	component: function NewRoute() {
 		const initialPatients = Route.useLoaderData();
 		return (
-			<NovaConsultaPage initialPatients={initialPatients} api={novaApi} backend={whisperBackend} />
+			<NewConsultationPage
+				initialPatients={initialPatients}
+				api={newConsultationApi}
+				backend={whisperBackend}
+			/>
 		);
 	},
 });

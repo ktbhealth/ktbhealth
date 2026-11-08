@@ -1,23 +1,23 @@
-// Spike T-012: valida que getDisplayMedia consegue capturar ÁUDIO de uma aba
-// (o mecanismo necessário para transcrever chamadas do WhatsApp Web).
+// Spike T-012: validates that getDisplayMedia can capture tab AUDIO
+// (the mechanism needed to transcribe WhatsApp Web calls).
 //
-// Estratégia: lança Chromium com flags que auto-selecionam a aba alvo no
-// seletor de captura, abre uma aba "fonte" que emite um tom via Web Audio e
-// chama /capture-test em outra aba. Se o medidor de nível subir, o caminho
-// getDisplayMedia -> áudio de aba -> Web Audio está provado de ponta a ponta.
+// Strategy: launch Chromium with flags that auto-select the target tab in
+// the capture picker, open a "source" tab emitting a tone via Web Audio and
+// hit /capture-test in another tab. If the level meter rises, the
+// getDisplayMedia -> tab audio -> Web Audio path is proven end to end.
 //
-// Flags relevantes do Chromium:
-// - --auto-select-tab-capture-source-by-title=<título>: pula o seletor e
-//   captura a aba cujo document.title bate com o valor.
-// - --autoplay-policy=no-user-gesture-required: permite o AudioContext da aba
-//   fonte tocar sem gesto do usuário (headless não tem gesto real).
+// Relevant Chromium flags:
+// - --auto-select-tab-capture-source-by-title=<title>: skips the picker and
+//   captures the tab whose document.title matches the value.
+// - --autoplay-policy=no-user-gesture-required: lets the source tab's
+//   AudioContext play without a user gesture (headless has no real gesture).
 //
-// Reprodução: `bunx playwright test tests/e2e/display-media-audio.spec.ts`
-// em apps/web (o webServer do playwright.config.ts sobe `bunx vp dev`).
-// Requer DISPLAY/X (roda headful — o headless shell do Playwright não tem
-// captura de tela). Se o dev server falhar por auth do wrangler na conta KTB,
-// suba-o manualmente com CLOUDFLARE_ACCOUNT_ID=<conta acessível> —
-// `reuseExistingServer` faz o Playwright reaproveitar.
+// Repro: `bunx playwright test tests/e2e/display-media-audio.spec.ts`
+// in apps/web (the playwright.config.ts webServer boots `bunx vp dev`).
+// Requires DISPLAY/X (runs headful — the Playwright headless shell has no
+// screen capture). If the dev server fails on wrangler auth for the KTB
+// account, boot it manually with CLOUDFLARE_ACCOUNT_ID=<accessible account> —
+// `reuseExistingServer` makes Playwright reuse it.
 
 import { chromium, expect, test } from "@playwright/test";
 
@@ -26,9 +26,9 @@ const AUDIO_SOURCE_TITLE = "ktb-tab-audio-source";
 test.setTimeout(120_000);
 
 test("getDisplayMedia captures tab audio end-to-end", async () => {
-	// Headful: o chromium_headless_shell do Playwright não implementa captura
-	// de tela (getDisplayMedia rejeita com "Not supported") e o headless novo
-	// (channel "chromium") falhou com ERR_NETWORK_CHANGED neste ambiente.
+	// Headful: the Playwright chromium_headless_shell does not implement
+	// screen capture (getDisplayMedia rejects with "Not supported") and the new
+	// headless (channel "chromium") failed with ERR_NETWORK_CHANGED here.
 	const browser = await chromium.launch({
 		headless: false,
 		args: [
@@ -40,7 +40,7 @@ test("getDisplayMedia captures tab audio end-to-end", async () => {
 	try {
 		const context = await browser.newContext();
 
-		// Aba fonte: emite um tom contínuo via Web Audio.
+		// Source tab: emits a continuous tone via Web Audio.
 		const audioPage = await context.newPage();
 		await audioPage.setContent(`<!doctype html><title>${AUDIO_SOURCE_TITLE}</title>
 			<script>
@@ -53,14 +53,14 @@ test("getDisplayMedia captures tab audio end-to-end", async () => {
 				osc.connect(gain).connect(ctx.destination);
 				void ctx.resume().then(() => osc.start());
 			</script>`);
-		// Garante que o AudioContext está rodando (não suspenso por autoplay).
+		// Ensure the AudioContext is running (not autoplay-suspended).
 		await expect
 			.poll(() => audioPage.evaluate(() => (window as any).__audioCtx?.state), {
 				timeout: 10_000,
 			})
 			.toBe("running");
 
-		// Aba de captura: a página spike.
+		// Capture tab: the spike page.
 		const page = await context.newPage();
 		page.on("console", (m) => {
 			if (m.type() === "error") console.log("[page error]", m.text());
@@ -69,14 +69,14 @@ test("getDisplayMedia captures tab audio end-to-end", async () => {
 		await page.goto("/capture-test");
 		await page.waitForLoadState("networkidle");
 
-		// O SSR entrega o botão antes da hidratação; clica até o handler
-		// responder (status "solicitando…"/"capturando…" ou erro visível).
-		// Se o chunk do cliente falhar no load (flake do dev server), recarrega
-		// uma vez e tenta de novo.
-		const startButton = page.getByRole("button", { name: /iniciar captura/i });
+		// SSR ships the button before hydration; click until the handler
+		// responds ("requesting…"/"capturing…" status or a visible error).
+		// If the client chunk fails on load (dev-server flake), reload once and
+		// retry.
+		const startButton = page.getByRole("button", { name: /start capture/i });
 		const feedback = page
 			.locator("p")
-			.filter({ hasText: /solicitando|capturando|sem áudio|denied|allowed|failed|error/i });
+			.filter({ hasText: /requesting|capturing|no audio|denied|allowed|failed|error/i });
 		for (let round = 0; round < 2; round++) {
 			for (let attempt = 0; attempt < 3; attempt++) {
 				await startButton.click();
@@ -85,10 +85,10 @@ test("getDisplayMedia captures tab audio end-to-end", async () => {
 					break;
 				} catch {
 					if (attempt === 2 && round === 1)
-						throw new Error("clique não produziu feedback — hidratação?");
+						throw new Error("click produced no feedback — hydration?");
 				}
 			}
-			// Se o feedback apareceu, sai do loop externo.
+			// If feedback appeared, leave the outer loop.
 			if (
 				await feedback
 					.first()
@@ -100,23 +100,23 @@ test("getDisplayMedia captures tab audio end-to-end", async () => {
 			await page.waitForLoadState("networkidle");
 		}
 
-		// Se a captura automática funcionou, o status mostra "capturando — track:".
-		await expect(page.getByText(/capturando — track:/)).toBeVisible({ timeout: 15_000 });
+		// If auto-capture worked, the status shows "capturing · track:".
+		await expect(page.getByText(/capturing · track:/)).toBeVisible({ timeout: 15_000 });
 
-		// O medidor de nível deve sair de zero — prova de que o áudio da aba
-		// fonte está chegando no MediaStream capturado.
-		const levelText = page.getByText(/nível:/);
+		// The level meter must leave zero — proof that the source tab's audio
+		// is reaching the captured MediaStream.
+		const levelText = page.getByText(/level:/g);
 		await expect
 			.poll(
 				async () => {
 					const text = await levelText.textContent();
-					const match = text?.match(/nível:\s*([\d.]+)%/);
+					const match = text?.match(/level:\s*([\d.]+)%/);
 					return match ? Number(match[1]) : 0;
 				},
 				{ timeout: 15_000, intervals: [250] },
 			)
 			.toBeGreaterThan(1);
-		console.log(`[spike] nível de áudio capturado: ${await levelText.textContent()}`);
+		console.log(`[spike] captured audio level: ${await levelText.textContent()}`);
 	} finally {
 		await browser.close();
 	}

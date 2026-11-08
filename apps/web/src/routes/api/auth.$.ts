@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/auth/$")({
 						return Response.json(
 							{
 								code: "CAPTCHA_FAILED",
-								message: "Verificação de segurança falhou. Tente novamente.",
+								message: "Security verification failed. Please try again.",
 							},
 							{ status: 403 },
 						);

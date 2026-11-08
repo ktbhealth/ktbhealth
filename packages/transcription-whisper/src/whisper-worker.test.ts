@@ -60,7 +60,7 @@ describe("whisper-worker", () => {
 
 	it("announces startup and configures env on import", async () => {
 		await importWorker();
-		expect(posted[0]).toEqual({ type: "progress", message: "worker iniciado" });
+		expect(posted[0]).toEqual({ type: "progress", message: "worker started" });
 		expect(envObj.allowLocalModels).toBe(false);
 		expect(envObj.backends).toMatchObject({ onnx: { wasm: { wasmPaths: expect.anything() } } });
 	});
@@ -208,9 +208,9 @@ describe("whisper-worker", () => {
 		vi.stubGlobal("caches", cachesMock);
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });
-		expect(
-			posted.some((m) => m.type === "progress" && String(m.message).includes("em cache")),
-		).toBe(true);
+		expect(posted.some((m) => m.type === "progress" && String(m.message).includes("cached"))).toBe(
+			true,
+		);
 	});
 
 	it("isModelCached returns false on caches error and partial cache", async () => {

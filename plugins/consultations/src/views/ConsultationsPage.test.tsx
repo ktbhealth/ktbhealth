@@ -15,9 +15,9 @@ vi.mock("@tanstack/react-router", async () => {
 	};
 });
 
-import { ConsultasPage, type ConsultaListItem } from "./ConsultasPage.tsx";
+import { ConsultationsPage, type ConsultationListItem } from "./ConsultationsPage.tsx";
 
-const BASE: ConsultaListItem = {
+const BASE: ConsultationListItem = {
 	id: 1,
 	engine: "heuristic",
 	createdAt: new Date("2026-11-06T14:30:00"),
@@ -26,33 +26,33 @@ const BASE: ConsultaListItem = {
 	status: "done",
 	consentAt: new Date("2026-11-06T14:00:00"),
 	patientName: "Maria Silva",
-	queixa: "Dor de cabeça",
+	chiefComplaint: "Dor de cabeça",
 	hasAnamnesis: true,
 };
 
-const item = (over: Partial<ConsultaListItem>): ConsultaListItem => ({ ...BASE, ...over });
+const item = (over: Partial<ConsultationListItem>): ConsultationListItem => ({ ...BASE, ...over });
 
 afterEach(cleanup);
 
-describe("ConsultasPage", () => {
+describe("ConsultationsPage", () => {
 	it("renders empty state", () => {
-		render(<ConsultasPage consultas={[]} />);
-		expect(screen.getByText("Nenhuma consulta ainda.")).toBeTruthy();
-		expect(screen.getByText("Nenhuma consulta ainda")).toBeTruthy();
-		expect(screen.getByText("Iniciar consulta")).toBeTruthy();
+		render(<ConsultationsPage consultations={[]} />);
+		expect(screen.getByText("No consultations yet.")).toBeTruthy();
+		expect(screen.getByText("No consultations yet")).toBeTruthy();
+		expect(screen.getByText("Start consultation")).toBeTruthy();
 	});
 
 	it("renders singular/plural count and list", () => {
-		render(<ConsultasPage consultas={[item({})]} />);
-		expect(screen.getByText("1 consulta registrada.")).toBeTruthy();
+		render(<ConsultationsPage consultations={[item({})]} />);
+		expect(screen.getByText("1 consultation recorded.")).toBeTruthy();
 		expect(screen.getByText("Maria Silva")).toBeTruthy();
 		expect(screen.getByText("Dor de cabeça")).toBeTruthy();
 	});
 
 	it("renders badges for live/anamnesis/consent/source", () => {
 		render(
-			<ConsultasPage
-				consultas={[
+			<ConsultationsPage
+				consultations={[
 					item({
 						status: "live",
 						source: "bot",
@@ -63,81 +63,85 @@ describe("ConsultasPage", () => {
 				]}
 			/>,
 		);
-		expect(screen.getByText("● ao vivo")).toBeTruthy();
-		expect(screen.getByText("Sem anamnese")).toBeTruthy();
-		expect(screen.getByText("Teleconsulta (bot)")).toBeTruthy();
-		expect(screen.getByText("Paciente não vinculado")).toBeTruthy();
+		expect(screen.getByText("● live")).toBeTruthy();
+		expect(screen.getByText("No anamnesis")).toBeTruthy();
+		expect(screen.getByText("Teleconsult (bot)")).toBeTruthy();
+		expect(screen.getByText("Unlinked patient")).toBeTruthy();
 		expect(screen.getByText("Dor de cabeça")).toBeTruthy();
 	});
 
 	it("falls back to transcript when queixa is placeholder", () => {
 		render(
-			<ConsultasPage
-				consultas={[item({ queixa: "A preencher pelo médico", transcript: "fallback text" })]}
+			<ConsultationsPage
+				consultations={[
+					item({ chiefComplaint: "A preencher pelo médico", transcript: "fallback text" }),
+				]}
 			/>,
 		);
 		expect(screen.getByText("fallback text")).toBeTruthy();
 	});
 
-	it("shows 'Sem transcrição' when no queixa and empty transcript", () => {
-		render(<ConsultasPage consultas={[item({ queixa: null, transcript: "" })]} />);
-		expect(screen.getByText("Sem transcrição.")).toBeTruthy();
+	it("shows 'No transcript' when no chiefComplaint and empty transcript", () => {
+		render(<ConsultationsPage consultations={[item({ chiefComplaint: null, transcript: "" })]} />);
+		expect(screen.getByText("No transcript.")).toBeTruthy();
 	});
 
 	it("shows PDF link only with anamnesis", () => {
-		const { rerender } = render(<ConsultasPage consultas={[item({ hasAnamnesis: true })]} />);
+		const { rerender } = render(
+			<ConsultationsPage consultations={[item({ hasAnamnesis: true })]} />,
+		);
 		expect(screen.getByText("PDF")).toBeTruthy();
-		rerender(<ConsultasPage consultas={[item({ hasAnamnesis: false })]} />);
+		rerender(<ConsultationsPage consultations={[item({ hasAnamnesis: false })]} />);
 		expect(screen.queryByText("PDF")).toBeNull();
 	});
 
 	it("filters by search text across fields", async () => {
 		const user = userEvent.setup();
 		render(
-			<ConsultasPage
-				consultas={[
+			<ConsultationsPage
+				consultations={[
 					item({ id: 1, patientName: "Ana" }),
-					item({ id: 2, patientName: "Bia", queixa: "Tosse seca" }),
+					item({ id: 2, patientName: "Bia", chiefComplaint: "Tosse seca" }),
 				]}
 			/>,
 		);
-		const input = screen.getByLabelText("Buscar consultas");
+		const input = screen.getByLabelText("Search consultations");
 		await user.type(input, "tosse");
 		expect(screen.queryByText("Ana")).toBeNull();
 		expect(screen.getByText("Bia")).toBeTruthy();
 		await user.clear(input);
 		await user.type(input, "zzz-nada");
-		expect(screen.getByText(/Nenhuma consulta corresponde/)).toBeTruthy();
+		expect(screen.getByText(/No consultations match/)).toBeTruthy();
 	});
 
-	it("filters by anamnese/pendente tabs", async () => {
+	it("filters by anamnesis/pending tabs", async () => {
 		const user = userEvent.setup();
 		render(
-			<ConsultasPage
-				consultas={[
+			<ConsultationsPage
+				consultations={[
 					item({ id: 1, patientName: "Ana", hasAnamnesis: true }),
 					item({ id: 2, patientName: "Bia", hasAnamnesis: false }),
 				]}
 			/>,
 		);
-		await user.click(screen.getByText("Com anamnese"));
+		await user.click(screen.getByText("With anamnesis"));
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.queryByText("Bia")).toBeNull();
-		await user.click(screen.getByText("Pendentes"));
+		await user.click(screen.getByText("Pending"));
 		expect(screen.getByText("Bia")).toBeTruthy();
 		expect(screen.queryByText("Ana")).toBeNull();
-		await user.click(screen.getByText("Todas"));
+		await user.click(screen.getByText("All"));
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.getByText("Bia")).toBeTruthy();
 	});
 
 	it("handles initials edge cases", () => {
 		render(
-			<ConsultasPage
-				consultas={[
+			<ConsultationsPage
+				consultations={[
 					item({ id: 1, patientName: "  " }),
 					item({ id: 2, patientName: "Single" }),
-					item({ id: 3, patientName: "Um Dois Três" }),
+					item({ id: 3, patientName: "Um Dois Tres" }),
 				]}
 			/>,
 		);
@@ -145,8 +149,8 @@ describe("ConsultasPage", () => {
 
 	it("falls back to raw source label for unknown sources", () => {
 		render(
-			<ConsultasPage
-				consultas={[
+			<ConsultationsPage
+				consultations={[
 					item({ id: 1, source: "custom-source" }),
 					item({ id: 2, source: null, patientName: "Bia" }),
 				]}
@@ -156,7 +160,7 @@ describe("ConsultasPage", () => {
 	});
 
 	it("hides search when list is empty", () => {
-		render(<ConsultasPage consultas={[]} />);
-		expect(screen.queryByLabelText("Buscar consultas")).toBeNull();
+		render(<ConsultationsPage consultations={[]} />);
+		expect(screen.queryByLabelText("Search consultations")).toBeNull();
 	});
 });

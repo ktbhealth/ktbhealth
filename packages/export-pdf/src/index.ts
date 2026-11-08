@@ -12,9 +12,9 @@ export interface AnamnesisPdfInput {
 	anamnesis: Anamnesis;
 }
 
-const fmt = (d: Date) => d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+const fmt = (d: Date) => d.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" });
 
-/** Renders the reviewed anamnese as an A4 PDF (standard fonts, pt-BR safe). */
+/** Renders the reviewed anamnesis as an A4 PDF (standard fonts). */
 export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
 		const doc = new PDFDocument({
@@ -22,8 +22,8 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 			margins: { top: 56, bottom: 64, left: 56, right: 56 },
 			bufferPages: true,
 			info: {
-				Title: `Anamnese · consulta #${input.consultationId}`,
-				Author: input.doctorName ?? "anamnese",
+				Title: `Anamnesis · consultation #${input.consultationId}`,
+				Author: input.doctorName ?? "anamnesis",
 			},
 		});
 		const chunks: Buffer[] = [];
@@ -34,16 +34,16 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 		const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
 		// ---- header ----
-		doc.font("Helvetica-Bold").fontSize(20).fillColor("#111").text("Anamnese");
+		doc.font("Helvetica-Bold").fontSize(20).fillColor("#111").text("Anamnesis");
 		doc.moveDown(0.3);
 		doc.font("Helvetica").fontSize(9.5).fillColor("#555");
-		doc.text(`Consulta #${input.consultationId} · ${fmt(input.createdAt)}`);
-		if (input.patientName) doc.text(`Paciente: ${input.patientName}`);
-		if (input.doctorName) doc.text(`Médico: ${input.doctorName}`);
+		doc.text(`Consultation #${input.consultationId} · ${fmt(input.createdAt)}`);
+		if (input.patientName) doc.text(`Patient: ${input.patientName}`);
+		if (input.doctorName) doc.text(`Physician: ${input.doctorName}`);
 		doc.text(
 			input.consentAt
-				? `Consentimento do paciente declarado em ${fmt(input.consentAt)}`
-				: "Consentimento do paciente: não registrado",
+				? `Patient consent declared on ${fmt(input.consentAt)}`
+				: "Patient consent: not recorded",
 		);
 		doc.moveDown(0.6);
 		const y = doc.y;
@@ -56,7 +56,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 
 		// ---- sections ----
 		for (const key of Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]) {
-			const content = input.anamnesis[key]?.content?.trim() || "Não informado";
+			const content = input.anamnesis[key]?.content?.trim() || "Not reported";
 			// keep a heading together with the start of its text
 			if (doc.y > doc.page.height - doc.page.margins.bottom - 70) doc.addPage();
 			doc
@@ -82,7 +82,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 			.font("Helvetica")
 			.fontSize(9)
 			.fillColor("#555")
-			.text(input.doctorName ?? "Médico responsável", doc.page.margins.left, sy + 4);
+			.text(input.doctorName ?? "Responsible physician", doc.page.margins.left, sy + 4);
 
 		// ---- footer on every page ----
 		const range = doc.bufferedPageRange();
@@ -96,7 +96,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 				.fontSize(8)
 				.fillColor("#999")
 				.text(
-					"Rascunho estruturado por IA a partir da transcrição, revisado e validado pelo médico responsável.",
+					"AI-structured draft generated from the transcript, reviewed and validated by the responsible physician.",
 					doc.page.margins.left,
 					fy,
 					{ width: width - 60, lineBreak: false },

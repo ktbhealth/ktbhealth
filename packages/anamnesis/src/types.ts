@@ -1,12 +1,22 @@
 /**
  * AnamnesisExtractor port — server-side structuring.
  *
- * Turns a consult transcript into a structured anamnese. Every
+ * Turns a consult transcript into a structured anamnesis. Every
  * section carries `evidence` (the source sentences that justify it)
  * and `confidence` — the doctor reviews text, never re-listens.
+ *
+ * Section keys and confidence values are the persisted document
+ * schema (stored JSON, LLM wire format) and intentionally stay
+ * pt-BR; only the human-facing labels are English.
  */
 
 export type Confidence = "alta" | "media" | "baixa";
+
+export const CONFIDENCE_LABELS: Record<Confidence, string> = {
+	alta: "high confidence",
+	media: "medium confidence",
+	baixa: "low confidence",
+};
 
 export interface AnamnesisSection {
 	readonly content: string;
@@ -29,14 +39,14 @@ export interface Anamnesis {
 export type AnamnesisSectionKey = keyof Anamnesis;
 
 export const SECTION_LABELS: Record<AnamnesisSectionKey, string> = {
-	queixa_principal: "Queixa principal",
-	hda: "História da doença atual",
-	antecedentes: "Antecedentes",
-	alergias: "Alergias",
-	medicamentos_em_uso: "Medicamentos em uso",
-	exame_fisico: "Exame físico",
-	hipoteses: "Hipóteses diagnósticas",
-	conduta: "Conduta",
+	queixa_principal: "Chief complaint",
+	hda: "History of present illness",
+	antecedentes: "Past medical history",
+	alergias: "Allergies",
+	medicamentos_em_uso: "Current medications",
+	exame_fisico: "Physical examination",
+	hipoteses: "Diagnostic hypotheses",
+	conduta: "Management plan",
 };
 
 export interface AnamnesisExtractor {

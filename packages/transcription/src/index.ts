@@ -108,7 +108,7 @@ export class WebSpeechTranscriber implements Transcriber {
 		if (!Ctor) {
 			onEvent({
 				type: "error",
-				message: "SpeechRecognition não suportado neste browser",
+				message: "SpeechRecognition is not supported in this browser",
 			});
 			return;
 		}

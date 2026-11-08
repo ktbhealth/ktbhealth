@@ -26,7 +26,7 @@ async function gotoApp(page: Page, path: string) {
 
 async function fillCredentials(page: Page, email: string) {
 	await page.getByLabel("Email").fill(email);
-	await page.getByLabel("Senha").fill(PASSWORD);
+	await page.getByLabel("Password").fill(PASSWORD);
 }
 
 // Deployed environments bind real Turnstile keys — automation can't solve
@@ -36,11 +36,11 @@ test.describe("auth flow", () => {
 	test("sign up, sign out via nav menu, sign back in", async ({ page }) => {
 		const { email, name } = uniqueCredentials();
 
-		// Sign up through the "Criar conta" tab.
+		// Sign up through the "Create account" tab.
 		await gotoApp(page, "/login");
-		await page.getByRole("tab", { name: "Criar conta" }).click();
+		await page.getByRole("tab", { name: "Create account" }).click();
 		await fillCredentials(page, email);
-		await page.getByRole("button", { name: "Criar conta" }).click();
+		await page.getByRole("button", { name: "Create account" }).click();
 
 		// Sign-up signs in; the app does a full reload to "/".
 		await expect(page).toHaveURL("/");
@@ -50,15 +50,15 @@ test.describe("auth flow", () => {
 
 		// Sign out through the avatar dropdown.
 		await trigger.click();
-		await page.getByRole("menuitem", { name: "Sair" }).click();
+		await page.getByRole("menuitem", { name: "Sign out" }).click();
 		await expect(page).toHaveURL("/");
 		await waitForHydration(page);
-		await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+		await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
 
-		// Sign back in (the "Entrar" tab is the default).
+		// Sign back in (the "Sign in" tab is the default).
 		await gotoApp(page, "/login");
 		await fillCredentials(page, email);
-		await page.getByRole("button", { name: "Entrar" }).click();
+		await page.getByRole("button", { name: "Sign in" }).click();
 		await expect(page).toHaveURL("/");
 		await waitForHydration(page);
 		await expect(page.getByRole("button", { name: new RegExp(name) })).toBeVisible();
@@ -67,7 +67,7 @@ test.describe("auth flow", () => {
 	test("shows error on invalid credentials", async ({ page }) => {
 		await gotoApp(page, "/login");
 		await fillCredentials(page, `nobody-${Date.now()}@test.dev`);
-		await page.getByRole("button", { name: "Entrar" }).click();
+		await page.getByRole("button", { name: "Sign in" }).click();
 		await expect(page.getByText(/invalid email or password/i)).toBeVisible();
 		await expect(page).toHaveURL("/login");
 	});

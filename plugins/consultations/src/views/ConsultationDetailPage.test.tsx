@@ -16,8 +16,8 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 import type { Anamnesis } from "@ktb/anamnesis";
-import type { ConsultaDetail } from "./ConsultaDetailPage.tsx";
-import { ConsultaDetailPage } from "./ConsultaDetailPage.tsx";
+import type { ConsultationDetail } from "./ConsultationDetailPage.tsx";
+import { ConsultationDetailPage } from "./ConsultationDetailPage.tsx";
 
 const SECTION = { content: "", confidence: "baixa" as const, evidence: [] as string[] };
 const ANAMNESIS = {
@@ -31,7 +31,7 @@ const ANAMNESIS = {
 	conduta: { content: "", confidence: "baixa" as const, evidence: [] },
 };
 
-const BASE: ConsultaDetail = {
+const BASE: ConsultationDetail = {
 	id: 10,
 	userId: "u1",
 	patientId: 1,
@@ -46,27 +46,27 @@ const BASE: ConsultaDetail = {
 	anamnesis: ANAMNESIS,
 };
 
-const detail = (over: Partial<ConsultaDetail>): ConsultaDetail => ({ ...BASE, ...over });
+const detail = (over: Partial<ConsultationDetail>): ConsultationDetail => ({ ...BASE, ...over });
 
 afterEach(cleanup);
 
-describe("ConsultaDetailPage", () => {
+describe("ConsultationDetailPage", () => {
 	it("renders full detail with anamnesis and transcript", () => {
-		render(<ConsultaDetailPage c={detail({})} />);
+		render(<ConsultationDetailPage c={detail({})} />);
 		expect(screen.getByText("Maria")).toBeTruthy();
-		expect(screen.getByText(/Consulta #10/)).toBeTruthy();
+		expect(screen.getByText(/Consultation #10/)).toBeTruthy();
 		expect(screen.getByText(/engine: heuristic/)).toBeTruthy();
-		expect(screen.getByText(/Consentimento ✓/)).toBeTruthy();
-		expect(screen.getByText("Voz no navegador")).toBeTruthy();
+		expect(screen.getByText(/Consent ✓/)).toBeTruthy();
+		expect(screen.getByText("Browser voice")).toBeTruthy();
 		expect(screen.getByText("Dor")).toBeTruthy();
-		expect(screen.getByText(/evidência \(1\)/)).toBeTruthy();
+		expect(screen.getByText(/evidence \(1\)/)).toBeTruthy();
 		expect(screen.getByText("olá doutor")).toBeTruthy();
 		expect(screen.queryByText("Segunda opinião")).toBeNull();
 	});
 
 	it("renders minimal detail: no anamnesis/patient/consent", () => {
 		render(
-			<ConsultaDetailPage
+			<ConsultationDetailPage
 				c={detail({
 					patientName: null,
 					anamnesis: null,
@@ -77,50 +77,50 @@ describe("ConsultaDetailPage", () => {
 				})}
 			/>,
 		);
-		expect(screen.getByText("Consulta #10")).toBeTruthy();
-		expect(screen.getByText("Consentimento não registrado")).toBeTruthy();
-		expect(screen.getByText("em andamento")).toBeTruthy();
-		expect(screen.getByText(/ainda não tem anamnese/)).toBeTruthy();
+		expect(screen.getByText("Consultation #10")).toBeTruthy();
+		expect(screen.getByText("Consent not recorded")).toBeTruthy();
+		expect(screen.getByText("in progress")).toBeTruthy();
+		expect(screen.getByText(/does not have a saved anamnesis/)).toBeTruthy();
 		expect(screen.getByText("olá doutor")).toBeTruthy();
 	});
 
 	it("shows empty transcript message", () => {
-		render(<ConsultaDetailPage c={detail({ transcript: "  \n " })} />);
-		expect(screen.getByText("Sem transcrição.")).toBeTruthy();
+		render(<ConsultationDetailPage c={detail({ transcript: "  \n " })} />);
+		expect(screen.getByText("No transcript.")).toBeTruthy();
 	});
 
 	it("copies anamnesis to clipboard", async () => {
 		const user = userEvent.setup();
 		const writeText = vi.fn(async () => {});
 		Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-		render(<ConsultaDetailPage c={detail({})} />);
-		await user.click(screen.getByText("Copiar"));
+		render(<ConsultationDetailPage c={detail({})} />);
+		await user.click(screen.getByText("Copy"));
 		await waitFor(() => expect(writeText).toHaveBeenCalled());
-		await screen.findByText("Anamnese copiada");
-		await user.click(screen.getByLabelText("Fechar aviso"));
-		await waitFor(() => expect(screen.queryByText("Anamnese copiada")).toBeNull());
+		await screen.findByText("Anamnesis copied");
+		await user.click(screen.getByLabelText("Dismiss notification"));
+		await waitFor(() => expect(screen.queryByText("Anamnesis copied")).toBeNull());
 	});
 
 	it("copy without anamnesis is a no-op (button hidden)", () => {
-		render(<ConsultaDetailPage c={detail({ anamnesis: null })} />);
-		expect(screen.queryByText("Copiar")).toBeNull();
-		expect(screen.queryByText("⬇ Baixar PDF")).toBeNull();
+		render(<ConsultationDetailPage c={detail({ anamnesis: null })} />);
+		expect(screen.queryByText("Copy")).toBeNull();
+		expect(screen.queryByText("Download PDF")).toBeNull();
 	});
 
 	it("renders pending section styling and dash for empty content", () => {
-		render(<ConsultaDetailPage c={detail({})} />);
+		render(<ConsultationDetailPage c={detail({})} />);
 		expect(screen.getByText(/A preencher pelo médico/)).toBeTruthy();
 	});
 
 	it("tolerates anamnesis missing section keys", () => {
 		const partial = { queixa_principal: SECTION } as unknown as Anamnesis;
-		render(<ConsultaDetailPage c={detail({ anamnesis: partial })} />);
-		expect(screen.getByText("Queixa principal")).toBeTruthy();
+		render(<ConsultationDetailPage c={detail({ anamnesis: partial })} />);
+		expect(screen.getByText("Chief complaint")).toBeTruthy();
 	});
 
 	it("renders transcript lines without speaker prefix and unknown speakers", () => {
 		render(
-			<ConsultaDetailPage
+			<ConsultationDetailPage
 				c={detail({
 					transcript: "linha solta\nEnfermeiro Chefe: preparado?\nMédico: sim",
 				})}

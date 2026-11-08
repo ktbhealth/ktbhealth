@@ -12,7 +12,7 @@ import type {
 	TranscriptionStatus,
 	TranscriptEvent,
 } from "@ktb/transcription";
-import type { NovaApi } from "./NovaConsultaPage.tsx";
+import type { NewConsultationApi } from "./NewConsultationPage.tsx";
 
 // ---------- controllable transcriber mocks ----------
 let micSupported = true;
@@ -72,7 +72,7 @@ vi.mock("@tanstack/react-router", async () => {
 	};
 });
 
-import { NovaConsultaPage } from "./NovaConsultaPage.tsx";
+import { NewConsultationPage } from "./NewConsultationPage.tsx";
 
 const SECTION = { content: "", confidence: "baixa" as const, evidence: [] as string[] };
 const ANAMNESIS: Anamnesis = {
@@ -86,16 +86,16 @@ const ANAMNESIS: Anamnesis = {
 	conduta: SECTION,
 };
 
-function makeApi(overrides: Partial<NovaApi> = {}): NovaApi {
+function makeApi(overrides: Partial<NewConsultationApi> = {}): NewConsultationApi {
 	return {
 		getLiveConsultation: vi.fn(async () => null),
-		extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: "heuristic" })),
+		extractAnamnesis: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: "heuristic" })),
 		attachAnamnesis: vi.fn(async () => ({ ok: true })),
 		saveConsultation: vi.fn(async () => ({ id: 42 })),
 		recordConsent: vi.fn(async () => ({ ok: true })),
 		createPatient: vi.fn(async () => ({ id: 7, name: "Ana" })),
 		...overrides,
-	} as NovaApi;
+	} as NewConsultationApi;
 }
 
 const PATIENTS = [
@@ -104,24 +104,24 @@ const PATIENTS = [
 ];
 
 function renderPage(api = makeApi(), patients = PATIENTS) {
-	return render(<NovaConsultaPage initialPatients={patients} api={api} backend={backend} />);
+	return render(<NewConsultationPage initialPatients={patients} api={api} backend={backend} />);
 }
 
 async function consent(user: ReturnType<typeof userEvent.setup>) {
-	await user.click(screen.getByText(/Declaro que o paciente/));
+	await user.click(screen.getByText(/I declare that the patient/));
 }
 
 async function fillTranscript(text = "paciente relata dor") {
-	fireEvent.change(screen.getByLabelText("Texto da consulta"), { target: { value: text } });
+	fireEvent.change(screen.getByLabelText("Consultation text"), { target: { value: text } });
 }
 
 async function generateAnamnesis(user: ReturnType<typeof userEvent.setup>) {
 	await fillTranscript();
-	await user.click(screen.getByText("Gerar anamnese →"));
-	await screen.findByText("confiança alta");
+	await user.click(screen.getByText("Generate anamnesis →"));
+	await screen.findByText("high confidence");
 }
 
-describe("NovaConsultaPage", () => {
+describe("NewConsultationPage", () => {
 	beforeEach(() => {
 		micSupported = true;
 		micCb = null;
@@ -149,22 +149,22 @@ describe("NovaConsultaPage", () => {
 
 	it("renders empty state and steps", () => {
 		renderPage();
-		expect(screen.getByText("Nova consulta")).toBeTruthy();
-		expect(screen.getByText(/A anamnese estruturada aparece aqui/)).toBeTruthy();
-		expect(screen.getByText("Preparar")).toBeTruthy();
-		expect(screen.getByText("Transcrever")).toBeTruthy();
-		expect(screen.getByText("Revisar")).toBeTruthy();
+		expect(screen.getByText("New consultation")).toBeTruthy();
+		expect(screen.getByText(/structured anamnesis appears here/)).toBeTruthy();
+		expect(screen.getByText("Prepare")).toBeTruthy();
+		expect(screen.getByText("Transcribe")).toBeTruthy();
+		expect(screen.getByText("Review")).toBeTruthy();
 	});
 
 	it("creates a new patient", async () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
-		await user.type(screen.getByLabelText("Nome do novo paciente"), "Ana");
-		await user.click(screen.getByText("+ paciente"));
+		await user.type(screen.getByLabelText("New patient name"), "Ana");
+		await user.click(screen.getByText("+ patient"));
 		await waitFor(() => expect(api.createPatient).toHaveBeenCalledWith({ data: "Ana" }));
 		await waitFor(() =>
-			expect((screen.getByLabelText("Paciente") as HTMLSelectElement).value).toBe("7"),
+			expect((screen.getByLabelText("Patient") as HTMLSelectElement).value).toBe("7"),
 		);
 	});
 
@@ -172,7 +172,7 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
-		await user.click(screen.getByText("+ paciente"));
+		await user.click(screen.getByText("+ patient"));
 		expect(api.createPatient).not.toHaveBeenCalled();
 	});
 
@@ -180,20 +180,20 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		const api = makeApi({ createPatient: vi.fn(async () => null) });
 		renderPage(api);
-		await user.type(screen.getByLabelText("Nome do novo paciente"), "X");
-		await user.click(screen.getByText("+ paciente"));
+		await user.type(screen.getByLabelText("New patient name"), "X");
+		await user.click(screen.getByText("+ patient"));
 		await waitFor(() => expect(api.createPatient).toHaveBeenCalled());
 	});
 
 	it("selects an existing patient and toggles consent", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "2" } });
-		expect((screen.getByLabelText("Paciente") as HTMLSelectElement).value).toBe("2");
+		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "2" } });
+		expect((screen.getByLabelText("Patient") as HTMLSelectElement).value).toBe("2");
 		await consent(user);
 		const cb = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
 		expect(cb.checked).toBe(true);
-		await user.click(screen.getByText(/Declaro que o paciente/));
+		await user.click(screen.getByText(/I declare that the patient/));
 		expect(cb.checked).toBe(false);
 	});
 
@@ -201,18 +201,18 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 		await user.click(screen.getByText("Upload"));
-		expect(screen.getByText("Enviar gravação")).toBeTruthy();
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		expect(screen.getByLabelText("Link da teleconsulta")).toBeTruthy();
-		await user.click(screen.getByText("Gravar"));
-		expect(screen.getByText("Gravar microfone")).toBeTruthy();
+		expect(screen.getByText("Upload recording")).toBeTruthy();
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		expect(screen.getByLabelText("Teleconsult link")).toBeTruthy();
+		await user.click(screen.getByText("Record"));
+		expect(screen.getByText("Record microphone")).toBeTruthy();
 	});
 
 	it("shows consent warning and disables recording until consent", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		expect(screen.getByText(/Marque o consentimento acima/)).toBeTruthy();
-		const btn = screen.getByText("Gravar microfone").closest("button")!;
+		expect(screen.getByText(/Check the consent box above/)).toBeTruthy();
+		const btn = screen.getByText("Record microphone").closest("button")!;
 		expect(btn.disabled).toBe(true);
 		await consent(user);
 		expect(btn.disabled).toBe(false);
@@ -221,64 +221,64 @@ describe("NovaConsultaPage", () => {
 	it("shows unsupported message when whisper unsupported", () => {
 		micSupported = false;
 		renderPage();
-		expect(screen.getByText(/Gravação não suportada/)).toBeTruthy();
+		expect(screen.getByText(/Recording is not supported/)).toBeTruthy();
 	});
 
 	it("mic recording lifecycle: start, partial, final, stop", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Gravar microfone"));
+		await user.click(screen.getByText("Record microphone"));
 		expect(micCb).not.toBeNull();
-		expect(screen.getByText("Parar microfone")).toBeTruthy();
-		expect(screen.getByText(/gravando… fale normalmente/)).toBeTruthy();
+		expect(screen.getByText("Stop microphone")).toBeTruthy();
+		expect(screen.getByText(/recording… speak normally/)).toBeTruthy();
 
 		act(() => micCb!({ type: "partial", text: "acha que" }));
 		await screen.findByText(/acha que…/);
 		act(() => micCb!({ type: "final", text: "tem febre" }));
 		await waitFor(() =>
-			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toContain(
-				"Médico: tem febre",
+			expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toContain(
+				"Doctor: tem febre",
 			),
 		);
 
-		await user.click(screen.getByText("Parar microfone"));
+		await user.click(screen.getByText("Stop microphone"));
 		expect(micStop).toHaveBeenCalled();
-		expect(screen.getByText("Gravar microfone")).toBeTruthy();
+		expect(screen.getByText("Record microphone")).toBeTruthy();
 	});
 
 	it("mic error event sets error and stops recording", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Gravar microfone"));
+		await user.click(screen.getByText("Record microphone"));
 		act(() => micCb!({ type: "error", message: "mic denied" }));
 		await screen.findByText("mic denied");
-		expect(screen.getByText("Gravar microfone")).toBeTruthy();
+		expect(screen.getByText("Record microphone")).toBeTruthy();
 	});
 
 	it("mic end event stops recording", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Gravar microfone"));
+		await user.click(screen.getByText("Record microphone"));
 		act(() => micCb!({ type: "end" }));
-		expect(screen.getByText("Gravar microfone")).toBeTruthy();
+		expect(screen.getByText("Record microphone")).toBeTruthy();
 	});
 
-	it("tab capture lifecycle appends Paciente lines", async () => {
+	it("tab capture lifecycle appends Patient lines", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Capturar aba da chamada"));
+		await user.click(screen.getByText("Capture call tab"));
 		expect(tabCb).not.toBeNull();
 		act(() => tabCb!({ type: "final", text: "oi doutor" }));
 		await waitFor(() =>
-			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toContain(
-				"Paciente: oi doutor",
+			expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toContain(
+				"Patient: oi doutor",
 			),
 		);
-		await user.click(screen.getByText("Parar aba"));
+		await user.click(screen.getByText("Stop tab"));
 		expect(tabStop).toHaveBeenCalled();
 	});
 
@@ -286,19 +286,19 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Capturar aba da chamada"));
+		await user.click(screen.getByText("Capture call tab"));
 		act(() => tabCb!({ type: "error", message: "no tab" }));
 		await screen.findByText("no tab");
-		expect(screen.getByText("Capturar aba da chamada")).toBeTruthy();
+		expect(screen.getByText("Capture call tab")).toBeTruthy();
 	});
 
 	it("tab end event stops capture", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Capturar aba da chamada"));
+		await user.click(screen.getByText("Capture call tab"));
 		act(() => tabCb!({ type: "end" }));
-		expect(screen.getByText("Capturar aba da chamada")).toBeTruthy();
+		expect(screen.getByText("Capture call tab")).toBeTruthy();
 	});
 
 	it("uploads audio file and appends transcript", async () => {
@@ -316,7 +316,7 @@ describe("NovaConsultaPage", () => {
 		const file = new File(["audio"], "a.webm", { type: "audio/webm" });
 		fireEvent.change(input, { target: { files: [file] } });
 		await waitFor(() =>
-			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+			expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toBe(
 				"transcrito",
 			),
 		);
@@ -333,7 +333,7 @@ describe("NovaConsultaPage", () => {
 		await user.click(screen.getByText("Upload"));
 		const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 		fireEvent.change(input, { target: { files: [new File(["x"], "a.mp3")] } });
-		await screen.findByText(/transcrição falhou \(500\)/);
+		await screen.findByText(/transcription failed \(500\)/);
 	});
 
 	it("upload with no file does nothing", async () => {
@@ -350,8 +350,8 @@ describe("NovaConsultaPage", () => {
 		const api = makeApi({
 			getLiveConsultation: vi
 				.fn()
-				.mockResolvedValueOnce({ transcript: "Médico: oi", status: "live" })
-				.mockResolvedValue({ transcript: "Médico: oi\nPaciente: olá", status: "done" }),
+				.mockResolvedValueOnce({ transcript: "Doctor: oi", status: "live" })
+				.mockResolvedValue({ transcript: "Doctor: oi\nPaciente: olá", status: "done" }),
 		});
 		vi.stubGlobal(
 			"fetch",
@@ -361,10 +361,10 @@ describe("NovaConsultaPage", () => {
 			})),
 		);
 		renderPage(api);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "https://meet.google.com/abc");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/consulta #9/);
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "https://meet.google.com/abc");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/consultation #9/);
 		await vi.advanceTimersByTimeAsync(1600);
 		await vi.advanceTimersByTimeAsync(1600);
 		vi.useRealTimers();
@@ -380,11 +380,11 @@ describe("NovaConsultaPage", () => {
 		}));
 		vi.stubGlobal("fetch", fetchMock);
 		renderPage();
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		const btn = screen.getByText("Enviar bot").closest("button")!;
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		const btn = screen.getByText("Send bot").closest("button")!;
 		expect(btn.disabled).toBe(true);
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
 		await screen.findByText("bad url");
 	});
 
@@ -395,10 +395,10 @@ describe("NovaConsultaPage", () => {
 			vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })),
 		);
 		renderPage();
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/bot falhou: HTTP 200/);
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/bot failed: HTTP 200/);
 	});
 
 	it("generates anamnesis", async () => {
@@ -406,22 +406,22 @@ describe("NovaConsultaPage", () => {
 		const api = makeApi();
 		renderPage(api);
 		await generateAnamnesis(user);
-		expect(api.extractAnamnese).toHaveBeenCalled();
+		expect(api.extractAnamnesis).toHaveBeenCalled();
 		expect(screen.getByText("engine: heuristic")).toBeTruthy();
 	});
 
 	it("generate guards empty transcript and surfaces errors", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
-			extractAnamnese: vi.fn(async () => {
+			extractAnamnesis: vi.fn(async () => {
 				throw new Error("llm down");
 			}),
 		});
 		renderPage(api);
-		const btn = screen.getByText("Gerar anamnese →").closest("button")!;
+		const btn = screen.getByText("Generate anamnesis →").closest("button")!;
 		expect(btn.disabled).toBe(true);
 		await fillTranscript("algo");
-		await user.click(screen.getByText("Gerar anamnese →"));
+		await user.click(screen.getByText("Generate anamnesis →"));
 		await screen.findByText("llm down");
 	});
 
@@ -438,7 +438,7 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 		await generateAnamnesis(user);
-		expect(screen.getByText(/evidência \(1\)/)).toBeTruthy();
+		expect(screen.getByText(/evidence \(1\)/)).toBeTruthy();
 	});
 
 	it("copies anamnesis to clipboard", async () => {
@@ -447,11 +447,11 @@ describe("NovaConsultaPage", () => {
 		Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 		renderPage();
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Copiar"));
+		await user.click(screen.getByText("Copy"));
 		await waitFor(() => expect(writeText).toHaveBeenCalled());
-		await screen.findByText(/Anamnese copiada/);
-		await user.click(screen.getByLabelText("Fechar aviso"));
-		await waitFor(() => expect(screen.queryByText(/Anamnese copiada/)).toBeNull());
+		await screen.findByText(/Anamnesis copied/);
+		await user.click(screen.getByLabelText("Dismiss notification"));
+		await waitFor(() => expect(screen.queryByText(/Anamnesis copied/)).toBeNull());
 	});
 
 	it("copy failure sets error", async () => {
@@ -462,8 +462,8 @@ describe("NovaConsultaPage", () => {
 		});
 		renderPage();
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Copiar"));
-		await screen.findByText(/Não foi possível copiar/);
+		await user.click(screen.getByText("Copy"));
+		await screen.findByText(/Could not copy/);
 	});
 
 	it("saves a new consultation with consent", async () => {
@@ -472,17 +472,17 @@ describe("NovaConsultaPage", () => {
 		renderPage(api);
 		await consent(user);
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Anamnese salva com sucesso");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Anamnesis saved successfully");
 		expect(api.saveConsultation).toHaveBeenCalled();
 		expect(api.recordConsent).toHaveBeenCalledWith({ data: 42 });
 		// dialog actions
-		expect(screen.getByText("Baixar PDF")).toBeTruthy();
-		expect(screen.getByText("Ver consulta")).toBeTruthy();
-		await user.click(screen.getByText("Confirmar"));
+		expect(screen.getByText("Download PDF")).toBeTruthy();
+		expect(screen.getByText("View consultation")).toBeTruthy();
+		await user.click(screen.getByText("Confirm"));
 		// now shows update label
-		await user.click(screen.getByText("Atualizar consulta"));
-		await screen.findByText("Consulta atualizada");
+		await user.click(screen.getByText("Update consultation"));
+		await screen.findByText("Consultation updated");
 		expect(api.attachAnamnesis).toHaveBeenCalled();
 	});
 
@@ -491,8 +491,8 @@ describe("NovaConsultaPage", () => {
 		const api = makeApi();
 		renderPage(api, []);
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Anamnese salva com sucesso");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Anamnesis saved successfully");
 		expect(api.recordConsent).not.toHaveBeenCalled();
 	});
 
@@ -506,9 +506,9 @@ describe("NovaConsultaPage", () => {
 		});
 		renderPage(api);
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
+		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("db gone");
-		await user.click(screen.getByText("Entendi"));
+		await user.click(screen.getByText("Got it"));
 	});
 
 	it("save with liveId uses attachAnamnesis path", async () => {
@@ -524,15 +524,15 @@ describe("NovaConsultaPage", () => {
 			})),
 		);
 		renderPage(api);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/consulta #5/);
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/consultation #5/);
 		await fillTranscript("transcrição da call");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await screen.findByText("confiança alta");
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Consulta atualizada");
+		await user.click(screen.getByText("Generate anamnesis →"));
+		await screen.findByText("high confidence");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Consultation updated");
 		expect(api.attachAnamnesis).toHaveBeenCalled();
 		expect(api.saveConsultation).not.toHaveBeenCalled();
 	});
@@ -551,27 +551,27 @@ describe("NovaConsultaPage", () => {
 		);
 		renderPage(api);
 		await consent(user);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/consulta #5/);
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/consultation #5/);
 		await fillTranscript("transcrição da call");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await screen.findByText("confiança alta");
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Consulta atualizada");
-		expect(document.body.textContent).toContain("Consentimento do paciente registrado");
-		expect(document.body.textContent).not.toContain("segunda opinião");
+		await user.click(screen.getByText("Generate anamnesis →"));
+		await screen.findByText("high confidence");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Consultation updated");
+		expect(document.body.textContent).toContain("Patient consent recorded");
+		expect(document.body.textContent).not.toContain("second opinion");
 	});
 
-	it("save dialog never mentions segunda opiniao", async () => {
+	it("save dialog never mentions second opinion", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		const dialog = await screen.findByText("Anamnese salva com sucesso");
-		expect(dialog.textContent).not.toContain("segunda opinião");
-		expect(dialog.textContent).not.toContain("Consentimento");
+		await user.click(screen.getByText("Save consultation"));
+		const dialog = await screen.findByText("Anamnesis saved successfully");
+		expect(dialog.textContent).not.toContain("second opinion");
+		expect(dialog.textContent).not.toContain("Patient consent");
 	});
 
 	it("saveDialog error variant for non-Error throw", async () => {
@@ -583,8 +583,8 @@ describe("NovaConsultaPage", () => {
 		});
 		renderPage(api);
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Não foi possível salvar");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Could not save");
 		expect(screen.getByText("string error")).toBeTruthy();
 	});
 
@@ -592,8 +592,8 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Anamnese salva com sucesso");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Anamnesis saved successfully");
 		const dialog = document.querySelector("dialog") as HTMLDialogElement;
 		expect(dialog.open).toBe(true);
 		// click directly on the dialog element = backdrop
@@ -604,18 +604,18 @@ describe("NovaConsultaPage", () => {
 	it("sample transcript and clear buttons", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		await user.click(screen.getByText("Usar exemplo"));
-		const ta = screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement;
+		await user.click(screen.getByText("Use sample"));
+		const ta = screen.getByLabelText("Consultation text") as HTMLTextAreaElement;
 		expect(ta.value.length).toBeGreaterThan(50);
-		await user.click(screen.getByText("Limpar"));
+		await user.click(screen.getByText("Clear"));
 		expect(ta.value).toBe("");
 	});
 
 	it("textarea onChange updates transcript", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		await user.type(screen.getByLabelText("Texto da consulta"), "digitado");
-		expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+		await user.type(screen.getByLabelText("Consultation text"), "digitado");
+		expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toBe(
 			"digitado",
 		);
 	});
@@ -623,7 +623,7 @@ describe("NovaConsultaPage", () => {
 	it("engine label renders", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
-			extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: "openai:gpt" })),
+			extractAnamnesis: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: "openai:gpt" })),
 		});
 		renderPage(api);
 		await generateAnamnesis(user);
@@ -635,12 +635,12 @@ describe("NovaConsultaPage", () => {
 		for (const fn of engineSubs) fn({ type: "progress", message: "baixando 50%" });
 		await screen.findByText(/baixando 50%/);
 		for (const fn of engineSubs) fn({ type: "ready", device: "webgpu" });
-		await screen.findByText(/modelo pronto \(webgpu\)/);
+		await screen.findByText(/model ready \(webgpu\)/);
 		for (const fn of engineSubs) fn({ type: "error", message: "falhou tudo" });
-		await screen.findByText(/modelo indisponível: falhou tudo/);
+		await screen.findByText(/model unavailable: falhou tudo/);
 	});
 
-	it("live consultation done stops polling and shows call encerrada", async () => {
+	it("live consultation done stops polling and shows call ended", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
 			getLiveConsultation: vi.fn(async () => ({ transcript: "t", status: "done" })),
@@ -653,16 +653,16 @@ describe("NovaConsultaPage", () => {
 			})),
 		);
 		renderPage(api);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/call encerrada/, {}, { timeout: 4000 });
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/call ended/, {}, { timeout: 4000 });
 	});
 
 	it("shows ready model status on mount when engine already loaded", () => {
 		statusImpl = () => ({ state: "ready", device: "webgpu" });
 		renderPage();
-		expect(screen.getByText(/modelo pronto \(webgpu\)/)).toBeTruthy();
+		expect(screen.getByText(/model ready \(webgpu\)/)).toBeTruthy();
 	});
 
 	it("progress engine message without text clears status", async () => {
@@ -686,10 +686,10 @@ describe("NovaConsultaPage", () => {
 			})),
 		);
 		renderPage(api);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/consulta #4/);
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/consultation #4/);
 		await vi.advanceTimersByTimeAsync(3200);
 		expect(api.getLiveConsultation).toHaveBeenCalled();
 		vi.useRealTimers();
@@ -710,7 +710,7 @@ describe("NovaConsultaPage", () => {
 		const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 		fireEvent.change(input, { target: { files: [new File(["x"], "a.webm")] } });
 		await waitFor(() =>
-			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+			expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toBe(
 				"existente\nvia upload",
 			),
 		);
@@ -731,19 +731,19 @@ describe("NovaConsultaPage", () => {
 		await user.click(screen.getByText("Upload"));
 		const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 		fireEvent.change(input, { target: { files: [new File(["x"], "a.webm")] } });
-		await screen.findByText("transcrição falhou");
+		await screen.findByText("transcription failed");
 	});
 
 	it("mic final events join with newlines", async () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Gravar microfone"));
+		await user.click(screen.getByText("Record microphone"));
 		act(() => micCb!({ type: "final", text: "primeira" }));
 		act(() => micCb!({ type: "final", text: "segunda" }));
 		await waitFor(() =>
-			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
-				"Médico: primeira\nMédico: segunda",
+			expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toBe(
+				"Doctor: primeira\nDoctor: segunda",
 			),
 		);
 	});
@@ -752,14 +752,14 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 		await consent(user);
-		await user.click(screen.getByText("Capturar aba da chamada"));
+		await user.click(screen.getByText("Capture call tab"));
 		act(() => tabCb!({ type: "partial", text: "parcial aba" }));
 		await screen.findByText(/parcial aba/);
 		act(() => tabCb!({ type: "final", text: "um" }));
 		act(() => tabCb!({ type: "final", text: "dois" }));
 		await waitFor(() =>
-			expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
-				"Paciente: um\nPaciente: dois",
+			expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toBe(
+				"Patient: um\nPatient: dois",
 			),
 		);
 	});
@@ -767,13 +767,13 @@ describe("NovaConsultaPage", () => {
 	it("generate surfaces non-Error extractor failures", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
-			extractAnamnese: vi.fn(async () => {
+			extractAnamnesis: vi.fn(async () => {
 				throw "extractor-string";
 			}),
 		});
 		renderPage(api);
 		await fillTranscript("algo");
-		await user.click(screen.getByText("Gerar anamnese →"));
+		await user.click(screen.getByText("Generate anamnesis →"));
 		await screen.findByText("extractor-string");
 	});
 
@@ -787,19 +787,19 @@ describe("NovaConsultaPage", () => {
 			})),
 		);
 		const api = makeApi({
-			extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: undefined as never })),
+			extractAnamnesis: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: undefined as never })),
 			attachAnamnesis: vi.fn(async () => ({ ok: false })),
 		});
 		renderPage(api);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
-		await user.type(screen.getByLabelText("Link da teleconsulta"), "http://x");
-		await user.click(screen.getByText("Enviar bot"));
-		await screen.findByText(/consulta #8/);
+		await user.click(screen.getByText("Teleconsult (bot)"));
+		await user.type(screen.getByLabelText("Teleconsult link"), "http://x");
+		await user.click(screen.getByText("Send bot"));
+		await screen.findByText(/consultation #8/);
 		await fillTranscript("transcrição");
-		await user.click(screen.getByText("Gerar anamnese →"));
-		await screen.findByText("confiança alta");
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText(/sessão expirada/);
+		await user.click(screen.getByText("Generate anamnesis →"));
+		await screen.findByText("high confidence");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText(/session expired/);
 		expect(api.attachAnamnesis).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({ engine: "unknown" }),
@@ -811,12 +811,12 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		const api = makeApi({
 			saveConsultation: vi.fn(async () => ({})) as never,
-			extractAnamnese: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: undefined as never })),
+			extractAnamnesis: vi.fn(async () => ({ anamnesis: ANAMNESIS, engine: undefined as never })),
 		});
 		renderPage(api);
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText(/não foi possível salvar/);
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText(/could not save/);
 		expect(api.saveConsultation).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({ engine: "unknown" }),
@@ -828,11 +828,11 @@ describe("NovaConsultaPage", () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
-		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "1" } });
-		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "" } });
+		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "1" } });
+		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "" } });
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Anamnese salva com sucesso");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Anamnesis saved successfully");
 		expect(api.saveConsultation).toHaveBeenCalledWith(
 			expect.objectContaining({ data: expect.objectContaining({ patientId: undefined }) }),
 		);
@@ -844,54 +844,54 @@ describe("NovaConsultaPage", () => {
 		const fetchMock = vi.fn();
 		vi.stubGlobal("fetch", fetchMock);
 		renderPage(api);
-		await user.click(screen.getByText("Teleconsulta (bot)"));
+		await user.click(screen.getByText("Teleconsult (bot)"));
 		// disabled button still dispatches click in jsdom → inner guard must hold
-		fireEvent.click(screen.getByText("Enviar bot"));
+		fireEvent.click(screen.getByText("Send bot"));
 		expect(fetchMock).not.toHaveBeenCalled();
-		await user.click(screen.getByText("Gravar"));
-		fireEvent.change(screen.getByLabelText("Texto da consulta"), { target: { value: "   " } });
-		fireEvent.click(screen.getByText("Gerar anamnese →"));
-		expect(api.extractAnamnese).not.toHaveBeenCalled();
+		await user.click(screen.getByText("Record"));
+		fireEvent.change(screen.getByLabelText("Consultation text"), { target: { value: "   " } });
+		fireEvent.click(screen.getByText("Generate anamnesis →"));
+		expect(api.extractAnamnesis).not.toHaveBeenCalled();
 	});
 
 	it("save dialog names the selected patient", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		fireEvent.change(screen.getByLabelText("Paciente"), { target: { value: "1" } });
+		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "1" } });
 		await generateAnamnesis(user);
-		await user.click(screen.getByText("Salvar consulta"));
-		await screen.findByText("Anamnese salva com sucesso");
+		await user.click(screen.getByText("Save consultation"));
+		await screen.findByText("Anamnesis saved successfully");
 		const dialog = document.querySelector("dialog") as HTMLDialogElement;
-		expect(dialog.textContent).toContain("de Maria");
+		expect(dialog.textContent).toContain("for Maria");
 	});
 
-	describe("ditado pós-consulta", () => {
+	describe("post-consultation dictation", () => {
 		async function enterDictation(user: ReturnType<typeof userEvent.setup>) {
-			await user.click(screen.getByText("Ditado pós-consulta"));
+			await user.click(screen.getByText("Post-consultation dictation"));
 		}
 
 		it("switches mode and shows dictation panel without source tabs", async () => {
 			const user = userEvent.setup();
 			renderPage();
 			await enterDictation(user);
-			expect(screen.getByText(/Narre tudo em voz alta/)).toBeTruthy();
-			expect(screen.getByText("Iniciar narração")).toBeTruthy();
-			expect(screen.queryByText("Teleconsulta (bot)")).toBeNull();
-			await user.click(screen.getByText("Consulta ao vivo"));
-			expect(screen.getByText("Teleconsulta (bot)")).toBeTruthy();
-			expect(screen.queryByText("Iniciar narração")).toBeNull();
+			expect(screen.getByText(/Narrate everything out loud/)).toBeTruthy();
+			expect(screen.getByText("Start dictation")).toBeTruthy();
+			expect(screen.queryByText("Teleconsult (bot)")).toBeNull();
+			await user.click(screen.getByText("Live consultation"));
+			expect(screen.getByText("Teleconsult (bot)")).toBeTruthy();
+			expect(screen.queryByText("Start dictation")).toBeNull();
 		});
 
 		it("requires consent and shows warning", async () => {
 			const user = userEvent.setup();
 			renderPage();
 			await enterDictation(user);
-			expect(screen.getByText(/Marque o consentimento acima para liberar a narração/)).toBeTruthy();
-			const btn = screen.getByText("Iniciar narração").closest("button")!;
+			expect(screen.getByText(/Check the consent box above to enable dictation/)).toBeTruthy();
+			const btn = screen.getByText("Start dictation").closest("button")!;
 			expect(btn.disabled).toBe(true);
 			await consent(user);
 			expect(btn.disabled).toBe(false);
-			expect(screen.queryByText(/liberar a narração/)).toBeNull();
+			expect(screen.queryByText(/enable dictation/)).toBeNull();
 		});
 
 		it("shows unsupported message when mic unsupported", async () => {
@@ -899,7 +899,7 @@ describe("NovaConsultaPage", () => {
 			const user = userEvent.setup();
 			renderPage();
 			await enterDictation(user);
-			expect(screen.getByText(/Gravação não suportada/)).toBeTruthy();
+			expect(screen.getByText(/Recording is not supported/)).toBeTruthy();
 		});
 
 		it("records narration: partial preview, final without prefix, stop", async () => {
@@ -907,24 +907,24 @@ describe("NovaConsultaPage", () => {
 			renderPage();
 			await consent(user);
 			await enterDictation(user);
-			await user.click(screen.getByText("Iniciar narração"));
+			await user.click(screen.getByText("Start dictation"));
 			expect(micCb).not.toBeNull();
-			expect(screen.getByText(/gravando… 0:00/)).toBeTruthy();
+			expect(screen.getByText(/recording… 0:00/)).toBeTruthy();
 
 			act(() => micCb!({ type: "partial", text: "narração parcial" }));
 			await screen.findByText(/narração parcial…/);
 			act(() => micCb!({ type: "final", text: "paciente relata dor de cabeça" }));
 			act(() => micCb!({ type: "final", text: "sem febre" }));
 			await waitFor(() =>
-				expect((screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value).toBe(
+				expect((screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value).toBe(
 					"paciente relata dor de cabeça\nsem febre",
 				),
 			);
 
-			await user.click(screen.getByText(/Parar narração/));
+			await user.click(screen.getByText(/Stop dictation/));
 			expect(micStop).toHaveBeenCalled();
-			expect(screen.getByText("Iniciar narração")).toBeTruthy();
-			expect(screen.queryByText(/gravando…/)).toBeNull();
+			expect(screen.getByText("Start dictation")).toBeTruthy();
+			expect(screen.queryByText(/recording…/)).toBeNull();
 		});
 
 		it("elapsed clock ticks while dictating", async () => {
@@ -935,11 +935,11 @@ describe("NovaConsultaPage", () => {
 			renderPage();
 			await consent(user);
 			await enterDictation(user);
-			await user.click(screen.getByText("Iniciar narração"));
+			await user.click(screen.getByText("Start dictation"));
 			await act(async () => {
 				await vi.advanceTimersByTimeAsync(61_500);
 			});
-			expect(screen.getByText(/Parar narração \(1:01\)/)).toBeTruthy();
+			expect(screen.getByText(/Stop dictation \(1:01\)/)).toBeTruthy();
 			vi.useRealTimers();
 		});
 
@@ -948,14 +948,14 @@ describe("NovaConsultaPage", () => {
 			renderPage();
 			await consent(user);
 			await enterDictation(user);
-			await user.click(screen.getByText("Iniciar narração"));
+			await user.click(screen.getByText("Start dictation"));
 			act(() => micCb!({ type: "error", message: "dict mic denied" }));
 			await screen.findByText("dict mic denied");
-			expect(screen.getByText("Iniciar narração")).toBeTruthy();
+			expect(screen.getByText("Start dictation")).toBeTruthy();
 			// restart, then engine end stops it
-			await user.click(screen.getByText("Iniciar narração"));
+			await user.click(screen.getByText("Start dictation"));
 			act(() => micCb!({ type: "end" }));
-			expect(screen.getByText("Iniciar narração")).toBeTruthy();
+			expect(screen.getByText("Start dictation")).toBeTruthy();
 		});
 
 		it("dictated transcript feeds the anamnesis pipeline", async () => {
@@ -964,12 +964,12 @@ describe("NovaConsultaPage", () => {
 			renderPage(api);
 			await consent(user);
 			await enterDictation(user);
-			await user.click(screen.getByText("Iniciar narração"));
+			await user.click(screen.getByText("Start dictation"));
 			act(() => micCb!({ type: "final", text: "narrei a consulta toda" }));
-			await user.click(screen.getByText(/Parar narração/));
-			await user.click(screen.getByText("Gerar anamnese →"));
-			await screen.findByText("confiança alta");
-			expect(api.extractAnamnese).toHaveBeenCalledWith({
+			await user.click(screen.getByText(/Stop dictation/));
+			await user.click(screen.getByText("Generate anamnesis →"));
+			await screen.findByText("high confidence");
+			expect(api.extractAnamnesis).toHaveBeenCalledWith({
 				data: "narrei a consulta toda",
 			});
 		});
@@ -981,7 +981,7 @@ describe("NovaConsultaPage", () => {
 		const blob = new Blob(["audio"], { type: "audio/webm" });
 
 		function transcriptValue() {
-			return (screen.getByLabelText("Texto da consulta") as HTMLTextAreaElement).value;
+			return (screen.getByLabelText("Consultation text") as HTMLTextAreaElement).value;
 		}
 
 		async function flushFallback() {
@@ -990,7 +990,7 @@ describe("NovaConsultaPage", () => {
 			});
 		}
 
-		it("mic session re-transcribes on the server and keeps the Médico label", async () => {
+		it("mic session re-transcribes on the server and keeps the Doctor label", async () => {
 			const user = userEvent.setup();
 			const fetchMock = vi.fn(async () => ({
 				ok: true,
@@ -1001,10 +1001,10 @@ describe("NovaConsultaPage", () => {
 			micRecFn = async () => blob;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "final", text: "lixo local" }));
 			act(() => micCb!({ type: "end" }));
-			await waitFor(() => expect(transcriptValue()).toBe("Médico: transcrição do servidor"));
+			await waitFor(() => expect(transcriptValue()).toBe("Doctor: transcrição do servidor"));
 			expect(fetchMock).toHaveBeenCalledWith(
 				"/api/transcribe",
 				expect.objectContaining({ method: "POST" }),
@@ -1023,19 +1023,19 @@ describe("NovaConsultaPage", () => {
 			micStatsFn = () => LOW;
 			micRecFn = async () => blob;
 			renderPage();
-			fireEvent.change(screen.getByLabelText("Texto da consulta"), {
+			fireEvent.change(screen.getByLabelText("Consultation text"), {
 				target: { value: "anotação anterior" },
 			});
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "final", text: "lixo local" }));
 			act(() => micCb!({ type: "end" }));
 			await waitFor(() =>
-				expect(transcriptValue()).toBe("anotação anterior\nMédico: só o trecho novo"),
+				expect(transcriptValue()).toBe("anotação anterior\nDoctor: só o trecho novo"),
 			);
 		});
 
-		it("tab session falls back with the Paciente label", async () => {
+		it("tab session falls back with the Patient label", async () => {
 			const user = userEvent.setup();
 			vi.stubGlobal(
 				"fetch",
@@ -1048,10 +1048,10 @@ describe("NovaConsultaPage", () => {
 			tabRecFn = async () => blob;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Capturar aba da chamada"));
+			await user.click(screen.getByText("Capture call tab"));
 			act(() => tabCb!({ type: "final", text: "lixo" }));
 			act(() => tabCb!({ type: "end" }));
-			await waitFor(() => expect(transcriptValue()).toBe("Paciente: paciente no servidor"));
+			await waitFor(() => expect(transcriptValue()).toBe("Patient: paciente no servidor"));
 		});
 
 		it("dictation falls back without a speaker label", async () => {
@@ -1067,8 +1067,8 @@ describe("NovaConsultaPage", () => {
 			micRecFn = async () => blob;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Ditado pós-consulta"));
-			await user.click(screen.getByText("Iniciar narração"));
+			await user.click(screen.getByText("Post-consultation dictation"));
+			await user.click(screen.getByText("Start dictation"));
 			act(() => micCb!({ type: "final", text: "lixo local" }));
 			act(() => micCb!({ type: "end" }));
 			await waitFor(() => expect(transcriptValue()).toBe("narração refeita"));
@@ -1082,11 +1082,11 @@ describe("NovaConsultaPage", () => {
 			micRecFn = async () => blob;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "final", text: "transcrição boa" }));
 			act(() => micCb!({ type: "end" }));
 			await flushFallback();
-			await waitFor(() => expect(transcriptValue()).toBe("Médico: transcrição boa"));
+			await waitFor(() => expect(transcriptValue()).toBe("Doctor: transcrição boa"));
 			expect(fetchMock).not.toHaveBeenCalled();
 		});
 
@@ -1097,10 +1097,10 @@ describe("NovaConsultaPage", () => {
 			micStatsFn = () => LOW;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "end" }));
 			await flushFallback();
-			await waitFor(() => expect(screen.getByText("Gravar microfone")).toBeTruthy());
+			await waitFor(() => expect(screen.getByText("Record microphone")).toBeTruthy());
 			expect(fetchMock).not.toHaveBeenCalled();
 		});
 
@@ -1112,11 +1112,11 @@ describe("NovaConsultaPage", () => {
 			micRecFn = async () => null;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "final", text: "local fica" }));
 			act(() => micCb!({ type: "end" }));
 			await flushFallback();
-			await waitFor(() => expect(transcriptValue()).toBe("Médico: local fica"));
+			await waitFor(() => expect(transcriptValue()).toBe("Doctor: local fica"));
 			expect(fetchMock).not.toHaveBeenCalled();
 		});
 
@@ -1130,11 +1130,11 @@ describe("NovaConsultaPage", () => {
 			micRecFn = async () => blob;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "final", text: "local fica" }));
 			act(() => micCb!({ type: "end" }));
 			await flushFallback();
-			await waitFor(() => expect(transcriptValue()).toBe("Médico: local fica"));
+			await waitFor(() => expect(transcriptValue()).toBe("Doctor: local fica"));
 		});
 
 		it("keeps the local transcript when the upload fails", async () => {
@@ -1149,11 +1149,11 @@ describe("NovaConsultaPage", () => {
 			micRecFn = async () => blob;
 			renderPage();
 			await consent(user);
-			await user.click(screen.getByText("Gravar microfone"));
+			await user.click(screen.getByText("Record microphone"));
 			act(() => micCb!({ type: "final", text: "local fica" }));
 			act(() => micCb!({ type: "end" }));
 			await flushFallback();
-			await waitFor(() => expect(transcriptValue()).toBe("Médico: local fica"));
+			await waitFor(() => expect(transcriptValue()).toBe("Doctor: local fica"));
 		});
 	});
 });

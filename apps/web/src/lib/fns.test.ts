@@ -26,7 +26,7 @@ import { consultations } from "@ktb/db/schema";
 import {
 	attachAnamnesisFn,
 	createPatientFn,
-	extractAnamneseFn,
+	extractAnamnesisFn,
 	getConsultationFn,
 	getLiveConsultationFn,
 	getSessionUserFn,
@@ -43,8 +43,8 @@ const section = (content: string): AnamnesisSection => ({
 	evidence: ["frase"],
 });
 
-const makeAnamnesis = (queixa: string): Anamnesis => ({
-	queixa_principal: section(queixa),
+const makeAnamnesis = (chiefComplaint: string): Anamnesis => ({
+	queixa_principal: section(chiefComplaint),
 	hda: section("hda"),
 	antecedentes: section("ant"),
 	alergias: section("alg"),
@@ -96,7 +96,7 @@ describe("server fns", () => {
 			}),
 		).rejects.toThrow("unauthenticated");
 		// LLM helpers are paid endpoints — anonymous calls must not proxy them.
-		await expect(extractAnamneseFn({ data: "t" })).rejects.toThrow("unauthenticated");
+		await expect(extractAnamnesisFn({ data: "t" })).rejects.toThrow("unauthenticated");
 	});
 
 	it("full patient + consultation lifecycle", async () => {
@@ -118,7 +118,7 @@ describe("server fns", () => {
 		const list = await listConsultationsFn();
 		expect(list).toHaveLength(1);
 		expect(list[0]?.hasAnamnesis).toBe(true);
-		expect(list[0]?.queixa).toBe("Dor de cabeça");
+		expect(list[0]?.chiefComplaint).toBe("Dor de cabeça");
 		expect(list[0]?.patientName).toBe("Maria Silva");
 
 		const detail = await getConsultationFn({ data: saved.id! });
@@ -181,7 +181,7 @@ describe("server fns", () => {
 		expect(detail?.patientName).toBe("João");
 	});
 
-	it("listConsultations queixa null via ?? on missing queixa_principal", async () => {
+	it("listConsultations chiefComplaint null via ?? on missing queixa_principal", async () => {
 		headers.current = new Headers({ cookie });
 		const user = await getSessionUserFn();
 		await db.insert(consultations).values({
@@ -192,7 +192,7 @@ describe("server fns", () => {
 			createdAt: new Date(),
 		});
 		const list = await listConsultationsFn();
-		expect(list.some((c) => c.queixa === null && c.hasAnamnesis)).toBe(true);
+		expect(list.some((c) => c.chiefComplaint === null && c.hasAnamnesis)).toBe(true);
 	});
 
 	it("listConsultations tolerates invalid anamnesis JSON", async () => {
@@ -206,12 +206,12 @@ describe("server fns", () => {
 			createdAt: new Date(),
 		});
 		const list = await listConsultationsFn();
-		expect(list.some((c) => c.queixa === null && c.hasAnamnesis)).toBe(true);
+		expect(list.some((c) => c.chiefComplaint === null && c.hasAnamnesis)).toBe(true);
 	});
 
 	it("extract fn returns a structured result", async () => {
 		headers.current = new Headers({ cookie });
-		const extracted = await extractAnamneseFn({ data: SAMPLE_TRANSCRIPT });
+		const extracted = await extractAnamnesisFn({ data: SAMPLE_TRANSCRIPT });
 		expect(extracted.anamnesis.queixa_principal.content).toBeTruthy();
 		expect(extracted.engine).toBeTruthy();
 	});

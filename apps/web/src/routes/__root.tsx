@@ -32,15 +32,15 @@ export const Route = createRootRoute({
 	notFoundComponent: () => (
 		<div className="py-24 text-center">
 			<SearchXIcon className="mx-auto size-12 text-muted-foreground" />
-			<h1 className="mt-4 text-2xl font-bold tracking-tight">Página não encontrada</h1>
+			<h1 className="mt-4 text-2xl font-bold tracking-tight">Page not found</h1>
 			<p className="mt-1 text-sm text-muted-foreground">
-				O endereço não existe ou a consulta não é sua.
+				The address does not exist or the consultation is not yours.
 			</p>
 			<Link
 				to="/consultations"
 				className="mt-6 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
 			>
-				Ir para as consultas
+				Go to consultations
 			</Link>
 		</div>
 	),
@@ -53,7 +53,7 @@ const NAV_ACTIVE = "bg-muted text-foreground";
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const user = Route.useLoaderData();
 	return (
-		<html lang="pt-BR">
+		<html lang="en">
 			<head>
 				<HeadContent />
 			</head>
@@ -83,7 +83,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 								<span className="mx-1.5 h-5 w-px bg-border" />
 								{!user ? (
 									<Link to="/login" className={NAV_LINK}>
-										Entrar
+										Sign in
 									</Link>
 								) : (
 									<DropdownMenu>
@@ -112,7 +112,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 													window.location.assign("/");
 												}}
 											>
-												Sair
+												Sign out
 											</DropdownMenuItem>
 										</DropdownMenuContent>
 									</DropdownMenu>
@@ -121,14 +121,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 									to="/consultations/new"
 									className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 								>
-									+ Nova consulta
+									+ New consultation
 								</Link>
 							</div>
 						</nav>
 					</header>
 					<main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
 					<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
-						Prova de conceito: a anamnese é um rascunho e deve ser revisada pelo médico responsável.
+						Proof of concept: the anamnesis is a draft and must be reviewed by the responsible
+						physician.
 					</footer>
 					<TanStackDevtools
 						config={{ position: "bottom-right" }}

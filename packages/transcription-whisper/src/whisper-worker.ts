@@ -15,7 +15,7 @@ env.backends.onnx.wasm!.wasmPaths = {
 	wasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.wasm",
 };
 
-postMessage({ type: "progress", message: "worker iniciado" });
+postMessage({ type: "progress", message: "worker started" });
 
 type TranscriberFn = (
 	audio: Float32Array,
@@ -73,15 +73,15 @@ async function doLoad() {
 	postMessage({
 		type: "progress",
 		message: cached
-			? "modelo em cache, carregando (sem download)"
-			: "primeiro uso, baixando modelo (só desta vez)",
+			? "model cached, loading (no download)"
+			: "first use, downloading model (once only)",
 	});
 	// skip the doomed WebGPU attempt when no adapter exists
 	const devices = (await hasWebGpu()) ? ["webgpu", "wasm"] : ["wasm"];
 	let lastErr: unknown = null;
 	for (const d of devices) {
 		try {
-			postMessage({ type: "progress", message: `carregando modelo (${d})…` });
+			postMessage({ type: "progress", message: `loading model (${d})…` });
 			transcriber = (await pipeline("automatic-speech-recognition", MODEL, {
 				device: d as "webgpu" | "wasm",
 				// quantized weights: much smaller download
@@ -90,7 +90,7 @@ async function doLoad() {
 					if (!cached && typeof p.progress === "number")
 						postMessage({
 							type: "progress",
-							message: `baixando modelo ${Math.round(p.progress)}%`,
+							message: `downloading model ${Math.round(p.progress)}%`,
 						});
 				},
 			})) as unknown as TranscriberFn;
@@ -99,7 +99,7 @@ async function doLoad() {
 			return;
 		} catch (e) {
 			lastErr = e;
-			console.error(`[whisper-worker] falha em ${d}`, e);
+			console.error(`[whisper-worker] failed on ${d}`, e);
 		}
 	}
 	postMessage({
@@ -156,7 +156,7 @@ async function transcribe(id: string, pcm: Float32Array, language: string) {
 		const out = await transcriber(pcm, {
 			language,
 			task: "transcribe",
-			// greedy + anti-loop: stops "o que é o que é o que é…" runaways
+			// greedy + anti-loop: stops "what is what is what is…" runaways
 			do_sample: false,
 			num_beams: 1,
 			no_repeat_ngram_size: 3,

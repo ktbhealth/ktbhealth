@@ -126,17 +126,17 @@ describe("router integration", () => {
 		const router = getRouter();
 		await router.load();
 		render(createElement(RouterProvider, { router }));
-		await waitFor(() => expect(document.body.textContent).toContain("documentada"));
+		await waitFor(() => expect(document.body.textContent).toContain("documented"));
 		// sign-in link present (anonymous)
-		expect(screen.getByText("Entrar")).toBeTruthy();
+		expect(screen.getByText("Sign in")).toBeTruthy();
 		// nav links from plugin manifests
-		expect(screen.getByText("Consultas")).toBeTruthy();
+		expect(screen.getByText("Consultations")).toBeTruthy();
 
 		await act(async () => {
 			await router.navigate({ to: "/login" });
 		});
 		await waitFor(() => expect(screen.getByLabelText("Email")).toBeTruthy());
-		expect(screen.getByLabelText("Senha")).toBeTruthy();
+		expect(screen.getByLabelText("Password")).toBeTruthy();
 
 		await act(async () => {
 			await router.navigate({ to: "/consultations" });
@@ -156,7 +156,7 @@ describe("router integration", () => {
 		await act(async () => {
 			fireEvent.click(trigger);
 		});
-		const sair = await screen.findByText("Sair");
+		const sair = await screen.findByText("Sign out");
 		await act(async () => {
 			fireEvent.click(sair);
 		});
@@ -193,7 +193,7 @@ describe("router integration", () => {
 		);
 	});
 
-	it("renders consulta detail 404 for unknown id", async () => {
+	it("renders consultation detail 404 for unknown id", async () => {
 		const router = getRouter();
 		await router.load();
 		render(createElement(RouterProvider, { router }));
@@ -201,27 +201,29 @@ describe("router integration", () => {
 			await router.navigate({ to: "/consultations/$id", params: { id: "99999" } });
 		});
 		await waitFor(() =>
-			expect(document.body.textContent).toMatch(/não encontrada|não é sua|Consultas/),
+			expect(document.body.textContent).toMatch(/not found|not yours|Consultations/),
 		);
 	});
 
-	it("renders nova consulta page", async () => {
+	it("renders new consultation page", async () => {
 		const router = getRouter();
 		await router.load();
 		render(createElement(RouterProvider, { router }));
 		await act(async () => {
 			await router.navigate({ to: "/consultations/new" });
 		});
-		await waitFor(() => expect(document.body.textContent).toMatch(/consulta|anamnese|gravar/i));
+		await waitFor(() =>
+			expect(document.body.textContent).toMatch(/consultation|anamnesis|record/i),
+		);
 	});
 
-	it("renders teste-captura page", async () => {
+	it("renders capture-test page", async () => {
 		const router = getRouter();
 		await router.load();
 		render(createElement(RouterProvider, { router }));
 		await act(async () => {
 			await router.navigate({ to: "/capture-test" });
 		});
-		await waitFor(() => expect(document.body.textContent).toMatch(/captura|aba|áudio/i));
+		await waitFor(() => expect(document.body.textContent).toMatch(/capture|tab|audio/i));
 	});
 });

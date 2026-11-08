@@ -27,13 +27,13 @@ const Page = (Route as unknown as { options: { component: () => ReactElement } }
 
 async function fillAndSubmit() {
 	fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
-	fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
+	fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
 	await act(async () => {
-		fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 	});
 }
 
-describe("entrar page", () => {
+describe("sign-in page", () => {
 	afterEach(cleanup);
 
 	beforeEach(() => {
@@ -52,11 +52,11 @@ describe("entrar page", () => {
 
 	it("toggles to sign-up mode and submits", async () => {
 		render(createElement(Page));
-		fireEvent.click(screen.getByRole("tab", { name: "Criar conta" }));
+		fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
 		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
-		fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
+		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: "Criar conta" }));
+			fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 		});
 		await waitFor(() => expect(signUpEmail).toHaveBeenCalled());
 		const arg = signUpEmail.mock.calls[0]![0] as { name: string };
@@ -66,11 +66,11 @@ describe("entrar page", () => {
 	it("shows error on failed sign-in", async () => {
 		signInEmail.mockResolvedValue({
 			data: null,
-			error: { message: "credenciais inválidas" },
+			error: { message: "invalid credentials" },
 		});
 		render(createElement(Page));
 		await fillAndSubmit();
-		await waitFor(() => expect(screen.getByText("credenciais inválidas")).toBeTruthy());
+		await waitFor(() => expect(screen.getByText("invalid credentials")).toBeTruthy());
 	});
 
 	it("ignores double submit while pending", async () => {
@@ -83,8 +83,8 @@ describe("entrar page", () => {
 		);
 		render(createElement(Page));
 		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
-		fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
-		const btn = screen.getByRole("button", { name: "Entrar" });
+		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
+		const btn = screen.getByRole("button", { name: "Sign in" });
 		await act(async () => {
 			fireEvent.click(btn);
 		});
@@ -101,7 +101,7 @@ describe("entrar page", () => {
 	it("ignores submit while pending or empty", async () => {
 		render(createElement(Page));
 		// empty submit: button disabled? form onSubmit guards
-		fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 		expect(signInEmail).not.toHaveBeenCalled();
 	});
 
@@ -123,7 +123,7 @@ describe("entrar page", () => {
 		fireEvent.submit(form);
 		expect(signInEmail).not.toHaveBeenCalled();
 		// valid fields → pending starts; submit again while pending → third operand
-		fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "senha12345" } });
+		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
 		fireEvent.submit(form);
 		await waitFor(() => expect(signInEmail).toHaveBeenCalledTimes(1));
 		fireEvent.submit(form);
@@ -140,6 +140,6 @@ describe("entrar page", () => {
 		} as unknown as AuthResult);
 		render(createElement(Page));
 		await fillAndSubmit();
-		await screen.findByText("Não foi possível entrar. Tente novamente.");
+		await screen.findByText("Could not sign in. Please try again.");
 	});
 });

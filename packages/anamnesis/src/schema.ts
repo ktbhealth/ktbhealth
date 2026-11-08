@@ -3,9 +3,10 @@ import { Schema } from "effect";
 import type { Anamnesis } from "./types.ts";
 
 /**
- * Runtime contracts for the anamnese wire format. Types in types.ts stay
+ * Runtime contracts for the anamnesis wire format. Types in types.ts stay
  * the canonical TS shapes; these schemas validate anything crossing a
  * trust boundary: LLM output, server-fn payloads, stored JSON.
+ * Section keys stay pt-BR — they are the persisted document schema.
  */
 
 export const ConfidenceSchema = Schema.Literals(["alta", "media", "baixa"]);

@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { Turnstile } from "@ktbhealth/ui/components/turnstile";
 
 export const Route = createFileRoute("/login")({
-	head: () => ({ meta: [{ title: "Entrar | KTB Health" }] }),
+	head: () => ({ meta: [{ title: "Sign in | KTB Health" }] }),
 	component: SignInPage,
 });
 
@@ -46,7 +46,7 @@ function SignInPage() {
 					);
 		setPending(false);
 		if (res.error) {
-			setError(res.error.message ?? "Não foi possível entrar. Tente novamente.");
+			setError(res.error.message ?? "Could not sign in. Please try again.");
 			return;
 		}
 		window.location.assign("/");
@@ -56,11 +56,11 @@ function SignInPage() {
 		<div className="flex min-h-[60vh] items-center justify-center">
 			<Card className="w-full max-w-sm">
 				<CardHeader>
-					<CardTitle>{mode === "in" ? "Entrar" : "Criar conta"}</CardTitle>
+					<CardTitle>{mode === "in" ? "Sign in" : "Create account"}</CardTitle>
 					<CardDescription>
 						{mode === "in"
-							? "Acesse sua conta para continuar."
-							: "Crie uma conta para começar a usar."}
+							? "Sign in to your account to continue."
+							: "Create an account to get started."}
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -73,8 +73,8 @@ function SignInPage() {
 						className="mb-4"
 					>
 						<TabsList className="w-full">
-							<TabsTrigger value="in">Entrar</TabsTrigger>
-							<TabsTrigger value="up">Criar conta</TabsTrigger>
+							<TabsTrigger value="in">Sign in</TabsTrigger>
+							<TabsTrigger value="up">Create account</TabsTrigger>
 						</TabsList>
 					</Tabs>
 					<form onSubmit={submit} className="flex flex-col gap-4">
@@ -90,7 +90,7 @@ function SignInPage() {
 							/>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="password">Senha</Label>
+							<Label htmlFor="password">Password</Label>
 							<Input
 								id="password"
 								type="password"
@@ -104,7 +104,7 @@ function SignInPage() {
 						<Turnstile onToken={setCaptchaToken} />
 						{error ? <p className="text-sm text-red-600">{error}</p> : null}
 						<Button type="submit" disabled={pending} className="w-full">
-							{pending ? "Aguarde…" : mode === "in" ? "Entrar" : "Criar conta"}
+							{pending ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}
 						</Button>
 					</form>
 				</CardContent>

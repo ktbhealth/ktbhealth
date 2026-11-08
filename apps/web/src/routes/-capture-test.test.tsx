@@ -66,16 +66,16 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe("teste-captura", () => {
+describe("capture-test", () => {
 	it("captures tab audio and shows level meter", async () => {
 		installMedia(makeStream());
 		render(createElement(Page));
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: /iniciar/i }));
+			fireEvent.click(screen.getByRole("button", { name: /start/i }));
 		});
-		await waitFor(() => expect(screen.getByText(/capturando/)).toBeTruthy());
+		await waitFor(() => expect(screen.getByText(/capturing/)).toBeTruthy());
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: /parar/i }));
+			fireEvent.click(screen.getByRole("button", { name: /stop/i }));
 		});
 	});
 
@@ -83,7 +83,7 @@ describe("teste-captura", () => {
 		installMedia(makeStream());
 		render(createElement(Page));
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: /parar/i }));
+			fireEvent.click(screen.getByRole("button", { name: /stop/i }));
 		});
 	});
 
@@ -91,9 +91,9 @@ describe("teste-captura", () => {
 		installMedia(makeStream(false));
 		render(createElement(Page));
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: /iniciar/i }));
+			fireEvent.click(screen.getByRole("button", { name: /start/i }));
 		});
-		await waitFor(() => expect(screen.getByText(/sem áudio/)).toBeTruthy());
+		await waitFor(() => expect(screen.getByText(/no audio/)).toBeTruthy());
 	});
 
 	it("shows error when getDisplayMedia fails", async () => {
@@ -103,7 +103,7 @@ describe("teste-captura", () => {
 		});
 		render(createElement(Page));
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: /iniciar/i }));
+			fireEvent.click(screen.getByRole("button", { name: /start/i }));
 		});
 		await waitFor(() => expect(screen.getByText("denied")).toBeTruthy());
 	});
@@ -115,7 +115,7 @@ describe("teste-captura", () => {
 		});
 		render(createElement(Page));
 		await act(async () => {
-			fireEvent.click(screen.getByRole("button", { name: /iniciar/i }));
+			fireEvent.click(screen.getByRole("button", { name: /start/i }));
 		});
 		await waitFor(() => expect(screen.getByText("nope")).toBeTruthy());
 	});

@@ -1,10 +1,11 @@
 import type { Anamnesis, AnamnesisExtractor, AnamnesisSection } from "./types.ts";
 
 /**
- * HeuristicExtractor — deterministic PT-BR extraction.
+ * HeuristicExtractor — deterministic pt-BR extraction.
  *
  * Always works, zero cost, zero latency — the fallback when no LLM
  * key is configured, and the baseline the LLM adapter must beat.
+ * Section content stays pt-BR: it is clinical document text.
  */
 
 const SYMPTOM =

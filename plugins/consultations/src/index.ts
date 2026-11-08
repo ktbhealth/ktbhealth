@@ -39,7 +39,7 @@ export interface ConsultationSummary {
 	readonly consentAt: Date | null;
 	readonly patientName: string | null;
 	readonly hasAnamnesis: boolean;
-	readonly queixa: string | null;
+	readonly chiefComplaint: string | null;
 }
 
 export type ConsultationDetail = Omit<ConsultationRow, "anamnesis" | "review"> & {
@@ -152,7 +152,7 @@ async function listConsultations(db: DbClient, userId: string): Promise<Consulta
 		return {
 			...c,
 			hasAnamnesis: anamnesis !== null,
-			queixa: parsed?.queixa_principal.content ?? null,
+			chiefComplaint: parsed?.queixa_principal.content ?? null,
 		};
 	});
 }
@@ -383,7 +383,7 @@ export const plugin = definePlugin({
 			route("new", "consultations/new.tsx"),
 		]),
 	],
-	nav: [{ to: "/consultations", label: "Consultas" }],
+	nav: [{ to: "/consultations", label: "Consultations" }],
 	tables: { consultations },
 	services: ConsultationsLive,
 });

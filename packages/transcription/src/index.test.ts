@@ -16,7 +16,7 @@ describe("WebSpeechTranscriber in node environment", () => {
 		expect(events).toEqual([
 			{
 				type: "error",
-				message: "SpeechRecognition não suportado neste browser",
+				message: "SpeechRecognition is not supported in this browser",
 			},
 		]);
 	});

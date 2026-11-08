@@ -13,16 +13,16 @@ import {
 } from "@ktbhealth/ui/components/empty";
 
 const SOURCE_LABEL: Record<string, string> = {
-	browser: "Voz no navegador",
-	bot: "Teleconsulta (bot)",
-	dictation: "Ditado",
+	browser: "Browser voice",
+	bot: "Teleconsult (bot)",
+	dictation: "Dictation",
 	upload: "Upload",
 };
 
 const FILTERS = [
-	["todas", "Todas"],
-	["anamnese", "Com anamnese"],
-	["pendente", "Pendentes"],
+	["all", "All"],
+	["anamnesis", "With anamnesis"],
+	["pending", "Pending"],
 ] as const;
 
 function initials(name: string | null) {
@@ -51,7 +51,7 @@ function Badge({
 	);
 }
 
-export interface ConsultaListItem {
+export interface ConsultationListItem {
 	id: number;
 	engine: string | null;
 	createdAt: Date;
@@ -60,53 +60,53 @@ export interface ConsultaListItem {
 	status: string;
 	consentAt: Date | null;
 	patientName: string | null;
-	queixa: string | null;
+	chiefComplaint: string | null;
 	hasAnamnesis: boolean;
 }
 
-export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) {
+export function ConsultationsPage({ consultations }: { consultations: ConsultationListItem[] }) {
 	const [q, setQ] = useState("");
-	const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("todas");
+	const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
 
 	const shown = useMemo(() => {
 		const needle = q.trim().toLowerCase();
-		return consultas.filter((c) => {
-			if (filter === "anamnese" && !c.hasAnamnesis) return false;
-			if (filter === "pendente" && c.hasAnamnesis) return false;
+		return consultations.filter((c) => {
+			if (filter === "anamnesis" && !c.hasAnamnesis) return false;
+			if (filter === "pending" && c.hasAnamnesis) return false;
 			if (!needle) return true;
-			return [c.patientName, c.queixa, c.transcript, String(c.id)]
+			return [c.patientName, c.chiefComplaint, c.transcript, String(c.id)]
 				.filter(Boolean)
 				.some((t) => (t as string).toLowerCase().includes(needle));
 		});
-	}, [consultas, q, filter]);
+	}, [consultations, q, filter]);
 
 	return (
 		<div>
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Consultas</h1>
+					<h1 className="text-3xl font-bold tracking-tight">Consultations</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						{consultas.length === 0
-							? "Nenhuma consulta ainda."
-							: `${consultas.length} consulta${consultas.length > 1 ? "s" : ""} registrada${consultas.length > 1 ? "s" : ""}.`}
+						{consultations.length === 0
+							? "No consultations yet."
+							: `${consultations.length} consultation${consultations.length > 1 ? "s" : ""} recorded.`}
 					</p>
 				</div>
 				<Link
 					to="/consultations/new"
 					className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 				>
-					+ Nova consulta
+					+ New consultation
 				</Link>
 			</div>
 
-			{consultas.length > 0 ? (
+			{consultations.length > 0 ? (
 				<div className="mt-6 flex flex-wrap items-center gap-3">
 					<input
 						type="search"
 						value={q}
 						onChange={(e) => setQ(e.target.value)}
-						placeholder="Buscar por paciente, queixa ou texto…"
-						aria-label="Buscar consultas"
+						placeholder="Search by patient, complaint, or text…"
+						aria-label="Search consultations"
 						className="w-full max-w-sm rounded-lg border border-border bg-card px-3 py-2 text-sm"
 					/>
 					<div className="flex rounded-lg bg-muted p-0.5 text-xs">
@@ -145,25 +145,25 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 									params={{ id: String(c.id) }}
 									className="font-semibold after:absolute after:inset-0 after:content-['']"
 								>
-									{c.patientName ?? "Paciente não vinculado"}
+									{c.patientName ?? "Unlinked patient"}
 								</Link>
 								<span className="text-xs text-muted-foreground">
-									#{c.id} · {new Date(c.createdAt).toLocaleString("pt-BR")}
+									#{c.id} · {new Date(c.createdAt).toLocaleString("en-US")}
 								</span>
 							</div>
 							<p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-								{c.queixa && !c.queixa.startsWith("A preencher")
-									? c.queixa
-									: c.transcript || "Sem transcrição."}
+								{c.chiefComplaint && !c.chiefComplaint.startsWith("A preencher")
+									? c.chiefComplaint
+									: c.transcript || "No transcript."}
 							</p>
 							<div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-								{c.status === "live" ? <Badge tone="red">● ao vivo</Badge> : null}
+								{c.status === "live" ? <Badge tone="red">● live</Badge> : null}
 								{c.hasAnamnesis ? (
-									<Badge tone="green">Anamnese</Badge>
+									<Badge tone="green">Anamnesis</Badge>
 								) : (
-									<Badge tone="amber">Sem anamnese</Badge>
+									<Badge tone="amber">No anamnesis</Badge>
 								)}
-								{c.consentAt ? <Badge tone="green">Consentimento ✓</Badge> : null}
+								{c.consentAt ? <Badge tone="green">Consent ✓</Badge> : null}
 								<Badge>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</Badge>
 							</div>
 						</div>
@@ -171,7 +171,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 							<a
 								href={`/api/consultations/${c.id}/pdf`}
 								download
-								title="Baixar PDF da anamnese"
+								title="Download anamnesis PDF"
 								className="relative z-10 shrink-0 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
 							>
 								<DownloadIcon className="mr-1 inline size-3.5 -translate-y-px" />
@@ -181,26 +181,26 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 					</article>
 				))}
 
-				{consultas.length > 0 && shown.length === 0 ? (
+				{consultations.length > 0 && shown.length === 0 ? (
 					<Empty className="border">
-						<EmptyDescription>Nenhuma consulta corresponde à busca.</EmptyDescription>
+						<EmptyDescription>No consultations match the search.</EmptyDescription>
 					</Empty>
 				) : null}
 
-				{!consultas.length ? (
+				{!consultations.length ? (
 					<Empty className="border bg-card px-6 py-16">
 						<EmptyHeader>
 							<EmptyMedia variant="icon">
 								<ClipboardListIcon />
 							</EmptyMedia>
-							<EmptyTitle>Nenhuma consulta ainda</EmptyTitle>
+							<EmptyTitle>No consultations yet</EmptyTitle>
 							<EmptyDescription>
-								Inicie uma consulta para gravar a conversa e gerar a anamnese.
+								Start a consultation to record the conversation and generate the anamnesis.
 							</EmptyDescription>
 						</EmptyHeader>
 						<EmptyContent>
 							<Link to="/consultations/new" className={buttonVariants()}>
-								Iniciar consulta
+								Start consultation
 							</Link>
 						</EmptyContent>
 					</Empty>

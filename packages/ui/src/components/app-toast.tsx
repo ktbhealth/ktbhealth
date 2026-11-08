@@ -53,7 +53,7 @@ export function Toast({
 					<button
 						type="button"
 						onClick={onClose}
-						aria-label="Fechar aviso"
+						aria-label="Dismiss notification"
 						className="text-neutral-400 hover:text-white"
 					>
 						×

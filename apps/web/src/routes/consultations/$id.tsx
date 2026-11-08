@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ConsultaDetailPage } from "@ktb/consultations/views";
+import { ConsultationDetailPage } from "@ktb/consultations/views";
 import { getConsultationFn } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
 
@@ -12,8 +12,8 @@ export const Route = createFileRoute("/consultations/$id")({
 		if (!c) throw notFound();
 		return c;
 	},
-	component: function ConsultaRoute() {
+	component: function ConsultationRoute() {
 		const c = Route.useLoaderData();
-		return <ConsultaDetailPage c={c} />;
+		return <ConsultationDetailPage c={c} />;
 	},
 });

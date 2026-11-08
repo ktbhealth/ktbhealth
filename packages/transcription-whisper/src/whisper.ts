@@ -57,7 +57,7 @@ export class WhisperTranscriber implements Transcriber {
 		if (!this.supported) {
 			onEvent({
 				type: "error",
-				message: "whisper não suportado neste browser",
+				message: "whisper is not supported in this browser",
 			});
 			return;
 		}
@@ -83,7 +83,7 @@ export class WhisperTranscriber implements Transcriber {
 		const audio = this.stream.getAudioTracks()[0];
 		if (!audio) {
 			this.stop();
-			onEvent({ type: "error", message: "stream sem áudio" });
+			onEvent({ type: "error", message: "stream has no audio" });
 			return;
 		}
 		audio.onended = () => this.stop();
@@ -93,8 +93,7 @@ export class WhisperTranscriber implements Transcriber {
 		this.active = true;
 		this.unsubscribe = subscribeWhisper((msg: EngineMessage) => {
 			if (msg.type === "progress") onEvent({ type: "partial", text: `[${msg.message}]` });
-			if (msg.type === "ready")
-				onEvent({ type: "partial", text: `[modelo pronto (${msg.device})]` });
+			if (msg.type === "ready") onEvent({ type: "partial", text: `[model ready (${msg.device})]` });
 			if (msg.type === "text" && msg.id === this.id) {
 				this.inflight = Math.max(0, this.inflight - 1);
 				const text = msg.text?.trim();
@@ -112,7 +111,7 @@ export class WhisperTranscriber implements Transcriber {
 		});
 		loadWhisper();
 		const st = whisperStatus();
-		if (st.state === "ready") onEvent({ type: "partial", text: `[modelo pronto (${st.device})]` });
+		if (st.state === "ready") onEvent({ type: "partial", text: `[model ready (${st.device})]` });
 
 		this.ctx = new AudioContext({ sampleRate: 16000 });
 		const src = this.ctx.createMediaStreamSource(this.stream);
@@ -138,7 +137,7 @@ export class WhisperTranscriber implements Transcriber {
 		const voiced = blocks.filter((r) => r > VOICE_RMS).length;
 		const loud = Math.max(0, ...blocks) > PEAK_RMS;
 		if (!loud || voiced / blocks.length < MIN_VOICED_RATIO) {
-			console.log("[whisper] trecho sem fala — descartado");
+			console.log("[whisper] speechless segment — discarded");
 			this.buffer = [];
 			this.rms = [];
 			this.bufferedSec = 0;
@@ -156,7 +155,7 @@ export class WhisperTranscriber implements Transcriber {
 		this.bufferedSec = 0;
 		this.inflight++;
 		this.voicedSec += total / 16000;
-		console.log(`[whisper] enviando ${(total / 16000).toFixed(1)}s de áudio`);
+		console.log(`[whisper] sending ${(total / 16000).toFixed(1)}s of audio`);
 		sendAudio(this.id, pcm);
 	}
 
@@ -214,7 +213,7 @@ export class WhisperTranscriber implements Transcriber {
 		this.stream = null;
 		this.ctx = null;
 		if (this.inflight === 0) this.finishIfDone();
-		else this.emit?.({ type: "partial", text: "[finalizando transcrição…]" });
+		else this.emit?.({ type: "partial", text: "[finalizing transcription…]" });
 	}
 }
 
@@ -248,8 +247,5 @@ export function createWhisperMicTranscriber(): Transcriber {
 }
 
 export function createWhisperTabTranscriber(): Transcriber {
-	return new WhisperTranscriber(
-		tabStream,
-		"[selecione a aba da teleconsulta e marque 'compartilhar áudio']",
-	);
+	return new WhisperTranscriber(tabStream, "[select the teleconsult tab and enable 'share audio']");
 }

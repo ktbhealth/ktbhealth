@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { anamnesisToText } from "@ktb/anamnesis";
-import { SECTION_LABELS } from "@ktb/anamnesis";
+import { CONFIDENCE_LABELS, SECTION_LABELS } from "@ktb/anamnesis";
 import type { Anamnesis, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 import {
@@ -30,13 +30,16 @@ const CONF_BAR: Record<Confidence, string> = {
 const WIDE: AnamnesisSectionKey[] = ["queixa_principal", "hda", "hipoteses", "conduta"];
 
 const SOURCE_LABEL: Record<string, string> = {
-	browser: "Voz no navegador",
-	bot: "Teleconsulta (bot)",
-	dictation: "Ditado",
+	browser: "Browser voice",
+	bot: "Teleconsult (bot)",
+	dictation: "Dictation",
 	upload: "Upload",
 };
 
 const SPEAKER_STYLE: Record<string, string> = {
+	Doctor: "bg-sky-50 text-sky-800 ring-sky-200",
+	Patient: "bg-primary/10 text-primary ring-primary/20",
+	// legacy pt-BR speaker labels from bot/dictation transcripts
 	Médico: "bg-sky-50 text-sky-800 ring-sky-200",
 	Paciente: "bg-primary/10 text-primary ring-primary/20",
 };
@@ -60,10 +63,10 @@ function Chip({
 	);
 }
 
-/** "Médico: texto" lines become chat-style bubbles. */
+/** "Doctor: text" lines become chat-style bubbles. */
 function Transcript({ text }: { text: string }) {
 	const lines = text.split("\n").filter((l) => l.trim());
-	if (!lines.length) return <p className="text-sm text-muted-foreground">Sem transcrição.</p>;
+	if (!lines.length) return <p className="text-sm text-muted-foreground">No transcript.</p>;
 	return (
 		<div className="space-y-2.5">
 			{lines.map((line, i) => {
@@ -93,7 +96,7 @@ function Transcript({ text }: { text: string }) {
 	);
 }
 
-export interface ConsultaDetail {
+export interface ConsultationDetail {
 	id: number;
 	userId: string | null;
 	patientId: number | null;
@@ -108,9 +111,9 @@ export interface ConsultaDetail {
 	patientName: string | null;
 }
 
-export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
+export function ConsultationDetailPage({ c }: { c: ConsultationDetail }) {
 	const [toast, setToast] = useState<ToastData | null>(null);
-	const when = new Date(c.createdAt).toLocaleString("pt-BR", {
+	const when = new Date(c.createdAt).toLocaleString("en-US", {
 		dateStyle: "long",
 		timeStyle: "short",
 	});
@@ -120,35 +123,35 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 		if (!c.anamnesis) return;
 		void navigator.clipboard
 			.writeText(anamnesisToText(c.anamnesis))
-			.then(() => setToast({ id: Date.now(), text: "Anamnese copiada" }));
+			.then(() => setToast({ id: Date.now(), text: "Anamnesis copied" }));
 	}
 
 	return (
 		<div>
 			<Link to="/consultations" className="text-sm text-muted-foreground hover:text-foreground">
-				← Consultas
+				← Consultations
 			</Link>
 
-			{/* ---------- cabeçalho ---------- */}
+			{/* ---------- header ---------- */}
 			<header className="mt-3 flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">
-						{c.patientName ?? `Consulta #${c.id}`}
+						{c.patientName ?? `Consultation #${c.id}`}
 					</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Consulta #{c.id} · {when}
+						Consultation #{c.id} · {when}
 					</p>
 					<div className="mt-3 flex flex-wrap gap-1.5">
 						<Chip>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</Chip>
 						{c.engine ? <Chip>engine: {c.engine}</Chip> : null}
 						{c.consentAt ? (
 							<Chip tone="green">
-								Consentimento ✓ {new Date(c.consentAt).toLocaleDateString("pt-BR")}
+								Consent ✓ {new Date(c.consentAt).toLocaleDateString("en-US")}
 							</Chip>
 						) : (
-							<Chip tone="amber">Consentimento não registrado</Chip>
+							<Chip tone="amber">Consent not recorded</Chip>
 						)}
-						{c.status === "live" ? <Chip tone="amber">em andamento</Chip> : null}
+						{c.status === "live" ? <Chip tone="amber">in progress</Chip> : null}
 					</div>
 				</div>
 				{c.anamnesis ? (
@@ -158,7 +161,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							onClick={copy}
 							className="rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
 						>
-							Copiar
+							Copy
 						</button>
 						<a
 							href={`/api/consultations/${c.id}/pdf`}
@@ -166,17 +169,17 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 						>
 							<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
-							Baixar PDF
+							Download PDF
 						</a>
 					</div>
 				) : null}
 			</header>
 
 			<div className="mt-8 grid items-start gap-6 lg:grid-cols-[1.35fr_1fr]">
-				{/* ---------- anamnese ---------- */}
+				{/* ---------- anamnesis ---------- */}
 				<section>
 					<h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-						Anamnese
+						Anamnesis
 					</h2>
 					{c.anamnesis ? (
 						<div className="grid gap-3 sm:grid-cols-2">
@@ -196,7 +199,7 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 											<span
 												className={`rounded-full px-2 py-0.5 text-[10px] ring-1 ${CONF_STYLE[sec.confidence]}`}
 											>
-												{sec.confidence}
+												{CONFIDENCE_LABELS[sec.confidence]}
 											</span>
 										</div>
 										<p
@@ -204,12 +207,12 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 												pending ? "text-amber-700 italic" : "text-foreground"
 											}`}
 										>
-											{sec.content || "Não informado"}
+											{sec.content || "Not reported"}
 										</p>
 										{sec.evidence.length ? (
 											<details className="mt-2">
 												<summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
-													evidência ({sec.evidence.length})
+													evidence ({sec.evidence.length})
 												</summary>
 												<ul className="mt-1 list-inside list-disc text-[11px] text-muted-foreground">
 													{sec.evidence.map((ev) => (
@@ -228,17 +231,19 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 								<EmptyMedia variant="icon">
 									<ClipboardListIcon />
 								</EmptyMedia>
-								<EmptyTitle>Sem anamnese salva</EmptyTitle>
-								<EmptyDescription>Esta consulta ainda não tem anamnese salva.</EmptyDescription>
+								<EmptyTitle>No anamnesis saved</EmptyTitle>
+								<EmptyDescription>
+									This consultation does not have a saved anamnesis yet.
+								</EmptyDescription>
 							</EmptyHeader>
 						</Empty>
 					)}
 				</section>
 
-				{/* ---------- lateral: transcrição ---------- */}
+				{/* ---------- side: transcript ---------- */}
 				<aside className="rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-20">
 					<div className="border-b border-border px-5 py-3">
-						<h2 className="text-sm font-semibold">Transcrição</h2>
+						<h2 className="text-sm font-semibold">Transcript</h2>
 					</div>
 					<div className="max-h-[70vh] overflow-y-auto p-5">
 						<Transcript text={c.transcript} />
