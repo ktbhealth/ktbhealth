@@ -13,7 +13,7 @@ import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { SearchXIcon } from "lucide-react";
+import { BookPlusIcon, SearchXIcon } from "lucide-react";
 import * as m from "#/paraglide/messages.js";
 import { getLocale, locales } from "#/paraglide/runtime.js";
 import { LanguageToggle } from "@ktbhealth/ui/components/language-toggle";
@@ -64,8 +64,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					<header className="sticky top-0 z-40 border-b border-border bg-background">
 						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
 							<Link to="/" className="flex items-center gap-2.5">
-								<span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground shadow-sm">
-									K
+								<span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+									<BookPlusIcon className="size-5" />
 								</span>
 								<span className="text-lg font-bold tracking-tight">KTB Health</span>
 							</Link>
