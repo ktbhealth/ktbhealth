@@ -4,6 +4,15 @@ import { BrainIcon, ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { Dialog } from "@ktbhealth/ui/components/app-dialog";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
+import { Alert } from "@ktbhealth/ui/components/alert";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@ktbhealth/ui/components/empty";
+import { Spinner } from "@ktbhealth/ui/components/spinner";
 import { ReviewPanel } from "@ktb/anamnesis";
 import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis";
@@ -636,9 +645,9 @@ export function NovaConsultaPage({
 									</p>
 								) : null}
 								{!consented ? (
-									<p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
 										Marque o consentimento acima para liberar a narração.
-									</p>
+									</Alert>
 								) : null}
 								{!supported ? (
 									<p className="text-xs text-amber-600">
@@ -714,9 +723,9 @@ export function NovaConsultaPage({
 									</button>
 								</div>
 								{!consented ? (
-									<p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
 										Marque o consentimento acima para liberar a gravação.
-									</p>
+									</Alert>
 								) : (
 									<p className="text-[11px] text-muted-foreground">
 										Dica: ligue os dois para separar médico e paciente, e use fone de ouvido para o
@@ -839,7 +848,9 @@ export function NovaConsultaPage({
 							{busy ? "Gerando anamnese…" : "Gerar anamnese →"}
 						</button>
 						{error ? (
-							<p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>
+							<Alert variant="destructive" className="px-3 py-2 text-xs">
+								{error}
+							</Alert>
 						) : null}
 					</div>
 				</section>
@@ -875,7 +886,7 @@ export function NovaConsultaPage({
 							>
 								Segunda opinião
 								{reviewBusy ? (
-									<span className="size-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+									<Spinner className="size-3" />
 								) : review ? (
 									<span
 										className={`rounded-full px-1.5 text-[10px] ${
@@ -896,13 +907,18 @@ export function NovaConsultaPage({
 					</div>
 
 					{!anamnesis ? (
-						<div className="px-5 py-14 text-center">
-							<ClipboardListIcon className="mx-auto size-8 text-muted-foreground" />
-							<p className="mx-auto mt-3 max-w-xs text-sm text-muted-foreground">
-								A anamnese estruturada aparece aqui. Cada seção mostra a confiança e as frases-fonte
-								que a fundamentam.
-							</p>
-						</div>
+						<Empty className="px-5 py-14">
+							<EmptyHeader>
+								<EmptyMedia variant="icon">
+									<ClipboardListIcon />
+								</EmptyMedia>
+								<EmptyTitle>Aguardando anamnese</EmptyTitle>
+								<EmptyDescription className="max-w-xs">
+									A anamnese estruturada aparece aqui. Cada seção mostra a confiança e as
+									frases-fonte que a fundamentam.
+								</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
 					) : resultTab === "anamnese" ? (
 						<div className="max-h-[68vh] space-y-3 overflow-y-auto p-5">
 							{(Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]).map((key) => {
@@ -950,12 +966,13 @@ export function NovaConsultaPage({
 						</div>
 					) : (
 						<div className="max-h-[68vh] overflow-y-auto p-5">
-							<p className="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
+							<Alert className="mb-4 border-indigo-200 bg-indigo-50 text-[11px] text-indigo-900">
 								Apoio à decisão. Sugestões para o médico avaliar. Não fazem parte do prontuário até
 								você adicionar.
-							</p>
+							</Alert>
 							{reviewBusy ? (
 								<p className="py-10 text-center text-sm text-muted-foreground">
+									<Spinner className="mx-auto mb-3 size-5 text-primary" />
 									analisando lacunas e hipóteses…
 									<span className="mt-1 block text-xs text-muted-foreground">
 										modelos locais podem levar mais de um minuto
@@ -964,9 +981,9 @@ export function NovaConsultaPage({
 							) : review ? (
 								<ReviewPanel review={review} onAddHypothesis={addHypothesis} />
 							) : reviewNote ? (
-								<p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+								<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
 									{reviewNote}
-								</p>
+								</Alert>
 							) : null}
 						</div>
 					)}

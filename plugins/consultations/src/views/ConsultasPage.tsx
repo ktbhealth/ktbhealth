@@ -2,6 +2,16 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
+import { buttonVariants } from "@ktbhealth/ui/components/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@ktbhealth/ui/components/empty";
+
 const SOURCE_LABEL: Record<string, string> = {
 	browser: "Voz no navegador",
 	bot: "Teleconsulta (bot)",
@@ -175,25 +185,28 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 				))}
 
 				{consultas.length > 0 && shown.length === 0 ? (
-					<p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-						Nenhuma consulta corresponde à busca.
-					</p>
+					<Empty className="border">
+						<EmptyDescription>Nenhuma consulta corresponde à busca.</EmptyDescription>
+					</Empty>
 				) : null}
 
 				{!consultas.length ? (
-					<div className="rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center">
-						<ClipboardListIcon className="mx-auto size-10 text-muted-foreground" />
-						<h2 className="mt-3 font-semibold">Nenhuma consulta ainda</h2>
-						<p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">
-							Inicie uma consulta para gravar a conversa e gerar a anamnese.
-						</p>
-						<Link
-							to="/consulta/nova"
-							className="mt-5 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
-						>
-							Iniciar consulta
-						</Link>
-					</div>
+					<Empty className="border bg-card px-6 py-16">
+						<EmptyHeader>
+							<EmptyMedia variant="icon">
+								<ClipboardListIcon />
+							</EmptyMedia>
+							<EmptyTitle>Nenhuma consulta ainda</EmptyTitle>
+							<EmptyDescription>
+								Inicie uma consulta para gravar a conversa e gerar a anamnese.
+							</EmptyDescription>
+						</EmptyHeader>
+						<EmptyContent>
+							<Link to="/consulta/nova" className={buttonVariants()}>
+								Iniciar consulta
+							</Link>
+						</EmptyContent>
+					</Empty>
 				) : null}
 			</div>
 		</div>

@@ -102,6 +102,7 @@
     "packages/anamnesis": {
       "name": "@ktb/anamnesis",
       "dependencies": {
+        "@ktbhealth/ui": "workspace:*",
         "effect": "4.1.2",
       },
       "devDependencies": {

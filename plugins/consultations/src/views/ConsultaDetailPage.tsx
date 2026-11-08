@@ -7,6 +7,14 @@ import { anamnesisToText } from "@ktb/anamnesis";
 import { SECTION_LABELS } from "@ktb/anamnesis";
 import type { Anamnesis, AnamnesisReview, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
+import { Alert } from "@ktbhealth/ui/components/alert";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@ktbhealth/ui/components/empty";
 
 const CONF_STYLE: Record<Confidence, string> = {
 	alta: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -219,12 +227,15 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 							})}
 						</div>
 					) : (
-						<div className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
-							<ClipboardListIcon className="mx-auto size-8 text-muted-foreground" />
-							<p className="mt-2 text-sm text-muted-foreground">
-								Esta consulta ainda não tem anamnese salva.
-							</p>
-						</div>
+						<Empty className="border bg-card px-6 py-14">
+							<EmptyHeader>
+								<EmptyMedia variant="icon">
+									<ClipboardListIcon />
+								</EmptyMedia>
+								<EmptyTitle>Sem anamnese salva</EmptyTitle>
+								<EmptyDescription>Esta consulta ainda não tem anamnese salva.</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
 					)}
 				</section>
 
@@ -261,9 +272,9 @@ export function ConsultaDetailPage({ c }: { c: ConsultaDetail }) {
 					<div className="max-h-[70vh] overflow-y-auto p-5">
 						{tab === "review" && c.review ? (
 							<>
-								<p className="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] text-indigo-900">
+								<Alert className="mb-4 border-indigo-200 bg-indigo-50 text-[11px] text-indigo-900">
 									Apoio à decisão gerado por IA. Sugestões não fazem parte do prontuário.
-								</p>
+								</Alert>
 								<ReviewPanel review={c.review} />
 							</>
 						) : (

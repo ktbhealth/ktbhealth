@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import { Alert, AlertTitle } from "@ktbhealth/ui/components/alert";
+import { Badge } from "@ktbhealth/ui/components/badge";
+
 import { SECTION_LABELS } from "./types.ts";
 import type { AnamnesisReview, Confidence } from "./types.ts";
 
@@ -34,14 +37,14 @@ export function ReviewPanel({
 	return (
 		<div className="space-y-5 text-sm">
 			{review.sinais_de_alerta.length ? (
-				<div className="rounded-lg border border-red-200 bg-red-50 p-3">
-					<div className="text-xs font-semibold text-red-700">Sinais de alerta</div>
-					<ul className="mt-1 list-inside list-disc text-xs text-red-700">
+				<Alert variant="destructive" className="p-3">
+					<AlertTitle className="text-xs">Sinais de alerta</AlertTitle>
+					<ul className="mt-1 list-inside list-disc text-xs">
 						{review.sinais_de_alerta.map((a) => (
 							<li key={a}>{a}</li>
 						))}
 					</ul>
-				</div>
+				</Alert>
 			) : null}
 
 			{review.hipoteses.length ? (
@@ -59,9 +62,9 @@ export function ReviewPanel({
 									</span>
 									{onAddHypothesis ? (
 										added.has(h.diagnostico) ? (
-											<span className="ml-auto flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+											<Badge className="ml-auto border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700 hover:bg-emerald-50">
 												✓ adicionada
-											</span>
+											</Badge>
 										) : (
 											<button
 												type="button"
