@@ -14,7 +14,6 @@ export default defineConfig({
 				"**/routeTree.gen.ts",
 				"**/worker-configuration.d.ts",
 				"**/paraglide/**",
-				"packages/ui/**",
 			],
 			thresholds: {
 				lines: 100,

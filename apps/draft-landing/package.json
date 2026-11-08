@@ -9,9 +9,9 @@
 		"dev": "vp dev --port 3001",
 		"build": "vp build",
 		"preview": "vp preview",
-		"plan": "arca run --config ../../arca.toml -- alchemy plan",
-		"deploy": "arca run --config ../../arca.toml -- alchemy deploy",
-		"destroy": "arca run --config ../../arca.toml -- alchemy destroy",
+		"plan": "cuora run --config ../../cuora.toml -- alchemy plan",
+		"deploy": "cuora run --config ../../cuora.toml -- alchemy deploy",
+		"destroy": "cuora run --config ../../cuora.toml -- alchemy destroy",
 		"infra:dev": "alchemy dev",
 		"infra:deploy": "alchemy deploy",
 		"infra:destroy": "alchemy destroy"
@@ -19,7 +19,7 @@
 	"dependencies": {
 		"@inlang/paraglide-js": "2.29.3",
 		"@ktb/infra": "workspace:*",
-		"@ktbhealth/ui": "workspace:*",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.0@react",
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/react-router": "1.170.46",
 		"@tanstack/react-start": "1.169.4",

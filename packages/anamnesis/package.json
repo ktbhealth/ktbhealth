@@ -10,7 +10,7 @@
 		"./types": "./src/types.ts"
 	},
 	"dependencies": {
-		"@ktbhealth/ui": "workspace:*",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.0@react",
 		"effect": "4.1.2"
 	},
 	"devDependencies": {
