@@ -14,8 +14,8 @@
 		"cf-typegen": "wrangler types",
 		"db:migrate:local": "wrangler d1 migrations apply ktb --local",
 		"infra:dev": "alchemy dev",
-		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && arca run --env prod --config ../../arca.toml -- alchemy deploy -y",
-		"infra:destroy": "alchemy destroy",
+		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && arca run --env prod --config ../../arca.toml -- alchemy deploy --stage prod -y",
+		"infra:destroy": "alchemy destroy --stage prod",
 		"test:e2e": "playwright test",
 		"test:coverage": "vp test"
 	},
