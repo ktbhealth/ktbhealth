@@ -2,11 +2,11 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { LanguageModel, Prompt } from "effect/ai";
 
-import type { Anamnesis } from "@ktb/anamnesis";
-import { HeuristicExtractor } from "@ktb/anamnesis";
+import type { Anamnesis, ExtractInput } from "@ktb/anamnesis";
+import { anamnesisWithHistory, HeuristicExtractor } from "@ktb/anamnesis";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
-import { PROMPT } from "./prompt.ts";
+import { buildPrompt } from "./prompt.ts";
 import { anthropicLanguageModelLive, openAiLanguageModelLive, type LlmConfig } from "./llm.ts";
 
 export type { LlmConfig } from "./llm.ts";
@@ -31,15 +31,15 @@ export const makeAnamnesisEngine = (
 		Effect.gen(function* () {
 			const model = yield* LanguageModel.LanguageModel;
 			return AnamnesisEngine.of({
-				extract: Effect.fn("AnamnesisEngine.extract")((transcript: string) =>
+				extract: Effect.fn("AnamnesisEngine.extract")((input: ExtractInput) =>
 					model
 						.generateObject({
 							objectName: "anamnesis",
 							schema: AnamnesisSchema,
 							prompt: [
-								Prompt.systemMessage({ content: PROMPT }),
+								Prompt.systemMessage({ content: buildPrompt(input.history) }),
 								Prompt.userMessage({
-									content: [Prompt.textPart({ text: transcript })],
+									content: [Prompt.textPart({ text: input.transcript })],
 								}),
 							],
 						})
@@ -50,13 +50,17 @@ export const makeAnamnesisEngine = (
 									engine: engineName,
 									error: String(error),
 								}).pipe(
-									Effect.andThen(heuristicExtract(transcript)),
+									Effect.andThen(heuristicExtract(input.transcript)),
 									Effect.map((anamnesis) => ({
 										anamnesis,
 										engine: `${engineName}!fallback`,
 									})),
 								),
 							),
+							Effect.map((res) => ({
+								...res,
+								anamnesis: anamnesisWithHistory(res.anamnesis, input.history),
+							})),
 						),
 				),
 			});
@@ -67,9 +71,12 @@ export const makeAnamnesisEngine = (
 export const heuristicAnamnesisEngineLive: Layer.Layer<AnamnesisEngine> = Layer.succeed(
 	AnamnesisEngine,
 	AnamnesisEngine.of({
-		extract: Effect.fn("AnamnesisEngine.extract")((transcript: string) =>
-			heuristicExtract(transcript).pipe(
-				Effect.map((anamnesis) => ({ anamnesis, engine: "heuristic" })),
+		extract: Effect.fn("AnamnesisEngine.extract")((input: ExtractInput) =>
+			heuristicExtract(input.transcript).pipe(
+				Effect.map((anamnesis) => ({
+					anamnesis: anamnesisWithHistory(anamnesis, input.history),
+					engine: "heuristic",
+				})),
 			),
 		),
 	}),

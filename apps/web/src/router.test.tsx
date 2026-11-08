@@ -60,7 +60,7 @@ import { getRouter } from "./router.tsx";
 import { plugins } from "./plugins.ts";
 import { routes } from "./routes.ts";
 import { auth, db } from "#/lib/platform.ts";
-import { saveConsultationFn } from "#/lib/fns.ts";
+import { createPatientFn, saveConsultationFn } from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT, SECTION_LABELS } from "@ktb/anamnesis";
 import type { Anamnesis, AnamnesisSection } from "@ktb/anamnesis";
 
@@ -168,6 +168,48 @@ describe("router integration", () => {
 			await router.navigate({ to: "/consultations/$id", params: { id: String(consultationId) } });
 		});
 		await waitFor(() => expect(document.body.textContent).toContain("conteúdo queixa_principal"));
+	});
+
+	it("consultation detail shows prior-consultation context for a linked patient", async () => {
+		await auth.api.signUpEmail({
+			body: { email: "hist@x.com", password: "senha-forte-123", name: "Dra Hist" },
+		});
+		const res = await auth.handler(
+			new Request("http://localhost:3000/api/auth/sign-in/email", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ email: "hist@x.com", password: "senha-forte-123" }),
+			}),
+		);
+		headers.current = new Headers({
+			cookie: (res.headers.get("set-cookie") ?? "").split(";")[0],
+		});
+		const patient = await createPatientFn({ data: "Paciente Recorrente" });
+		const mk = (qp: string, plan: string) =>
+			saveConsultationFn({
+				data: {
+					transcript: SAMPLE_TRANSCRIPT,
+					anamnesis: {
+						...fullAnamnesis,
+						queixa_principal: sec(qp),
+						conduta: sec(plan),
+					},
+					engine: "heuristic",
+					patientId: patient!.id,
+				},
+			});
+		await mk("Primeira queixa", "Repouso");
+		const second = await mk("Segunda queixa", "Retorno em 30 dias");
+
+		const router = getRouter();
+		await router.load();
+		render(createElement(RouterProvider, { router }));
+		await act(async () => {
+			await router.navigate({ to: "/consultations/$id", params: { id: String(second.id!) } });
+		});
+		await waitFor(() => expect(document.body.textContent).toContain("1 previous consultation"));
+		expect(document.body.textContent).toContain("Complaint: Primeira queixa");
+		expect(document.body.textContent).toContain("Plan: Repouso");
 	});
 
 	it("shows fallback avatar for a user with empty name", async () => {

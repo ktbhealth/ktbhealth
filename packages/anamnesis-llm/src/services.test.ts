@@ -62,10 +62,39 @@ describe("AnamnesisEngine", () => {
 				return yield* AnamnesisEngine;
 			}).pipe(Effect.provide(layer)),
 		);
-		const res = await Effect.runPromise(engine.extract("paciente com dor"));
+		const res = await Effect.runPromise(engine.extract({ transcript: "paciente com dor" }));
 		expect(res.engine).toBe("test");
 		expect(res.anamnesis.queixa_principal.content).toBe("Dor de cabeça");
+		expect(res.anamnesis.historico).toBeUndefined();
 		expect(gen).toHaveBeenCalledOnce();
+	});
+
+	it("sends patient history as prompt context and records it in historico", async () => {
+		const gen = okObject(MOCK_ANAMNESIS);
+		const layer = makeAnamnesisEngine("test").pipe(
+			Layer.provide(Layer.succeed(LanguageModel.LanguageModel, fakeModel(gen))),
+		);
+		const engine = await Effect.runPromise(
+			Effect.gen(function* () {
+				return yield* AnamnesisEngine;
+			}).pipe(Effect.provide(layer)),
+		);
+		const history = {
+			count: 1,
+			visits: [
+				{
+					id: 5,
+					date: "2026-03-01T10:00:00.000Z",
+					chiefComplaint: "Dor de cabeça",
+					plan: "Repouso",
+				},
+			],
+		};
+		const res = await Effect.runPromise(engine.extract({ transcript: "retorno", history }));
+		expect(res.anamnesis.historico?.content).toContain("Consultas anteriores (1):");
+		const call = (gen.mock.calls as unknown as [[{ prompt: unknown }]])[0]![0];
+		expect(JSON.stringify(call.prompt)).toContain("PATIENT HISTORY");
+		expect(JSON.stringify(call.prompt)).toContain("Dor de cabeça");
 	});
 
 	it("falls back to heuristic when the model fails", async () => {
@@ -77,9 +106,38 @@ describe("AnamnesisEngine", () => {
 				return yield* AnamnesisEngine;
 			}).pipe(Effect.provide(layer)),
 		);
-		const res = await Effect.runPromise(engine.extract("paciente relata febre"));
+		const res = await Effect.runPromise(engine.extract({ transcript: "paciente relata febre" }));
 		expect(res.engine).toBe("openai!fallback");
 		expect(res.anamnesis.queixa_principal.content).toBeTruthy();
+	});
+
+	it("heuristic fallback still attaches historico when history is given", async () => {
+		const layer = makeAnamnesisEngine("openai").pipe(
+			Layer.provide(Layer.succeed(LanguageModel.LanguageModel, failingModel())),
+		);
+		const engine = await Effect.runPromise(
+			Effect.gen(function* () {
+				return yield* AnamnesisEngine;
+			}).pipe(Effect.provide(layer)),
+		);
+		const res = await Effect.runPromise(
+			engine.extract({
+				transcript: "paciente relata tosse",
+				history: {
+					count: 1,
+					visits: [
+						{
+							id: 2,
+							date: "2026-01-01T00:00:00.000Z",
+							chiefComplaint: "Tosse",
+							plan: null,
+						},
+					],
+				},
+			}),
+		);
+		expect(res.engine).toBe("openai!fallback");
+		expect(res.anamnesis.historico?.content).toContain("Consultas anteriores (1):");
 	});
 
 	it("heuristic engine extracts without a model", async () => {
@@ -88,7 +146,7 @@ describe("AnamnesisEngine", () => {
 				return yield* AnamnesisEngine;
 			}).pipe(Effect.provide(heuristicAnamnesisEngineLive)),
 		);
-		const res = await Effect.runPromise(engine.extract("paciente relata tosse"));
+		const res = await Effect.runPromise(engine.extract({ transcript: "paciente relata tosse" }));
 		expect(res.engine).toBe("heuristic");
 	});
 });

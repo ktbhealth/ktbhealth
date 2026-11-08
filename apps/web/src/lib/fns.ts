@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
-import { run, runAs } from "#/lib/platform.ts";
+import type { PatientHistory } from "@ktb/anamnesis";
+import { runAs } from "#/lib/platform.ts";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";
@@ -36,6 +37,19 @@ const AttachInput = Schema.Struct({
 const decodeSaveInput = Schema.decodeUnknownSync(SaveInput);
 const decodeAttachInput = Schema.decodeUnknownSync(AttachInput);
 
+const ExtractInput = Schema.Struct({
+	transcript: Schema.String,
+	patientId: Schema.optionalKey(Schema.Number),
+});
+
+const HistoryInput = Schema.Struct({
+	patientId: Schema.Number,
+	excludeId: Schema.optionalKey(Schema.Number),
+});
+
+const decodeExtractInput = Schema.decodeUnknownSync(ExtractInput);
+const decodeHistoryInput = Schema.decodeUnknownSync(HistoryInput);
+
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
@@ -43,13 +57,40 @@ export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSess
 // LLM helpers touch no owned data but still require a session: they proxy
 // paid model calls and must not be an open endpoint.
 export const extractAnamnesisFn = createServerFn({ method: "POST" })
-	.validator((transcript: string) => decodeString(transcript))
-	.handler(async ({ data: transcript }) => {
-		await ensureSessionUser();
-		return run(
+	.validator((input: unknown) => decodeExtractInput(input))
+	.handler(async ({ data }) => {
+		const user = await ensureSessionUser();
+		return runAs(
+			user,
 			Effect.gen(function* () {
+				// Linked patient → factual history of prior consultations is
+				// fetched server-side and fed to the engine as context only.
+				let history: PatientHistory | null = null;
+				if (data.patientId !== undefined) {
+					const consultations = yield* Consultations;
+					// userId is always the caller's own — read authz cannot deny.
+					history = yield* consultations.history(data.patientId, user.id);
+				}
 				const engine = yield* AnamnesisEngine;
-				return yield* engine.extract(transcript);
+				return yield* engine.extract({
+					transcript: data.transcript,
+					history: history ?? undefined,
+				});
+			}),
+		);
+	});
+
+/** Factual summary of a patient's prior consultations (review UI). */
+export const patientHistoryFn = createServerFn({ method: "GET" })
+	.validator((input: unknown) => decodeHistoryInput(input))
+	.handler(async ({ data }) => {
+		const user = await getSessionUser();
+		if (!user) return null;
+		return runAs(
+			user,
+			Effect.gen(function* () {
+				const consultations = yield* Consultations;
+				return yield* consultations.history(data.patientId, user.id, data.excludeId);
 			}),
 		);
 	});

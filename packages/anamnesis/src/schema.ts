@@ -28,6 +28,8 @@ export const AnamnesisSchema = Schema.Struct({
 	exame_fisico: section,
 	hipoteses: section,
 	conduta: section,
+	// Optional: pre-history documents omit the key and still decode.
+	historico: Schema.optionalKey(section),
 });
 
 // ---------- decoders ----------

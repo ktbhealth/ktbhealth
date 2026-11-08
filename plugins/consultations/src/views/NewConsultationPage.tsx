@@ -13,7 +13,7 @@ import {
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
 import { anamnesisToText } from "@ktb/anamnesis";
-import { type Anamnesis, SECTION_LABELS } from "@ktb/anamnesis";
+import { type Anamnesis, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
 import { CONFIDENCE_LABELS, type AnamnesisSectionKey, type Confidence } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import {
@@ -60,7 +60,9 @@ export interface NewConsultationApi {
 		transcript: string;
 		status: string | null;
 	} | null>;
-	extractAnamnesis(input: { data: string }): Promise<{ anamnesis: Anamnesis; engine: string }>;
+	extractAnamnesis(input: {
+		data: { transcript: string; patientId?: number };
+	}): Promise<{ anamnesis: Anamnesis; engine: string }>;
 	attachAnamnesis(input: {
 		data: {
 			consultationId: number;
@@ -349,7 +351,9 @@ export function NewConsultationPage({
 		setError(null);
 		setSavedId(null);
 		try {
-			const res = await api.extractAnamnesis({ data: transcript });
+			const res = await api.extractAnamnesis({
+				data: { transcript, patientId: patientId ?? undefined },
+			});
 			setAnamnesis(res.anamnesis);
 			setEngine(res.engine);
 		} catch (e) {
@@ -850,6 +854,16 @@ export function NewConsultationPage({
 						</Empty>
 					) : (
 						<div className="max-h-[68vh] space-y-3 overflow-y-auto p-5">
+							{anamnesis.historico ? (
+								<div className="rounded-xl border border-border bg-muted/40 p-3">
+									<p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+										{HISTORY_SECTION_LABEL}
+									</p>
+									<p className="mt-1 text-sm leading-relaxed whitespace-pre-wrap">
+										{anamnesis.historico.content}
+									</p>
+								</div>
+							) : null}
 							{(Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]).map((key) => {
 								const sec = anamnesis[key];
 								return (

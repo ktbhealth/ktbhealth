@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { Db, makeDb } from "@ktb/db";
+import { user as userTable } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
+import { patients as patientsTable } from "@ktb/patients/schema";
 import { consultations as consultationsTable } from "./schema.ts";
 import {
 	Consultations,
@@ -342,6 +344,154 @@ describe("ConsultationsLive", () => {
 			"u1",
 			call((c) => c.recordConsent(9999, "u1")),
 		);
+	});
+});
+
+describe("Consultations.history", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let testDb: ReturnType<typeof makeDb>;
+	let patientId = 0;
+	let q4Id = 0;
+
+	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Consultations>) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+		);
+
+	const sec = (content: string) => ({ content, confidence: "alta", evidence: [] });
+	const doc = (qp: string, conduta: string) =>
+		JSON.stringify({
+			queixa_principal: sec(qp),
+			hda: sec("h"),
+			antecedentes: sec("a"),
+			alergias: sec("al"),
+			medicamentos_em_uso: sec("m"),
+			exame_fisico: sec("e"),
+			hipoteses: sec("hi"),
+			conduta: sec(conduta),
+		});
+
+	const addConsultation = async (over: Partial<typeof consultationsTable.$inferInsert>) => {
+		const rows = await testDb
+			.insert(consultationsTable)
+			.values({
+				userId: "u1",
+				transcript: "t",
+				source: "browser",
+				status: "done",
+				createdAt: new Date(),
+				...over,
+			})
+			.returning({ id: consultationsTable.id });
+		return rows[0]!.id;
+	};
+
+	beforeAll(async () => {
+		testDb = makeDb(makeD1(DDL));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+		const [p] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Maria", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		patientId = p!.id;
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+		// 4 done consultations → only the latest 3 summarized, count = 4
+		for (const [i, qp] of ["Q1", "Q2", "Q3", "Q4"].entries()) {
+			q4Id = await addConsultation({
+				patientId,
+				anamnesis: doc(qp, `C${i + 1}`),
+				createdAt: new Date(2026, 0, i + 1),
+			});
+		}
+		// excluded from history: live session, other user, other patient
+		await addConsultation({ patientId, status: "live", anamnesis: doc("QL", "CL") });
+		await addConsultation({
+			patientId,
+			userId: "u2",
+			anamnesis: doc("QX", "CX"),
+		});
+		const [other] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Outra", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		await addConsultation({ patientId: other!.id, anamnesis: doc("QO", "CO") });
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("aggregates count + latest 3 visits with complaint and plan", async () => {
+		const h = await asUser(
+			"u1",
+			Effect.flatMap(Consultations, (c) => c.history(patientId, "u1")),
+		);
+		expect(h?.count).toBe(4);
+		expect(h?.visits).toHaveLength(3);
+		// newest first
+		expect(h?.visits[0]?.chiefComplaint).toBe("Q4");
+		expect(h?.visits[0]?.plan).toBe("C4");
+		expect(h?.visits.map((v) => v.chiefComplaint)).toEqual(["Q4", "Q3", "Q2"]);
+		expect(h?.visits[0]?.date).toMatch(/^2026-01-04T/);
+	});
+
+	it("excludeId drops the consultation being viewed", async () => {
+		const h = await asUser(
+			"u1",
+			Effect.flatMap(Consultations, (c) => c.history(patientId, "u1", q4Id)),
+		);
+		expect(h?.count).toBe(3);
+		expect(h?.visits.map((v) => v.id)).not.toContain(q4Id);
+		expect(h?.visits.map((v) => v.chiefComplaint)).toEqual(["Q3", "Q2", "Q1"]);
+	});
+
+	it("returns null for patients the caller does not own", async () => {
+		const h = await asUser(
+			"u1",
+			Effect.flatMap(Consultations, (c) => c.history(99999, "u1")),
+		);
+		expect(h).toBeNull();
+		// patient owned by u1 is invisible to u2
+		const h2 = await asUser(
+			"u2",
+			Effect.flatMap(Consultations, (c) => c.history(patientId, "u2")),
+		);
+		expect(h2).toBeNull();
+	});
+
+	it("denies history without a bound principal", async () => {
+		await expect(
+			asUser(
+				null,
+				Effect.flatMap(Consultations, (c) => c.history(patientId, "u1")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("nulls out missing anamnesis and pending placeholders", async () => {
+		const [p2] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Sem docs", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		await addConsultation({ patientId: p2!.id }); // no anamnesis
+		await addConsultation({
+			patientId: p2!.id,
+			anamnesis: doc("Q", "A preencher pelo médico: conduta."),
+		});
+		const h = await asUser(
+			"u1",
+			Effect.flatMap(Consultations, (c) => c.history(p2!.id, "u1")),
+		);
+		expect(h?.count).toBe(2);
+		const bare = h?.visits.find((v) => v.chiefComplaint === null);
+		expect(bare?.plan).toBeNull();
+		const pending = h?.visits.find((v) => v.chiefComplaint === "Q");
+		expect(pending?.plan).toBeNull();
 	});
 });
 

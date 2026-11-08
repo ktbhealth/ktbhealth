@@ -52,7 +52,7 @@ afterEach(cleanup);
 
 describe("ConsultationDetailPage", () => {
 	it("renders full detail with anamnesis and transcript", () => {
-		render(<ConsultationDetailPage c={detail({})} />);
+		render(<ConsultationDetailPage c={detail({})} history={null} />);
 		expect(screen.getByText("Maria")).toBeTruthy();
 		expect(screen.getByText(/Consultation #10/)).toBeTruthy();
 		expect(screen.getByText(/engine: heuristic/)).toBeTruthy();
@@ -67,6 +67,7 @@ describe("ConsultationDetailPage", () => {
 	it("renders minimal detail: no anamnesis/patient/consent", () => {
 		render(
 			<ConsultationDetailPage
+				history={null}
 				c={detail({
 					patientName: null,
 					anamnesis: null,
@@ -85,7 +86,7 @@ describe("ConsultationDetailPage", () => {
 	});
 
 	it("shows empty transcript message", () => {
-		render(<ConsultationDetailPage c={detail({ transcript: "  \n " })} />);
+		render(<ConsultationDetailPage c={detail({ transcript: "  \n " })} history={null} />);
 		expect(screen.getByText("No transcript.")).toBeTruthy();
 	});
 
@@ -93,7 +94,7 @@ describe("ConsultationDetailPage", () => {
 		const user = userEvent.setup();
 		const writeText = vi.fn(async () => {});
 		Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-		render(<ConsultationDetailPage c={detail({})} />);
+		render(<ConsultationDetailPage c={detail({})} history={null} />);
 		await user.click(screen.getByText("Copy"));
 		await waitFor(() => expect(writeText).toHaveBeenCalled());
 		await screen.findByText("Anamnesis copied");
@@ -102,25 +103,78 @@ describe("ConsultationDetailPage", () => {
 	});
 
 	it("copy without anamnesis is a no-op (button hidden)", () => {
-		render(<ConsultationDetailPage c={detail({ anamnesis: null })} />);
+		render(<ConsultationDetailPage c={detail({ anamnesis: null })} history={null} />);
 		expect(screen.queryByText("Copy")).toBeNull();
 		expect(screen.queryByText("Download PDF")).toBeNull();
 	});
 
 	it("renders pending section styling and dash for empty content", () => {
-		render(<ConsultationDetailPage c={detail({})} />);
+		render(<ConsultationDetailPage c={detail({})} history={null} />);
 		expect(screen.getByText(/A preencher pelo médico/)).toBeTruthy();
 	});
 
 	it("tolerates anamnesis missing section keys", () => {
 		const partial = { queixa_principal: SECTION } as unknown as Anamnesis;
-		render(<ConsultationDetailPage c={detail({ anamnesis: partial })} />);
+		render(<ConsultationDetailPage c={detail({ anamnesis: partial })} history={null} />);
 		expect(screen.getByText("Chief complaint")).toBeTruthy();
+	});
+
+	it("shows previous-consultations badge and collapsed history", () => {
+		render(
+			<ConsultationDetailPage
+				c={detail({})}
+				history={{
+					count: 2,
+					visits: [
+						{
+							id: 8,
+							date: "2026-03-05T14:30:00.000Z",
+							chiefComplaint: "Dor de cabeça",
+							plan: "Dipirona",
+						},
+						{ id: 7, date: "2026-01-20T10:00:00.000Z", chiefComplaint: null, plan: null },
+					],
+				}}
+			/>,
+		);
+		expect(screen.getByText("2 previous consultations")).toBeTruthy();
+		expect(screen.getByText(/Prior consultations · 2 previous consultations/)).toBeTruthy();
+		expect(screen.getByText("Complaint: Dor de cabeça")).toBeTruthy();
+		expect(screen.getByText("Plan: Dipirona")).toBeTruthy();
+		expect(screen.getByText(/consultation #8/)).toBeTruthy();
+		expect(screen.getByText(/not clinical suggestions/)).toBeTruthy();
+	});
+
+	it("singularizes the badge for a single previous consultation", () => {
+		render(
+			<ConsultationDetailPage
+				c={detail({})}
+				history={{
+					count: 1,
+					visits: [
+						{
+							id: 8,
+							date: "2026-03-05T14:30:00.000Z",
+							chiefComplaint: "Febre",
+							plan: null,
+						},
+					],
+				}}
+			/>,
+		);
+		expect(screen.getByText("1 previous consultation")).toBeTruthy();
+		expect(screen.getByText("Complaint: Febre")).toBeTruthy();
+	});
+
+	it("hides history UI when count is zero", () => {
+		render(<ConsultationDetailPage c={detail({})} history={{ count: 0, visits: [] }} />);
+		expect(screen.queryByText(/previous consultation/)).toBeNull();
 	});
 
 	it("renders transcript lines without speaker prefix and unknown speakers", () => {
 		render(
 			<ConsultationDetailPage
+				history={null}
 				c={detail({
 					transcript: "linha solta\nEnfermeiro Chefe: preparado?\nMédico: sim",
 				})}

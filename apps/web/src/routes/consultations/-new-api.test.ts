@@ -47,7 +47,9 @@ describe("newConsultationApi wiring", () => {
 		// anonymous: fns return empty results or throw; arrows still execute
 		await expect(newConsultationApi.getLiveConsultation({ data: 1 })).resolves.toBeNull();
 		await expect(
-			newConsultationApi.extractAnamnesis({ data: "transcrição de teste" }),
+			newConsultationApi.extractAnamnesis({
+				data: { transcript: "transcrição de teste", patientId: 3 },
+			}),
 		).rejects.toThrow("unauthenticated");
 		await expect(
 			newConsultationApi.attachAnamnesis({

@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 
 import type { Anamnesis, AnamnesisSectionKey } from "@ktb/anamnesis";
-import { SECTION_LABELS } from "@ktb/anamnesis";
+import { HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
 
 export interface AnamnesisPdfInput {
 	consultationId: number;
@@ -55,17 +55,29 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 		doc.moveDown(0.8);
 
 		// ---- sections ----
-		for (const key of Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]) {
-			const content = input.anamnesis[key]?.content?.trim() || "Not reported";
+		const historico = input.anamnesis.historico;
+		const blocks: { label: string; content: string }[] = [
+			...(Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]).map((key) => ({
+				label: SECTION_LABELS[key],
+				content: input.anamnesis[key]?.content?.trim() || "Not reported",
+			})),
+			...(historico
+				? [{ label: HISTORY_SECTION_LABEL, content: historico.content.trim() || "Not reported" }]
+				: []),
+		];
+		for (const block of blocks) {
 			// keep a heading together with the start of its text
 			if (doc.y > doc.page.height - doc.page.margins.bottom - 70) doc.addPage();
 			doc
 				.font("Helvetica-Bold")
 				.fontSize(11)
 				.fillColor("#111")
-				.text(SECTION_LABELS[key].toUpperCase(), { characterSpacing: 0.4 });
+				.text(block.label.toUpperCase(), { characterSpacing: 0.4 });
 			doc.moveDown(0.15);
-			doc.font("Helvetica").fontSize(10.5).fillColor("#222").text(content, { width, lineGap: 2 });
+			doc.font("Helvetica").fontSize(10.5).fillColor("#222").text(block.content, {
+				width,
+				lineGap: 2,
+			});
 			doc.moveDown(0.9);
 		}
 

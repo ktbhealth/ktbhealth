@@ -2,11 +2,11 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-import type { Anamnesis } from "@ktb/anamnesis";
-import { HeuristicExtractor } from "@ktb/anamnesis";
+import type { Anamnesis, ExtractInput } from "@ktb/anamnesis";
+import { anamnesisWithHistory, HeuristicExtractor } from "@ktb/anamnesis";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
-import { PROMPT } from "./prompt.ts";
+import { buildPrompt } from "./prompt.ts";
 
 /**
  * Minimal Workers AI binding surface — structurally typed so the host
@@ -70,22 +70,25 @@ export const makeWorkersAiAnamnesisEngine = (
 	Layer.succeed(
 		AnamnesisEngine,
 		AnamnesisEngine.of({
-			extract: Effect.fn("AnamnesisEngine.extract")((transcript: string) =>
-				runChat(ai, model, PROMPT, transcript).pipe(
+			extract: Effect.fn("AnamnesisEngine.extract")((input: ExtractInput) =>
+				runChat(ai, model, buildPrompt(input.history), input.transcript).pipe(
 					Effect.flatMap((text) =>
 						Effect.try({ try: () => extractJson(text), catch: (e) => e }).pipe(
 							Effect.flatMap((raw) => Schema.decodeUnknownEffect(AnamnesisSchema)(raw)),
 						),
 					),
-					Effect.map((anamnesis) => ({ anamnesis, engine: `workers-ai:${model}` })),
+					Effect.map((anamnesis) => ({
+						anamnesis: anamnesisWithHistory(anamnesis, input.history),
+						engine: `workers-ai:${model}`,
+					})),
 					Effect.catch((error) =>
 						Effect.logWarning(`workers-ai extraction failed, using heuristic`, {
 							engine: `workers-ai:${model}`,
 							error: String(error),
 						}).pipe(
-							Effect.andThen(heuristicExtract(transcript)),
+							Effect.andThen(heuristicExtract(input.transcript)),
 							Effect.map((anamnesis) => ({
-								anamnesis,
+								anamnesis: anamnesisWithHistory(anamnesis, input.history),
 								engine: `workers-ai:${model}!fallback`,
 							})),
 						),

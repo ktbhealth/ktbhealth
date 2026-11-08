@@ -3,8 +3,8 @@ import { useState } from "react";
 import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { anamnesisToText } from "@ktb/anamnesis";
-import { CONFIDENCE_LABELS, SECTION_LABELS } from "@ktb/anamnesis";
-import type { Anamnesis, AnamnesisSectionKey, Confidence } from "@ktb/anamnesis";
+import { CONFIDENCE_LABELS, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
+import type { Anamnesis, AnamnesisSectionKey, Confidence, PatientHistory } from "@ktb/anamnesis";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 import {
 	Empty,
@@ -111,7 +111,13 @@ export interface ConsultationDetail {
 	patientName: string | null;
 }
 
-export function ConsultationDetailPage({ c }: { c: ConsultationDetail }) {
+export function ConsultationDetailPage({
+	c,
+	history,
+}: {
+	c: ConsultationDetail;
+	history: PatientHistory | null;
+}) {
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const when = new Date(c.createdAt).toLocaleString("en-US", {
 		dateStyle: "long",
@@ -152,6 +158,11 @@ export function ConsultationDetailPage({ c }: { c: ConsultationDetail }) {
 							<Chip tone="amber">Consent not recorded</Chip>
 						)}
 						{c.status === "live" ? <Chip tone="amber">in progress</Chip> : null}
+						{history && history.count > 0 ? (
+							<Chip>
+								{history.count} previous consultation{history.count === 1 ? "" : "s"}
+							</Chip>
+						) : null}
 					</div>
 				</div>
 				{c.anamnesis ? (
@@ -174,6 +185,30 @@ export function ConsultationDetailPage({ c }: { c: ConsultationDetail }) {
 					</div>
 				) : null}
 			</header>
+
+			{history && history.count > 0 ? (
+				<details className="mt-4 rounded-2xl border border-border bg-card shadow-sm">
+					<summary className="cursor-pointer px-5 py-3 text-sm font-semibold">
+						{HISTORY_SECTION_LABEL} · {history.count} previous consultation
+						{history.count === 1 ? "" : "s"}
+					</summary>
+					<ul className="space-y-2 border-t border-border px-5 py-3 text-sm">
+						{history.visits.map((v) => (
+							<li key={v.id}>
+								<span className="text-muted-foreground">
+									{new Date(v.date).toLocaleDateString("en-US", { dateStyle: "medium" })} ·
+									consultation #{v.id}
+								</span>
+								{v.chiefComplaint ? <div>Complaint: {v.chiefComplaint}</div> : null}
+								{v.plan ? <div>Plan: {v.plan}</div> : null}
+							</li>
+						))}
+					</ul>
+					<p className="px-5 pb-3 text-[11px] text-muted-foreground">
+						Factual record of prior consultations — context only, not clinical suggestions.
+					</p>
+				</details>
+			) : null}
 
 			<div className="mt-8 grid items-start gap-6 lg:grid-cols-[1.35fr_1fr]">
 				{/* ---------- anamnesis ---------- */}

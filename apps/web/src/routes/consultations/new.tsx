@@ -15,7 +15,8 @@ import { requireSession } from "#/lib/guard.ts";
 
 export const newConsultationApi: NewConsultationApi = {
 	getLiveConsultation: (input: { data: number }) => getLiveConsultationFn(input),
-	extractAnamnesis: (input: { data: string }) => extractAnamnesisFn(input),
+	extractAnamnesis: (input: { data: { transcript: string; patientId?: number } }) =>
+		extractAnamnesisFn(input),
 	attachAnamnesis: (input: { data: unknown }) => attachAnamnesisFn(input as never),
 	saveConsultation: (input: { data: unknown }) => saveConsultationFn(input as never),
 	recordConsent: (input: { data: number }) => recordConsentFn(input),

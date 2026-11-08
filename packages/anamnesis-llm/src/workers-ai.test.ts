@@ -38,7 +38,7 @@ describe("workers-ai anamnesis engine", () => {
 				return yield* AnamnesisEngine;
 			}).pipe(Effect.provide(makeWorkersAiAnamnesisEngine(fakeAi(run), "m1"))),
 		);
-		const res = await Effect.runPromise(engine.extract("paciente com dor"));
+		const res = await Effect.runPromise(engine.extract({ transcript: "paciente com dor" }));
 		expect(res.engine).toBe("workers-ai:m1");
 		expect(res.anamnesis.queixa_principal.content).toBe("Dor de cabeça");
 		expect(run).toHaveBeenCalledWith(
@@ -65,9 +65,39 @@ describe("workers-ai anamnesis engine", () => {
 					),
 				),
 			);
-			const res = await Effect.runPromise(engine.extract("t"));
+			const res = await Effect.runPromise(engine.extract({ transcript: "t" }));
 			expect(res.engine).toBe("workers-ai:m");
 		}
+	});
+
+	it("passes patient history in the system prompt and stores historico", async () => {
+		const run = vi.fn(async (_m: string, inputs: unknown) => {
+			const msgs = (inputs as { messages: { content: string }[] }).messages;
+			expect(msgs[0]?.content).toContain("PATIENT HISTORY");
+			return jsonResponse(MOCK_ANAMNESIS);
+		});
+		const engine = await Effect.runPromise(
+			Effect.gen(function* () {
+				return yield* AnamnesisEngine;
+			}).pipe(Effect.provide(makeWorkersAiAnamnesisEngine(fakeAi(run), "m1"))),
+		);
+		const res = await Effect.runPromise(
+			engine.extract({
+				transcript: "retorno",
+				history: {
+					count: 1,
+					visits: [
+						{
+							id: 5,
+							date: "2026-03-01T10:00:00.000Z",
+							chiefComplaint: "Dor",
+							plan: "Repouso",
+						},
+					],
+				},
+			}),
+		);
+		expect(res.anamnesis.historico?.content).toContain("Consultas anteriores (1):");
 	});
 
 	it("falls back to heuristic on run failure, bad JSON, or schema mismatch", async () => {
@@ -86,7 +116,7 @@ describe("workers-ai anamnesis engine", () => {
 					return yield* AnamnesisEngine;
 				}).pipe(Effect.provide(makeWorkersAiAnamnesisEngine(fakeAi(run), "m"))),
 			);
-			const res = await Effect.runPromise(engine.extract("paciente relata tosse"));
+			const res = await Effect.runPromise(engine.extract({ transcript: "paciente relata tosse" }));
 			expect(res.engine).toBe("workers-ai:m!fallback");
 			expect(res.anamnesis.queixa_principal.content).toBeTruthy();
 		}

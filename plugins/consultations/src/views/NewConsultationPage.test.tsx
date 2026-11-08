@@ -410,6 +410,36 @@ describe("NewConsultationPage", () => {
 		expect(screen.getByText("engine: heuristic")).toBeTruthy();
 	});
 
+	it("passes the selected patientId to extraction", async () => {
+		const user = userEvent.setup();
+		const api = makeApi();
+		renderPage(api);
+		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "2" } });
+		await generateAnamnesis(user);
+		expect(api.extractAnamnesis).toHaveBeenCalledWith({
+			data: { transcript: "paciente relata dor", patientId: 2 },
+		});
+	});
+
+	it("renders the historico block when the anamnesis carries one", async () => {
+		const user = userEvent.setup();
+		const withHistory: Anamnesis = {
+			...ANAMNESIS,
+			historico: {
+				content: 'Consultas anteriores (1):\n- 05/03/2026 (#8): queixa "Febre"',
+				confidence: "alta",
+				evidence: ["consulta #8"],
+			},
+		};
+		const api = makeApi({
+			extractAnamnesis: vi.fn(async () => ({ anamnesis: withHistory, engine: "heuristic" })),
+		});
+		renderPage(api);
+		await generateAnamnesis(user);
+		expect(screen.getByText("Prior consultations")).toBeTruthy();
+		expect(screen.getByText(/Consultas anteriores \(1\)/)).toBeTruthy();
+	});
+
 	it("generate guards empty transcript and surfaces errors", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({
@@ -970,7 +1000,7 @@ describe("NewConsultationPage", () => {
 			await user.click(screen.getByText("Generate anamnesis →"));
 			await screen.findByText("high confidence");
 			expect(api.extractAnamnesis).toHaveBeenCalledWith({
-				data: "narrei a consulta toda",
+				data: { transcript: "narrei a consulta toda", patientId: undefined },
 			});
 		});
 	});

@@ -47,6 +47,40 @@ describe("renderAnamnesisPdf", () => {
 		expect(pdf.length).toBeGreaterThan(500);
 	});
 
+	it("renders the prior-consultations block when present", async () => {
+		const anamnesis = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const withHistory = {
+			...anamnesis,
+			historico: {
+				content: 'Consultas anteriores (1):\n- 05/03/2026 (#8): queixa "Febre"',
+				confidence: "alta" as const,
+				evidence: ["consulta #8"],
+			},
+		};
+		const pdf = await renderAnamnesisPdf({
+			consultationId: 9,
+			createdAt: new Date("2026-11-06T14:30:00"),
+			patientName: "Ana",
+			doctorName: "Dra",
+			consentAt: null,
+			anamnesis: withHistory,
+		});
+		expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+	});
+
+	it("renders 'Not reported' for an empty historico block", async () => {
+		const anamnesis = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const pdf = await renderAnamnesisPdf({
+			consultationId: 10,
+			createdAt: new Date("2026-11-06T14:30:00"),
+			patientName: null,
+			doctorName: null,
+			consentAt: null,
+			anamnesis: { ...anamnesis, historico: { content: "  ", confidence: "alta", evidence: [] } },
+		});
+		expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+	});
+
 	it("handles missing sections and overflows pages", async () => {
 		const long = "texto longo ".repeat(400);
 		const mk = () => ({ content: long, confidence: "alta" as const, evidence: [] as string[] });

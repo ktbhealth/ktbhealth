@@ -32,6 +32,7 @@ import {
 	getSessionUserFn,
 	listConsultationsFn,
 	listPatientsFn,
+	patientHistoryFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
@@ -83,6 +84,7 @@ describe("server fns", () => {
 		expect(await listConsultationsFn()).toEqual([]);
 		expect(await getConsultationFn({ data: 1 })).toBeNull();
 		expect(await getLiveConsultationFn({ data: 1 })).toBeNull();
+		expect(await patientHistoryFn({ data: { patientId: 1 } })).toBeNull();
 		expect(
 			await attachAnamnesisFn({
 				data: { consultationId: 1, anamnesis: makeAnamnesis("x"), engine: "e" },
@@ -96,7 +98,9 @@ describe("server fns", () => {
 			}),
 		).rejects.toThrow("unauthenticated");
 		// LLM helpers are paid endpoints — anonymous calls must not proxy them.
-		await expect(extractAnamnesisFn({ data: "t" })).rejects.toThrow("unauthenticated");
+		await expect(extractAnamnesisFn({ data: { transcript: "t" } })).rejects.toThrow(
+			"unauthenticated",
+		);
 	});
 
 	it("full patient + consultation lifecycle", async () => {
@@ -211,9 +215,53 @@ describe("server fns", () => {
 
 	it("extract fn returns a structured result", async () => {
 		headers.current = new Headers({ cookie });
-		const extracted = await extractAnamnesisFn({ data: SAMPLE_TRANSCRIPT });
+		const extracted = await extractAnamnesisFn({ data: { transcript: SAMPLE_TRANSCRIPT } });
 		expect(extracted.anamnesis.queixa_principal.content).toBeTruthy();
 		expect(extracted.engine).toBeTruthy();
+		expect(extracted.anamnesis.historico).toBeUndefined();
+	});
+
+	it("patientHistoryFn summarizes prior consultations and feeds extraction", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await createPatientFn({ data: "Histórico" });
+		await saveConsultationFn({
+			data: {
+				transcript: "t",
+				anamnesis: makeAnamnesis("Primeira queixa"),
+				engine: "heuristic",
+				patientId: patient!.id,
+			},
+		});
+		const second = await saveConsultationFn({
+			data: {
+				transcript: "t2",
+				anamnesis: makeAnamnesis("Segunda queixa"),
+				engine: "heuristic",
+				patientId: patient!.id,
+			},
+		});
+		// viewing the second consultation → history holds only the first
+		const history = await patientHistoryFn({
+			data: { patientId: patient!.id, excludeId: second.id! },
+		});
+		expect(history?.count).toBe(1);
+		expect(history?.visits[0]?.chiefComplaint).toBe("Primeira queixa");
+		// excluding nothing counts both consultations
+		const all = await patientHistoryFn({ data: { patientId: patient!.id } });
+		expect(all?.count).toBe(2);
+		// unknown patient → null (not owned / not visible)
+		expect(await patientHistoryFn({ data: { patientId: 99999 } })).toBeNull();
+
+		// extraction with a linked patient injects the historico block
+		const extracted = await extractAnamnesisFn({
+			data: { transcript: SAMPLE_TRANSCRIPT, patientId: patient!.id },
+		});
+		expect(extracted.anamnesis.historico?.content).toContain("Consultas anteriores (2):");
+		// patientId that resolves to no history → unchanged behavior
+		const noHistory = await extractAnamnesisFn({
+			data: { transcript: SAMPLE_TRANSCRIPT, patientId: 99999 },
+		});
+		expect(noHistory.anamnesis.historico).toBeUndefined();
 	});
 
 	it("services deny cross-user access via the bound principal", async () => {

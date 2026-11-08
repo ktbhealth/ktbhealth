@@ -21,6 +21,13 @@ describe("anamnesis schema", () => {
 		expect(decodeAnamnesis(SAMPLE_ANAMNESIS)).toEqual(SAMPLE_ANAMNESIS);
 	});
 
+	it("decodes anamnesis with and without the optional historico block", () => {
+		const withHistory = { ...SAMPLE_ANAMNESIS, historico: section };
+		expect(decodeAnamnesis(withHistory).historico).toEqual(section);
+		expect(decodeAnamnesis(SAMPLE_ANAMNESIS).historico).toBeUndefined();
+		expect(Option.isSome(decodeAnamnesisOption(withHistory))).toBe(true);
+	});
+
 	it("rejects malformed anamnesis", () => {
 		expect(() => decodeAnamnesis({})).toThrow();
 		expect(() => decodeAnamnesis({ ...SAMPLE_ANAMNESIS, hda: { content: 1 } })).toThrow();

@@ -34,9 +34,44 @@ export interface Anamnesis {
 	exame_fisico: AnamnesisSection;
 	hipoteses: AnamnesisSection;
 	conduta: AnamnesisSection;
+	/**
+	 * Factual snapshot of the patient's prior consultations, injected
+	 * deterministically at extraction time. Optional: documents written
+	 * before patient history existed — and unlinked patients — omit it.
+	 * Not part of AnamnesisSectionKey: it is context, not a clinical
+	 * section the doctor edits.
+	 */
+	readonly historico?: AnamnesisSection;
 }
 
-export type AnamnesisSectionKey = keyof Anamnesis;
+/** The eight clinical sections — `historico` is deliberately excluded. */
+export type AnamnesisSectionKey = Exclude<keyof Anamnesis, "historico">;
+
+export const HISTORY_SECTION_LABEL = "Prior consultations";
+
+/**
+ * Factual summary of one prior consultation, produced by the
+ * consultations plugin from stored anamneses. `date` is ISO 8601;
+ * complaint/plan are null when the prior record had none.
+ */
+export interface PriorVisit {
+	readonly id: number;
+	readonly date: string;
+	readonly chiefComplaint: string | null;
+	readonly plan: string | null;
+}
+
+/** A patient's consultation history: total count + the latest visits. */
+export interface PatientHistory {
+	readonly count: number;
+	readonly visits: readonly PriorVisit[];
+}
+
+/** Input to AnamnesisEngine.extract — transcript plus optional patient history. */
+export interface ExtractInput {
+	readonly transcript: string;
+	readonly history?: PatientHistory;
+}
 
 export const SECTION_LABELS: Record<AnamnesisSectionKey, string> = {
 	queixa_principal: "Chief complaint",

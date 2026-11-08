@@ -2,13 +2,14 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Option } from "effect";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne } from "drizzle-orm";
 import { index, route } from "@tanstack/virtual-file-routes";
 
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin } from "@ktb/kernel";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
-import type { Anamnesis } from "@ktb/anamnesis";
+import type { Anamnesis, PatientHistory, PriorVisit } from "@ktb/anamnesis";
+import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
 import { consultations } from "./schema.ts";
@@ -215,6 +216,57 @@ async function recordConsent(db: DbClient, id: number, userId: string) {
 		.where(and(eq(consultations.id, id), eq(consultations.userId, userId)));
 }
 
+/** How many prior consultations feed the history summary. */
+export const HISTORY_LIMIT = 3;
+
+/**
+ * Factual history of a patient's consultations, scoped to the calling
+ * doctor (consultations.userId) and to patients they own. Live sessions
+ * and `excludeId` (the consultation being viewed) are skipped. Returns
+ * null when the patient is not owned by `userId`.
+ */
+async function patientHistory(
+	db: DbClient,
+	patientId: number,
+	userId: string,
+	excludeId?: number,
+): Promise<PatientHistory | null> {
+	const owner = await db
+		.select({ id: patients.id })
+		.from(patients)
+		.where(and(eq(patients.id, patientId), eq(patients.ownerId, userId)))
+		.limit(1);
+	if (!owner[0]) return null;
+	const conds = [
+		eq(consultations.patientId, patientId),
+		eq(consultations.userId, userId),
+		ne(consultations.status, "live"),
+	];
+	if (excludeId !== undefined) conds.push(ne(consultations.id, excludeId));
+	const where = and(...conds);
+	const countRows = await db.select({ n: count() }).from(consultations).where(where);
+	const rows = await db
+		.select({
+			id: consultations.id,
+			createdAt: consultations.createdAt,
+			anamnesis: consultations.anamnesis,
+		})
+		.from(consultations)
+		.where(where)
+		.orderBy(desc(consultations.id))
+		.limit(HISTORY_LIMIT);
+	const visits: PriorVisit[] = rows.map((row) => {
+		const parsed = parseStored(row.anamnesis, decodeAnamnesisOption);
+		return {
+			id: row.id,
+			date: row.createdAt.toISOString(),
+			chiefComplaint: factContent(parsed?.queixa_principal.content),
+			plan: factContent(parsed?.conduta.content),
+		};
+	});
+	return { count: countRows[0]!.n, visits };
+}
+
 /**
  * Consultations domain port — Effect service, swappable in tests.
  *
@@ -257,6 +309,11 @@ export class Consultations extends Context.Service<
 			input: AttachAnamnesisInput,
 		) => Effect.Effect<void, Forbidden>;
 		readonly recordConsent: (id: number, userId: string) => Effect.Effect<void, Forbidden>;
+		readonly history: (
+			patientId: number,
+			userId: string,
+			excludeId?: number,
+		) => Effect.Effect<PatientHistory | null, Forbidden>;
 	}
 >()("@ktb/consultations/Consultations") {}
 
@@ -364,6 +421,14 @@ export const ConsultationsLive = Layer.effect(
 				yield* Effect.annotateCurrentSpan({ consultationId: id, userId });
 				yield* Effect.logInfo("consultation consent recorded", { consultationId: id, userId });
 				return yield* Effect.promise(() => recordConsent(db, id, userId));
+			}),
+			history: Effect.fn("Consultations.history")(function* (
+				patientId: number,
+				userId: string,
+				excludeId?: number,
+			) {
+				yield* requireCanAs("consultation.read", { userId });
+				return yield* Effect.promise(() => patientHistory(db, patientId, userId, excludeId));
 			}),
 		});
 	}),
