@@ -115,6 +115,11 @@ async function fillTranscript(text = "paciente relata dor") {
 	fireEvent.change(screen.getByLabelText("Consultation text"), { target: { value: text } });
 }
 
+async function choosePatient(user: ReturnType<typeof userEvent.setup>, name: string) {
+	await user.click(screen.getByLabelText("Patient"));
+	await user.click(await screen.findByRole("option", { name }));
+}
+
 async function generateAnamnesis(user: ReturnType<typeof userEvent.setup>) {
 	await fillTranscript();
 	await user.click(screen.getByText("Generate anamnesis →"));
@@ -163,9 +168,7 @@ describe("NewConsultationPage", () => {
 		await user.type(screen.getByLabelText("New patient name"), "Ana");
 		await user.click(screen.getByText("+ patient"));
 		await waitFor(() => expect(api.createPatient).toHaveBeenCalledWith({ data: "Ana" }));
-		await waitFor(() =>
-			expect((screen.getByLabelText("Patient") as HTMLSelectElement).value).toBe("7"),
-		);
+		await waitFor(() => expect(screen.getByLabelText("Patient").textContent).toContain("Ana"));
 	});
 
 	it("ignores empty patient name", async () => {
@@ -188,8 +191,8 @@ describe("NewConsultationPage", () => {
 	it("selects an existing patient and toggles consent", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "2" } });
-		expect((screen.getByLabelText("Patient") as HTMLSelectElement).value).toBe("2");
+		await choosePatient(user, "João");
+		expect(screen.getByLabelText("Patient").textContent).toContain("João");
 		await consent(user);
 		const cb = document.querySelector('input[type="checkbox"]') as HTMLInputElement;
 		expect(cb.checked).toBe(true);
@@ -414,7 +417,7 @@ describe("NewConsultationPage", () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
-		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "2" } });
+		await choosePatient(user, "João");
 		await generateAnamnesis(user);
 		expect(api.extractAnamnesis).toHaveBeenCalledWith({
 			data: { transcript: "paciente relata dor", patientId: 2 },
@@ -858,8 +861,8 @@ describe("NewConsultationPage", () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
-		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "1" } });
-		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "" } });
+		await choosePatient(user, "Maria");
+		await choosePatient(user, "unlinked");
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("Anamnesis saved successfully");
@@ -887,7 +890,7 @@ describe("NewConsultationPage", () => {
 	it("save dialog names the selected patient", async () => {
 		const user = userEvent.setup();
 		renderPage();
-		fireEvent.change(screen.getByLabelText("Patient"), { target: { value: "1" } });
+		await choosePatient(user, "Maria");
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("Anamnesis saved successfully");

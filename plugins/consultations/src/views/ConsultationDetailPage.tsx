@@ -1,11 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ClipboardListIcon, DownloadIcon } from "lucide-react";
+import { ArrowLeftIcon, ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { anamnesisToText } from "@ktb/anamnesis";
 import { CONFIDENCE_LABELS, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
-import type { Anamnesis, AnamnesisSectionKey, Confidence, PatientHistory } from "@ktb/anamnesis";
+import type { Anamnesis, AnamnesisSectionKey, PatientHistory } from "@ktb/anamnesis";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
+import { Badge } from "@ktbhealth/ui/components/badge";
+import { Button, buttonVariants } from "@ktbhealth/ui/components/button";
 import {
 	Empty,
 	EmptyDescription,
@@ -14,35 +16,10 @@ import {
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
 
-const CONF_STYLE: Record<Confidence, string> = {
-	alta: "bg-primary/10 text-primary ring-primary/20",
-	media: "bg-amber-50 text-amber-700 ring-amber-200",
-	baixa: "bg-muted text-muted-foreground ring-border",
-};
-
-const CONF_BAR: Record<Confidence, string> = {
-	alta: "border-l-primary",
-	media: "border-l-amber-400",
-	baixa: "border-l-border",
-};
+import { BADGE_TONES, CONF_BAR, CONF_STYLE, SOURCE_LABEL, SPEAKER_STYLE } from "./-ui.ts";
 
 /** Sections that read better side by side. */
 const WIDE: AnamnesisSectionKey[] = ["queixa_principal", "hda", "hipoteses", "conduta"];
-
-const SOURCE_LABEL: Record<string, string> = {
-	browser: "Browser voice",
-	bot: "Teleconsult (bot)",
-	dictation: "Dictation",
-	upload: "Upload",
-};
-
-const SPEAKER_STYLE: Record<string, string> = {
-	Doctor: "bg-sky-50 text-sky-800 ring-sky-200",
-	Patient: "bg-primary/10 text-primary ring-primary/20",
-	// legacy pt-BR speaker labels from bot/dictation transcripts
-	Médico: "bg-sky-50 text-sky-800 ring-sky-200",
-	Paciente: "bg-primary/10 text-primary ring-primary/20",
-};
 
 function Chip({
 	children,
@@ -51,15 +28,10 @@ function Chip({
 	children: React.ReactNode;
 	tone?: "neutral" | "green" | "amber";
 }) {
-	const tones = {
-		neutral: "bg-muted text-muted-foreground ring-border",
-		green: "bg-primary/10 text-primary ring-primary/20",
-		amber: "bg-amber-50 text-amber-700 ring-amber-200",
-	};
 	return (
-		<span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${tones[tone]}`}>
+		<Badge variant="secondary" className={`ring-1 ${BADGE_TONES[tone]}`}>
 			{children}
-		</span>
+		</Badge>
 	);
 }
 
@@ -134,9 +106,10 @@ export function ConsultationDetailPage({
 
 	return (
 		<div>
-			<Link to="/consultations" className="text-sm text-muted-foreground hover:text-foreground">
-				← Consultations
-			</Link>
+			<Button variant="ghost" size="sm" className="-ml-2" render={<Link to="/consultations" />}>
+				<ArrowLeftIcon />
+				Consultations
+			</Button>
 
 			{/* ---------- header ---------- */}
 			<header className="mt-3 flex flex-wrap items-start justify-between gap-4">
@@ -167,18 +140,10 @@ export function ConsultationDetailPage({
 				</div>
 				{c.anamnesis ? (
 					<div className="flex gap-2">
-						<button
-							type="button"
-							onClick={copy}
-							className="rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium text-foreground transition hover:bg-muted"
-						>
+						<Button type="button" variant="outline" onClick={copy}>
 							Copy
-						</button>
-						<a
-							href={`/api/consultations/${c.id}/pdf`}
-							download
-							className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
-						>
+						</Button>
+						<a href={`/api/consultations/${c.id}/pdf`} download className={buttonVariants()}>
 							<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
 							Download PDF
 						</a>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
+import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
 import {
 	Card,
@@ -11,6 +12,7 @@ import {
 } from "@ktbhealth/ui/components/card";
 import { Input } from "@ktbhealth/ui/components/input";
 import { Label } from "@ktbhealth/ui/components/label";
+import { Spinner } from "@ktbhealth/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { Turnstile } from "@ktbhealth/ui/components/turnstile";
 import * as m from "#/paraglide/messages.js";
@@ -99,8 +101,13 @@ function SignInPage() {
 							/>
 						</div>
 						<Turnstile onToken={setCaptchaToken} />
-						{error ? <p className="text-sm text-red-600">{error}</p> : null}
+						{error ? (
+							<Alert variant="destructive">
+								<AlertDescription>{error}</AlertDescription>
+							</Alert>
+						) : null}
 						<Button type="submit" disabled={pending} className="w-full">
+							{pending ? <Spinner /> : null}
 							{pending
 								? m.login_pending()
 								: mode === "in"

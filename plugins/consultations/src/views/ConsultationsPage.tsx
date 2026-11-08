@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ClipboardListIcon, DownloadIcon } from "lucide-react";
+import { ClipboardListIcon, DownloadIcon, SearchIcon } from "lucide-react";
 
+import { Badge } from "@ktbhealth/ui/components/badge";
 import { buttonVariants } from "@ktbhealth/ui/components/button";
 import {
 	Empty,
@@ -11,13 +12,10 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
+import { Input } from "@ktbhealth/ui/components/input";
+import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 
-const SOURCE_LABEL: Record<string, string> = {
-	browser: "Browser voice",
-	bot: "Teleconsult (bot)",
-	dictation: "Dictation",
-	upload: "Upload",
-};
+import { BADGE_TONES, SOURCE_LABEL } from "./-ui.ts";
 
 const FILTERS = [
 	["all", "All"],
@@ -31,23 +29,17 @@ function initials(name: string | null) {
 	return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-function Badge({
+function ToneBadge({
 	children,
 	tone = "neutral",
 }: {
 	children: React.ReactNode;
-	tone?: "neutral" | "green" | "amber" | "red";
+	tone?: keyof typeof BADGE_TONES;
 }) {
-	const tones = {
-		neutral: "bg-muted text-muted-foreground ring-border",
-		green: "bg-primary/10 text-primary ring-primary/20",
-		amber: "bg-amber-50 text-amber-700 ring-amber-200",
-		red: "bg-red-50 text-red-700 ring-red-200",
-	};
 	return (
-		<span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${tones[tone]}`}>
+		<Badge variant="secondary" className={`ring-1 ${BADGE_TONES[tone]}`}>
 			{children}
-		</span>
+		</Badge>
 	);
 }
 
@@ -91,41 +83,37 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 							: `${consultations.length} consultation${consultations.length > 1 ? "s" : ""} recorded.`}
 					</p>
 				</div>
-				<Link
-					to="/consultations/new"
-					className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
-				>
+				<Link to="/consultations/new" className={buttonVariants()}>
 					+ New consultation
 				</Link>
 			</div>
 
 			{consultations.length > 0 ? (
 				<div className="mt-6 flex flex-wrap items-center gap-3">
-					<input
-						type="search"
-						value={q}
-						onChange={(e) => setQ(e.target.value)}
-						placeholder="Search by patient, complaint, or text…"
-						aria-label="Search consultations"
-						className="w-full max-w-sm rounded-lg border border-border bg-card px-3 py-2 text-sm"
-					/>
-					<div className="flex rounded-lg bg-muted p-0.5 text-xs">
-						{FILTERS.map(([key, label]) => (
-							<button
-								key={key}
-								type="button"
-								onClick={() => setFilter(key)}
-								aria-pressed={filter === key}
-								className={`rounded-md px-3 py-1.5 font-medium transition ${
-									filter === key
-										? "bg-background text-foreground shadow-sm"
-										: "text-muted-foreground hover:text-foreground"
-								}`}
-							>
-								{label}
-							</button>
-						))}
+					<div className="relative w-full max-w-sm">
+						<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							type="search"
+							value={q}
+							onChange={(e) => setQ(e.target.value)}
+							placeholder="Search by patient, complaint, or text…"
+							aria-label="Search consultations"
+							className="pl-8"
+						/>
 					</div>
+					<Tabs
+						value={filter}
+						onValueChange={(v) => setFilter(v as (typeof FILTERS)[number][0])}
+						className="w-fit"
+					>
+						<TabsList aria-label="Filter consultations">
+							{FILTERS.map(([key, label]) => (
+								<TabsTrigger key={key} value={key}>
+									{label}
+								</TabsTrigger>
+							))}
+						</TabsList>
+					</Tabs>
 				</div>
 			) : null}
 
@@ -148,7 +136,7 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 									{c.patientName ?? "Unlinked patient"}
 								</Link>
 								<span className="text-xs text-muted-foreground">
-									#{c.id} · {new Date(c.createdAt).toLocaleString("en-US")}
+									#{c.id} · {new Date(c.createdAt).toLocaleString()}
 								</span>
 							</div>
 							<p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
@@ -157,14 +145,14 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 									: c.transcript || "No transcript."}
 							</p>
 							<div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-								{c.status === "live" ? <Badge tone="red">● live</Badge> : null}
+								{c.status === "live" ? <ToneBadge tone="red">● live</ToneBadge> : null}
 								{c.hasAnamnesis ? (
-									<Badge tone="green">Anamnesis</Badge>
+									<ToneBadge tone="green">Anamnesis</ToneBadge>
 								) : (
-									<Badge tone="amber">No anamnesis</Badge>
+									<ToneBadge tone="amber">No anamnesis</ToneBadge>
 								)}
-								{c.consentAt ? <Badge tone="green">Consent ✓</Badge> : null}
-								<Badge>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</Badge>
+								{c.consentAt ? <ToneBadge tone="green">Consent ✓</ToneBadge> : null}
+								<ToneBadge>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</ToneBadge>
 							</div>
 						</div>
 						{c.hasAnamnesis ? (
@@ -172,7 +160,7 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 								href={`/api/consultations/${c.id}/pdf`}
 								download
 								title="Download anamnesis PDF"
-								className="relative z-10 shrink-0 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted"
+								className={`${buttonVariants({ variant: "outline", size: "sm" })} relative z-10 shrink-0`}
 							>
 								<DownloadIcon className="mr-1 inline size-3.5 -translate-y-px" />
 								PDF

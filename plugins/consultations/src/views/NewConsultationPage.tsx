@@ -5,6 +5,8 @@ import { BrainIcon, ClipboardListIcon, DownloadIcon } from "lucide-react";
 import { Dialog } from "@ktbhealth/ui/components/app-dialog";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 import { Alert } from "@ktbhealth/ui/components/alert";
+import { Button, buttonVariants } from "@ktbhealth/ui/components/button";
+import { Checkbox } from "@ktbhealth/ui/components/checkbox";
 import {
 	Empty,
 	EmptyDescription,
@@ -12,9 +14,19 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
+import { Input } from "@ktbhealth/ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ktbhealth/ui/components/select";
+import { Spinner } from "@ktbhealth/ui/components/spinner";
+import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
-import { CONFIDENCE_LABELS, type AnamnesisSectionKey, type Confidence } from "@ktb/anamnesis";
+import { CONFIDENCE_LABELS, type AnamnesisSectionKey } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import {
 	needsServerFallback,
@@ -22,17 +34,7 @@ import {
 	type TranscriptionBackend,
 } from "@ktb/transcription";
 
-const CONF_STYLE: Record<Confidence, string> = {
-	alta: "bg-primary/10 text-primary ring-primary/20",
-	media: "bg-amber-50 text-amber-700 ring-amber-200",
-	baixa: "bg-muted text-muted-foreground ring-border",
-};
-
-const CONF_BAR: Record<Confidence, string> = {
-	alta: "border-l-primary",
-	media: "border-l-amber-400",
-	baixa: "border-l-border",
-};
+import { CONF_BAR, CONF_STYLE } from "./-ui.ts";
 
 function fmtElapsed(totalSec: number) {
 	const m = Math.floor(totalSec / 60);
@@ -438,10 +440,6 @@ export function NewConsultationPage({
 		: null;
 
 	const cardCls = "rounded-2xl border border-border bg-card shadow-sm";
-	const btnPrimary =
-		"rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-40";
-	const btnGhost =
-		"rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40";
 
 	return (
 		<div>
@@ -454,7 +452,7 @@ export function NewConsultationPage({
 						review.
 					</p>
 				</div>
-				<div className="flex items-center gap-3 text-sm">
+				<div className="flex flex-wrap items-center gap-3 text-sm">
 					<Step n={1} label="Prepare" done={step1} />
 					<span className="h-px w-6 bg-border" />
 					<Step n={2} label="Transcribe" done={step2} />
@@ -464,69 +462,64 @@ export function NewConsultationPage({
 			</div>
 
 			{/* ---- mode: live consultation vs post-consultation dictation ---- */}
-			<div
-				className="mt-4 flex w-fit items-center gap-1 rounded-lg bg-muted p-0.5 text-sm"
-				role="tablist"
-				aria-label="Consultation mode"
+			<Tabs
+				value={mode}
+				onValueChange={(v) => setMode(v as "live" | "dictation")}
+				className="mt-4 w-fit"
 			>
-				{(
-					[
-						["live", "Live consultation"],
-						["dictation", "Post-consultation dictation"],
-					] as const
-				).map(([key, label]) => (
-					<button
-						key={key}
-						type="button"
-						role="tab"
-						aria-selected={mode === key}
-						disabled={live}
-						onClick={() => setMode(key)}
-						className={`rounded-md px-3 py-1.5 font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
-							mode === key
-								? "bg-background text-foreground shadow-sm"
-								: "text-muted-foreground hover:text-foreground"
-						}`}
-					>
-						{label}
-					</button>
-				))}
-			</div>
+				<TabsList aria-label="Consultation mode">
+					<TabsTrigger value="live" disabled={live}>
+						Live consultation
+					</TabsTrigger>
+					<TabsTrigger value="dictation" disabled={live}>
+						Post-consultation dictation
+					</TabsTrigger>
+				</TabsList>
+			</Tabs>
 
 			{/* ---- 1. prepare: patient + consent ---- */}
 			<section className={`${cardCls} mt-6 p-4`}>
 				<div className="flex flex-wrap items-center gap-x-6 gap-y-3">
 					<div className="flex items-center gap-2">
-						<label
+						<span
+							id="patient-label"
 							className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
-							htmlFor="patient-sel"
 						>
 							Patient
-						</label>
-						<select
-							id="patient-sel"
-							value={patientId ?? ""}
-							onChange={(e) => setPatientId(e.target.value ? Number(e.target.value) : null)}
-							className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm"
+						</span>
+						<Select
+							value={patientId === null ? "" : String(patientId)}
+							onValueChange={(v) => setPatientId(v ? Number(v) : null)}
+							items={[
+								{ label: "unlinked", value: "" },
+								...patients.map((p) => ({ label: p.name, value: String(p.id) })),
+							]}
 						>
-							<option value="">unlinked</option>
-							{patients.map((p) => (
-								<option key={p.id} value={p.id}>
-									{p.name}
-								</option>
-							))}
-						</select>
+							<SelectTrigger aria-labelledby="patient-label" className="border-border">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">unlinked</SelectItem>
+								{patients.map((p) => (
+									<SelectItem key={p.id} value={String(p.id)}>
+										{p.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="flex items-center gap-2">
-						<input
+						<Input
 							value={patientName}
 							onChange={(e) => setPatientName(e.target.value)}
 							placeholder="new patient"
 							aria-label="New patient name"
-							className="w-40 rounded-lg border border-border px-2.5 py-1.5 text-sm"
+							className="w-40"
 						/>
-						<button
+						<Button
 							type="button"
+							variant="outline"
+							size="sm"
 							onClick={async () => {
 								if (!patientName.trim()) return;
 								const p = await api.createPatient({ data: patientName });
@@ -536,10 +529,9 @@ export function NewConsultationPage({
 									setPatientName("");
 								}
 							}}
-							className={btnGhost}
 						>
 							+ patient
-						</button>
+						</Button>
 					</div>
 					<label
 						className={`ml-auto flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs ${
@@ -548,10 +540,9 @@ export function NewConsultationPage({
 								: "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
 						}`}
 					>
-						<input
-							type="checkbox"
+						<Checkbox
 							checked={consented}
-							onChange={(e) => setConsented(e.target.checked)}
+							onCheckedChange={(checked) => setConsented(checked === true)}
 						/>
 						I declare that the patient was informed and consented to the recording
 					</label>
@@ -564,30 +555,17 @@ export function NewConsultationPage({
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
 						<h2 className="font-semibold">Transcript</h2>
 						{mode === "live" ? (
-							<div className="flex rounded-lg bg-muted p-0.5 text-xs" role="tablist">
-								{(
-									[
-										["record", "Record"],
-										["upload", "Upload"],
-										["bot", "Teleconsult (bot)"],
-									] as const
-								).map(([key, label]) => (
-									<button
-										key={key}
-										type="button"
-										role="tab"
-										aria-selected={source === key}
-										onClick={() => setSource(key)}
-										className={`rounded-md px-3 py-1 font-medium transition ${
-											source === key
-												? "bg-background text-foreground shadow-sm"
-												: "text-muted-foreground hover:text-foreground"
-										}`}
-									>
-										{label}
-									</button>
-								))}
-							</div>
+							<Tabs
+								value={source}
+								onValueChange={(v) => setSource(v as "record" | "upload" | "bot")}
+								className="w-fit"
+							>
+								<TabsList className="text-xs">
+									<TabsTrigger value="record">Record</TabsTrigger>
+									<TabsTrigger value="upload">Upload</TabsTrigger>
+									<TabsTrigger value="bot">Teleconsult (bot)</TabsTrigger>
+								</TabsList>
+							</Tabs>
 						) : null}
 					</div>
 
@@ -599,21 +577,19 @@ export function NewConsultationPage({
 									the case, in a single voice (yours): chief complaint, history, exam, and plan. The
 									narration becomes the transcript that generates the anamnesis.
 								</p>
-								<button
+								<Button
 									type="button"
 									onClick={toggleDictation}
 									disabled={!supported || !consented}
-									className={`flex items-center gap-3 rounded-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
-										dictating
-											? "bg-red-600 text-white hover:bg-red-700"
-											: "bg-primary text-primary-foreground hover:bg-primary/80"
+									className={`h-auto gap-3 rounded-full px-6 py-3 text-sm font-semibold ${
+										dictating ? "bg-red-600 text-white hover:bg-red-700" : ""
 									}`}
 								>
 									<span
 										className={`size-3 rounded-full ${dictating ? "animate-pulse bg-white" : "bg-white/70"}`}
 									/>
 									{dictating ? `Stop dictation (${fmtElapsed(elapsedSec)})` : "Start dictation"}
-								</button>
+								</Button>
 								{dictating ? (
 									<p className="text-xs text-muted-foreground">
 										recording… {fmtElapsed(elapsedSec)}. The transcript appears below in real time
@@ -652,14 +628,13 @@ export function NewConsultationPage({
 						) : source === "record" ? (
 							<>
 								<div className="grid gap-3 sm:grid-cols-2">
-									<button
+									<Button
 										type="button"
+										variant="outline"
 										onClick={toggleRecording}
 										disabled={!supported || !consented}
-										className={`flex flex-col items-start rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${
-											recording
-												? "border-red-300 bg-red-50"
-												: "border-border hover:border-foreground/20"
+										className={`h-auto flex-col items-start rounded-xl p-3 text-left ${
+											recording ? "border-red-300 bg-red-50" : ""
 										}`}
 									>
 										<span className="flex items-center gap-2 text-sm font-medium">
@@ -673,15 +648,14 @@ export function NewConsultationPage({
 										<span className="mt-1 text-[11px] text-muted-foreground">
 											Your voice, shown as “Doctor”
 										</span>
-									</button>
-									<button
+									</Button>
+									<Button
 										type="button"
+										variant="outline"
 										onClick={toggleTabCapture}
 										disabled={!consented}
-										className={`flex flex-col items-start rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-40 ${
-											tabRecording
-												? "border-red-300 bg-red-50"
-												: "border-border hover:border-foreground/20"
+										className={`h-auto flex-col items-start rounded-xl p-3 text-left ${
+											tabRecording ? "border-red-300 bg-red-50" : ""
 										}`}
 									>
 										<span className="flex items-center gap-2 text-sm font-medium">
@@ -695,7 +669,7 @@ export function NewConsultationPage({
 										<span className="mt-1 text-[11px] text-muted-foreground">
 											Call audio, shown as “Patient”
 										</span>
-									</button>
+									</Button>
 								</div>
 								{!consented ? (
 									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -726,22 +700,21 @@ export function NewConsultationPage({
 									separation, and generates the draft when the consultation ends.
 								</p>
 								<div className="mt-3 flex gap-2">
-									<input
+									<Input
 										type="url"
 										value={meetUrl}
 										onChange={(e) => setMeetUrl(e.target.value)}
 										aria-label="Teleconsult link"
 										placeholder="https://meet.google.com/xxx-xxxx-xxx"
-										className="w-full rounded-lg border border-border px-3 py-2 text-sm"
 									/>
-									<button
+									<Button
 										type="button"
 										onClick={sendBot}
 										disabled={!meetUrl.trim() || liveStatus === "live"}
-										className={`${btnPrimary} shrink-0`}
+										className="shrink-0"
 									>
 										{liveStatus === "live" ? "bot in call…" : "Send bot"}
-									</button>
+									</Button>
 								</div>
 								{liveId ? (
 									<p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
@@ -787,21 +760,23 @@ export function NewConsultationPage({
 									Consultation text
 								</label>
 								<div className="flex gap-2">
-									<button
+									<Button
 										type="button"
+										variant="outline"
+										size="sm"
 										onClick={() => setTranscript(SAMPLE_TRANSCRIPT)}
-										className={btnGhost}
 									>
 										Use sample
-									</button>
-									<button
+									</Button>
+									<Button
 										type="button"
+										variant="outline"
+										size="sm"
 										onClick={() => setTranscript("")}
 										disabled={!transcript}
-										className={btnGhost}
 									>
 										Clear
-									</button>
+									</Button>
 								</div>
 							</div>
 							<textarea
@@ -814,14 +789,15 @@ export function NewConsultationPage({
 							/>
 						</div>
 
-						<button
+						<Button
 							type="button"
 							onClick={generate}
 							disabled={busy || !transcript.trim()}
-							className={`${btnPrimary} w-full py-2.5`}
+							className="h-auto w-full px-4 py-2.5"
 						>
+							{busy ? <Spinner /> : null}
 							{busy ? "Generating anamnesis…" : "Generate anamnesis →"}
-						</button>
+						</Button>
 						{error ? (
 							<Alert variant="destructive" className="px-3 py-2 text-xs">
 								{error}
@@ -911,12 +887,13 @@ export function NewConsultationPage({
 
 					{anamnesis ? (
 						<div className="flex items-center gap-2 border-t border-border px-5 py-3">
-							<button type="button" onClick={copyAnamnesis} className={btnGhost}>
+							<Button type="button" variant="outline" size="sm" onClick={copyAnamnesis}>
 								Copy
-							</button>
-							<button type="button" onClick={save} disabled={saving} className={btnPrimary}>
+							</Button>
+							<Button type="button" size="sm" onClick={save} disabled={saving}>
+								{saving ? <Spinner /> : null}
 								{saving ? "Saving…" : savedId ? "Update consultation" : "Save consultation"}
-							</button>
+							</Button>
 						</div>
 					) : null}
 				</section>
@@ -936,25 +913,29 @@ export function NewConsultationPage({
 				actions={
 					saveDialog?.kind === "ok" ? (
 						<>
-							<a href={`/api/consultations/${saveDialog.id}/pdf`} download className={btnGhost}>
+							<a
+								href={`/api/consultations/${saveDialog.id}/pdf`}
+								download
+								className={buttonVariants({ variant: "outline", size: "sm" })}
+							>
 								<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
 								Download PDF
 							</a>
 							<Link
 								to="/consultations/$id"
 								params={{ id: String(saveDialog.id) }}
-								className={btnGhost}
+								className={buttonVariants({ variant: "outline", size: "sm" })}
 							>
 								View consultation
 							</Link>
-							<button type="button" onClick={() => setSaveDialog(null)} className={btnPrimary}>
+							<Button type="button" size="sm" onClick={() => setSaveDialog(null)}>
 								Confirm
-							</button>
+							</Button>
 						</>
 					) : (
-						<button type="button" onClick={() => setSaveDialog(null)} className={btnPrimary}>
+						<Button type="button" size="sm" onClick={() => setSaveDialog(null)}>
 							Got it
-						</button>
+						</Button>
 					)
 				}
 			>
