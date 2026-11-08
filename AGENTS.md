@@ -3,7 +3,9 @@
 ## Org repos — use them, don't reinvent
 
 Sibling clones live next to this repo (`../<name>`); canonical sources
-on GitHub under `github.com/ktbhealth/`:
+on GitHub under `github.com/ktbhealth/`. This repo is
+`github.com/ktbhealth/product` (renamed from `ktbhealth/ktbhealth` —
+old URLs redirect).
 
 - **`ui`** (`@ktbhealth/ui`) — THE design system: Tailwind v4 tokens +
   React (`@react`) and Vue component libraries. Source of truth for all
