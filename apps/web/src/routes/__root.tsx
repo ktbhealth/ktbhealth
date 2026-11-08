@@ -16,8 +16,8 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { SearchXIcon } from "lucide-react";
 import * as m from "#/paraglide/messages.js";
 import { getLocale, locales } from "#/paraglide/runtime.js";
-import { LanguageToggle } from "#/components/language-toggle.tsx";
-import { changeLocale, pluginNavLabel } from "#/lib/i18n.ts";
+import { LanguageToggle } from "@ktbhealth/ui/components/language-toggle";
+import { changeLocale, localeName, pluginNavLabel } from "#/lib/i18n.ts";
 import { sessionFn } from "#/lib/fns.ts";
 import { plugins } from "#/plugins.ts";
 import appCss from "../styles.css?url";
@@ -82,7 +82,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 											{pluginNavLabel(item.to, item.label)}
 										</Link>
 									))}
-								<LanguageToggle locales={locales} value={getLocale()} onChange={changeLocale} />
+								<LanguageToggle
+									locales={locales}
+									value={getLocale()}
+									onValueChange={changeLocale}
+									labels={Object.fromEntries(locales.map((l) => [l, localeName(l)]))}
+									label={m.lang_menu_label()}
+								/>
 								<span className="mx-1.5 h-5 w-px bg-border" />
 								{!user ? (
 									<Link to="/login" className={NAV_LINK}>

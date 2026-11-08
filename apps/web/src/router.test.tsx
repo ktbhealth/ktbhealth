@@ -38,6 +38,9 @@ vi.mock("@ktbhealth/ui/components/dropdown-menu", async () => {
 			React.createElement("button", { ...props, onClick: onClick as never }, children as never),
 		DropdownMenuLabel: passthrough("div"),
 		DropdownMenuSeparator: passthrough("hr"),
+		DropdownMenuRadioGroup: passthrough("div"),
+		DropdownMenuRadioItem: ({ children, ...props }: Record<string, unknown>) =>
+			React.createElement("div", props, children as never),
 	};
 });
 vi.mock("@ktb/auth-better/client", () => ({
