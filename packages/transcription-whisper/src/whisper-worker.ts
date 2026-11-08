@@ -80,26 +80,36 @@ async function doLoad() {
 	const devices = (await hasWebGpu()) ? ["webgpu", "wasm"] : ["wasm"];
 	let lastErr: unknown = null;
 	for (const d of devices) {
-		try {
-			postMessage({ type: "progress", message: `loading model (${d})…` });
-			transcriber = (await pipeline("automatic-speech-recognition", MODEL, {
-				device: d as "webgpu" | "wasm",
-				// quantized weights: much smaller download
-				dtype: d === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8",
-				progress_callback: (p: { status?: string; progress?: number }) => {
-					if (!cached && typeof p.progress === "number")
-						postMessage({
-							type: "progress",
-							message: `downloading model ${Math.round(p.progress)}%`,
-						});
-				},
-			})) as unknown as TranscriberFn;
-			loadedDevice = d;
-			postMessage({ type: "ready", device: d });
-			return;
-		} catch (e) {
-			lastErr = e;
-			console.error(`[whisper-worker] failed on ${d}`, e);
+		// Model files are large and come from a remote CDN — a single
+		// dropped fetch used to kill the whole load. transformers.js
+		// caches each completed file, so retries resume where they
+		// stopped instead of restarting the download.
+		for (let attempt = 1; attempt <= 3; attempt++) {
+			try {
+				postMessage({
+					type: "progress",
+					message: `loading model (${d})${attempt > 1 ? `, retry ${attempt}/3` : ""}…`,
+				});
+				transcriber = (await pipeline("automatic-speech-recognition", MODEL, {
+					device: d as "webgpu" | "wasm",
+					// quantized weights: much smaller download
+					dtype: d === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8",
+					progress_callback: (p: { status?: string; progress?: number }) => {
+						if (!cached && typeof p.progress === "number")
+							postMessage({
+								type: "progress",
+								message: `downloading model ${Math.round(p.progress)}%`,
+							});
+					},
+				})) as unknown as TranscriberFn;
+				loadedDevice = d;
+				postMessage({ type: "ready", device: d });
+				return;
+			} catch (e) {
+				lastErr = e;
+				console.error(`[whisper-worker] failed on ${d} (attempt ${attempt})`, e);
+				if (attempt < 3) await new Promise((r) => setTimeout(r, 1000 * attempt));
+			}
 		}
 	}
 	postMessage({
