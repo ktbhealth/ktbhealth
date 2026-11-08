@@ -12,8 +12,6 @@ dist-ssr
 __unconfig*
 todos.json
 
-# myco project ledger worktree (orphan `project` branch)
-project/
 
 # local sqlite database
 data/
