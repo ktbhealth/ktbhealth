@@ -40,7 +40,7 @@
 		"@ktb/patients": "workspace:*",
 		"@ktb/transcription": "workspace:*",
 		"@ktb/transcription-whisper": "workspace:*",
-		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.0@react",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/react-devtools": "0.10.14",
 		"@tanstack/react-router": "1.170.46",
