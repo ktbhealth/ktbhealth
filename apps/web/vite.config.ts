@@ -1,4 +1,6 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from "node:url";
+
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
@@ -10,7 +12,25 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const config = defineConfig({
-	resolve: { tsconfigPaths: true, dedupe: ["react", "react-dom"] },
+	resolve: {
+		tsconfigPaths: true,
+		dedupe: ["react", "react-dom"],
+		alias: [
+			{
+				// CJS-only package; breaks workerd SSR. React 19 has the hook.
+				find: /^use-sync-external-store\/shim$/,
+				replacement: fileURLToPath(
+					new URL("./src/lib/use-sync-external-store-shim.ts", import.meta.url),
+				),
+			},
+			{
+				find: /^use-sync-external-store\/shim\/with-selector$/,
+				replacement: fileURLToPath(
+					new URL("./src/lib/use-sync-external-store-shim-with-selector.ts", import.meta.url),
+				),
+			},
+		],
+	},
 	// Whisper worker imports this lazily; pre-bundle it at startup so the
 	// dev server doesn't re-optimize (and 504) while the worker is loading.
 	optimizeDeps: { include: ["@huggingface/transformers"] },
