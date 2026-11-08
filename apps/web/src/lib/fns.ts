@@ -49,30 +49,32 @@ export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => 
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
-// LLM helpers run without a bound principal: they touch no owned data —
-// the transcript/anamnesis come from the request payload itself.
+// LLM helpers touch no owned data but still require a session: they proxy
+// paid model calls and must not be an open endpoint.
 export const extractAnamneseFn = createServerFn({ method: "POST" })
 	.validator((transcript: string) => decodeString(transcript))
-	.handler(({ data: transcript }) =>
-		run(
+	.handler(async ({ data: transcript }) => {
+		await ensureSessionUser();
+		return run(
 			Effect.gen(function* () {
 				const engine = yield* AnamnesisEngine;
 				return yield* engine.extract(transcript);
 			}),
-		),
-	);
+		);
+	});
 
 /** Second opinion (stronger model): gaps, hypotheses, red flags. */
 export const reviewAnamneseFn = createServerFn({ method: "POST" })
 	.validator((input: { transcript: string; anamnesis: Anamnesis }) => decodeReviewInput(input))
-	.handler(({ data }) =>
-		run(
+	.handler(async ({ data }) => {
+		await ensureSessionUser();
+		return run(
 			Effect.gen(function* () {
 				const engine = yield* ReviewEngine;
 				return yield* engine.review(data.transcript, data.anamnesis);
 			}),
-		),
-	);
+		);
+	});
 
 // ---------- patients ----------
 // All domain calls go through `runAs(user, …)`: the service enforces

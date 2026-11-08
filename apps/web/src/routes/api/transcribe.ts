@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ai } from "#/lib/platform.ts";
+import { getSessionUser } from "#/lib/auth.ts";
 
 /**
  * POST /api/transcribe — server-side transcription of an uploaded
@@ -9,6 +10,8 @@ export const Route = createFileRoute("/api/transcribe")({
 	server: {
 		handlers: {
 			POST: async ({ request }) => {
+				const user = await getSessionUser();
+				if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 				const form = await request.formData();
 				const file = form.get("audio");
 				if (!(file instanceof File)) {

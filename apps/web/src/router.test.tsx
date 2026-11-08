@@ -143,7 +143,8 @@ describe("router integration", () => {
 		await act(async () => {
 			await router.navigate({ to: "/consultas" });
 		});
-		await waitFor(() => expect(router.state.location.pathname).toBe("/consultas"));
+		// anonymous → route guard redirects to sign-in
+		await waitFor(() => expect(router.state.location.pathname).toBe("/entrar"));
 	});
 
 	it("authenticated user sees name in nav and consultation detail", async () => {
@@ -161,6 +162,10 @@ describe("router integration", () => {
 		await act(async () => {
 			fireEvent.click(sair);
 		});
+		await act(async () => {
+			await router.navigate({ to: "/consultas" });
+		});
+		await waitFor(() => expect(document.body.textContent).toContain("conteúdo queixa_principal"));
 		await act(async () => {
 			await router.navigate({ to: "/consultas/$id", params: { id: String(consultationId) } });
 		});

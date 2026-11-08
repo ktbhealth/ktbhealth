@@ -96,6 +96,11 @@ describe("server fns", () => {
 				data: { transcript: "t", anamnesis: makeAnamnesis("q"), engine: "e" },
 			}),
 		).rejects.toThrow("unauthenticated");
+		// LLM helpers are paid endpoints — anonymous calls must not proxy them.
+		await expect(extractAnamneseFn({ data: "t" })).rejects.toThrow("unauthenticated");
+		await expect(
+			reviewAnamneseFn({ data: { transcript: "t", anamnesis: makeAnamnesis("q") } }),
+		).rejects.toThrow("unauthenticated");
 	});
 
 	it("full patient + consultation lifecycle", async () => {

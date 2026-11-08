@@ -46,12 +46,12 @@ describe("novaApi wiring", () => {
 	it("delegates every server fn", async () => {
 		// anonymous: fns return empty results or throw; arrows still execute
 		await expect(novaApi.getLiveConsultation({ data: 1 })).resolves.toBeNull();
-		await expect(novaApi.extractAnamnese({ data: "transcrição de teste" })).resolves.toMatchObject({
-			anamnesis: expect.anything(),
-		});
+		await expect(novaApi.extractAnamnese({ data: "transcrição de teste" })).rejects.toThrow(
+			"unauthenticated",
+		);
 		await expect(
 			novaApi.reviewAnamnese({ data: { transcript: "t", anamnesis: ANAMNESIS } } as never),
-		).resolves.toBeTruthy();
+		).rejects.toThrow("unauthenticated");
 		await expect(
 			novaApi.attachAnamnesis({
 				data: { consultationId: 1, anamnesis: ANAMNESIS, engine: "e" },

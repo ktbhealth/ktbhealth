@@ -103,6 +103,22 @@ describe("api routes", () => {
 		expect(body.user.email).toBe("api@x.com");
 	});
 
+	it("transcribe rejects unauthenticated requests", async () => {
+		const h = handlersOf(TranscribeRoute);
+		const saved = headers.current;
+		headers.current = new Headers();
+		try {
+			const form = new FormData();
+			form.set("audio", new File([new Uint8Array([1, 2, 3])], "a.wav"));
+			const res = await h.POST!({
+				request: new Request("http://x/api/transcribe", { method: "POST", body: form }),
+			} as never);
+			expect(res.status).toBe(401);
+		} finally {
+			headers.current = saved;
+		}
+	});
+
 	it("transcribe requires an audio file and returns text", async () => {
 		const h = handlersOf(TranscribeRoute);
 		const empty = await h.POST!({

@@ -12,6 +12,7 @@ import {
 	reviewAnamneseFn,
 	saveConsultationFn,
 } from "#/lib/fns.ts";
+import { requireSession } from "#/lib/guard.ts";
 
 export const novaApi: NovaApi = {
 	getLiveConsultation: (input: { data: number }) => getLiveConsultationFn(input),
@@ -24,6 +25,7 @@ export const novaApi: NovaApi = {
 };
 
 export const Route = createFileRoute("/consulta/nova")({
+	beforeLoad: () => requireSession(),
 	loader: () => listPatientsFn(),
 	component: function NovaRoute() {
 		const initialPatients = Route.useLoaderData();
