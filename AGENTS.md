@@ -16,8 +16,12 @@ on GitHub under `github.com/ktbhealth/`:
 - **`storybook`** — component catalog for `ui`. Before building any UI,
   check existing stories/usage (`bun run dev` → :3100). New components
   get stories there.
-- **`project`** — myco ledger: proposals, ADRs, tasks. `myco status
-  --prompt` at session start; capture new work as proposals/tasks.
+- **`project`** — myco ledger: proposals, ADRs, tasks across all org
+  repos. Rules: `../project/AGENTS.md`. The loop:
+  `myco status --prompt` at session start → track work with
+  `myco todo add` / `proposal new` → `myco item set <ID> --status …`
+  as you go → `myco handoff <ID>` when wrapping up. Never hand-edit
+  `project/` files — myco verbs are the write path.
 - **`presentation-draft`**, **`website-draft`**, **`slidev-theme-ktb`** —
   pitch/site/theme repos; not part of this build.
 
