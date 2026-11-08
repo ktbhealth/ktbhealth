@@ -34,7 +34,7 @@
 		"@ktb/consultations": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/export-pdf": "workspace:*",
-		"@ktb/infra": "workspace:*",
+		"@ktb/infra-cloudflare": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/transcription": "workspace:*",

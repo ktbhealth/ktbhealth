@@ -2,7 +2,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import { deployD1, deployWorker } from "@ktb/infra";
+import { deployD1, deployWorker } from "@ktb/infra-cloudflare";
 
 export default Alchemy.Stack(
 	"ktb-web",

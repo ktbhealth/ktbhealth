@@ -1,16 +1,16 @@
 {
-	"name": "@ktb/infra",
+	"name": "@ktb/infra-cloudflare",
 	"private": true,
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./ports": "./src/ports.ts",
 		"./cloudflare": "./src/cloudflare.ts"
 	},
 	"dependencies": {
 		"@alchemy.run/cloudflare": "2.0.0-beta.85",
 		"@effect/platform-bun": "4.1.2",
 		"@effect/platform-node": "4.1.2",
+		"@ktb/infra-ports": "workspace:*",
 		"alchemy": "2.0.0-beta.85",
 		"effect": "4.1.2"
 	},

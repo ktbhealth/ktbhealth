@@ -1,0 +1,11 @@
+{
+	"name": "@ktb/infra-ports",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/ports.ts"
+	},
+	"dependencies": {
+		"effect": "4.1.2"
+	}
+}

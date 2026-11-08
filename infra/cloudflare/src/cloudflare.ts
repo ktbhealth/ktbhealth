@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import type { Providers } from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
-import type { DeployD1, DeployStaticSite, DeployWorker } from "./ports.ts";
+import type { DeployD1, DeployStaticSite, DeployWorker } from "@ktb/infra-ports";
 
 /** Repo workflow: bun is the package manager; override per spec if needed. */
 const BUILD_COMMAND = "bun run build";
