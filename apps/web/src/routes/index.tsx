@@ -94,7 +94,7 @@ function BrowserFrame({ children }: { children: React.ReactNode }) {
 				<div className="flex gap-1.5">
 					<span className="size-2.5 rounded-full bg-red-400" />
 					<span className="size-2.5 rounded-full bg-amber-400" />
-					<span className="size-2.5 rounded-full bg-emerald-400" />
+					<span className="size-2.5 rounded-full bg-primary" />
 				</div>
 				<div className="mx-auto flex w-full max-w-xs items-center justify-center rounded-md bg-background px-3 py-1 text-[11px] text-muted-foreground">
 					ktb.health/consulta/nova
@@ -122,7 +122,7 @@ function ProductMock() {
 							<p className="mt-0.5 text-muted-foreground">Desde quando a dor começou?</p>
 						</div>
 						<div>
-							<span className="text-xs font-semibold text-emerald-600">Paciente</span>
+							<span className="text-xs font-semibold text-primary">Paciente</span>
 							<p className="mt-0.5 text-muted-foreground">
 								De repente, na região frontal. Piora à noite e me derruba.
 							</p>
@@ -149,10 +149,10 @@ function ProductMock() {
 						</Badge>
 					</div>
 					<div className="mt-4 space-y-3">
-						<div className="rounded-lg border border-border border-l-4 border-l-emerald-400 bg-card p-3">
+						<div className="rounded-lg border border-border border-l-4 border-l-primary bg-card p-3">
 							<div className="flex items-center justify-between gap-2">
 								<span className="text-xs font-semibold">Queixa principal</span>
-								<Badge className="bg-emerald-50 text-[10px] text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-50">
+								<Badge className="bg-primary/10 text-[10px] text-primary ring-1 ring-primary/20 hover:bg-primary/15">
 									confiança alta
 								</Badge>
 							</div>
@@ -190,12 +190,12 @@ function Home() {
 			{/* ---------- hero ---------- */}
 			<section className="mx-auto max-w-6xl px-6 pt-16 text-center">
 				<Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1">
-					<span className="size-1.5 rounded-full bg-emerald-500" />
+					<span className="size-1.5 rounded-full bg-primary" />
 					Documentação clínica por voz
 				</Badge>
 				<h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
 					Sua consulta,{" "}
-					<span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+					<span className="bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">
 						documentada.
 					</span>
 				</h1>
@@ -225,7 +225,7 @@ function Home() {
 			{/* product mock, full width */}
 			<section className="mx-auto max-w-6xl px-6">
 				<div className="relative">
-					<div className="absolute -inset-x-8 -top-8 -z-10 h-40 bg-gradient-to-b from-emerald-100/70 to-transparent blur-2xl" />
+					<div className="absolute -inset-x-8 -top-8 -z-10 h-40 bg-gradient-to-b from-primary/15 to-transparent blur-2xl" />
 					<ProductMock />
 				</div>
 			</section>
@@ -288,9 +288,7 @@ function Home() {
 								].map((h, i) => (
 									<span
 										key={i}
-										className={`w-1.5 rounded-full ${
-											i % 5 === 0 ? "bg-emerald-400" : "bg-primary/30"
-										}`}
+										className={`w-1.5 rounded-full ${i % 5 === 0 ? "bg-primary" : "bg-primary/30"}`}
 										style={{ height: `${h}%` }}
 									/>
 								))}
@@ -311,7 +309,7 @@ function Home() {
 						</CardHeader>
 						<CardContent className="space-y-2">
 							{[
-								{ t: "Queixa principal", c: "alta", cls: "border-l-emerald-400" },
+								{ t: "Queixa principal", c: "alta", cls: "border-l-primary" },
 								{ t: "História da doença", c: "média", cls: "border-l-amber-400" },
 							].map((s) => (
 								<div
@@ -348,7 +346,7 @@ function Home() {
 									key={s}
 									className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
 								>
-									<CheckIcon className="size-3.5 shrink-0 text-emerald-600" />
+									<CheckIcon className="size-3.5 shrink-0 text-primary" />
 									{s}
 								</div>
 							))}

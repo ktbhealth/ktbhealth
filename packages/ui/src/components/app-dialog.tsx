@@ -42,7 +42,7 @@ export function Dialog({
 			<div className="p-6">
 				<div
 					className={`flex size-11 items-center justify-center rounded-full text-xl font-bold ${
-						tone === "success" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+						tone === "success" ? "bg-primary/10 text-primary" : "bg-red-100 text-red-700"
 					}`}
 				>
 					{tone === "success" ? "✓" : "!"}

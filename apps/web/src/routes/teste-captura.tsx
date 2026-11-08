@@ -89,7 +89,7 @@ function TesteCaptura() {
 			{error ? <p className="mt-3 text-xs text-red-600">{error}</p> : null}
 			<div className="mt-6 h-6 w-full overflow-hidden rounded bg-muted">
 				<div
-					className="h-full bg-emerald-500 transition-[width] duration-75"
+					className="h-full bg-primary transition-[width] duration-75"
 					style={{ width: `${Math.min(100, level * 400)}%` }}
 				/>
 			</div>

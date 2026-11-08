@@ -62,7 +62,7 @@ export function ReviewPanel({
 									</span>
 									{onAddHypothesis ? (
 										added.has(h.diagnostico) ? (
-											<Badge className="ml-auto border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700 hover:bg-emerald-50">
+											<Badge className="ml-auto border-primary/20 bg-primary/10 text-[11px] text-primary hover:bg-primary/15">
 												✓ adicionada
 											</Badge>
 										) : (

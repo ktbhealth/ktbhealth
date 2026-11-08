@@ -21,13 +21,13 @@ import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import type { Transcriber, TranscriptionBackend } from "@ktb/transcription";
 
 const CONF_STYLE: Record<Confidence, string> = {
-	alta: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+	alta: "bg-primary/10 text-primary ring-primary/20",
 	media: "bg-amber-50 text-amber-700 ring-amber-200",
 	baixa: "bg-muted text-muted-foreground ring-border",
 };
 
 const CONF_BAR: Record<Confidence, string> = {
-	alta: "border-l-emerald-400",
+	alta: "border-l-primary",
 	media: "border-l-amber-400",
 	baixa: "border-l-border",
 };
@@ -49,7 +49,7 @@ function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
 		<span className="flex items-center gap-2">
 			<span
 				className={`flex size-6 items-center justify-center rounded-full text-xs font-semibold ${
-					done ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
+					done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
 				}`}
 			>
 				{done ? "✓" : n}
@@ -569,7 +569,7 @@ export function NovaConsultaPage({
 					<label
 						className={`ml-auto flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs ${
 							consented
-								? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+								? "bg-primary/10 text-primary ring-1 ring-primary/20"
 								: "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
 						}`}
 					>
@@ -742,7 +742,7 @@ export function NovaConsultaPage({
 						) : (
 							<div>
 								<div className="flex items-center gap-2">
-									<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-200">
+									<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary ring-1 ring-primary/20">
 										speaker labels grátis via canais
 									</span>
 								</div>
@@ -773,7 +773,7 @@ export function NovaConsultaPage({
 										{liveStatus === "live" ? (
 											<span className="size-2 animate-pulse rounded-full bg-red-600" />
 										) : (
-											<span className="size-2 rounded-full bg-emerald-500" />
+											<span className="size-2 rounded-full bg-primary" />
 										)}
 										consulta #{liveId} ·{" "}
 										{liveStatus === "live" ? "transcrevendo ao vivo" : "call encerrada"}

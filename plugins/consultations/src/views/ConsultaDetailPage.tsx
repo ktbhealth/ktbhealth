@@ -17,13 +17,13 @@ import {
 } from "@ktbhealth/ui/components/empty";
 
 const CONF_STYLE: Record<Confidence, string> = {
-	alta: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+	alta: "bg-primary/10 text-primary ring-primary/20",
 	media: "bg-amber-50 text-amber-700 ring-amber-200",
 	baixa: "bg-muted text-muted-foreground ring-border",
 };
 
 const CONF_BAR: Record<Confidence, string> = {
-	alta: "border-l-emerald-400",
+	alta: "border-l-primary",
 	media: "border-l-amber-400",
 	baixa: "border-l-border",
 };
@@ -40,7 +40,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const SPEAKER_STYLE: Record<string, string> = {
 	Médico: "bg-sky-50 text-sky-800 ring-sky-200",
-	Paciente: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+	Paciente: "bg-primary/10 text-primary ring-primary/20",
 };
 
 function Chip({
@@ -52,7 +52,7 @@ function Chip({
 }) {
 	const tones = {
 		neutral: "bg-muted text-muted-foreground ring-border",
-		green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+		green: "bg-primary/10 text-primary ring-primary/20",
 		amber: "bg-amber-50 text-amber-700 ring-amber-200",
 	};
 	return (

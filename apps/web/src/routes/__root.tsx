@@ -62,7 +62,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 					<header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
 						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
 							<Link to="/" className="flex items-center gap-2.5">
-								<span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-bold text-white shadow-sm">
+								<span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-600 text-sm font-bold text-white shadow-sm">
 									K
 								</span>
 								<span className="text-lg font-bold tracking-tight">KTB Health</span>

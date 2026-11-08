@@ -40,7 +40,7 @@ function Badge({
 }) {
 	const tones = {
 		neutral: "bg-muted text-muted-foreground ring-border",
-		green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+		green: "bg-primary/10 text-primary ring-primary/20",
 		amber: "bg-amber-50 text-amber-700 ring-amber-200",
 		indigo: "bg-indigo-50 text-indigo-700 ring-indigo-200",
 		red: "bg-red-50 text-red-700 ring-red-200",
@@ -137,7 +137,7 @@ export function ConsultasPage({ consultas }: { consultas: ConsultaListItem[] }) 
 						key={c.id}
 						className="group relative flex items-start gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-foreground/20 hover:shadow"
 					>
-						<div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 text-sm font-semibold text-emerald-800">
+						<div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/15 to-primary/5 text-sm font-semibold text-primary">
 							{initials(c.patientName)}
 						</div>
 						<div className="min-w-0 flex-1">
