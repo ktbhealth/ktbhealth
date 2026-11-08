@@ -1,9 +1,8 @@
 # KTB
 
-> Clinical Intelligence: turning medical conversations into lasting
-> clinical knowledge.
+> KTB turns medical conversations into lasting clinical knowledge.
 
-KTB is a SaaS platform for doctors that captures, transcribes,
+KTB is a documentation platform for doctors that captures, transcribes,
 organizes, and manages medical consultation conversations, reducing
 the administrative burden of clinical documentation while preserving
 the information generated during patient care.
@@ -19,12 +18,12 @@ screen, not the patient.
 ## Solution
 
 Ambient scribe for telemedicine: the app captures the consultation
-audio → transcribes (PT-BR, Whisper) → structures a clinical anamnesis
-(chief complaint, HPI, history, physical exam, hypotheses, plan) → the
-doctor reviews and approves → export to the medical record.
+audio → transcribes → structures a clinical anamnesis → the doctor
+reviews and approves → export to the medical record.
 
 The AI drafts; the physician decides. It supports clinical
-documentation; it does not diagnose or prescribe.
+documentation; it does not diagnose, prescribe, or suggest clinical
+decisions.
 
 ## The name
 
@@ -35,34 +34,52 @@ accessible over time.
 
 ## Vision
 
-Beyond transcription: an intelligent layer for clinical information,
-connecting consultations, documentation, and patient history into a
-more useful and continuous clinical workflow.
+A documentation platform connecting consultations, records, and patient
+history into a continuous clinical workflow — the consultation context
+compounds over time instead of disappearing into the next form.
 
 ## Layout
 
-- `apps/web` - TanStack Start app (Cloudflare Workers target)
-- `packages/db` - drizzle schema + client (`@ktb/db`)
+- `apps/web` — TanStack Start app (Cloudflare Workers target)
+- `plugins/` — domain plugins (`consultations`, `patients`), each with
+  its own schema, routes, and views
+- `packages/` — provider-neutral Effect ports and drivers
+  (`transcription`, `anamnesis`, `auth`, `bot`, `captcha`, `export-pdf`,
+  `kernel`, `driver-framework`, `db`, `app-host` composition root)
+- `infra/` — deployment ports (`ports`) and the Cloudflare/Alchemy
+  implementation (`cloudflare`)
 
-Toolchain is Vite+ (`vp`): check, fmt, lint, test, build in one CLI.
+Toolchain is Vite+ (`vp`) on Bun: check, fmt, lint, test, build in one
+CLI.
 
-## Running the PoC
+## Running locally
 
 ```bash
-pnpm install
+bun install
 
-# apps/web/.env.local - at minimum an LLM provider + database:
-#   LLM_API_KEY, LLM_BASE_URL, LLM_MODEL   (OpenAI-compatible endpoint)
-#   DATABASE_URL                           (defaults to apps/web/data/app.db)
+# apps/web/.env.local
+#   DATABASE_URL=./data/app.db   (SQLite for local dev)
 
-pnpm dev     # http://localhost:3000
-pnpm check   # fmt + lint + typecheck
-pnpm test
-pnpm build   # production build (worker bundle)
-pnpm deploy  # wrangler deploy (needs `wrangler login`)
+bun run dev      # http://localhost:3000
+bun run check    # fmt + lint + typecheck
+bun run test     # vitest, per-package projects
+bun run build    # production build (worker bundle)
+bun run deploy   # alchemy deploy to Cloudflare (needs cuora vault access)
 ```
+
+## Related repos
+
+- [`ui`](https://github.com/ktbhealth/ui) — design system (Tailwind v4
+  tokens + React/Vue component libraries, git-tag installs)
+- [`website-draft`](https://github.com/ktbhealth/website-draft) —
+  landing site (TanStack Start SSR on Cloudflare Workers)
+- [`storybook`](https://github.com/ktbhealth/storybook) — component
+  catalog for the design system
+- [`project`](https://github.com/ktbhealth/project) — task board, ADRs,
+  and proposals (myco)
 
 ## Status
 
-Exploration in progress. Active roadmap, ADRs, and backlog live on the
-[`project`](https://github.com/ktbhealth/ktbhealth/tree/project) branch.
+v0 is deployed to Cloudflare Workers (Workers AI as the LLM fallback).
+Roadmap, ADRs, and backlog live on the
+[`project`](https://github.com/ktbhealth/project) board.
