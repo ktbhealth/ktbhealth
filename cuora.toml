@@ -6,7 +6,7 @@
 # account. Deployed from crates/cuora-vault-cf/worker (9aia/cuora).
 [vaults.ktb]
 kind = "cf"
-url = "https://arca.ktbhealth.workers.dev"
+url = "https://cuora.ktbhealth.workers.dev"
 token_env = "CUORA_CF_TOKEN" # bearer fallback; scoped HMAC below
 cache = ["dev", "preview"] # prod reads live — no stale-prod footgun
 
