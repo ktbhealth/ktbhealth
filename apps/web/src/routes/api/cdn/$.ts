@@ -15,12 +15,7 @@ const UPSTREAMS = {
 	jsdelivr: "https://cdn.jsdelivr.net/",
 } as const;
 
-const PASSTHROUGH_HEADERS = [
-	"content-type",
-	"etag",
-	"accept-ranges",
-	"content-range",
-] as const;
+const PASSTHROUGH_HEADERS = ["content-type", "etag", "accept-ranges", "content-range"] as const;
 
 async function handle({ request }: { request: Request }) {
 	const user = await getSessionUser();
@@ -29,8 +24,7 @@ async function handle({ request }: { request: Request }) {
 	const { pathname, search } = new URL(request.url);
 	const rest = pathname.slice("/api/cdn/".length);
 	const slash = rest.indexOf("/");
-	const base =
-		slash > 0 ? UPSTREAMS[rest.slice(0, slash) as keyof typeof UPSTREAMS] : undefined;
+	const base = slash > 0 ? UPSTREAMS[rest.slice(0, slash) as keyof typeof UPSTREAMS] : undefined;
 	const path = slash > 0 ? rest.slice(slash + 1) : "";
 	if (!base || !path || path.includes("..")) {
 		return Response.json({ error: "unknown upstream" }, { status: 404 });

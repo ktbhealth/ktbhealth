@@ -97,12 +97,7 @@ describe("whisper-worker", () => {
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });
 		// webgpu fails → retried 3× before falling back to wasm
-		expect(pipelineCalls.map((c) => c.opts.device)).toEqual([
-			"webgpu",
-			"webgpu",
-			"webgpu",
-			"wasm",
-		]);
+		expect(pipelineCalls.map((c) => c.opts.device)).toEqual(["webgpu", "webgpu", "webgpu", "wasm"]);
 		expect(posted.some((m) => m.type === "ready" && m.device === "wasm")).toBe(true);
 	});
 
