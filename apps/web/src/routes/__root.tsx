@@ -57,7 +57,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<head>
 				<HeadContent />
 			</head>
-			<body className="min-h-screen bg-background text-foreground antialiased">
+			<body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
 				<TooltipProvider>
 					<header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
 						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
@@ -126,7 +126,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 							</div>
 						</nav>
 					</header>
-					<main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+					<main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
 					<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
 						Prova de conceito: a anamnese é um rascunho e deve ser revisada pelo médico responsável.
 					</footer>
