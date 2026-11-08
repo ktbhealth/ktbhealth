@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { NewConsultationPage, type NewConsultationApi } from "@ktb/consultations/views";
 import { whisperBackend } from "@ktb/transcription-whisper";
@@ -12,6 +13,7 @@ import {
 	saveConsultationFn,
 } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
+import { prefetchWhisperModel } from "#/lib/whisper-prefetch.ts";
 
 export const newConsultationApi: NewConsultationApi = {
 	getLiveConsultation: (input: { data: number }) => getLiveConsultationFn(input),
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/consultations/new")({
 	loader: () => listPatientsFn(),
 	component: function NewRoute() {
 		const initialPatients = Route.useLoaderData();
+		useEffect(() => prefetchWhisperModel(), []);
 		return (
 			<NewConsultationPage
 				initialPatients={initialPatients}

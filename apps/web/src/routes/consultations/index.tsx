@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { ConsultationsPage } from "@ktb/consultations/views";
 import { listConsultationsFn } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
+import { prefetchWhisperModel } from "#/lib/whisper-prefetch.ts";
 
 export const Route = createFileRoute("/consultations/")({
 	staleTime: 30_000,
@@ -10,6 +12,7 @@ export const Route = createFileRoute("/consultations/")({
 	loader: () => listConsultationsFn(),
 	component: function ConsultationsRoute() {
 		const consultations = Route.useLoaderData();
+		useEffect(() => prefetchWhisperModel(), []);
 		return <ConsultationsPage consultations={consultations} />;
 	},
 });
