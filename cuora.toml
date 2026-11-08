@@ -1,0 +1,33 @@
+# ktb — cuora secret surface.
+# Refs are committed; values live in the vault, never in the repo.
+# Store with: printf '%s' "$VAL" | cuora put cuora://ktb/<name>
+
+# Remote vault: self-hosted CF Worker + D1, exclusive to the ktbhealth
+# account. Deployed from crates/cuora-vault-cf/worker (9aia/cuora).
+[vaults.ktb]
+kind = "cf"
+url = "https://arca.ktbhealth.workers.dev"
+token_env = "CUORA_CF_TOKEN" # bearer fallback; scoped HMAC below
+cache = ["dev", "preview"] # prod reads live — no stale-prod footgun
+
+# Scoped token refs in the local vault — the ref path is the
+# token_id the worker's CUORA_VAULT_TOKENS map keys on.
+[vaults.ktb.tokens]
+dev = "cuora://ktb/cf-token-dev"
+preview = "cuora://ktb/cf-token-dev"
+prod = "cuora://ktb/cf-token-prod"
+
+[envs]
+dev = { vault = "ktb" }
+preview = { vault = "ktb" }
+prod = { vault = "ktb" }
+
+[secrets]
+# Note: `cuora run` requires every declared ref to resolve. Keep
+# cf-api-token commented until you `cuora put` it — the alchemy
+# profile already covers deploys.
+# CLOUDFLARE_API_TOKEN = "cuora://ktb/cf-api-token"
+BETTER_AUTH_SECRET = "cuora://ktb/better-auth-secret"
+BETTER_AUTH_URL = "cuora://ktb/better-auth-url"
+TURNSTILE_SECRET_KEY = "cuora://ktb/turnstile-secret-key"
+VITE_TURNSTILE_SITE_KEY = "cuora://ktb/turnstile-site-key"
