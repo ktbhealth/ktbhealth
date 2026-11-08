@@ -3,7 +3,9 @@
 	"name": "ktb",
 	"compatibility_date": "2026-11-06",
 	"compatibility_flags": ["nodejs_compat"],
-	"main": "@tanstack/react-start/server-entry",
+	// Custom worker entry: TanStack fetch pipeline + Cloudflare Queue
+	// consumer for async audio transcription (see src/server.ts).
+	"main": "./src/server.ts",
 	"observability": {
 		"enabled": true,
 	},
@@ -11,6 +13,11 @@
 	// @ktb/captcha-stub so credential endpoints pass without a real widget.
 	"vars": { "CAPTCHA_STUB": "1" },
 	"ai": { "binding": "AI" },
+	"r2_buckets": [{ "binding": "AUDIO_BUCKET", "bucket_name": "ktb-audio" }],
+	"queues": {
+		"producers": [{ "binding": "AUDIO_QUEUE", "queue": "ktb-transcription" }],
+		"consumers": [{ "queue": "ktb-transcription" }],
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",

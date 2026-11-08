@@ -16,6 +16,12 @@ export default Alchemy.Stack(
 			migrationsDir: "../../packages/db/alchemy-migrations",
 		});
 
+		// Consultation audio storage (P-015) + async transcription queue
+		// (P-016). Private bucket — reads only through authenticated
+		// worker routes; the queue's consumer is this same worker script.
+		const audioBucket = yield* Cloudflare.R2.Bucket("audio");
+		const transcriptionQueue = yield* Cloudflare.Queues.Queue("transcription");
+
 		const site = yield* deployWorker({
 			name: "web",
 			outdir: "dist/client",
@@ -24,6 +30,8 @@ export default Alchemy.Stack(
 			bindings: {
 				DB: db,
 				AI: Cloudflare.Workers.AI(),
+				AUDIO_BUCKET: audioBucket,
+				AUDIO_QUEUE: transcriptionQueue,
 				...(process.env.BETTER_AUTH_SECRET
 					? { BETTER_AUTH_SECRET: Redacted.make(process.env.BETTER_AUTH_SECRET) }
 					: {}),
@@ -47,6 +55,16 @@ export default Alchemy.Stack(
 			},
 			compatibilityFlags: ["nodejs_compat"],
 		});
+
+		// Queue consumer → this worker's `queue` handler (src/server.ts).
+		// scriptName may be an unresolved Output — Alchemy Input accepts it.
+		if (site.scriptName) {
+			yield* Cloudflare.Queues.Consumer("transcription-consumer", {
+				queueId: transcriptionQueue.queueId,
+				scriptName: site.scriptName as string,
+				settings: { maxRetries: 3 },
+			});
+		}
 
 		return { url: site.url };
 	}),

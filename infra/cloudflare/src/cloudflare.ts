@@ -27,7 +27,7 @@ export const cloudflareWorker: DeployWorker<Providers> = Effect.fnUntraced(funct
 			? { flags: [...spec.compatibilityFlags] }
 			: undefined,
 	});
-	return { url: site.url };
+	return { url: site.url, scriptName: site.workerName };
 });
 
 export const cloudflareD1: DeployD1<Providers> = Effect.fnUntraced(function* (spec) {

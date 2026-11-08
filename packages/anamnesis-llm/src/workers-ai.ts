@@ -22,7 +22,7 @@ const heuristicExtract = (transcript: string): Effect.Effect<Anamnesis> =>
 	Effect.promise(() => new HeuristicExtractor().extract(transcript));
 
 /** Extract text from the various Workers AI response shapes. */
-const responseText = (raw: unknown): string => {
+export const responseText = (raw: unknown): string => {
 	if (typeof raw === "string") return raw;
 	if (raw && typeof raw === "object") {
 		const r = raw as Record<string, unknown>;
@@ -36,7 +36,7 @@ const responseText = (raw: unknown): string => {
 	throw new Error("Workers AI returned an unrecognized response shape");
 };
 
-const runChat = (
+export const runChat = (
 	ai: WorkersAiBinding,
 	model: string,
 	system: string,

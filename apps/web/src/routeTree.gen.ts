@@ -20,6 +20,7 @@ import { Route as consultationsNewRouteImport } from './routes/consultations/new
 import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
+import { Route as ApiConsultationsDotidDotaudioRouteImport } from './routes/api/consultations.$id.audio'
 import { Route as ApiConsultationsDotidDotpdfRouteImport } from './routes/api/consultations.$id.pdf'
 
 const indexRoute = indexRouteImport.update({
@@ -77,6 +78,12 @@ const ApiCdnSplatRoute = ApiCdnSplatRouteImport.update({
   path: '/api/cdn/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConsultationsDotidDotaudioRoute =
+  ApiConsultationsDotidDotaudioRouteImport.update({
+    id: '/api/consultations/$id/audio',
+    path: '/api/consultations/$id/audio',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiConsultationsDotidDotpdfRoute =
   ApiConsultationsDotidDotpdfRouteImport.update({
     id: '/api/consultations/$id/pdf',
@@ -96,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
+  '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
 }
 export interface FileRoutesByTo {
@@ -110,6 +118,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
+  '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
 }
 export interface FileRoutesById {
@@ -125,6 +134,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
+  '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
 }
 export interface FileRouteTypes {
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
+    | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
+    | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
   id:
     | '__root__'
@@ -169,6 +181,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
+    | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
   fileRoutesById: FileRoutesById
 }
@@ -183,6 +196,7 @@ export interface RootRouteChildren {
   consultationsIndexRoute: typeof consultationsIndexRoute
   ApiAuthDotsplatRoute: typeof ApiAuthDotsplatRoute
   ApiCdnSplatRoute: typeof ApiCdnSplatRoute
+  ApiConsultationsDotidDotaudioRoute: typeof ApiConsultationsDotidDotaudioRoute
   ApiConsultationsDotidDotpdfRoute: typeof ApiConsultationsDotidDotpdfRoute
 }
 
@@ -265,6 +279,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCdnSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/consultations/$id/audio': {
+      id: '/api/consultations/$id/audio'
+      path: '/api/consultations/$id/audio'
+      fullPath: '/api/consultations/$id/audio'
+      preLoaderRoute: typeof ApiConsultationsDotidDotaudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/consultations/$id/pdf': {
       id: '/api/consultations/$id/pdf'
       path: '/api/consultations/$id/pdf'
@@ -297,6 +318,7 @@ const rootRouteChildren: RootRouteChildren = {
   consultationsIndexRoute: consultationsIndexRoute,
   ApiAuthDotsplatRoute: ApiAuthDotsplatRoute,
   ApiCdnSplatRoute: ApiCdnSplatRoute,
+  ApiConsultationsDotidDotaudioRoute: ApiConsultationsDotidDotaudioRoute,
   ApiConsultationsDotidDotpdfRoute: ApiConsultationsDotidDotpdfRoute,
 }
 export const routeTree = rootRouteImport

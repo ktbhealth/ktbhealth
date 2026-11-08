@@ -16,6 +16,7 @@ import { AuthzLive, Principal } from "@ktb/authz";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
+import { correctTranscript as correctTranscriptEffect } from "@ktb/anamnesis-llm";
 
 /**
  * Plugin registry discovered from the filesystem: every module under
@@ -169,6 +170,14 @@ export const createApp = <E extends AppEnv>(env: E) => {
 			),
 		);
 
+	/**
+	 * LLM transcript cleanup (P-017) bound to the resolved provider
+	 * config. System path — no principal; returns null when unconfigured
+	 * or on provider failure (correctedTranscript stays null).
+	 */
+	const correctTranscript = (transcript: string) =>
+		runtime.runPromise(correctTranscriptEffect(llmConfig, transcript));
+
 	return {
 		plugins,
 		BindingLive,
@@ -177,6 +186,7 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		runtime,
 		run,
 		runAs,
+		correctTranscript,
 		db,
 		auth,
 	};

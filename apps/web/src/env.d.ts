@@ -4,5 +4,9 @@ declare namespace Cloudflare {
 		BETTER_AUTH_URL?: string;
 		TURNSTILE_SECRET_KEY?: string;
 		CAPTCHA_STUB?: string;
+		/** R2 bucket for consultation audio (P-015). */
+		AUDIO_BUCKET?: R2Bucket;
+		/** Queue producer for async transcription jobs (P-016). */
+		AUDIO_QUEUE?: Queue;
 	}
 }

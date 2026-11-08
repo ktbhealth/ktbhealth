@@ -106,6 +106,106 @@ export async function finishConsultation(db: DbClient, consultationId: number) {
 		.where(eq(consultations.id, consultationId));
 }
 
+// ---------- audio pipeline (system paths — queue consumer, no principal) ----------
+
+export interface AudioJobFields {
+	readonly audioKey: string;
+	readonly contentType?: string;
+	readonly size?: number;
+}
+
+/** Status the owner-facing routes may set after enqueue; terminal states are consumer-only. */
+export const AUDIO_ROUTE_STATUSES = ["queued"] as const;
+export type AudioRouteStatus = (typeof AUDIO_ROUTE_STATUSES)[number];
+
+/** Record the R2 object link after a successful upload (status "stored"). */
+export async function attachAudioRecord(
+	db: DbClient,
+	consultationId: number,
+	fields: AudioJobFields,
+) {
+	await db
+		.update(consultations)
+		.set({
+			audioKey: fields.audioKey,
+			audioStatus: "stored",
+			audioContentType: fields.contentType ?? null,
+			audioSize: fields.size ?? null,
+			audioError: null,
+		})
+		.where(eq(consultations.id, consultationId));
+}
+
+/** stored → queued once the transcription job was enqueued. */
+export async function markAudioQueued(db: DbClient, consultationId: number) {
+	await db
+		.update(consultations)
+		.set({ audioStatus: "queued", audioError: null })
+		.where(eq(consultations.id, consultationId));
+}
+
+export interface AudioJobRecord {
+	readonly audioKey: string | null;
+	readonly audioStatus: string;
+	readonly userId: string | null;
+}
+
+/** Consumer lookup: fetch the audio linkage regardless of caller. */
+export async function audioJobRecord(
+	db: DbClient,
+	consultationId: number,
+): Promise<AudioJobRecord | null> {
+	const rows = await db
+		.select({
+			audioKey: consultations.audioKey,
+			audioStatus: consultations.audioStatus,
+			userId: consultations.userId,
+		})
+		.from(consultations)
+		.where(eq(consultations.id, consultationId))
+		.limit(1);
+	return rows[0] ?? null;
+}
+
+export async function beginAudioJob(db: DbClient, consultationId: number) {
+	await db
+		.update(consultations)
+		.set({ audioStatus: "processing", audioError: null })
+		.where(eq(consultations.id, consultationId));
+}
+
+/** Server transcript persisted — the raw ASR evidence. */
+export async function completeAudioJob(db: DbClient, consultationId: number, transcript: string) {
+	await db
+		.update(consultations)
+		.set({ serverTranscript: transcript, audioStatus: "done", audioError: null })
+		.where(eq(consultations.id, consultationId));
+}
+
+export async function failAudioJob(db: DbClient, consultationId: number, reason: string) {
+	await db
+		.update(consultations)
+		.set({ audioStatus: "failed", audioError: reason })
+		.where(eq(consultations.id, consultationId));
+}
+
+/**
+ * LLM-cleaned transcript alongside the original — never overwrites
+ * serverTranscript. Status stays "done"; correctedTranscript stays null
+ * when no LLM is configured or the call fails.
+ */
+export async function saveCorrectedTranscript(
+	db: DbClient,
+	consultationId: number,
+	corrected: string,
+	engine: string,
+) {
+	await db
+		.update(consultations)
+		.set({ correctedTranscript: corrected, enhancementEngine: engine })
+		.where(eq(consultations.id, consultationId));
+}
+
 /** Bot-webhook ownership check: the botId binds consultation ↔ provider session. */
 export async function ownsBot(db: DbClient, consultationId: number, botId: string) {
 	const rows = await db
@@ -309,6 +409,17 @@ export class Consultations extends Context.Service<
 			input: AttachAnamnesisInput,
 		) => Effect.Effect<void, Forbidden>;
 		readonly recordConsent: (id: number, userId: string) => Effect.Effect<void, Forbidden>;
+		/** Link a stored R2 audio object to the consultation (status "stored"). */
+		readonly attachAudio: (
+			userId: string,
+			input: { consultationId: number } & AudioJobFields,
+		) => Effect.Effect<void, Forbidden>;
+		/** Owner-facing status transition (stored | queued only). */
+		readonly updateAudioStatus: (
+			userId: string,
+			consultationId: number,
+			status: AudioRouteStatus,
+		) => Effect.Effect<void, Forbidden>;
 		readonly history: (
 			patientId: number,
 			userId: string,
@@ -421,6 +532,39 @@ export const ConsultationsLive = Layer.effect(
 				yield* Effect.annotateCurrentSpan({ consultationId: id, userId });
 				yield* Effect.logInfo("consultation consent recorded", { consultationId: id, userId });
 				return yield* Effect.promise(() => recordConsent(db, id, userId));
+			}),
+			attachAudio: Effect.fn("Consultations.attachAudio")(function* (
+				userId: string,
+				input: { consultationId: number } & AudioJobFields,
+			) {
+				yield* requirePrincipalUser(userId, "consultation.update");
+				const owner = yield* Effect.promise(() => consultationOwnerId(db, input.consultationId));
+				if (owner !== null) {
+					yield* requireCanAs("consultation.update", { userId: owner });
+				}
+				yield* Effect.annotateCurrentSpan({
+					userId,
+					consultationId: input.consultationId,
+					audioKey: input.audioKey,
+				});
+				yield* Effect.logInfo("consultation audio attached", {
+					userId,
+					consultationId: input.consultationId,
+				});
+				return yield* Effect.promise(() => attachAudioRecord(db, input.consultationId, input));
+			}),
+			updateAudioStatus: Effect.fn("Consultations.updateAudioStatus")(function* (
+				userId: string,
+				consultationId: number,
+				status: AudioRouteStatus,
+			) {
+				yield* requirePrincipalUser(userId, "consultation.update");
+				const owner = yield* Effect.promise(() => consultationOwnerId(db, consultationId));
+				if (owner !== null) {
+					yield* requireCanAs("consultation.update", { userId: owner });
+				}
+				yield* Effect.annotateCurrentSpan({ userId, consultationId, audioStatus: status });
+				return yield* Effect.promise(() => markAudioQueued(db, consultationId));
 			}),
 			history: Effect.fn("Consultations.history")(function* (
 				patientId: number,

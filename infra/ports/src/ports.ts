@@ -40,6 +40,9 @@ export interface DeployedSite {
 
 export interface DeployedWorker {
 	readonly url: unknown;
+	/** Worker script name — needed to attach queue consumers. Opaque handle
+	 * (may be a provider Output resolved at deploy time). */
+	readonly scriptName?: unknown;
 }
 
 export interface DeployedD1 {

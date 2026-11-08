@@ -51,7 +51,9 @@ const config = defineConfig({
 			cookieName: "ktb-locale",
 			emitTsDeclarations: true,
 		}),
-		...tanstackStart(),
+		// Custom server entry (src/server.ts) adds the Cloudflare Queue
+		// consumer for async audio transcription alongside the fetch handler.
+		...tanstackStart({ server: { entry: "server.ts" } }),
 		viteReact(),
 	],
 });

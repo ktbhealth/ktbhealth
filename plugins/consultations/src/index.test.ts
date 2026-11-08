@@ -11,10 +11,17 @@ import {
 	Consultations,
 	ConsultationsLive,
 	appendTranscript,
+	attachAudioRecord,
+	audioJobRecord,
+	beginAudioJob,
+	completeAudioJob,
 	createConsultation,
+	failAudioJob,
 	finishConsultation,
+	markAudioQueued,
 	ownsBot,
 	plugin,
+	saveCorrectedTranscript,
 	type SaveConsultationInput,
 } from "./index.ts";
 import * as Effect from "effect/Effect";
@@ -25,7 +32,7 @@ const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, created_at INTEGER);
-CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
 `;
 
 describe("consultations repo", () => {
@@ -344,6 +351,89 @@ describe("ConsultationsLive", () => {
 			"u1",
 			call((c) => c.recordConsent(9999, "u1")),
 		);
+	});
+});
+
+describe("audio pipeline", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let testDb: ReturnType<typeof makeDb>;
+
+	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Consultations>) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+		);
+
+	const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
+		Effect.flatMap(Consultations, f);
+
+	beforeAll(() => {
+		testDb = makeDb(makeD1(DDL));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("module helpers walk the job lifecycle", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(testDb, id, {
+			audioKey: "audio/u1/1/x.webm",
+			contentType: "audio/webm",
+			size: 10,
+		});
+		expect(await audioJobRecord(testDb, id)).toEqual({
+			audioKey: "audio/u1/1/x.webm",
+			audioStatus: "stored",
+			userId: "u1",
+		});
+		await markAudioQueued(testDb, id);
+		await beginAudioJob(testDb, id);
+		await completeAudioJob(testDb, id, "server text");
+		await saveCorrectedTranscript(testDb, id, "corrected text", "anthropic");
+		const row = await testDb.query.consultations.findFirst({
+			where: (t, { eq }) => eq(t.id, id),
+		});
+		expect(row).toMatchObject({
+			audioStatus: "done",
+			serverTranscript: "server text",
+			correctedTranscript: "corrected text",
+			enhancementEngine: "anthropic",
+		});
+	});
+
+	it("failAudioJob records the reason", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await failAudioJob(testDb, id, "too large");
+		const row = await testDb.query.consultations.findFirst({
+			where: (t, { eq }) => eq(t.id, id),
+		});
+		expect(row?.audioStatus).toBe("failed");
+		expect(row?.audioError).toBe("too large");
+	});
+
+	it("attachAudio/updateAudioStatus enforce ownership", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await asUser(
+			"u1",
+			call((c) => c.attachAudio("u1", { consultationId: id, audioKey: "k", size: 1 })),
+		);
+		await asUser(
+			"u1",
+			call((c) => c.updateAudioStatus("u1", id, "queued")),
+		);
+		const row = await audioJobRecord(testDb, id);
+		expect(row?.audioStatus).toBe("queued");
+		await expect(
+			asUser(
+				"u2",
+				call((c) => c.attachAudio("u2", { consultationId: id, audioKey: "k2" })),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				"u2",
+				call((c) => c.updateAudioStatus("u2", id, "queued")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
 });
 
