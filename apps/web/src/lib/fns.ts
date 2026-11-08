@@ -34,8 +34,27 @@ const AttachInput = Schema.Struct({
 	patientId: Schema.optionalKey(Schema.Number),
 });
 
-const decodeSaveInput = Schema.decodeUnknownSync(SaveInput);
-const decodeAttachInput = Schema.decodeUnknownSync(AttachInput);
+const decodeSaveInput = (input: unknown) =>
+	Schema.decodeUnknownSync(SaveInput)(normalizePatientId(input));
+const decodeAttachInput = (input: unknown) =>
+	Schema.decodeUnknownSync(AttachInput)(normalizePatientId(input));
+
+/**
+ * The wire payload may carry `patientId` as null/undefined (key present,
+ * value absent after serialization) or a numeric string — none of which
+ * `Schema.Number` accepts. Normalize before decoding: drop empty values,
+ * coerce numeric strings, reject the rest via the schema as usual.
+ */
+function normalizePatientId(input: unknown): unknown {
+	if (typeof input !== "object" || input === null) return input;
+	const o = { ...(input as Record<string, unknown>) };
+	const p = o.patientId;
+	if (p === undefined || p === null || p === "") delete o.patientId;
+	else if (typeof p === "string" && p.trim() !== "" && Number.isFinite(Number(p)))
+		o.patientId = Number(p);
+	else if (typeof p === "number" && !Number.isFinite(p)) delete o.patientId;
+	return o;
+}
 
 const ExtractInput = Schema.Struct({
 	transcript: Schema.String,
@@ -47,8 +66,10 @@ const HistoryInput = Schema.Struct({
 	excludeId: Schema.optionalKey(Schema.Number),
 });
 
-const decodeExtractInput = Schema.decodeUnknownSync(ExtractInput);
-const decodeHistoryInput = Schema.decodeUnknownSync(HistoryInput);
+const decodeExtractInput = (input: unknown) =>
+	Schema.decodeUnknownSync(ExtractInput)(normalizePatientId(input));
+const decodeHistoryInput = (input: unknown) =>
+	Schema.decodeUnknownSync(HistoryInput)(normalizePatientId(input));
 
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 

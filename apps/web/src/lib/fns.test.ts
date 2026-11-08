@@ -264,6 +264,23 @@ describe("server fns", () => {
 		expect(noHistory.anamnesis.historico).toBeUndefined();
 	});
 
+	it("tolerates non-number patientId on the wire (undefined/null/string)", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await createPatientFn({ data: "Wire" });
+		// key present with undefined / null must not fail schema decode
+		for (const patientId of [undefined, null, ""] as const) {
+			const res = await extractAnamnesisFn({
+				data: { transcript: SAMPLE_TRANSCRIPT, patientId: patientId as never },
+			});
+			expect(res.anamnesis).toBeTruthy();
+		}
+		// numeric string is coerced
+		const res = await extractAnamnesisFn({
+			data: { transcript: SAMPLE_TRANSCRIPT, patientId: String(patient!.id) as never },
+		});
+		expect(res.engine).toBeTruthy();
+	});
+
 	it("services deny cross-user access via the bound principal", async () => {
 		headers.current = new Headers({ cookie });
 		const saved = await saveConsultationFn({
