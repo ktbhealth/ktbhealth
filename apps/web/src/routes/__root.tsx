@@ -82,6 +82,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 											{pluginNavLabel(item.to, item.label)}
 										</Link>
 									))}
+								<Link
+									to="/consultations/new"
+									className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
+								>
+									{m.nav_new_consultation()}
+								</Link>
+								<span className="mx-1.5 h-5 w-px bg-border" />
 								<LanguageToggle
 									locales={locales}
 									value={getLocale()}
@@ -89,7 +96,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 									labels={Object.fromEntries(locales.map((l) => [l, localeName(l)]))}
 									label={m.lang_menu_label()}
 								/>
-								<span className="mx-1.5 h-5 w-px bg-border" />
 								{!user ? (
 									<Link to="/login" className={NAV_LINK}>
 										{m.nav_sign_in()}
@@ -126,12 +132,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										</DropdownMenuContent>
 									</DropdownMenu>
 								)}
-								<Link
-									to="/consultations/new"
-									className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
-								>
-									{m.nav_new_consultation()}
-								</Link>
 							</div>
 						</nav>
 					</header>
