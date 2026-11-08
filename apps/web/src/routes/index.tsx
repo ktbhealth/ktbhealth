@@ -194,10 +194,7 @@ function Home() {
 					Documentação clínica por voz
 				</Badge>
 				<h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-					Sua consulta,{" "}
-					<span className="bg-gradient-to-r from-primary to-violet-500 bg-clip-text text-transparent">
-						documentada.
-					</span>
+					Sua consulta, <span className="text-primary">documentada.</span>
 				</h1>
 				<p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
 					Fale com o paciente, não com a tela. A conversa vira anamnese estruturada. Você só revisa
