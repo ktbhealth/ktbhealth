@@ -8,12 +8,27 @@ import { env, pipeline } from "@huggingface/transformers";
 env.allowLocalModels = false;
 
 // The ort wasm bundle (~26 MB) exceeds the Cloudflare Workers static-asset
-// limit, so it is not emitted into dist/client; fetch it from the same CDN
-// transformers.js uses by default. Keep in sync with onnxruntime-web.
-env.backends.onnx.wasm!.wasmPaths = {
-	mjs: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.mjs",
-	wasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.asyncify.wasm",
-};
+// limit, so it is not emitted into dist/client; it is proxied same-origin
+// through /api/cdn/* (see apps/web routes) which fetches it from the same
+// CDN transformers.js uses by default. Keep in sync with onnxruntime-web.
+const ORT_VERSION = "onnxruntime-web@1.31.0-dev.20260914-8d85527a0";
+const ORIGIN = (self as { location?: { origin: string } }).location?.origin;
+
+if (ORIGIN) {
+	// Browser worker: route every remote fetch through our own origin.
+	// huggingface.co / cdn.jsdelivr.net are unreachable from some networks;
+	// the proxy fetches server-side so the bytes are identical.
+	env.remoteHost = `${ORIGIN}/api/cdn/huggingface/`;
+	env.backends.onnx.wasm!.wasmPaths = {
+		mjs: `${ORIGIN}/api/cdn/jsdelivr/npm/${ORT_VERSION}/dist/ort-wasm-simd-threaded.asyncify.mjs`,
+		wasm: `${ORIGIN}/api/cdn/jsdelivr/npm/${ORT_VERSION}/dist/ort-wasm-simd-threaded.asyncify.wasm`,
+	};
+} else {
+	env.backends.onnx.wasm!.wasmPaths = {
+		mjs: `https://cdn.jsdelivr.net/npm/${ORT_VERSION}/dist/ort-wasm-simd-threaded.asyncify.mjs`,
+		wasm: `https://cdn.jsdelivr.net/npm/${ORT_VERSION}/dist/ort-wasm-simd-threaded.asyncify.wasm`,
+	};
+}
 
 postMessage({ type: "progress", message: "worker started" });
 
