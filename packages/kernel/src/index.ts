@@ -27,6 +27,10 @@ export interface PanelSidebarItem {
 	readonly label: string;
 	readonly icon?: ComponentType<{ className?: string }>;
 	readonly exact?: boolean;
+	/** Sidebar group label — items cluster under it in declaration
+	 * (topo) order; groups order by first appearance. Defaults to a
+	 * single unlabeled group. */
+	readonly group?: string;
 }
 
 /**

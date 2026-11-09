@@ -16,10 +16,12 @@ const getSessionUserFn = vi.fn(
 vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
 	adminListPatientsFn: () => adminListPatientsFn(),
+	adminListConsultationsFn: () => adminListConsultationsFn(),
 	getSessionUserFn: () => getSessionUserFn(),
 }));
 
-let loaderData: unknown = [];
+const adminListConsultationsFn = vi.fn(async () => [] as unknown[]);
+let loaderData: unknown = { patients: [], consultations: [] };
 let pathname = "/platform";
 
 beforeAll(() => {
@@ -77,15 +79,16 @@ afterEach(() => {
 	pathname = "/platform";
 	platformAdminFn.mockReset().mockResolvedValue(true);
 	adminListPatientsFn.mockReset().mockResolvedValue([]);
+	adminListConsultationsFn.mockReset().mockResolvedValue([]);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
-	loaderData = [];
+	loaderData = { patients: [], consultations: [] };
 });
 
 describe("/platform layout", () => {
 	it("renders sidebar items aggregated from plugin panel contributions", () => {
 		render(createElement(component(PlatformRoute)));
 		const platform = screen
-			.getAllByRole("link", { name: "Platform" })
+			.getAllByRole("link", { name: "Dashboard" })
 			.find((el) => el.getAttribute("href") === "/platform")!;
 		const patients = screen
 			.getAllByRole("link", { name: "Patients" })
@@ -127,11 +130,24 @@ describe("/platform layout", () => {
 });
 
 describe("/platform index", () => {
-	it("renders the overview with registered plugins", () => {
+	it("renders the dashboard with registered plugins", () => {
 		render(createElement(component(PlatformIndexRoute)));
-		expect(screen.getByText("platform.overview")).toBeTruthy();
+		expect(screen.getByText("dashboard")).toBeTruthy();
 		expect(screen.getByText("platform.routes")).toBeTruthy();
 		expect(screen.getByText("platform.panel")).toBeTruthy();
+		expect(screen.getByText("dashboard.panel")).toBeTruthy();
+	});
+
+	it("loader calls both admin list fns", () => {
+		const loader = (
+			PlatformIndexRoute as unknown as {
+				options: { loader: () => Promise<unknown> };
+			}
+		).options.loader;
+		return loader().then(() => {
+			expect(adminListPatientsFn).toHaveBeenCalled();
+			expect(adminListConsultationsFn).toHaveBeenCalled();
+		});
 	});
 });
 

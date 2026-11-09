@@ -36,6 +36,7 @@
 		"@ktb/captcha-stub": "workspace:*",
 		"@ktb/captcha-turnstile": "workspace:*",
 		"@ktb/consultations": "workspace:*",
+		"@ktb/dashboard": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/export-pdf": "workspace:*",
 		"@ktb/infra-cloudflare": "workspace:*",

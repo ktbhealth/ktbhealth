@@ -203,7 +203,7 @@ describe("plugins", () => {
 		expect(patientsPanelPlugin.id).toBe("patients.panel");
 		expect(patientsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
 		expect(patientsPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/patients", label: "Patients", icon: UsersIcon },
+			{ to: "/platform/patients", label: "Patients", icon: UsersIcon, group: "Domains" },
 		]);
 	});
 

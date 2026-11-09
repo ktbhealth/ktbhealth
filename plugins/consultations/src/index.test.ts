@@ -684,6 +684,7 @@ describe("plugins", () => {
 				to: "/platform/consultations",
 				label: "Consultations",
 				icon: ClipboardListIcon,
+				group: "Domains",
 			},
 		]);
 	});

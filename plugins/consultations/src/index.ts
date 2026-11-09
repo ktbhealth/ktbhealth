@@ -664,7 +664,14 @@ export const consultationsPanelPlugin = definePlugin({
 	id: "consultations.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/consultations", label: "Consultations", icon: ClipboardListIcon }],
+		sidebar: [
+			{
+				to: "/platform/consultations",
+				label: "Consultations",
+				icon: ClipboardListIcon,
+				group: "Domains",
+			},
+		],
 	},
 });
 

@@ -53,6 +53,15 @@ function PlatformLayout() {
 	const pathname = useLocation({ select: (l) => l.pathname });
 	const user = rootApi.useLoaderData();
 	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
+	// Group sidebar items by their `group` label, preserving the
+	// flattened topo order — groups order by first appearance.
+	const groups = new Map<string, PanelSidebarItem[]>();
+	for (const item of items) {
+		const key = item.group ?? "";
+		const list = groups.get(key) ?? [];
+		list.push(item);
+		groups.set(key, list);
+	}
 	const current = items.find((i) => isItemActive(pathname, i));
 	// Breadcrumb leaf: the matched sidebar item's label (the plugin
 	// provides it via panel.sidebar), else the last path segment.
@@ -72,26 +81,30 @@ function PlatformLayout() {
 					</div>
 				</SidebarHeader>
 				<SidebarContent>
-					<SidebarGroup>
-						<SidebarGroupLabel className="font-mono text-[10px] tracking-widest uppercase">
-							Console
-						</SidebarGroupLabel>
-						<SidebarGroupContent>
-							<SidebarMenu>
-								{items.map((item) => (
-									<SidebarMenuItem key={item.to}>
-										<SidebarMenuButton
-											render={<Link to={item.to} />}
-											isActive={isItemActive(pathname, item)}
-										>
-											{item.icon ? <item.icon /> : null}
-											<span>{item.label}</span>
-										</SidebarMenuButton>
-									</SidebarMenuItem>
-								))}
-							</SidebarMenu>
-						</SidebarGroupContent>
-					</SidebarGroup>
+					{[...groups.entries()].map(([name, groupItems]) => (
+						<SidebarGroup key={name || "__default__"}>
+							{name ? (
+								<SidebarGroupLabel className="font-mono text-[10px] tracking-widest uppercase">
+									{name}
+								</SidebarGroupLabel>
+							) : null}
+							<SidebarGroupContent>
+								<SidebarMenu>
+									{groupItems.map((item) => (
+										<SidebarMenuItem key={item.to}>
+											<SidebarMenuButton
+												render={<Link to={item.to} />}
+												isActive={isItemActive(pathname, item)}
+											>
+												{item.icon ? <item.icon /> : null}
+												<span>{item.label}</span>
+											</SidebarMenuButton>
+										</SidebarMenuItem>
+									))}
+								</SidebarMenu>
+							</SidebarGroupContent>
+						</SidebarGroup>
+					))}
 				</SidebarContent>
 				<SidebarFooter>
 					<div className="flex items-center justify-between gap-2 px-2 pb-1">

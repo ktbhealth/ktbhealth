@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { Principal } from "@ktb/authz";
+import type { Plugin } from "@ktb/kernel";
 import * as Effect from "effect/Effect";
-import { ShieldCheckIcon } from "lucide-react";
 
 import {
 	makePlatformAdminGate,
@@ -72,9 +72,7 @@ describe("plugins", () => {
 		expect(platformRoutesPlugin.routes).toHaveLength(1);
 		expect(platformPanelPlugin.id).toBe("platform.panel");
 		expect(platformPanelPlugin.requiredDeps).toEqual(["platform.routes"]);
-		expect(platformPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform", label: "Platform", icon: ShieldCheckIcon, exact: true },
-		]);
+		expect((platformPanelPlugin as Plugin).panel).toBeUndefined();
 	});
 
 	it("exports the discovery plugins array", () => {

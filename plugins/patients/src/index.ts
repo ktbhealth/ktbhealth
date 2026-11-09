@@ -118,7 +118,7 @@ export const patientsPanelPlugin = definePlugin({
 	id: "patients.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/patients", label: "Patients", icon: UsersIcon }],
+		sidebar: [{ to: "/platform/patients", label: "Patients", icon: UsersIcon, group: "Domains" }],
 	},
 });
 
