@@ -44,3 +44,17 @@ export const ConsultationCreated = Event.make("consultation.created", {
 	userId: Schema.String,
 	source: Schema.String,
 });
+
+/**
+ * Audio-pipeline transition on a consultation (stored → queued →
+ * processing → done | failed). Published by every mutation point —
+ * the owner-facing service methods and the queue consumer — so the
+ * /platform jobs feed can stream live deltas. The payload is a signal,
+ * not the row: subscribers re-read the `consultations.audioJobs`
+ * projection for the full fields (patientName, createdAt).
+ */
+export const ConsultationAudioUpdated = Event.make("consultation.audioUpdated", {
+	consultationId: Schema.Number,
+	audioStatus: Schema.String,
+	audioError: Schema.NullOr(Schema.String),
+});

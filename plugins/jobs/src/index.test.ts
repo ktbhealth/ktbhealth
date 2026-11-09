@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { jobsHeaderPlugin } from "./index.ts";
-import { jobsFromAudioRows } from "./jobs.ts";
+import { jobFromAudioRow, jobsFromAudioRows } from "./jobs.ts";
 
 describe("jobs.header plugin", () => {
 	it("declares the header action contribution", () => {
@@ -34,5 +34,18 @@ describe("jobsFromAudioRows", () => {
 			{ ...base, audioStatus: "queued", createdAt: "2025-01-01T00:00:00.000Z" },
 		]);
 		expect(job?.meta).toBeTruthy();
+	});
+});
+
+describe("jobFromAudioRow", () => {
+	const base = { id: 7, audioError: null, createdAt: "2025-01-01T00:00:00.000Z" };
+
+	it("maps a single live-frame row to its job", () => {
+		const job = jobFromAudioRow({ ...base, audioStatus: "processing" });
+		expect(job).toMatchObject({ id: "audio-7", status: "processing" });
+	});
+
+	it("returns null for rows that are not jobs", () => {
+		expect(jobFromAudioRow({ ...base, audioStatus: "none" })).toBeNull();
 	});
 });

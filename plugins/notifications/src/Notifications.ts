@@ -56,8 +56,10 @@ export async function insertNotification(db: DbClient, draft: NotificationDraft)
 }
 
 export async function markNotificationsRead(db: DbClient, userId: string, ids: readonly number[]) {
-	if (ids.length === 0) return;
-	await db
+	if (ids.length === 0) return [];
+	// `.returning()` yields only rows actually flipped (readAt was null) —
+	// the service fans these out so other sessions see the read state.
+	return db
 		.update(notifications)
 		.set({ readAt: new Date() })
 		.where(
@@ -66,14 +68,16 @@ export async function markNotificationsRead(db: DbClient, userId: string, ids: r
 				inArray(notifications.id, [...ids]),
 				isNull(notifications.readAt),
 			),
-		);
+		)
+		.returning();
 }
 
 export async function markAllNotificationsRead(db: DbClient, userId: string) {
-	await db
+	return db
 		.update(notifications)
 		.set({ readAt: new Date() })
-		.where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+		.where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+		.returning();
 }
 
 // ---------- domain port ----------
@@ -108,7 +112,8 @@ export const STREAM_BACKLOG = 50;
  * entity to permix-check and no cross-user read, so `requireCanAs` adds
  * nothing). With no principal (system context) all methods fail
  * `Forbidden`. `stream` replays the recent persisted backlog, then fans
- * out live inserts for that user.
+ * out live inserts AND read-state updates for that user — every
+ * connected tab/device converges on the same rows by id.
  */
 export class Notifications extends Context.Service<
 	Notifications,
@@ -165,6 +170,15 @@ export const NotificationsLive = Layer.effect(
 				if (row !== null) yield* PubSub.publish(live, rowToLive(row));
 			}).pipe(Effect.catchCause((cause) => Effect.logError("notification ingest failed", cause)));
 
+		/** Fan persisted rows out to live streams — same PubSub and item
+		 * shape as inserts, so read-state updates flow through the
+		 * stream's userId filter/strip unchanged. Failures are logged and
+		 * isolated: the DB write already committed. */
+		const publishRows = (rows: readonly NotificationRow[]) =>
+			Effect.forEach(rows, (row) => PubSub.publish(live, rowToLive(row)), {
+				discard: true,
+			}).pipe(Effect.catchCause((cause) => Effect.logError("notification fan-out failed", cause)));
+
 		// subscribeAfterCommit: runs after the publisher's boundary with
 		// failure isolated — the right contract for a DB write that must
 		// not roll back (or be rolled back by) the producing command.
@@ -195,12 +209,14 @@ export const NotificationsLive = Layer.effect(
 			) {
 				yield* requirePrincipalUser(userId, "notification.update");
 				yield* Effect.annotateCurrentSpan({ userId, count: ids.length });
-				return yield* Effect.promise(() => markNotificationsRead(db, userId, ids));
+				const rows = yield* Effect.promise(() => markNotificationsRead(db, userId, ids));
+				yield* publishRows(rows);
 			}),
 			markAllRead: Effect.fn("Notifications.markAllRead")(function* (userId: string) {
 				yield* requirePrincipalUser(userId, "notification.update");
 				yield* Effect.annotateCurrentSpan({ userId });
-				return yield* Effect.promise(() => markAllNotificationsRead(db, userId));
+				const rows = yield* Effect.promise(() => markAllNotificationsRead(db, userId));
+				yield* publishRows(rows);
 			}),
 			stream: (userId: string) =>
 				Stream.unwrap(

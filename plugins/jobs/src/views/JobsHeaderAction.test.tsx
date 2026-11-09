@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +20,27 @@ const jobs: ConsoleJob[] = [
 	{ id: "c", title: "FHIR sync", status: "done" },
 ];
 
+class MockEventSource {
+	static instances: MockEventSource[] = [];
+	onmessage: ((event: { data: string }) => void) | null = null;
+	closed = false;
+	constructor(public readonly url: string) {
+		MockEventSource.instances.push(this);
+	}
+	close() {
+		this.closed = true;
+	}
+}
+
+const audioRow = (id: number, audioStatus: string, audioError: string | null = null) =>
+	JSON.stringify({
+		id,
+		audioStatus,
+		audioError,
+		createdAt: "2025-01-01T00:00:00.000Z",
+		patientName: "Ana",
+	});
+
 const renderAction = (value: readonly ConsoleJob[] = jobs) =>
 	render(
 		<JobsDataContext.Provider value={value}>
@@ -27,7 +48,11 @@ const renderAction = (value: readonly ConsoleJob[] = jobs) =>
 		</JobsDataContext.Provider>,
 	);
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	MockEventSource.instances = [];
+	vi.unstubAllGlobals();
+});
 
 describe("JobsHeaderAction", () => {
 	it("renders the icon button with an active-jobs badge", () => {
@@ -57,5 +82,41 @@ describe("JobsHeaderAction", () => {
 		renderAction([]);
 		await user.click(screen.getByRole("button", { name: "Background jobs" }));
 		expect(await screen.findByText("No background jobs")).toBeTruthy();
+	});
+
+	it("opens /api/jobs and upserts live frames by job id", async () => {
+		vi.stubGlobal("EventSource", MockEventSource);
+		const user = userEvent.setup();
+		renderAction();
+
+		expect(MockEventSource.instances).toHaveLength(1);
+		expect(MockEventSource.instances[0]!.url).toBe("/api/jobs");
+		const source = MockEventSource.instances[0]!;
+
+		// Live arrival: consultation 42 went processing → second active job.
+		act(() => {
+			source.onmessage!({ data: audioRow(42, "processing") });
+		});
+		expect(screen.getByRole("button", { name: "Background jobs" }).textContent).toContain("2");
+
+		await user.click(screen.getByRole("button", { name: "Background jobs" }));
+		expect((await screen.findAllByText("Audio transcription")).length).toBe(2);
+
+		// Same row transitions to done → updates in place, badge back to 1.
+		act(() => {
+			source.onmessage!({ data: audioRow(42, "done") });
+		});
+		expect(screen.getByRole("button", { name: "Background jobs" }).textContent).toContain("1");
+		// The done group starts collapsed — expand to see both rows.
+		await user.click(screen.getByRole("button", { name: /done/i }));
+		expect((await screen.findAllByText("Audio transcription")).length).toBe(2);
+	});
+
+	it("closes the EventSource on unmount", () => {
+		vi.stubGlobal("EventSource", MockEventSource);
+		const { unmount } = renderAction();
+		const source = MockEventSource.instances[0]!;
+		unmount();
+		expect(source.closed).toBe(true);
 	});
 });

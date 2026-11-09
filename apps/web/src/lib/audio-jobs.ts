@@ -1,5 +1,8 @@
 import { Schema } from "effect";
+import * as Effect from "effect/Effect";
 
+import { EventBus } from "@effect-server-utils/cqrs";
+import { ConsultationAudioUpdated } from "@ktb/consultations/api";
 import {
 	audioJobRecord,
 	beginAudioJob,
@@ -10,7 +13,7 @@ import {
 } from "@ktb/consultations";
 import type { DbClient } from "@ktb/db";
 
-import { ai, audioBucket, correctTranscript, db } from "#/lib/platform.ts";
+import { ai, audioBucket, correctTranscript, db, run } from "#/lib/platform.ts";
 
 /**
  * Async transcription pipeline (P-016/P-017): queue consumer that runs
@@ -64,6 +67,18 @@ export interface AudioJobDeps {
 	readonly bucket: AudioBucketLike | undefined;
 	readonly ai: AudioTranscriber | undefined;
 	readonly correctTranscript: (transcript: string) => Promise<CorrectedTranscript | null>;
+	/**
+	 * Live fan-out for the /platform jobs feed: the consumer is a system
+	 * path (no Principal), so the host wires this to a
+	 * `ConsultationAudioUpdated` EventBus dispatch through the app
+	 * runtime. Optional — tests may omit it; a missing/rejected publish
+	 * never fails the job.
+	 */
+	readonly publishAudioUpdate?: (update: {
+		readonly consultationId: number;
+		readonly audioStatus: string;
+		readonly audioError: string | null;
+	}) => Promise<void>;
 }
 
 /** btoa without stack overflow on large buffers (chunked fromCharCode). */
@@ -100,8 +115,19 @@ export async function transcribeAudio(
 	return extractWhisperText(raw);
 }
 
-const fail = (deps: AudioJobDeps, consultationId: number, reason: string) =>
-	failAudioJob(deps.db, consultationId, reason);
+/** Best-effort live notification — publishing is a side channel, so a
+ * failure here must never fail (or retry) the transcription job. */
+const notify = (
+	deps: AudioJobDeps,
+	consultationId: number,
+	audioStatus: string,
+	audioError: string | null = null,
+) => deps.publishAudioUpdate?.({ consultationId, audioStatus, audioError }).catch(() => {});
+
+const fail = async (deps: AudioJobDeps, consultationId: number, reason: string) => {
+	await failAudioJob(deps.db, consultationId, reason);
+	await notify(deps, consultationId, "failed", reason);
+};
 
 /**
  * Process one transcription job. Permanent failures (missing row/object,
@@ -134,6 +160,7 @@ export async function processAudioJob(job: AudioJobMessage, deps: AudioJobDeps):
 	}
 
 	await beginAudioJob(deps.db, job.consultationId);
+	await notify(deps, job.consultationId, "processing");
 	const object = await deps.bucket.get(audioKey);
 	if (object === null) {
 		await fail(deps, job.consultationId, "audio object missing from storage");
@@ -161,6 +188,7 @@ export async function processAudioJob(job: AudioJobMessage, deps: AudioJobDeps):
 		return;
 	}
 	await completeAudioJob(deps.db, job.consultationId, transcript);
+	await notify(deps, job.consultationId, "done");
 
 	// P-017: LLM cleanup chained in the same job. Failure leaves
 	// correctedTranscript null; audioStatus stays "done".
@@ -193,6 +221,21 @@ const platformDeps = (): AudioJobDeps => ({
 	bucket: audioBucket,
 	ai: ai as unknown as AudioTranscriber | undefined,
 	correctTranscript: (transcript) => correctTranscript(transcript).catch(() => null),
+	// System path — `run` binds no Principal; EventBus.dispatch needs
+	// none (subscribers re-check authz on their own read paths).
+	publishAudioUpdate: (update) =>
+		run(
+			Effect.gen(function* () {
+				const events = yield* EventBus;
+				yield* events.dispatch([
+					ConsultationAudioUpdated.make({
+						consultationId: update.consultationId,
+						audioStatus: update.audioStatus,
+						audioError: update.audioError,
+					}),
+				]);
+			}),
+		),
 });
 
 /**

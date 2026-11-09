@@ -14,6 +14,7 @@ import { Route as captureTestRouteImport } from './routes/capture-test'
 import { Route as loginRouteImport } from './routes/login'
 import { Route as platformRouteImport } from './routes/platform'
 import { Route as ApiBotsRouteImport } from './routes/api/bots'
+import { Route as ApiJobsRouteImport } from './routes/api/jobs'
 import { Route as ApiNotificationsRouteImport } from './routes/api/notifications'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as consultationsIndexRouteImport } from './routes/consultations/index'
@@ -58,6 +59,11 @@ const platformRoute = platformRouteImport.update({
 const ApiBotsRoute = ApiBotsRouteImport.update({
   id: '/api/bots',
   path: '/api/bots',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiJobsRoute = ApiJobsRouteImport.update({
+  id: '/api/jobs',
+  path: '/api/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiNotificationsRoute = ApiNotificationsRouteImport.update({
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof loginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/capture-test': typeof captureTestRoute
   '/login': typeof loginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/login': typeof loginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/platform'
     | '/api/bots'
+    | '/api/jobs'
     | '/api/notifications'
     | '/api/transcribe'
     | '/consultations/$id'
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/capture-test'
     | '/login'
     | '/api/bots'
+    | '/api/jobs'
     | '/api/notifications'
     | '/api/transcribe'
     | '/consultations/$id'
@@ -306,6 +317,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/platform'
     | '/api/bots'
+    | '/api/jobs'
     | '/api/notifications'
     | '/api/transcribe'
     | '/consultations/$id'
@@ -334,6 +346,7 @@ export interface RootRouteChildren {
   loginRoute: typeof loginRoute
   platformRoute: typeof platformRouteWithChildren
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
+  ApiJobsRoute: typeof ApiJobsRoute
   ApiNotificationsRoute: typeof ApiNotificationsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   consultationsIdRoute: typeof consultationsIdRoute
@@ -385,6 +398,13 @@ declare module '@tanstack/react-router' {
       path: '/api/bots'
       fullPath: '/api/bots'
       preLoaderRoute: typeof ApiBotsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/jobs': {
+      id: '/api/jobs'
+      path: '/api/jobs'
+      fullPath: '/api/jobs'
+      preLoaderRoute: typeof ApiJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/notifications': {
@@ -567,6 +587,7 @@ const rootRouteChildren: RootRouteChildren = {
   loginRoute: loginRoute,
   platformRoute: platformRouteWithChildren,
   ApiBotsRoute: ApiBotsRouteWithChildren,
+  ApiJobsRoute: ApiJobsRoute,
   ApiNotificationsRoute: ApiNotificationsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   consultationsIdRoute: consultationsIdRoute,

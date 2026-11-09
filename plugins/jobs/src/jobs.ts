@@ -43,3 +43,11 @@ export const jobsFromAudioRows = (rows: readonly AudioJobRow[]): ConsoleJob[] =>
 			},
 		];
 	});
+
+/**
+ * Single-row variant for live SSE deltas (`/api/jobs` frames carry one
+ * AudioJobRow at a time) — null when the row isn't a job
+ * (audioStatus "none" or unmapped), so callers can drop it.
+ */
+export const jobFromAudioRow = (row: AudioJobRow): ConsoleJob | null =>
+	jobsFromAudioRows([row])[0] ?? null;

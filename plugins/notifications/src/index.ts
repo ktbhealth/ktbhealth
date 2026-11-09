@@ -8,13 +8,11 @@ import { platformHeaderPlugin } from "@ktb/platform-header";
 import { patientsServicesPlugin } from "@ktb/patients";
 import { consultationsServicesPlugin } from "@ktb/consultations";
 import { Command, Query } from "@effect-server-utils/cqrs";
-import { requirePrincipalUser } from "@ktb/authz";
 
 import {
 	countUnreadNotifications,
 	listNotifications,
-	markAllNotificationsRead,
-	markNotificationsRead,
+	Notifications,
 	NotificationsLive,
 } from "./Notifications.ts";
 import { NotificationsCommands, NotificationsQueries } from "./api.ts";
@@ -64,21 +62,14 @@ export const NotificationsQueriesLive = Query.handlersOf(NotificationsQueries, {
 });
 
 /** `notifications.markRead` / `notifications.markAllRead` commands —
- * same principal check as the service (notifications are per-user, so
- * `requirePrincipalUser` is the whole authz story). */
+ * delegate to the `Notifications` service so command-dispatched writes
+ * get the same `requirePrincipalUser` authz AND the same live fan-out
+ * (read-state updates reach every open SSE stream for the user). */
 export const NotificationsCommandsLive = Command.handlersOf(NotificationsCommands, {
 	"notifications.markRead": ({ userId, ids }) =>
-		Effect.gen(function* () {
-			yield* requirePrincipalUser(userId, "notification.update");
-			const db = yield* Db;
-			return yield* Effect.promise(() => markNotificationsRead(db, userId, ids));
-		}),
+		Effect.flatMap(Notifications, (n) => n.markRead(userId, ids)),
 	"notifications.markAllRead": ({ userId }) =>
-		Effect.gen(function* () {
-			yield* requirePrincipalUser(userId, "notification.update");
-			const db = yield* Db;
-			return yield* Effect.promise(() => markAllNotificationsRead(db, userId));
-		}),
+		Effect.flatMap(Notifications, (n) => n.markAllRead(userId)),
 });
 
 export const notificationsServicesPlugin = definePlugin({
@@ -86,7 +77,12 @@ export const notificationsServicesPlugin = definePlugin({
 	// Subscribes to patient/consultation domain events — the dep edges
 	// order those plugins' layers (and their event producers) first.
 	requiredDeps: [patientsServicesPlugin.id, consultationsServicesPlugin.id],
-	services: Layer.mergeAll(NotificationsLive, NotificationsQueriesLive, NotificationsCommandsLive),
+	// Commands now require the Notifications service — provideMerge wires
+	// the single NotificationsLive instance (one PubSub) into the command
+	// handlers while keeping its output in the merged layer.
+	services: Layer.mergeAll(NotificationsQueriesLive, NotificationsCommandsLive).pipe(
+		Layer.provideMerge(NotificationsLive),
+	),
 });
 
 /** Single-concern plugins contributed by this module — the host

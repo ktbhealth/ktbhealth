@@ -91,11 +91,12 @@ describe("NotificationsLive", () => {
 		// Shared infra object → layer memoization → one EventBus instance
 		// for the service subscriptions and the test's dispatches.
 		const infra = Layer.mergeAll(Layer.succeed(Db, db), makeEventBus());
-		const services = Layer.mergeAll(
-			NotificationsLive,
-			NotificationsQueriesLive,
-			NotificationsCommandsLive,
-		).pipe(Layer.provideMerge(infra));
+		// Commands delegate to the Notifications service — mirror the
+		// plugin's provideMerge composition so they share the one PubSub.
+		const services = Layer.mergeAll(NotificationsQueriesLive, NotificationsCommandsLive).pipe(
+			Layer.provideMerge(NotificationsLive),
+			Layer.provideMerge(infra),
+		);
 		runtime = ManagedRuntime.make(
 			services as Layer.Layer<AppServices, never, never>,
 		) as ManagedRuntime.ManagedRuntime<AppServices, never>;
@@ -261,6 +262,68 @@ describe("NotificationsLive", () => {
 		);
 		expect(out.count).toBeGreaterThan(0);
 		expect(out.after).toBe(0);
+	});
+
+	it("markRead fans the updated row out so other streams see it read", async () => {
+		const result = await runtime.runPromise(
+			Effect.provideService(
+				Effect.gen(function* () {
+					const n = yield* Notifications;
+					const bus = yield* EventBus;
+					yield* bus.dispatch([PatientCreated.make({ id: 20, ownerId: "u1", name: "StreamRead" })]);
+					const rows = yield* n.list("u1");
+					const target = rows.find((r) => r.body === "StreamRead");
+					if (target === undefined) return null;
+					// A second "device": same userId stream, waiting for the
+					// live read-update frame (backlog replay emits read:false
+					// first and is filtered out).
+					const fiber = yield* Stream.runHead(
+						n.stream("u1").pipe(
+							Stream.filter((item) => item.id === String(target.id) && item.read === true),
+							Stream.take(1),
+						),
+					).pipe(Effect.forkChild);
+					// Let the stream subscribe to the pubsub before publishing.
+					yield* Effect.sleep("50 millis");
+					yield* n.markRead("u1", [target.id]);
+					return yield* Fiber.join(fiber);
+				}),
+				Principal,
+				{ userId: "u1" },
+			),
+		);
+		expect(result).toMatchObject({
+			_tag: "Some",
+			value: { read: true, meta: "patient.created" },
+		});
+	});
+
+	it("command-dispatched markAllRead propagates read state to the stream", async () => {
+		const result = await runtime.runPromise(
+			Effect.provideService(
+				Effect.gen(function* () {
+					const n = yield* Notifications;
+					const bus = yield* EventBus;
+					const commands = yield* Command.dispatcher(NotificationsCommands);
+					yield* bus.dispatch([PatientCreated.make({ id: 21, ownerId: "u1", name: "CmdRead" })]);
+					const rows = yield* n.list("u1");
+					const target = rows.find((r) => r.body === "CmdRead");
+					if (target === undefined) return null;
+					const fiber = yield* Stream.runHead(
+						n.stream("u1").pipe(
+							Stream.filter((item) => item.id === String(target.id) && item.read === true),
+							Stream.take(1),
+						),
+					).pipe(Effect.forkChild);
+					yield* Effect.sleep("50 millis");
+					yield* commands["notifications.markAllRead"]({ userId: "u1" });
+					return yield* Fiber.join(fiber);
+				}).pipe(Effect.scoped),
+				Principal,
+				{ userId: "u1" },
+			),
+		);
+		expect(result).toMatchObject({ _tag: "Some", value: { read: true } });
 	});
 });
 

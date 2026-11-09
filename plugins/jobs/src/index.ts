@@ -27,7 +27,7 @@ export const jobsHeaderPlugin = definePlugin({
 export const plugins: readonly Plugin[] = [jobsHeaderPlugin];
 
 export { JobsDataContext, type ConsoleJob } from "./context.ts";
-export { jobsFromAudioRows, type AudioJobRow } from "./jobs.ts";
+export { jobFromAudioRow, jobsFromAudioRows, type AudioJobRow } from "./jobs.ts";
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.

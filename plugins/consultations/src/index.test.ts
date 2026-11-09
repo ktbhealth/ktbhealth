@@ -45,6 +45,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Stream from "effect/Stream";
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -450,9 +451,13 @@ describe("audio pipeline", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
 	let testDb: ReturnType<typeof makeDb>;
 
-	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Consultations>) =>
+	const asUser = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Consultations>,
+		email?: string,
+	) =>
 		runtime.runPromise(
-			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
 		);
 
 	const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
@@ -524,6 +529,49 @@ describe("audio pipeline", () => {
 			asUser(
 				"u2",
 				call((c) => c.updateAudioStatus("u2", id, "queued")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("audioJobsStream replays the projection then emits live deltas", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		// Filtered take(1): skips the "none" backlog row for this
+		// consultation, then waits for the live delta attachAudio publishes.
+		const collect = asUser(
+			"u1",
+			call((c) =>
+				c.audioJobsStream().pipe(
+					Stream.filter((r) => r.id === id && r.audioStatus === "stored"),
+					Stream.take(1),
+					Stream.runCollect,
+				),
+			),
+			"admin@x.com",
+		);
+		// Let the stream drain its backlog and subscribe to the PubSub
+		// before the event fires — publishes before that are not replayed.
+		await new Promise((r) => setTimeout(r, 100));
+		await asUser(
+			"u1",
+			call((c) => c.attachAudio("u1", { consultationId: id, audioKey: "k-stream", size: 1 })),
+		);
+		const rows = await collect;
+		expect(rows[0]?.audioStatus).toBe("stored");
+		expect(rows[0]?.id).toBe(id);
+	});
+
+	it("audioJobsStream fails Forbidden for non-admin principals", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((c) => Stream.runCollect(c.audioJobsStream())),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				null,
+				call((c) => Stream.runCollect(c.audioJobsStream())),
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});

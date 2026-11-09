@@ -26,6 +26,7 @@ import {
 	TooltipTrigger,
 } from "@ktbhealth/ui/components/tooltip";
 
+import { jobFromAudioRow, type AudioJobRow } from "../jobs.ts";
 import { JobsDataContext, type ConsoleJob } from "../context.ts";
 
 const GROUP_ORDER = ["processing", "queued", "failed", "done"] as const;
@@ -39,14 +40,59 @@ const jobItemProps = (job: ConsoleJob) => ({
 });
 
 /**
+ * Upsert one live frame into the job list, keyed by job id. Known jobs
+ * update in place (a status transition keeps its queue position); new
+ * jobs land on top — the stream's backlog is createdAt-desc, so the
+ * freshest deltas surface first. A frame mapping to no job removes the
+ * id (e.g. the row's audio status reset to a non-job state).
+ */
+const upsertJob = (
+	list: readonly ConsoleJob[],
+	id: string,
+	job: ConsoleJob | null,
+): readonly ConsoleJob[] => {
+	const idx = list.findIndex((j) => j.id === id);
+	if (job === null) return idx >= 0 ? list.filter((j) => j.id !== id) : list;
+	if (idx >= 0) return list.map((j, i) => (i === idx ? job : j));
+	return [job, ...list];
+};
+
+/**
  * Header action contributed via `panel.headerActions`: a tooltip'd icon
  * button opening a wide popover with the console jobs feed — status
  * filter tabs, batch progress and grouped queue sections. Data comes
- * from JobsDataContext (the host injects it); empty state when none.
+ * from JobsDataContext (the host injects it) as the seed; when
+ * EventSource is available the component opens /api/jobs — an
+ * admin-gated SSE feed that replays the audio-pipeline rows then pushes
+ * one fresh row per consultation.audioUpdated event — and upserts each
+ * frame by job id (`live` stays null until the first frame so the seed
+ * renders meanwhile; without EventSource, e.g. jsdom tests, the seed is
+ * authoritative). Empty state when none.
  */
 export function JobsHeaderAction() {
-	const jobs = React.useContext(JobsDataContext);
+	const seeded = React.useContext(JobsDataContext);
+	// null → context seed is authoritative (no live connection yet/ever).
+	const [live, setLive] = React.useState<readonly ConsoleJob[] | null>(null);
+	const jobs = live ?? seeded;
 	const [filter, setFilter] = React.useState<JobStatusFilter>("all");
+
+	React.useEffect(() => {
+		if (typeof EventSource === "undefined") return;
+		const source = new EventSource("/api/jobs");
+		// Each frame is one AudioJobRow (the stream's backlog replays the
+		// same projection the loader seeded — upserts dedupe by id).
+		source.onmessage = (event) => {
+			try {
+				const row = JSON.parse(event.data) as AudioJobRow;
+				const job = jobFromAudioRow(row);
+				setLive((prev) => upsertJob(prev ?? seeded, `audio-${row.id}`, job));
+			} catch {
+				// Malformed frame — ignore.
+			}
+		};
+		return () => source.close();
+	}, [seeded]);
+
 	const active = jobs.filter((j) => j.status === "queued" || j.status === "processing");
 
 	const visible = filter === "all" ? jobs : jobs.filter((j) => j.status === filter);

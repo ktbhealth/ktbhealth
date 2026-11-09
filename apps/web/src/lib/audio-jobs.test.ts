@@ -173,6 +173,49 @@ describe("processAudioJob", () => {
 		expect(r2?.audioError).toContain("ai down");
 	});
 
+	it("publishes live audio updates for the jobs feed", async () => {
+		const updates: { consultationId: number; audioStatus: string; audioError: string | null }[] =
+			[];
+		const { db, deps } = makeDeps({
+			publishAudioUpdate: async (u) => {
+				updates.push(u);
+			},
+		});
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/a.webm", size: 3 });
+
+		await processAudioJob(job(id), deps);
+		expect(updates).toEqual([
+			{ consultationId: id, audioStatus: "processing", audioError: null },
+			{ consultationId: id, audioStatus: "done", audioError: null },
+		]);
+	});
+
+	it("publishes the failure reason and survives a broken publisher", async () => {
+		const updates: { audioStatus: string; audioError: string | null }[] = [];
+		const { db, deps } = makeDeps({
+			publishAudioUpdate: async (u) => {
+				updates.push(u);
+			},
+		});
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/missing.webm", size: 3 });
+		await processAudioJob(job(id), deps);
+		expect(updates.at(-1)).toMatchObject({ audioStatus: "failed" });
+		expect(updates.at(-1)?.audioError).toContain("missing");
+
+		// A rejecting publisher must not fail the job.
+		const { db: db2, deps: deps2 } = makeDeps({
+			publishAudioUpdate: async () => {
+				throw new Error("bus down");
+			},
+		});
+		const id2 = (await createConsultation(db2, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(db2, id2, { audioKey: "audio/u1/1/a.webm", size: 3 });
+		await processAudioJob(job(id2), deps2);
+		expect((await row(db2, id2))?.audioStatus).toBe("done");
+	});
+
 	it("keeps status done when LLM cleanup fails", async () => {
 		const { db, deps } = makeDeps({
 			correctTranscript: async () => {

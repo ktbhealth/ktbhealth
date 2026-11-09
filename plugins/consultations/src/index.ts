@@ -1,6 +1,8 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as PubSub from "effect/PubSub";
+import * as Stream from "effect/Stream";
 import { Option } from "effect";
 import { and, count, desc, eq, ne } from "drizzle-orm";
 import { index, route } from "@tanstack/virtual-file-routes";
@@ -17,7 +19,7 @@ import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
 import { patientsServicesPlugin } from "@ktb/patients";
 import { PatientsCommands, PatientsQueries } from "@ktb/patients/api";
-import { ConsultationCreated, ConsultationsQueries } from "./api.ts";
+import { ConsultationAudioUpdated, ConsultationCreated, ConsultationsQueries } from "./api.ts";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { consultations } from "./schema.ts";
 
@@ -356,6 +358,27 @@ export async function listAudioJobRows(db: DbClient): Promise<AudioJobRow[]> {
 		.orderBy(desc(consultations.id));
 }
 
+/** Single-row variant of `listAudioJobRows` — the live-delta lookup the
+ * `consultation.audioUpdated` subscriber re-reads after each event. */
+export async function audioJobRow(
+	db: DbClient,
+	consultationId: number,
+): Promise<AudioJobRow | null> {
+	const rows = await db
+		.select({
+			id: consultations.id,
+			audioStatus: consultations.audioStatus,
+			audioError: consultations.audioError,
+			createdAt: consultations.createdAt,
+			patientName: patients.name,
+		})
+		.from(consultations)
+		.leftJoin(patients, eq(consultations.patientId, patients.id))
+		.where(eq(consultations.id, consultationId))
+		.limit(1);
+	return rows[0] ?? null;
+}
+
 /** Owner lookup for authz checks — fetches by id regardless of caller. */
 async function consultationOwnerId(db: DbClient, id: number): Promise<string | null> {
 	const rows = await db
@@ -500,6 +523,13 @@ export class Consultations extends Context.Service<
 		) => Effect.Effect<ConsultationSummary[], Forbidden>;
 		/** Cross-owner listing for the /platform console — platform admins only. */
 		readonly adminList: () => Effect.Effect<AdminConsultationRow[], Forbidden>;
+		/**
+		 * Live feed of the audio-pipeline projection behind the /platform
+		 * jobs popover: replays the current rows (same shape as the
+		 * `consultations.audioJobs` query), then emits one fresh row per
+		 * `consultation.audioUpdated` event. Platform admins only.
+		 */
+		readonly audioJobsStream: () => Stream.Stream<AudioJobRow, Forbidden>;
 		readonly get: (
 			id: number,
 			userId: string,
@@ -551,6 +581,19 @@ export const ConsultationsLive = Layer.effect(
 		const patientQueries = yield* Query.dispatcher(PatientsQueries);
 		const patientCommands = yield* Command.dispatcher(PatientsCommands);
 		const events = yield* EventBus;
+		// Live fan-out for audioJobsStream: every audio-status mutation
+		// (service methods here, the queue consumer via the host) publishes
+		// ConsultationAudioUpdated; the handler re-reads the row so stream
+		// consumers always get the full projection, never a partial payload.
+		const liveAudioJobs = yield* PubSub.unbounded<AudioJobRow>();
+		yield* events.subscribeAfterCommit(ConsultationAudioUpdated, (event) =>
+			Effect.gen(function* () {
+				const row = yield* Effect.promise(() => audioJobRow(db, event.consultationId));
+				// Missing row (deleted consultation) → nothing to emit; the
+				// client's seeded copy survives until the next loader pass.
+				if (row !== null) yield* PubSub.publish(liveAudioJobs, row);
+			}),
+		);
 		return Consultations.of({
 			create: Effect.fn("Consultations.create")(function* (fields: {
 				userId: string;
@@ -619,6 +662,19 @@ export const ConsultationsLive = Layer.effect(
 				yield* Effect.logInfo("consultations admin list");
 				return yield* Effect.promise(() => listAllConsultations(db));
 			}),
+			audioJobsStream: () =>
+				Stream.unwrap(
+					Effect.gen(function* () {
+						// Same gate as adminList — fails Forbidden for
+						// non-admins and for system contexts (null principal).
+						yield* platformAdmin.requireAdmin();
+						// Backlog first, then live deltas. The backlog read
+						// happens inside the stream's first effect so
+						// construction stays cheap and authz is enforced on pull.
+						const rows = yield* Effect.promise(() => listAudioJobRows(db));
+						return Stream.concat(Stream.fromIterable(rows), Stream.fromPubSub(liveAudioJobs));
+					}),
+				),
 			get: Effect.fn("Consultations.get")(function* (id: number, userId: string) {
 				yield* requirePrincipalUser(userId, "consultation.read");
 				const detail = yield* Effect.promise(() => getConsultation(db, id));
@@ -688,7 +744,14 @@ export const ConsultationsLive = Layer.effect(
 					userId,
 					consultationId: input.consultationId,
 				});
-				return yield* Effect.promise(() => attachAudioRecord(db, input.consultationId, input));
+				yield* Effect.promise(() => attachAudioRecord(db, input.consultationId, input));
+				yield* events.dispatch([
+					ConsultationAudioUpdated.make({
+						consultationId: input.consultationId,
+						audioStatus: "stored",
+						audioError: null,
+					}),
+				]);
 			}),
 			updateAudioStatus: Effect.fn("Consultations.updateAudioStatus")(function* (
 				userId: string,
@@ -701,7 +764,14 @@ export const ConsultationsLive = Layer.effect(
 					yield* requireCanAs("consultation.update", { userId: owner });
 				}
 				yield* Effect.annotateCurrentSpan({ userId, consultationId, audioStatus: status });
-				return yield* Effect.promise(() => markAudioQueued(db, consultationId));
+				yield* Effect.promise(() => markAudioQueued(db, consultationId));
+				yield* events.dispatch([
+					ConsultationAudioUpdated.make({
+						consultationId,
+						audioStatus: "queued",
+						audioError: null,
+					}),
+				]);
 			}),
 			history: Effect.fn("Consultations.history")(function* (
 				patientId: number,
