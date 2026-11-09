@@ -145,4 +145,70 @@ describe("NotificationsHeaderAction", () => {
 		expect(screen.queryByRole("button", { name: /Mark all read/ })).toBeNull();
 		expect(screen.queryByRole("button", { name: /as read/ })).toBeNull();
 	});
+
+	it("keeps arrival order for non-numeric ids from the live stream", async () => {
+		vi.stubGlobal("EventSource", MockEventSource);
+		const user = userEvent.setup();
+		renderAction();
+		act(() => {
+			MockEventSource.instances[0]!.onmessage!({
+				data: JSON.stringify({ id: "abc", title: "Odd one", read: false }),
+			});
+		});
+		await user.click(screen.getByRole("button", { name: "Notifications" }));
+		expect(await screen.findByText("Odd one")).toBeTruthy();
+		// 1 seeded unread + the live unread.
+		expect(screen.getByRole("button", { name: "Notifications" }).textContent).toContain("2");
+	});
+
+	it("ignores clicks on rows whose id is not numeric", async () => {
+		vi.stubGlobal("EventSource", undefined);
+		const markRead = vi.fn<NotificationsActions["markRead"]>(async () => true);
+		const user = userEvent.setup();
+		renderAction([{ id: "abc", title: "Odd", read: false }], {
+			markRead,
+			markAllRead: vi.fn<NotificationsActions["markAllRead"]>(async () => true),
+		});
+		await user.click(screen.getByRole("button", { name: "Notifications" }));
+		await user.click(await screen.findByRole("button", { name: 'Mark "Odd" as read' }));
+		expect(markRead).not.toHaveBeenCalled();
+		expect(screen.getByRole("button", { name: "Notifications" }).textContent).toContain("1");
+	});
+
+	it("leaves rows unread when the host reports mark-read failed", async () => {
+		vi.stubGlobal("EventSource", undefined);
+		const markRead = vi.fn<NotificationsActions["markRead"]>(async () => false);
+		const user = userEvent.setup();
+		renderAction(seeded, {
+			markRead,
+			markAllRead: vi.fn<NotificationsActions["markAllRead"]>(async () => true),
+		});
+		await user.click(screen.getByRole("button", { name: "Notifications" }));
+		await user.click(await screen.findByRole("button", { name: 'Mark "Patient created" as read' }));
+		await vi.waitFor(() => expect(markRead).toHaveBeenCalledWith([1]));
+		expect(screen.getByRole("button", { name: "Notifications" }).textContent).toContain("1");
+		expect(screen.getByRole("button", { name: 'Mark "Patient created" as read' })).toBeTruthy();
+	});
+
+	it("leaves rows unread when the host reports mark-all failed", async () => {
+		vi.stubGlobal("EventSource", undefined);
+		const markAllRead = vi.fn<NotificationsActions["markAllRead"]>(async () => false);
+		const user = userEvent.setup();
+		renderAction(seeded, {
+			markRead: vi.fn<NotificationsActions["markRead"]>(async () => true),
+			markAllRead,
+		});
+		await user.click(screen.getByRole("button", { name: "Notifications" }));
+		await user.click(await screen.findByRole("button", { name: "Mark all read" }));
+		await vi.waitFor(() => expect(markAllRead).toHaveBeenCalledOnce());
+		expect(screen.getByRole("button", { name: "Notifications" }).textContent).toContain("1");
+	});
+
+	it("shows an empty state when there are no notifications", async () => {
+		vi.stubGlobal("EventSource", undefined);
+		const user = userEvent.setup();
+		renderAction([], null);
+		await user.click(screen.getByRole("button", { name: "Notifications" }));
+		expect(await screen.findByText("No notifications")).toBeTruthy();
+	});
 });
