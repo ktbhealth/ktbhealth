@@ -9,7 +9,7 @@ import {
 } from "../../../plugins/notifications/src/api.ts";
 import * as Effect from "effect/Effect";
 
-import { createApp, plugins } from "./index.ts";
+import { assertCaptchaConfigured, createApp, plugins } from "./index.ts";
 
 const DDL = `
 CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT, payload TEXT, read_at INTEGER, created_at INTEGER NOT NULL);
@@ -39,6 +39,21 @@ describe("createApp", () => {
 
 	it("run executes system-path effects without a principal", async () => {
 		await expect(app.run(Effect.succeed("ok"))).resolves.toBe("ok");
+	});
+
+	describe("assertCaptchaConfigured", () => {
+		it("throws in production when no captcha driver is configured", () => {
+			expect(() => assertCaptchaConfigured({}, true)).toThrow(/captcha not configured/);
+		});
+
+		it("allows production with Turnstile or the dev stub", () => {
+			expect(() => assertCaptchaConfigured({ TURNSTILE_SECRET_KEY: "k" }, true)).not.toThrow();
+			expect(() => assertCaptchaConfigured({ CAPTCHA_STUB: "1" }, true)).not.toThrow();
+		});
+
+		it("allows dev/test without any captcha env", () => {
+			expect(() => assertCaptchaConfigured({}, false)).not.toThrow();
+		});
 	});
 
 	it("the Auth port resolves anonymous headers to no session", async () => {

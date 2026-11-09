@@ -4,6 +4,14 @@ dist
 dist-ssr
 *.local
 .env
+# env files with environment suffixes (.env.production, .env.development…)
+# and wrangler local secrets — keep the example templates committable.
+.env.*
+!.env.example
+!.env.sample
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 .nitro
 .tanstack
 .wrangler

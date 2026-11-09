@@ -194,13 +194,53 @@ describe("/api/transcribe edge cases", () => {
 		const res = await transcribePost();
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ text: "" });
-		expect(ai.current.run).toHaveBeenCalledWith("@cf/openai/whisper", { audio: [1, 2, 3] });
+		// Base64 payload to the large-v3-turbo model — same shape the
+		// queued pipeline uses (a number[] would serialize huge).
+		expect(ai.current.run).toHaveBeenCalledWith("@cf/openai/whisper-large-v3-turbo", {
+			audio: "AQID",
+			language: "pt",
+		});
 	});
 
 	it("returns the model's text", async () => {
 		ai.current = { run: async () => ({ text: "olá mundo" }) };
 		const res = await transcribePost();
 		expect(await res.json()).toEqual({ text: "olá mundo" });
+	});
+
+	it("rejects an empty audio file", async () => {
+		const form = new FormData();
+		form.set("audio", new File([], "empty.webm", { type: "audio/webm" }));
+		const res = await handlersOf(TranscribeRoute).POST!({
+			request: new Request("http://x/api/transcribe", { method: "POST", body: form }),
+		} as never);
+		expect(res.status).toBe(400);
+		expect(await res.json()).toEqual({ error: "empty audio file" });
+	});
+
+	it("rejects uploads over the transcription ceiling", async () => {
+		const form = new FormData();
+		form.set(
+			"audio",
+			new File([new Uint8Array(25 * 1024 * 1024 + 1)], "big.webm", { type: "audio/webm" }),
+		);
+		const res = await handlersOf(TranscribeRoute).POST!({
+			request: new Request("http://x/api/transcribe", { method: "POST", body: form }),
+		} as never);
+		expect(res.status).toBe(413);
+		expect(await res.json()).toEqual({
+			error: "audio too large for transcription (max 25MB)",
+		});
+	});
+
+	it("rejects non-audio content types", async () => {
+		const form = new FormData();
+		form.set("audio", new File([new Uint8Array([1])], "doc.pdf", { type: "application/pdf" }));
+		const res = await handlersOf(TranscribeRoute).POST!({
+			request: new Request("http://x/api/transcribe", { method: "POST", body: form }),
+		} as never);
+		expect(res.status).toBe(415);
+		expect(await res.json()).toEqual({ error: "unsupported content type" });
 	});
 });
 
@@ -321,11 +361,13 @@ describe("audio upload edge cases", () => {
 		expect(await res.json()).toEqual({ error: "unsupported content type" });
 	});
 
-	it("rejects uploads over the size limit", async () => {
+	it("rejects uploads over the transcription ceiling", async () => {
 		const id = await newConsultation();
-		const res = await audioPost(id, new Uint8Array(50 * 1024 * 1024 + 1), "audio/webm");
+		const res = await audioPost(id, new Uint8Array(25 * 1024 * 1024 + 1), "audio/webm");
 		expect(res.status).toBe(413);
-		expect(await res.json()).toEqual({ error: "audio too large" });
+		expect(await res.json()).toEqual({
+			error: "audio too large for transcription (max 25MB)",
+		});
 	});
 
 	it("stores a body without a content type as an opaque .bin object", async () => {

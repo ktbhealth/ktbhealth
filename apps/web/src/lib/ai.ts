@@ -39,7 +39,7 @@ const stubAi: AiBinding = {
 	},
 };
 
-/** Accepts base64 string (queue path), number[] (route path), bytes. */
+/** Accepts base64 string (queue + /api/transcribe path), number[] (legacy), bytes. */
 const audioToBytes = (audio: unknown): Uint8Array<ArrayBuffer> => {
 	if (typeof audio === "string") {
 		const binary = atob(audio);

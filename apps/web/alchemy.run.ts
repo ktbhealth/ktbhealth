@@ -35,6 +35,9 @@ export default Alchemy.Stack(
 				...(process.env.BETTER_AUTH_SECRET
 					? { BETTER_AUTH_SECRET: Redacted.make(process.env.BETTER_AUTH_SECRET) }
 					: {}),
+				// Public base URL better-auth builds callback/reset links
+				// from — config, not a secret (cuora ref: better-auth-url).
+				...(process.env.BETTER_AUTH_URL ? { BETTER_AUTH_URL: process.env.BETTER_AUTH_URL } : {}),
 				...(process.env.TURNSTILE_SECRET_KEY
 					? { TURNSTILE_SECRET_KEY: Redacted.make(process.env.TURNSTILE_SECRET_KEY) }
 					: {}),

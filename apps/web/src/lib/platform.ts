@@ -23,7 +23,10 @@ const LLM_ENV_KEYS = [
 ] as const;
 
 // Non-LLM config passthrough — same bindings-win-then-process.env rule.
-const APP_ENV_KEYS = ["PLATFORM_ADMIN_EMAILS"] as const;
+// BETTER_AUTH_* mirror the worker bindings bound by alchemy.run.ts; the
+// process.env fallback covers `cuora run` dev shells where the vars are
+// injected into the process but not into workerd bindings.
+const APP_ENV_KEYS = ["BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "PLATFORM_ADMIN_EMAILS"] as const;
 
 // AI_STUB > AI_BASE_URL > env.AI — dev may run without the Workers AI
 // binding (wrangler.dev.jsonc), so resolve before composing the app.

@@ -79,11 +79,36 @@ export interface AppEnv {
 }
 
 /**
+ * Production must never run without a bot check: with neither
+ * CAPTCHA_STUB nor TURNSTILE_SECRET_KEY the null captcha driver resolves
+ * Captcha to null and credential endpoints (/api/auth/*) would skip
+ * verification entirely — fail-open. CAPTCHA_STUB is dev-only (never
+ * bound by the Alchemy stack); TURNSTILE_SECRET_KEY comes from the cuora
+ * vault. Dev/test keep the null driver.
+ */
+export const assertCaptchaConfigured = (
+	env: Pick<AppEnv, "CAPTCHA_STUB" | "TURNSTILE_SECRET_KEY">,
+	production: boolean,
+): void => {
+	if (production && !env.CAPTCHA_STUB && !env.TURNSTILE_SECRET_KEY) {
+		throw new Error(
+			"captcha not configured for production: bind TURNSTILE_SECRET_KEY " +
+				"(CAPTCHA_STUB is dev-only and must never reach a prod deploy)",
+		);
+	}
+};
+
+/**
  * Composition root: wires the plugin registry, platform bindings, and
  * impl layers into a runnable app. Deploy targets (apps/web) call this
  * once with their env and re-export the pieces they need.
  */
 export const createApp = <E extends AppEnv>(env: E) => {
+	// import.meta.env.PROD is statically replaced by the Vite build:
+	// true for `vp build`/`vp preview` output (prod deploy), false for
+	// dev servers and vitest. Same convention as the stub-bot guard in
+	// apps/web routes.
+	assertCaptchaConfigured(env, import.meta.env.PROD);
 	const BindingLive = Layer.succeed(Binding, env.DB);
 	const db = makeDb(env.DB);
 	const auth = makeAuth(db, {
