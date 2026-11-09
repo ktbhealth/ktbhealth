@@ -36,13 +36,28 @@ const AttachInput = Schema.Struct({
 	consultationId: Schema.Number,
 	anamnesis: AnamnesisSchema,
 	engine: Schema.String,
-	patientId: Schema.optionalKey(Schema.Number),
+	// Tri-state patientId: absent keeps the link, null clears it, a
+	// number re-links (ownership is enforced in the service).
+	patientId: Schema.optionalKey(Schema.NullishOr(Schema.Number)),
 });
 
 const decodeSaveInput = (input: unknown) =>
 	Schema.decodeUnknownSync(SaveInput)(normalizePatientId(input));
-const decodeAttachInput = (input: unknown) =>
-	Schema.decodeUnknownSync(AttachInput)(normalizePatientId(input));
+const decodeAttachInput = (input: unknown) => {
+	const normalized = normalizePatientId(input);
+	// normalizePatientId drops null ("absent") — but for attach, an
+	// explicit null means "clear the patient link", so restore it.
+	if (
+		typeof input === "object" &&
+		input !== null &&
+		(input as Record<string, unknown>).patientId === null &&
+		typeof normalized === "object" &&
+		normalized !== null
+	) {
+		(normalized as Record<string, unknown>).patientId = null;
+	}
+	return Schema.decodeUnknownSync(AttachInput)(normalized);
+};
 
 /**
  * The wire payload may carry `patientId` as null/undefined (key present,

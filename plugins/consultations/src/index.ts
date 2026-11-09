@@ -42,7 +42,8 @@ export interface AttachAnamnesisInput {
 	readonly consultationId: number;
 	readonly anamnesis: Anamnesis;
 	readonly engine: string;
-	readonly patientId?: number;
+	/** Tri-state: undefined keeps the link, null clears it, id re-links. */
+	readonly patientId?: number | null;
 }
 
 export interface ConsultationSummary {
@@ -262,9 +263,15 @@ async function patientConsultationRows(db: DbClient, patientId: number) {
 /** Linked consultation rows only — the patient row itself goes through
  * the `patients.delete` command (authz + `patient.deleted` event live
  * in the patients plugin). Consultations are deleted first so a FK
- * constraint can't block the patient delete. */
-async function deletePatientConsultations(db: DbClient, patientId: number) {
-	await db.delete(consultations).where(eq(consultations.patientId, patientId));
+ * constraint can't block the patient delete. The select stays
+ * owner-agnostic on purpose: the service scans EVERY linked row and
+ * fails `Forbidden` on a foreign one — that check is what keeps a
+ * stray cross-owner link from silently surviving (or blocking) the
+ * patient delete via the FK. */
+async function deletePatientConsultations(db: DbClient, patientId: number, userId: string) {
+	await db
+		.delete(consultations)
+		.where(and(eq(consultations.patientId, patientId), eq(consultations.userId, userId)));
 }
 
 async function listConsultations(
@@ -425,14 +432,24 @@ async function getLiveConsultation(db: DbClient, id: number) {
 }
 
 async function attachAnamnesis(db: DbClient, userId: string, data: AttachAnamnesisInput) {
+	// patientId is tri-state: undefined leaves the column untouched,
+	// null clears the link, a number re-links (ownership already checked
+	// by the service).
+	const set: {
+		anamnesis: string;
+		engine: string;
+		status: string;
+		patientId?: number | null;
+	} = {
+		anamnesis: JSON.stringify(data.anamnesis),
+		engine: data.engine,
+		status: "done",
+	};
+	if (data.patientId === null) set.patientId = null;
+	else if (data.patientId !== undefined) set.patientId = data.patientId;
 	await db
 		.update(consultations)
-		.set({
-			anamnesis: JSON.stringify(data.anamnesis),
-			engine: data.engine,
-			patientId: data.patientId ?? null,
-			status: "done",
-		})
+		.set(set)
 		.where(and(eq(consultations.id, data.consultationId), eq(consultations.userId, userId)));
 }
 
@@ -592,6 +609,17 @@ export const ConsultationsLive = Layer.effect(
 		// ConsultationAudioUpdated; the handler re-reads the row so stream
 		// consumers always get the full projection, never a partial payload.
 		const liveAudioJobs = yield* PubSub.unbounded<AudioJobRow>();
+		// Patient-link guard for save/attach: a patientId must resolve to
+		// a patient the acting user owns (patients.ownerOf is the
+		// cross-plugin lookup). Foreign or missing ids fail `Forbidden` —
+		// same denial shape as a failed permix check, so callers can't
+		// probe which patient ids exist.
+		const requireOwnedPatient = (patientId: number, path: string) =>
+			Effect.gen(function* () {
+				const owner = yield* patientQueries["patients.ownerOf"]({ id: patientId });
+				if (owner === null) return yield* Effect.fail(new Forbidden({ path }));
+				yield* requireCanAs("patient.read", { ownerId: owner.ownerId });
+			});
 		yield* events.subscribeAfterCommit(ConsultationAudioUpdated, (event) =>
 			Effect.gen(function* () {
 				const row = yield* Effect.promise(() => audioJobRow(db, event.consultationId));
@@ -652,6 +680,9 @@ export const ConsultationsLive = Layer.effect(
 			) {
 				yield* requirePrincipalUser(userId, "consultation.create");
 				yield* requireCanAs("consultation.create");
+				if (input.patientId !== undefined) {
+					yield* requireOwnedPatient(input.patientId, "patient.read");
+				}
 				yield* Effect.annotateCurrentSpan({ userId, engine: input.engine });
 				yield* Effect.logInfo("consultation save", { userId, engine: input.engine });
 				return yield* Effect.promise(() => saveConsultation(db, userId, input));
@@ -706,6 +737,11 @@ export const ConsultationsLive = Layer.effect(
 				// Missing row → the UPDATE below is a no-op; nothing to authorize.
 				if (owner !== null) {
 					yield* requireCanAs("consultation.update", { userId: owner });
+				}
+				// Re-linking to a patient requires owning that patient;
+				// null (clear) and undefined (keep) skip the lookup.
+				if (typeof input.patientId === "number") {
+					yield* requireOwnedPatient(input.patientId, "patient.read");
 				}
 				yield* Effect.annotateCurrentSpan({
 					userId,
@@ -808,7 +844,7 @@ export const ConsultationsLive = Layer.effect(
 					patientId,
 					consultations: rows.length,
 				});
-				yield* Effect.promise(() => deletePatientConsultations(db, patientId));
+				yield* Effect.promise(() => deletePatientConsultations(db, patientId, userId));
 				yield* patientCommands["patients.delete"]({ id: patientId });
 				return {
 					consultations: rows.length,
@@ -899,7 +935,9 @@ export const PatientDeleteCascadeLive = Command.handlersOf(PatientCascadeCommand
 			const rows = yield* Effect.promise(() => patientConsultationRows(db, patientId));
 			for (const row of rows)
 				yield* requireCanAs("consultation.delete", { userId: row.userId ?? "" });
-			yield* Effect.promise(() => deletePatientConsultations(db, patientId));
+			// Every row passed the per-row authz above, so all survivors
+			// are principal-owned — the delete is scoped to them anyway.
+			yield* Effect.promise(() => deletePatientConsultations(db, patientId, principal.userId));
 			yield* patientCommands["patients.delete"]({ id: patientId });
 			return {
 				consultations: rows.length,

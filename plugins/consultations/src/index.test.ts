@@ -849,6 +849,206 @@ describe("Consultations.deletePatient", () => {
 	});
 });
 
+describe("patientId ownership on save/attach", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let testDb: ReturnType<typeof makeDb>;
+	let ownPatient = 0;
+	let foreignPatient = 0;
+
+	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Consultations>) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+		);
+	const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
+		Effect.flatMap(Consultations, f);
+	const saveInput = (over: Partial<SaveConsultationInput> = {}): SaveConsultationInput => ({
+		transcript: "t",
+		anamnesis: {} as SaveConsultationInput["anamnesis"],
+		engine: "e",
+		...over,
+	});
+	const attachInput = (
+		over: Partial<Parameters<Consultations["Service"]["attachAnamnesis"]>[1]> = {},
+	) => ({
+		consultationId: 0,
+		anamnesis: {} as SaveConsultationInput["anamnesis"],
+		engine: "e",
+		...over,
+	});
+	const linkedPatientId = async (id: number) =>
+		(
+			await testDb.query.consultations.findFirst({
+				where: (t, { eq }) => eq(t.id, id),
+			})
+		)?.patientId;
+
+	beforeAll(async () => {
+		testDb = makeDb(makeD1(DDL));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+		const [own] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Own", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		const [foreign] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u2", name: "Foreign", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		ownPatient = own!.id;
+		foreignPatient = foreign!.id;
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("save rejects a patientId the caller does not own", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.save("u1", saveInput({ patientId: foreignPatient }))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		// Missing patient ids are denied the same way — no existence probe.
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.save("u1", saveInput({ patientId: 999_999 }))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		// Own patient links fine; omitted patientId still works.
+		const saved = await asUser(
+			"u1",
+			call((c) => c.save("u1", saveInput({ patientId: ownPatient }))),
+		);
+		expect(await linkedPatientId(saved.id)).toBe(ownPatient);
+		const bare = await asUser(
+			"u1",
+			call((c) => c.save("u1", saveInput())),
+		);
+		expect(await linkedPatientId(bare.id)).toBeNull();
+	});
+
+	it("attachAnamnesis rejects foreign patientId and keeps tri-state semantics", async () => {
+		const id = (await asUser(
+			"u1",
+			call((c) => c.create({ userId: "u1", transcript: "t", source: "browser" })),
+		))!;
+
+		// Foreign patient → Forbidden, link untouched.
+		await expect(
+			asUser(
+				"u1",
+				call((c) =>
+					c.attachAnamnesis("u1", attachInput({ consultationId: id, patientId: foreignPatient })),
+				),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		expect(await linkedPatientId(id)).toBeNull();
+
+		// Own patient links.
+		await asUser(
+			"u1",
+			call((c) =>
+				c.attachAnamnesis("u1", attachInput({ consultationId: id, patientId: ownPatient })),
+			),
+		);
+		expect(await linkedPatientId(id)).toBe(ownPatient);
+
+		// undefined keeps the existing link.
+		await asUser(
+			"u1",
+			call((c) => c.attachAnamnesis("u1", attachInput({ consultationId: id }))),
+		);
+		expect(await linkedPatientId(id)).toBe(ownPatient);
+
+		// null clears it.
+		await asUser(
+			"u1",
+			call((c) => c.attachAnamnesis("u1", attachInput({ consultationId: id, patientId: null }))),
+		);
+		expect(await linkedPatientId(id)).toBeNull();
+	});
+
+	it("deletePatient cascade stays owner-scoped and deletes nothing on foreign links", async () => {
+		const [p] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Cascade", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		const patientId = p!.id;
+		// Two caller-owned consultations + one foreign-owned row linked to
+		// the same patient (legacy data written before the guard).
+		const own1 = await testDb
+			.insert(consultationsTable)
+			.values({
+				userId: "u1",
+				patientId,
+				transcript: "t",
+				source: "browser",
+				status: "done",
+				createdAt: new Date(),
+			})
+			.returning({ id: consultationsTable.id });
+		const foreign = await testDb
+			.insert(consultationsTable)
+			.values({
+				userId: "u2",
+				patientId,
+				transcript: "t",
+				source: "browser",
+				status: "done",
+				createdAt: new Date(),
+			})
+			.returning({ id: consultationsTable.id });
+
+		// The foreign row blocks the whole cascade — patient and every
+		// consultation survive.
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.deletePatient("u1", patientId)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		expect(
+			await testDb.select().from(patientsTable).where(eq(patientsTable.id, patientId)),
+		).toHaveLength(1);
+		for (const id of [own1[0]!.id, foreign[0]!.id]) {
+			expect(
+				await testDb.query.consultations.findFirst({
+					where: (t, { eq }) => eq(t.id, id),
+				}),
+			).toBeDefined();
+		}
+
+		// Once the foreign link is gone the cascade removes only the
+		// caller's rows.
+		await testDb
+			.update(consultationsTable)
+			.set({ patientId: null })
+			.where(eq(consultationsTable.id, foreign[0]!.id));
+		const result = await asUser(
+			"u1",
+			call((c) => c.deletePatient("u1", patientId)),
+		);
+		expect(result).toEqual({ consultations: 1, audioKeys: [] });
+		expect(
+			await testDb.query.consultations.findFirst({
+				where: (t, { eq }) => eq(t.id, own1[0]!.id),
+			}),
+		).toBeUndefined();
+		expect(
+			await testDb.query.consultations.findFirst({
+				where: (t, { eq }) => eq(t.id, foreign[0]!.id),
+			}),
+		).toBeDefined();
+	});
+});
+
 describe("consultations.audioJobs query", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
 	let testDb: ReturnType<typeof makeDb>;

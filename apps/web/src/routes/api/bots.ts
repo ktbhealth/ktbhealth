@@ -11,8 +11,9 @@ import { Consultations } from "@ktb/consultations";
  * { meetUrl } → { consultationId, botId, provider }
  *
  * With a real provider (RECALL_API_KEY), transcript events arrive at
- * /api/bots/webhook. With the stub provider, we simulate them
- * in-process — same appendTranscript path the webhook uses.
+ * /api/bots/webhook. With the stub provider (dev only — outside dev a
+ * missing RECALL_API_KEY is a 503), we simulate them in-process — same
+ * appendTranscript path the webhook uses.
  */
 export const Route = createFileRoute("/api/bots")({
 	server: {
@@ -30,6 +31,15 @@ export const Route = createFileRoute("/api/bots")({
 						return yield* Bot;
 					}),
 				);
+				// The stub provider fabricates a whole call — dev-only. A
+				// production deploy without RECALL_API_KEY must fail loudly
+				// instead of silently "joining" a fake bot.
+				if (provider.name === "stub" && !import.meta.env.DEV) {
+					console.warn(
+						"[bots] stub provider selected outside dev (RECALL_API_KEY missing) — refusing to simulate",
+					);
+					return Response.json({ error: "meeting bot is not configured" }, { status: 503 });
+				}
 				const webhookUrl = new URL("/api/bots/webhook", request.url).toString();
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureSessionUser();
@@ -51,6 +61,9 @@ export const Route = createFileRoute("/api/bots")({
 				}
 
 				if (provider.name === "stub") {
+					// import.meta.env.DEV was checked above — reaching here
+					// means dev mode, where simulation is allowed.
+					console.warn("[bots] stub provider — simulating call", { consultationId });
 					void simulateCall(consultationId);
 				}
 

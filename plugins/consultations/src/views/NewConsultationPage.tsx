@@ -77,7 +77,8 @@ export interface NewConsultationApi {
 			consultationId: number;
 			anamnesis: Anamnesis;
 			engine: string;
-			patientId?: number;
+			// Tri-state: undefined keeps the link, null clears it.
+			patientId?: number | null;
 		};
 	}): Promise<{ ok: boolean }>;
 	saveConsultation(input: { data: unknown }): Promise<{ id: number; updated?: boolean }>;
@@ -451,7 +452,9 @@ export function NewConsultationPage({
 						consultationId: existing,
 						anamnesis,
 						engine: engine ?? "unknown",
-						patientId: patientId ?? undefined,
+						// null clears a previously linked patient; undefined
+						// would keep it (tri-state on the wire).
+						patientId,
 					},
 				});
 				if (!r.ok) throw new Error("session expired. Reload the page");
