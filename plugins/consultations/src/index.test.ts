@@ -6,7 +6,9 @@ import { user as userTable } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { patients as patientsTable } from "@ktb/patients/schema";
-import { patientsServicesPlugin } from "@ktb/patients";
+import { getPatientOwnerId, patientsServicesPlugin } from "@ktb/patients";
+import { PatientsQueries } from "@ktb/patients/api";
+import { Query } from "@effect-server-utils/cqrs";
 import {
 	makePlatformAdminGate,
 	parsePlatformAdminEmails,
@@ -53,9 +55,14 @@ CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT R
 // ConsultationsLive requires PlatformAdmin (adminList) — every runtime
 // below provides the same allowlisted gate.
 const liveDeps = (db: ReturnType<typeof makeDb>) =>
-	Layer.merge(
+	Layer.mergeAll(
 		Layer.succeed(Db, db),
 		Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+		// ConsultationsLive dispatches `patients.ownerOf` — register the real
+		// handler against the test db (same impl the patients plugin ships).
+		Query.handlersOf(PatientsQueries, {
+			"patients.ownerOf": ({ id }) => Effect.promise(() => getPatientOwnerId(db, id)),
+		}),
 	);
 
 describe("consultations repo", () => {

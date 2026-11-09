@@ -8,6 +8,8 @@ import { UsersIcon } from "lucide-react";
 import { user as users } from "@ktb/auth/schema";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
+import { Query } from "@effect-server-utils/cqrs";
+import { PatientsQueries } from "./api.ts";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import type { PatientFields } from "./record.ts";
@@ -51,6 +53,16 @@ export async function listAllPatients(db: DbClient): Promise<AdminPatientRow[]> 
 		ownerEmail,
 		ownerName,
 	}));
+}
+
+/** Owner lookup exposed to other plugins via the `patients.ownerOf` query. */
+export async function getPatientOwnerId(db: DbClient, id: number) {
+	const rows = await db
+		.select({ ownerId: patients.ownerId })
+		.from(patients)
+		.where(eq(patients.id, id))
+		.limit(1);
+	return rows[0] ?? null;
 }
 
 export async function createPatient(db: DbClient, ownerId: string, fields: PatientFields) {
@@ -155,12 +167,22 @@ export const patientsTablesPlugin = definePlugin({
 	tables: { patients },
 });
 
+/** Cross-plugin query surface — registered on the app query bus so other
+ * plugins can `Query.dispatcher(PatientsQueries)` against it. */
+export const PatientsQueriesLive = Query.handlersOf(PatientsQueries, {
+	"patients.ownerOf": ({ id }) =>
+		Effect.gen(function* () {
+			const db = yield* Db;
+			return yield* Effect.promise(() => getPatientOwnerId(db, id));
+		}),
+});
+
 export const patientsServicesPlugin = definePlugin({
 	id: "patients.services",
 	// adminList consumes the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
-	services: PatientsLive,
+	services: Layer.mergeAll(PatientsLive, PatientsQueriesLive),
 });
 
 // Route subtree composed into the host's virtualRouteConfig. File paths

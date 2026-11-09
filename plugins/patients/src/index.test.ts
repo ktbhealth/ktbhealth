@@ -312,7 +312,7 @@ describe("plugins", () => {
 		expect(patientsTablesPlugin.tables?.patients).toBeDefined();
 		expect(patientsServicesPlugin.id).toBe("patients.services");
 		expect(patientsServicesPlugin.requiredDeps).toEqual(["platform.admin"]);
-		expect(patientsServicesPlugin.services).toBe(PatientsLive);
+		expect(patientsServicesPlugin.services).toBeDefined();
 		expect(patientsPanelPlugin.id).toBe("patients.panel");
 		expect(patientsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
 		expect(patientsPanelPlugin.panel?.sidebar).toEqual([

@@ -12,7 +12,7 @@
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/platform": "workspace:*",
-		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
 		"drizzle-orm": "^0.45.1",
 		"effect": "4.1.2",
 		"lucide-react": "0.544.0"

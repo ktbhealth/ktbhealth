@@ -16,6 +16,8 @@ import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
 import { patientsServicesPlugin } from "@ktb/patients";
+import { PatientsQueries } from "@ktb/patients/api";
+import { Query } from "@effect-server-utils/cqrs";
 import { consultations } from "./schema.ts";
 
 export type ConsultationRow = typeof consultations.$inferSelect;
@@ -248,14 +250,6 @@ async function patientConsultationRows(db: DbClient, patientId: number) {
 		.where(eq(consultations.patientId, patientId));
 }
 
-async function patientOwnerId(db: DbClient, patientId: number): Promise<string | null> {
-	const rows = await db
-		.select({ ownerId: patients.ownerId })
-		.from(patients)
-		.where(eq(patients.id, patientId))
-		.limit(1);
-	return rows[0]?.ownerId ?? null;
-}
 
 /** Patient + linked consultations in one D1 batch: all rows go, or none do. */
 async function deletePatientCascade(db: DbClient, patientId: number) {
@@ -525,6 +519,7 @@ export const ConsultationsLive = Layer.effect(
 	Effect.gen(function* () {
 		const db = yield* Db;
 		const platformAdmin = yield* PlatformAdmin;
+		const patientQueries = yield* Query.dispatcher(PatientsQueries);
 		return Consultations.of({
 			create: Effect.fn("Consultations.create")(function* (fields: {
 				userId: string;
@@ -680,7 +675,8 @@ export const ConsultationsLive = Layer.effect(
 				patientId: number,
 			) {
 				yield* requirePrincipalUser(userId, "patient.delete");
-				const ownerId = yield* Effect.promise(() => patientOwnerId(db, patientId));
+				const owner = yield* patientQueries["patients.ownerOf"]({ id: patientId });
+				const ownerId = owner?.ownerId ?? null;
 				if (ownerId === null) return null;
 				yield* requireCanAs("patient.delete", { ownerId });
 				const rows = yield* Effect.promise(() => patientConsultationRows(db, patientId));

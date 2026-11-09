@@ -33,6 +33,15 @@ export interface PanelSidebarItem {
 	readonly group?: string;
 }
 
+/** One entry in a plugin's console top-bar right side. `component` is a
+ * self-contained React component (icon button, popover, badge…) rendered
+ * by the shell; data reaches it via plugin-owned contexts/props the host
+ * injects — plugins cannot import apps or server fns. */
+export interface PanelHeaderAction {
+	readonly id: string;
+	readonly component: ComponentType;
+}
+
 /**
  * Feature plugin contract. The host (apps/web) registers plugins in a
  * static list; each plugin object contributes EXACTLY ONE kind of
@@ -133,6 +142,10 @@ export interface LandingFooterPlugin extends PluginBase, ForbiddenContributions<
 export interface PanelPlugin extends PluginBase, ForbiddenContributions<"panel"> {
 	readonly panel: {
 		readonly sidebar?: ReadonlyArray<PanelSidebarItem>;
+		/** Top-bar actions rendered on the right side of the console
+		 * header, in plugin topo order. Only taken into account when the
+		 * `platform.header` extension point is present. */
+		readonly headerActions?: ReadonlyArray<PanelHeaderAction>;
 	};
 }
 

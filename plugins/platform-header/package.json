@@ -1,0 +1,15 @@
+{
+	"name": "@ktb/platform-header",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/kernel": "workspace:*",
+		"@ktb/platform": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.0"
+	}
+}

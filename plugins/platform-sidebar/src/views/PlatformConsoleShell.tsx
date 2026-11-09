@@ -30,6 +30,12 @@ export interface PlatformConsoleShellProps {
 	readonly items: readonly PanelSidebarItem[];
 	readonly pathname: string;
 	readonly userEmail?: string;
+	/**
+	 * Optional right-side header widgets contributed by plugins via
+	 * `panel.headerActions` — rendered only when the host enables the
+	 * `platform.header` extension point.
+	 */
+	readonly headerActions?: ReactNode;
 	/** Injected by the host — plugins cannot import the auth client. */
 	readonly onSignOut: () => void | Promise<void>;
 	readonly children?: ReactNode;
@@ -49,6 +55,7 @@ export function PlatformConsoleShell({
 	items,
 	pathname,
 	userEmail,
+	headerActions,
 	onSignOut,
 	children,
 }: PlatformConsoleShellProps) {
@@ -138,7 +145,8 @@ export function PlatformConsoleShell({
 							</BreadcrumbItem>
 						</BreadcrumbList>
 					</Breadcrumb>
-					<div className="ml-auto">
+					<div className="ml-auto flex items-center gap-2">
+						{headerActions}
 						<Link
 							to="/"
 							className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
