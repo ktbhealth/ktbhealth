@@ -38,6 +38,12 @@ const app = createApp(appEnv as unknown as typeof env);
 
 export const { BindingLive, CaptchaLive, run, runAs, correctTranscript, db, auth } = app;
 
+/** Interop adapters behind the @ktb/interop port, one per supported standard. */
+const recordExporters: Record<ExportFormat, RecordExporter> = {
+	"fhir-r4": fhirR4Exporter,
+	openehr: openEhrExporter,
+};
+
 // P-033: publish the runtime to @ktb/server-fns so plugin-owned server
 // functions (plugins/*/src/**) reach run/runAs, audio purge and locale
 // without importing this module. Env reads stay here — the registry
@@ -46,16 +52,12 @@ setServerRuntime({
 	run,
 	runAs,
 	audio: env.AUDIO_BUCKET,
+	audioQueue: env.AUDIO_QUEUE,
+	ai: aiBinding,
+	recordExporters,
 	getLocale,
 });
 
 // Raw platform binding passthrough — not composed, just exposed.
 export const ai = aiBinding;
 export const audioBucket = env.AUDIO_BUCKET;
-export const audioQueue = env.AUDIO_QUEUE;
-
-/** Interop adapters behind the @ktb/interop port, one per supported standard. */
-export const recordExporters: Record<ExportFormat, RecordExporter> = {
-	"fhir-r4": fhirR4Exporter,
-	openehr: openEhrExporter,
-};

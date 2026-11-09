@@ -2,8 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
-import { getSessionUser } from "#/lib/auth.ts";
-import { audioBucket, audioQueue, runAs } from "#/lib/platform.ts";
+import { getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * POST /api/consultations/:id/audio — store the session recording in R2
@@ -15,6 +14,12 @@ import { audioBucket, audioQueue, runAs } from "#/lib/platform.ts";
  *
  * GET /api/consultations/:id/audio — stream the stored audio back
  * (owner-only, private/no-store; never a public bucket URL).
+ *
+ * The route module lives in this package and is mounted into the host's
+ * virtual route tree by `consultationsRoutesPlugin`
+ * (physical("/api", "src/api-routes")); the session/runtime boundary is
+ * @ktb/server-fns — the R2 bucket and queue arrive through the runtime
+ * registry, so no host imports or env reads are needed (P-033).
  */
 
 /** Bound worker memory: the body is buffered fully before the R2 put. */
@@ -49,6 +54,7 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 				const id = Number.parseInt(params.id, 10);
 				if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 				if (!Number.isFinite(id)) return Response.json({ error: "not found" }, { status: 404 });
+				const { audio: audioBucket, audioQueue } = getServerRuntime();
 				if (!audioBucket || !audioQueue) {
 					return Response.json({ error: "audio storage not configured" }, { status: 503 });
 				}
@@ -134,6 +140,7 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 				const id = Number.parseInt(params.id, 10);
 				if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 				if (!Number.isFinite(id)) return Response.json({ error: "not found" }, { status: 404 });
+				const { audio: audioBucket } = getServerRuntime();
 				if (!audioBucket) {
 					return Response.json({ error: "audio storage not configured" }, { status: 503 });
 				}

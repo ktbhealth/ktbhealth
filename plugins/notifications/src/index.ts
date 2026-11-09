@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { physical } from "@tanstack/virtual-file-routes";
 
 import { Db } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
@@ -85,12 +86,28 @@ export const notificationsServicesPlugin = definePlugin({
 	),
 });
 
+// Route subtree composed into the host's virtualRouteConfig (P-033):
+// the SSE route module lives in THIS package (src/api-routes/**) and is
+// discovered by a physical() directory scan mounted under the shared
+// "/api" prefix, alongside the host's own api directory. The directory
+// path is resolved relative to the host's routes directory
+// (apps/web/src/routes) — "../../../../" escapes to the repo root —
+// and the module reaches the app runtime through @ktb/server-fns, so
+// the plugin owns the route end to end with zero host route files.
+// Route modules must live directly in src/api-routes/ — the generator
+// scans every .ts file there, so tests stay outside this directory.
+export const notificationsRoutesPlugin = definePlugin({
+	id: "notifications.routes",
+	routes: [physical("/api", "../../../../plugins/notifications/src/api-routes")],
+});
+
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
 export const plugins: readonly Plugin[] = [
 	notificationsHeaderPlugin,
 	notificationsTablesPlugin,
 	notificationsServicesPlugin,
+	notificationsRoutesPlugin,
 ];
 
 export {
@@ -130,5 +147,6 @@ declare module "@ktb/kernel" {
 		"notifications.header": true;
 		"notifications.tables": true;
 		"notifications.services": true;
+		"notifications.routes": true;
 	}
 }

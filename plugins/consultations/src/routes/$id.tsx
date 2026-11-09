@@ -1,13 +1,9 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ConsultationDetailPage, type ConsultationDetailApi } from "@ktb/consultations/views";
-import { getConsultationFn, patientHistoryFn } from "#/lib/fns.ts";
-import { requireSession } from "#/lib/guard.ts";
-
-/** Live refetch for the audio-pipeline status poll (P-018). */
-const consultationDetailApi: ConsultationDetailApi = {
-	getConsultation: (input: { data: number }) => getConsultationFn(input),
-};
+import { ConsultationDetailPage } from "../views/index.ts";
+import { getConsultationFn, patientHistoryFn } from "../fns.ts";
+import { requireSession } from "../guard.ts";
+import { consultationDetailApi } from "../apis.ts";
 
 export const Route = createFileRoute("/consultations/$id")({
 	staleTime: 30_000,

@@ -112,16 +112,16 @@ describe("router integration", () => {
 		expect(plugins.length).toBeGreaterThan(0);
 		expect(routes).toBeDefined();
 		// Plugin-declared subtrees are spliced into the host tree: the
-		// consultations plugin owns /consultations (+/$id and /new).
+		// consultations plugin owns /consultations via a physical() mount
+		// of its own src/routes directory (P-033).
 		const consultations = routes.children?.find(
-			(n) => n.type === "route" && n.path === "consultations",
+			(n) =>
+				n.type === "physical" && (n as { pathPrefix?: string }).pathPrefix === "/consultations",
 		);
 		expect(consultations).toMatchObject({
-			children: [
-				{ type: "index", file: "consultations/index.tsx" },
-				{ type: "route", path: "$id", file: "consultations/$id.tsx" },
-				{ type: "route", path: "new", file: "consultations/new.tsx" },
-			],
+			type: "physical",
+			pathPrefix: "/consultations",
+			directory: "../../../../plugins/consultations/src/routes",
 		});
 	});
 

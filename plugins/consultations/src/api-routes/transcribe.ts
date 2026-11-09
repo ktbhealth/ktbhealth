@@ -1,10 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ai } from "#/lib/platform.ts";
-import { getSessionUser } from "#/lib/auth.ts";
+
+import { getSessionUser, getServerRuntime } from "@ktb/server-fns";
 
 /**
  * POST /api/transcribe — server-side transcription of an uploaded
  * recording via Workers AI Whisper (@cf/openai/whisper).
+ *
+ * The route module lives in this package and is mounted into the host's
+ * virtual route tree by `consultationsRoutesPlugin`
+ * (physical("/api", "src/api-routes")); the AI binding arrives through
+ * the @ktb/server-fns runtime registry (host-resolved, incl. dev
+ * stand-ins), so no host imports are needed (P-033).
  */
 export const Route = createFileRoute("/api/transcribe")({
 	server: {
@@ -17,6 +23,7 @@ export const Route = createFileRoute("/api/transcribe")({
 				if (!(file instanceof File)) {
 					return Response.json({ error: "missing audio file" }, { status: 400 });
 				}
+				const ai = getServerRuntime().ai;
 				if (!ai) {
 					return Response.json({ error: "transcription not configured" }, { status: 503 });
 				}

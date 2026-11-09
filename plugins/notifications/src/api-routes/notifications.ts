@@ -2,10 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
-import { Notifications } from "@ktb/notifications";
+import { getSessionUser, runAs } from "@ktb/server-fns";
 
-import { getSessionUser } from "#/lib/auth.ts";
-import { runAs } from "#/lib/platform.ts";
+import { Notifications } from "../Notifications.ts";
 
 /**
  * GET /api/notifications — SSE feed of the session user's console
@@ -16,6 +15,11 @@ import { runAs } from "#/lib/platform.ts";
  * (Principal + services), so the stream's authz/db effects keep working
  * outside the ManagedRuntime; cancelling the response body interrupts
  * the underlying fiber.
+ *
+ * The route module lives in this package and is mounted into the host's
+ * virtual route tree by `notificationsRoutesPlugin` (physical("/api",
+ * "src/api-routes")); the session/runtime boundary is @ktb/server-fns,
+ * so no host imports are needed (P-033).
  */
 export const Route = createFileRoute("/api/notifications")({
 	server: {

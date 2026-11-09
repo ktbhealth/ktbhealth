@@ -5,7 +5,7 @@ import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 import { Option } from "effect";
 import { and, count, desc, eq, ne } from "drizzle-orm";
-import { index, route } from "@tanstack/virtual-file-routes";
+import { physical } from "@tanstack/virtual-file-routes";
 
 import { user as users } from "@ktb/auth/schema";
 import { Db, type DbClient } from "@ktb/db";
@@ -919,18 +919,22 @@ export const consultationsServicesPlugin = definePlugin({
 	),
 });
 
-// Route subtree composed into the host's virtualRouteConfig. File paths
-// resolve relative to the host's routes directory (apps/web/src/routes);
-// the route modules there wire these paths to this plugin's views and to
-// host server functions, which plugins cannot import.
+// Route subtree composed into the host's virtualRouteConfig (P-033):
+// the route modules live in THIS package (src/routes/**) and are
+// discovered by a physical() directory scan. The directory path is
+// resolved relative to the host's routes directory
+// (apps/web/src/routes) — "../../../../" escapes to the repo root —
+// and the modules reach the app runtime through @ktb/server-fns, so
+// the plugin owns routes end to end with zero host route files.
 export const consultationsRoutesPlugin = definePlugin({
 	id: "consultations.routes",
 	routes: [
-		route("consultations", [
-			index("consultations/index.tsx"),
-			route("$id", "consultations/$id.tsx"),
-			route("new", "consultations/new.tsx"),
-		]),
+		physical("/consultations", "../../../../plugins/consultations/src/routes"),
+		// API subtree: /api/consultations/:id/{audio,pdf}, /api/transcribe and
+		// /api/patients/:id/export — owner-only record/audio/export endpoints.
+		// Route modules must live directly in src/api-routes/ — the generator
+		// scans every file in the mounted directory.
+		physical("/api", "../../../../plugins/consultations/src/api-routes"),
 	],
 });
 

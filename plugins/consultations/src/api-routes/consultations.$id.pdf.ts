@@ -4,11 +4,17 @@ import { Effect } from "effect";
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { recordSummary } from "@ktb/patients/record";
-import { getSessionUser } from "#/lib/auth.ts";
-import { runAs } from "#/lib/platform.ts";
+import { getSessionUser, runAs } from "@ktb/server-fns";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
-/** GET /api/consultations/:id/pdf — owner-only download of the anamnesis PDF. */
+/**
+ * GET /api/consultations/:id/pdf — owner-only download of the anamnesis PDF.
+ *
+ * The route module lives in this package and is mounted into the host's
+ * virtual route tree by `consultationsRoutesPlugin`
+ * (physical("/api", "src/api-routes")); the session/runtime boundary is
+ * @ktb/server-fns, so no host imports are needed (P-033).
+ */
 export const Route = createFileRoute("/api/consultations/$id/pdf")({
 	server: {
 		handlers: {

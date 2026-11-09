@@ -374,6 +374,7 @@ describe("plugins", () => {
 			"notifications.header",
 			"notifications.tables",
 			"notifications.services",
+			"notifications.routes",
 		]);
 	});
 });

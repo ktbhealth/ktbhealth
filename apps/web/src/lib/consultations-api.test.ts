@@ -28,7 +28,14 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
-import { newConsultationApi, validateNewConsultationSearch } from "./new.tsx";
+// platform.ts publishes the server runtime (@ktb/server-fns) that the
+// consultations plugin's fns reach through the registry.
+import "./platform.ts";
+import {
+	consultationDetailApi,
+	newConsultationApi,
+	validateNewConsultationSearch,
+} from "@ktb/consultations/apis";
 
 describe("newConsultationApi wiring", () => {
 	const sec = { content: "x", confidence: "media" as const, evidence: [] as string[] };
@@ -65,6 +72,7 @@ describe("newConsultationApi wiring", () => {
 		await expect(
 			newConsultationApi.createPatient({ data: { name: "Ana", birthDate: "1984" } }),
 		).rejects.toThrow("unauthenticated");
+		await expect(consultationDetailApi.getConsultation({ data: 1 })).resolves.toBeNull();
 	});
 
 	it("accepts only a positive integer patientId search param", () => {

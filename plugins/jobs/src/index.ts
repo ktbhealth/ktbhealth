@@ -1,4 +1,5 @@
 import { ListTodoIcon } from "lucide-react";
+import { physical } from "@tanstack/virtual-file-routes";
 
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { platformHeaderPlugin } from "@ktb/platform-header";
@@ -22,9 +23,25 @@ export const jobsHeaderPlugin = definePlugin({
 	},
 });
 
+// Route subtree composed into the host's virtualRouteConfig (P-033):
+// the SSE route module lives in THIS package (src/api-routes/**) and is
+// discovered by a physical() directory scan mounted under the shared
+// "/api" prefix, alongside the host's own api directory. The directory
+// path is resolved relative to the host's routes directory
+// (apps/web/src/routes) — "../../../../" escapes to the repo root —
+// and the module reaches the app runtime through @ktb/server-fns (the
+// Consultations service comes from @ktb/consultations), so the plugin
+// owns the route end to end with zero host route files. Route modules
+// must live directly in src/api-routes/ — the generator scans every
+// .ts file there, so tests stay outside this directory.
+export const jobsRoutesPlugin = definePlugin({
+	id: "jobs.routes",
+	routes: [physical("/api", "../../../../plugins/jobs/src/api-routes")],
+});
+
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [jobsHeaderPlugin];
+export const plugins: readonly Plugin[] = [jobsHeaderPlugin, jobsRoutesPlugin];
 
 export { JobsDataContext, type ConsoleJob } from "./context.ts";
 export { jobFromAudioRow, jobsFromAudioRows, type AudioJobRow } from "./jobs.ts";
@@ -34,5 +51,6 @@ export { jobFromAudioRow, jobsFromAudioRows, type AudioJobRow } from "./jobs.ts"
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"jobs.header": true;
+		"jobs.routes": true;
 	}
 }

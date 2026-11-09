@@ -10,21 +10,21 @@ const mocks = vi.hoisted(() => ({
 	props: { current: undefined as Record<string, unknown> | undefined },
 }));
 
-vi.mock("#/lib/guard.ts", () => ({ requireSession: vi.fn() }));
-vi.mock("#/lib/fns.ts", () => ({
+vi.mock("../guard.ts", () => ({ requireSession: vi.fn() }));
+vi.mock("../fns.ts", () => ({
 	getConsultationFn: mocks.getConsultationFn,
 	patientHistoryFn: mocks.patientHistoryFn,
 	attachAnamnesisFn: vi.fn(),
-	createPatientFn: vi.fn(),
 	extractAnamnesisFn: vi.fn(),
 	getLiveConsultationFn: vi.fn(),
-	listPatientsFn: vi.fn(),
 	recordConsentFn: vi.fn(),
 	saveConsultationFn: vi.fn(),
+	sessionUserFn: vi.fn(),
+	localeFn: vi.fn(),
 }));
-vi.mock("#/lib/whisper-prefetch.ts", () => ({ prefetchWhisperModel: vi.fn() }));
+vi.mock("../whisper-prefetch.ts", () => ({ prefetchWhisperModel: vi.fn() }));
 vi.mock("@ktb/transcription-whisper", () => ({ whisperBackend: { id: "whisper" } }));
-vi.mock("@ktb/consultations/views", () => ({
+vi.mock("../views/index.ts", () => ({
 	ConsultationDetailPage: (props: Record<string, unknown>) => {
 		mocks.props.current = props;
 		return createElement("div");
@@ -44,7 +44,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 import { Route as DetailRoute } from "./$id.tsx";
-import { newConsultationApi } from "./new.tsx";
+import { newConsultationApi } from "../apis.ts";
 
 type Opts = {
 	staleTime: number;

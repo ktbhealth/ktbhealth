@@ -938,21 +938,13 @@ describe("plugins", () => {
 		]);
 	});
 
-	it("owns the consultations route subtree", () => {
-		const paths = (consultationsRoutesPlugin.routes ?? []).map((n) =>
-			n.type === "route" ? n.path : n.type,
+	it("declares the /consultations route subtree", () => {
+		expect(consultationsRoutesPlugin.id).toBe("consultations.routes");
+		// P-033: the subtree is a physical() mount of this package's own
+		// src/routes directory — resolved against the host routes dir.
+		expect(JSON.stringify(consultationsRoutesPlugin.routes)).toContain(
+			"plugins/consultations/src/routes",
 		);
-		expect(paths).toEqual(["consultations"]);
-		const [consultations] = consultationsRoutesPlugin.routes ?? [];
-		expect(consultations).toMatchObject({
-			type: "route",
-			path: "consultations",
-			children: [
-				{ type: "index", file: "consultations/index.tsx" },
-				{ type: "route", path: "$id", file: "consultations/$id.tsx" },
-				{ type: "route", path: "new", file: "consultations/new.tsx" },
-			],
-		});
 	});
 
 	it("exports the discovery plugins array", () => {

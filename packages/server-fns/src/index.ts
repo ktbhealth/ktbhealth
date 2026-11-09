@@ -1,4 +1,10 @@
 export {
+	type AiRunner,
+	type AudioDeleter,
+	type AudioJobMessage,
+	type AudioObject,
+	type AudioQueueSender,
+	type AudioStore,
 	getLocale,
 	getServerRuntime,
 	purgeAudio,
@@ -6,7 +12,6 @@ export {
 	run,
 	runAs,
 	setServerRuntime,
-	type AudioDeleter,
 	type ServerRuntime,
 } from "./runtime.ts";
 export { ensureSessionUser, getSessionUser, type SessionUser } from "./session.ts";

@@ -14,12 +14,12 @@ import { Route as captureTestRouteImport } from './routes/capture-test'
 import { Route as loginRouteImport } from './routes/login'
 import { Route as platformRouteImport } from './routes/platform'
 import { Route as ApiBotsRouteImport } from './routes/api/bots'
-import { Route as ApiJobsRouteImport } from './routes/api/jobs'
-import { Route as ApiNotificationsRouteImport } from './routes/api/notifications'
-import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
-import { Route as consultationsIndexRouteImport } from './routes/consultations/index'
-import { Route as consultationsIdRouteImport } from './routes/consultations/$id'
-import { Route as consultationsNewRouteImport } from './routes/consultations/new'
+import { Route as ApiJobsRouteImport } from './../../../plugins/jobs/src/api-routes/jobs'
+import { Route as ApiNotificationsRouteImport } from './../../../plugins/notifications/src/api-routes/notifications'
+import { Route as ApiTranscribeRouteImport } from './../../../plugins/consultations/src/api-routes/transcribe'
+import { Route as ConsultationsIndexRouteImport } from './../../../plugins/consultations/src/routes/index'
+import { Route as ConsultationsIdRouteImport } from './../../../plugins/consultations/src/routes/$id'
+import { Route as ConsultationsNewRouteImport } from './../../../plugins/consultations/src/routes/new'
 import { Route as PatientsIndexRouteImport } from './../../../plugins/patients/src/routes/index'
 import { Route as PatientsNewRouteImport } from './../../../plugins/patients/src/routes/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
@@ -29,9 +29,9 @@ import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
 import { Route as PatientsIdIndexRouteImport } from './../../../plugins/patients/src/routes/$id/index'
 import { Route as PatientsIdEditRouteImport } from './../../../plugins/patients/src/routes/$id/edit'
-import { Route as ApiConsultationsDotidDotaudioRouteImport } from './routes/api/consultations.$id.audio'
-import { Route as ApiConsultationsDotidDotpdfRouteImport } from './routes/api/consultations.$id.pdf'
-import { Route as ApiPatientsDotidDotexportRouteImport } from './routes/api/patients.$id.export'
+import { Route as ApiConsultationsDotidDotaudioRouteImport } from './../../../plugins/consultations/src/api-routes/consultations.$id.audio'
+import { Route as ApiConsultationsDotidDotpdfRouteImport } from './../../../plugins/consultations/src/api-routes/consultations.$id.pdf'
+import { Route as ApiPatientsDotidDotexportRouteImport } from './../../../plugins/consultations/src/api-routes/patients.$id.export'
 
 const indexRoute = indexRouteImport.update({
   id: '/',
@@ -73,17 +73,17 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
-const consultationsIndexRoute = consultationsIndexRouteImport.update({
+const ConsultationsIndexRoute = ConsultationsIndexRouteImport.update({
   id: '/consultations/',
   path: '/consultations/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const consultationsIdRoute = consultationsIdRouteImport.update({
+const ConsultationsIdRoute = ConsultationsIdRouteImport.update({
   id: '/consultations/$id',
   path: '/consultations/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const consultationsNewRoute = consultationsNewRouteImport.update({
+const ConsultationsNewRoute = ConsultationsNewRouteImport.update({
   id: '/consultations/new',
   path: '/consultations/new',
   getParentRoute: () => rootRouteImport,
@@ -161,11 +161,11 @@ export interface FileRoutesByFullPath {
   '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
-  '/consultations/$id': typeof consultationsIdRoute
-  '/consultations/new': typeof consultationsNewRoute
+  '/consultations/$id': typeof ConsultationsIdRoute
+  '/consultations/new': typeof ConsultationsNewRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
-  '/consultations/': typeof consultationsIndexRoute
+  '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
@@ -185,11 +185,11 @@ export interface FileRoutesByTo {
   '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
-  '/consultations/$id': typeof consultationsIdRoute
-  '/consultations/new': typeof consultationsNewRoute
+  '/consultations/$id': typeof ConsultationsIdRoute
+  '/consultations/new': typeof ConsultationsNewRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
-  '/consultations': typeof consultationsIndexRoute
+  '/consultations': typeof ConsultationsIndexRoute
   '/patients': typeof PatientsIndexRoute
   '/platform': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
@@ -211,11 +211,11 @@ export interface FileRoutesById {
   '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
-  '/consultations/$id': typeof consultationsIdRoute
-  '/consultations/new': typeof consultationsNewRoute
+  '/consultations/$id': typeof ConsultationsIdRoute
+  '/consultations/new': typeof ConsultationsNewRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
-  '/consultations/': typeof consultationsIndexRoute
+  '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
@@ -313,10 +313,10 @@ export interface RootRouteChildren {
   ApiJobsRoute: typeof ApiJobsRoute
   ApiNotificationsRoute: typeof ApiNotificationsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
-  consultationsIdRoute: typeof consultationsIdRoute
-  consultationsNewRoute: typeof consultationsNewRoute
+  ConsultationsIdRoute: typeof ConsultationsIdRoute
+  ConsultationsNewRoute: typeof ConsultationsNewRoute
   PatientsNewRoute: typeof PatientsNewRoute
-  consultationsIndexRoute: typeof consultationsIndexRoute
+  ConsultationsIndexRoute: typeof ConsultationsIndexRoute
   PatientsIndexRoute: typeof PatientsIndexRoute
   ApiAuthDotsplatRoute: typeof ApiAuthDotsplatRoute
   ApiCdnSplatRoute: typeof ApiCdnSplatRoute
@@ -389,21 +389,21 @@ declare module '@tanstack/react-router' {
       id: '/consultations/'
       path: '/consultations'
       fullPath: '/consultations/'
-      preLoaderRoute: typeof consultationsIndexRouteImport
+      preLoaderRoute: typeof ConsultationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consultations/$id': {
       id: '/consultations/$id'
       path: '/consultations/$id'
       fullPath: '/consultations/$id'
-      preLoaderRoute: typeof consultationsIdRouteImport
+      preLoaderRoute: typeof ConsultationsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/consultations/new': {
       id: '/consultations/new'
       path: '/consultations/new'
       fullPath: '/consultations/new'
-      preLoaderRoute: typeof consultationsNewRouteImport
+      preLoaderRoute: typeof ConsultationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/patients/': {
@@ -527,10 +527,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiJobsRoute: ApiJobsRoute,
   ApiNotificationsRoute: ApiNotificationsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
-  consultationsIdRoute: consultationsIdRoute,
-  consultationsNewRoute: consultationsNewRoute,
+  ConsultationsIdRoute: ConsultationsIdRoute,
+  ConsultationsNewRoute: ConsultationsNewRoute,
   PatientsNewRoute: PatientsNewRoute,
-  consultationsIndexRoute: consultationsIndexRoute,
+  ConsultationsIndexRoute: ConsultationsIndexRoute,
   PatientsIndexRoute: PatientsIndexRoute,
   ApiAuthDotsplatRoute: ApiAuthDotsplatRoute,
   ApiCdnSplatRoute: ApiCdnSplatRoute,
@@ -543,13 +543,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

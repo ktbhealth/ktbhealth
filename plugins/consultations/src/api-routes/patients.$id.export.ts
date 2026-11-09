@@ -4,13 +4,20 @@ import { Effect } from "effect";
 import { Consultations } from "@ktb/consultations";
 import { isExportFormat } from "@ktb/interop";
 import { Patients } from "@ktb/patients";
-import { getSessionUser } from "#/lib/auth.ts";
-import { recordExporters, runAs } from "#/lib/platform.ts";
+import { getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/patients/:id/export?format=fhir-r4|openehr — owner-only
  * download of the patient's record and consultations in an
  * interoperability standard (@ktb/interop adapters).
+ *
+ * The route module lives in this package and is mounted into the host's
+ * virtual route tree by `consultationsRoutesPlugin`
+ * (physical("/api", "src/api-routes")); it lives here rather than in the
+ * patients plugin because it reads the Consultations service (patients
+ * cannot depend on consultations — that would be a package cycle). The
+ * standard-specific exporters stay host-side behind the @ktb/server-fns
+ * runtime registry (P-033).
  */
 export const Route = createFileRoute("/api/patients/$id/export")({
 	server: {
@@ -24,6 +31,11 @@ export const Route = createFileRoute("/api/patients/$id/export")({
 				const id = Number.parseInt(params.id, 10);
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
+
+				const exporter = getServerRuntime().recordExporters?.[format];
+				if (!exporter) {
+					return Response.json({ error: "export not configured" }, { status: 503 });
+				}
 
 				// Non-owner → service fails Forbidden → same 404 as missing.
 				const record = await runAs(
@@ -44,7 +56,6 @@ export const Route = createFileRoute("/api/patients/$id/export")({
 				);
 				if (!record) return Response.json({ error: "not found" }, { status: 404 });
 
-				const exporter = recordExporters[format];
 				const body = exporter.render({
 					patient: record.patient,
 					// Oldest first: the record reads as a timeline.

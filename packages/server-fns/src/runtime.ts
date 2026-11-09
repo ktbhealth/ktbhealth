@@ -1,8 +1,48 @@
 import type * as Effect from "effect/Effect";
+import type { ExportFormat, RecordExporter } from "@ktb/interop";
 
 /** The slice of R2 needed to drop objects — the real R2Bucket satisfies this. */
 export interface AudioDeleter {
 	delete(keys: string[]): Promise<void>;
+}
+
+/** Stored object slice the audio routes stream back (R2ObjectBody-compatible). */
+export interface AudioObject {
+	readonly body: ReadableStream;
+	readonly size: number;
+	readonly httpMetadata?: { readonly contentType?: string } | null;
+}
+
+/**
+ * The slice of R2Bucket the consultation audio routes need: store on
+ * upload, stream on download, delete on purge. The real R2Bucket
+ * satisfies this; `audio` carries it so plugin routes never touch the
+ * binding directly.
+ */
+export interface AudioStore extends AudioDeleter {
+	get(key: string): Promise<AudioObject | null>;
+	put(
+		key: string,
+		value: ArrayBuffer | Uint8Array | ReadableStream,
+		options?: { readonly httpMetadata?: { readonly contentType?: string } },
+	): Promise<unknown>;
+}
+
+/** Message enqueued for async transcription (P-016). */
+export interface AudioJobMessage {
+	readonly consultationId: number;
+	readonly audioKey: string;
+	readonly userId: string;
+}
+
+/** The slice of the workerd Queue producer the upload route needs. */
+export interface AudioQueueSender {
+	send(message: AudioJobMessage): Promise<unknown>;
+}
+
+/** The slice of the Workers AI binding the transcribe route needs. */
+export interface AiRunner {
+	run(model: string, inputs: unknown): Promise<unknown>;
 }
 
 /**
@@ -19,8 +59,17 @@ export interface ServerRuntime {
 		user: { readonly id: string; readonly email?: string },
 		effect: Effect.Effect<A, E, unknown>,
 	) => Promise<A>;
-	/** Audio object storage for best-effort purge; undefined when unbound. */
-	readonly audio?: AudioDeleter;
+	/** Audio object storage for upload/download routes and best-effort
+	 * purge; undefined when unbound. */
+	readonly audio?: AudioStore;
+	/** Queue producer for async transcription jobs; undefined when unbound. */
+	readonly audioQueue?: AudioQueueSender;
+	/** Workers AI binding (or host-resolved stand-in) for transcription;
+	 * undefined when unbound. */
+	readonly ai?: AiRunner;
+	/** Interop record exporters behind the @ktb/interop port — the host
+	 * wires the standard-specific adapters, plugins only see the port. */
+	readonly recordExporters?: Record<ExportFormat, RecordExporter>;
 	/** Active UI locale — the host's i18n runtime (paraglide) resolved per request. */
 	readonly getLocale: () => string;
 }

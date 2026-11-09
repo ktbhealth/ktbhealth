@@ -4,9 +4,7 @@ import * as Stream from "effect/Stream";
 
 import { Consultations } from "@ktb/consultations";
 import { PlatformAdmin } from "@ktb/platform";
-
-import { getSessionUser } from "#/lib/auth.ts";
-import { runAs } from "#/lib/platform.ts";
+import { getSessionUser, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/jobs — SSE feed of the consultation audio-pipeline rows behind
@@ -22,6 +20,11 @@ import { runAs } from "#/lib/platform.ts";
  * Admin-gated like `adminListAudioJobsFn`: the allowlist check runs
  * before streaming and `audioJobsStream` re-checks via
  * `PlatformAdmin.requireAdmin` (defense in depth).
+ *
+ * The route module lives in this package and is mounted into the host's
+ * virtual route tree by `jobsRoutesPlugin` (physical("/api",
+ * "src/api-routes")); the session/runtime boundary is @ktb/server-fns,
+ * so no host imports are needed (P-033).
  */
 export const Route = createFileRoute("/api/jobs")({
 	server: {

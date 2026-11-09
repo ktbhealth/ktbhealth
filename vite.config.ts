@@ -162,20 +162,28 @@ export default defineConfig({
 				// - platform.ts / plugins.ts are the composition root wiring
 				//   @ktb/app-host (and the @ktb/interop-* exporters) into the
 				//   deploy target.
-				// - new.tsx injects the whisper backend client-side;
-				//   whisper-prefetch.ts warms the model on consultations pages.
+				// - consultations plugin route modules inject the whisper
+				//   backend client-side (routes/new.tsx) and warm the model
+				//   on consultations pages (whisper-prefetch.ts) — the same
+				//   documented injection points the host route files had
+				//   before the P-033 route migration.
 				// - login.tsx / __root.tsx / platform.tsx use the better-auth
 				//   client SDK, which is inherently impl-bound.
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
-					"apps/web/src/lib/whisper-prefetch.ts",
 					"apps/web/src/plugins.ts",
-					"apps/web/src/routes/consultations/new.tsx",
 					"apps/web/src/routes/login.tsx",
 					"apps/web/src/routes/__root.tsx",
 					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
+					"plugins/consultations/src/routes/new.tsx",
+					"plugins/consultations/src/whisper-prefetch.ts",
+					"plugins/consultations/src/whisper-prefetch.test.ts",
+					// api-routes.test.ts wires the real @ktb/interop-* exporters
+					// into the server-fns runtime — same role platform.ts plays
+					// in the host (tests may mock/wire impls freely).
+					"plugins/consultations/src/api-routes.test.ts",
 				],
 				rules: {
 					"no-restricted-imports": "off",
