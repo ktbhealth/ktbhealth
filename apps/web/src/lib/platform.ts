@@ -15,8 +15,11 @@ const LLM_ENV_KEYS = [
 	"WORKERS_AI_MODEL",
 ] as const;
 
+// Non-LLM config passthrough — same bindings-win-then-process.env rule.
+const APP_ENV_KEYS = ["PLATFORM_ADMIN_EMAILS"] as const;
+
 const appEnv = { ...env } as Record<string, unknown>;
-for (const key of LLM_ENV_KEYS) {
+for (const key of [...LLM_ENV_KEYS, ...APP_ENV_KEYS]) {
 	appEnv[key] ??= process.env[key];
 }
 

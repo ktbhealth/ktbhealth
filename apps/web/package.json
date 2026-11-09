@@ -40,6 +40,7 @@
 		"@ktb/infra-cloudflare": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
+		"@ktb/platform": "workspace:*",
 		"@ktb/transcription": "workspace:*",
 		"@ktb/transcription-whisper": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",

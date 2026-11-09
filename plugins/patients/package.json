@@ -4,18 +4,29 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./schema": "./src/schema.ts"
+		"./schema": "./src/schema.ts",
+		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {
+		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/platform": "workspace:*",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
 		"drizzle-orm": "^0.45.1",
 		"effect": "4.1.2"
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^9.6.0",
-		"better-sqlite3": "^13.0.3"
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"better-sqlite3": "^13.0.3",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"peerDependencies": {
+		"react": "^19.2.0"
 	}
 }

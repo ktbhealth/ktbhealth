@@ -32,11 +32,15 @@ export { Authz, can };
  * background jobs): services that need a user MUST treat null as
  * unauthenticated and fail `Forbidden`; system-only methods (bot-token
  * paths verified out-of-band) deliberately do not consult it.
+ *
+ * `email` is the session email when the caller has one — env-allowlist
+ * gates (e.g. @ktb/platform `PlatformAdmin.requireAdmin`) check it
+ * against the bound principal rather than a caller-supplied argument.
  */
-export const Principal = Context.Reference<{ readonly userId: string } | null>(
-	"@ktb/authz/Principal",
-	{ defaultValue: () => null },
-);
+export const Principal = Context.Reference<{
+	readonly userId: string;
+	readonly email?: string;
+} | null>("@ktb/authz/Principal", { defaultValue: () => null });
 
 /** Ownership rules for a principal. */
 export const rulesFor = (userId: string): Rules<Def> => ({

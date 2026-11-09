@@ -9,17 +9,21 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import {
 	createPatient,
+	listAllPatients,
 	listPatients,
 	Patients,
 	PatientsLive,
+	patientsPanelPlugin,
 	patientsServicesPlugin,
 	patientsTablesPlugin,
 	plugins,
 } from "./index.ts";
+import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
+INSERT INTO "user" VALUES ('u2', 'Dr B', 'b@x.com', 0, NULL, 0, 0);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, created_at INTEGER);
 `;
 
@@ -53,6 +57,18 @@ describe("patients repo", () => {
 		} as unknown as typeof db;
 		expect(await createPatient(stub, "u1", "X")).toBeNull();
 	});
+
+	it("listAllPatients returns cross-owner rows with owner fields", async () => {
+		await createPatient(db, "u1", "Admin Ana");
+		await createPatient(db, "u2", "Admin Bia");
+		const rows = await listAllPatients(db);
+		const byName = new Map(rows.map((r) => [r.name, r]));
+		expect(byName.get("Admin Ana")?.ownerEmail).toBe("d@x.com");
+		expect(byName.get("Admin Ana")?.ownerName).toBe("Dra");
+		expect(byName.get("Admin Bia")?.ownerEmail).toBe("b@x.com");
+		// Newest first.
+		expect(rows[0]?.name).toBe("Admin Bia");
+	});
 });
 
 describe("PatientsLive", () => {
@@ -60,14 +76,22 @@ describe("PatientsLive", () => {
 
 	beforeAll(() => {
 		const db = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(Layer.succeed(Db, db))));
+		const deps = Layer.merge(
+			Layer.succeed(Db, db),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+		);
+		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
 	});
 
 	afterAll(() => runtime.dispose());
 
-	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Patients>) =>
+	const asUser = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Patients>,
+		email?: string,
+	) =>
 		runtime.runPromise(
-			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
 		);
 
 	const call = <A, E>(f: (p: Patients["Service"]) => Effect.Effect<A, E>) =>
@@ -132,22 +156,68 @@ describe("PatientsLive", () => {
 			_tag: "Forbidden",
 		});
 	});
+
+	it("adminList returns cross-owner rows for an allowlisted principal", async () => {
+		const rows = await asUser(
+			"u1",
+			call((p) => p.adminList()),
+			"admin@x.com",
+		);
+		expect(rows.length).toBeGreaterThan(0);
+		// All fixture patients here are u1-owned; the join resolves the
+		// owner's email — proof adminList is not owner-scoped.
+		expect(rows.every((r) => r.ownerEmail === "d@x.com")).toBe(true);
+	});
+
+	it("adminList fails Forbidden for non-admin email, missing email and null principal", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.adminList()),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.adminList()),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				null,
+				call((p) => p.adminList()),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
 });
 
 describe("plugins", () => {
-	it("declares tables and services as single-concern plugins", () => {
+	it("declares tables, services and panel as single-concern plugins", () => {
 		expect(patientsTablesPlugin.id).toBe("patients.tables");
 		expect(patientsTablesPlugin.tables?.patients).toBeDefined();
 		expect(patientsServicesPlugin.id).toBe("patients.services");
+		expect(patientsServicesPlugin.requiredDeps).toEqual(["platform.admin"]);
 		expect(patientsServicesPlugin.services).toBe(PatientsLive);
+		expect(patientsPanelPlugin.id).toBe("patients.panel");
+		expect(patientsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
+		expect(patientsPanelPlugin.panel?.sidebar).toEqual([
+			{ to: "/platform/patients", label: "Patients" },
+		]);
 	});
 
-	it("contributes no routes or nav", () => {
+	it("contributes no routes or top-nav", () => {
 		expect((patientsTablesPlugin as Plugin).routes).toBeUndefined();
 		expect((patientsServicesPlugin as Plugin).nav).toBeUndefined();
+		expect((patientsPanelPlugin as Plugin).routes).toBeUndefined();
+		expect((patientsPanelPlugin as Plugin).nav).toBeUndefined();
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["patients.tables", "patients.services"]);
+		expect(plugins.map((p) => p.id)).toEqual([
+			"patients.tables",
+			"patients.services",
+			"patients.panel",
+		]);
 	});
 });

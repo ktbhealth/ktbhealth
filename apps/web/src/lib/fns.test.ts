@@ -24,6 +24,7 @@ import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/a
 import { auth, db } from "./platform.ts";
 import { consultations } from "@ktb/db/schema";
 import {
+	adminListPatientsFn,
 	attachAnamnesisFn,
 	createPatientFn,
 	extractAnamnesisFn,
@@ -33,6 +34,7 @@ import {
 	listConsultationsFn,
 	listPatientsFn,
 	patientHistoryFn,
+	platformAdminFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
@@ -305,5 +307,26 @@ describe("server fns", () => {
 		// Owner still reads fine afterwards.
 		headers.current = new Headers({ cookie });
 		expect(await getConsultationFn({ data: saved.id! })).not.toBeNull();
+	});
+
+	it("platform admin gate: allowlist decides /platform access", async () => {
+		// Anonymous → not admin, empty list.
+		headers.current = new Headers();
+		expect(await platformAdminFn()).toBe(false);
+		expect(await adminListPatientsFn()).toEqual([]);
+
+		// Signed-in non-admin → still not admin, empty list.
+		headers.current = new Headers({ cookie });
+		expect(await platformAdminFn()).toBe(false);
+		expect(await adminListPatientsFn()).toEqual([]);
+
+		// Allowlisted admin (PLATFORM_ADMIN_EMAILS test double) → full
+		// cross-owner listing.
+		const adminCookie = await signIn("platform-admin@ktb.test");
+		headers.current = new Headers({ cookie: adminCookie });
+		expect(await platformAdminFn()).toBe(true);
+		const rows = await adminListPatientsFn();
+		expect(rows.length).toBeGreaterThan(0);
+		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
 	});
 });
