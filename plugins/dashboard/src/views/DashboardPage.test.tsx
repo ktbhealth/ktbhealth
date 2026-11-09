@@ -78,4 +78,53 @@ describe("DashboardPage", () => {
 		expect(screen.getByText("x.y")).toBeTruthy();
 		expect(screen.getByText("panel")).toBeTruthy();
 	});
+
+	it("hides the console-activity card when notifications are not provided", () => {
+		render(<DashboardPage patients={[]} consultations={[]} plugins={[]} />);
+		expect(screen.queryByText("Console activity")).toBeNull();
+	});
+
+	it("renders the console-activity card with unread count and recent notifications", () => {
+		render(
+			<DashboardPage
+				patients={[]}
+				consultations={[]}
+				plugins={[]}
+				unreadCount={2}
+				notifications={[
+					{
+						id: "3",
+						title: "Patient created",
+						description: "Ana",
+						read: false,
+						meta: "patient.created",
+					},
+					{ id: "2", title: "Consultation started", read: true, meta: "consultation.created" },
+					{ id: "1", title: "Patient deleted", read: true },
+				]}
+			/>,
+		);
+		expect(screen.getByText("Console activity")).toBeTruthy();
+		expect(screen.getByText("Unread notifications")).toBeTruthy();
+		expect(screen.getByText("Patient created")).toBeTruthy();
+		expect(screen.getByText("Ana")).toBeTruthy();
+		expect(screen.getByText("patient.created")).toBeTruthy();
+		expect(screen.getByText("Consultation started")).toBeTruthy();
+	});
+
+	it("caps the activity list at five and shows the empty state", () => {
+		const six = Array.from({ length: 6 }, (_, i) => ({
+			id: String(i + 1),
+			title: `N${i + 1}`,
+			read: true,
+		}));
+		const { unmount } = render(
+			<DashboardPage patients={[]} consultations={[]} plugins={[]} notifications={six} />,
+		);
+		expect(screen.getByText("N1")).toBeTruthy();
+		expect(screen.queryByText("N6")).toBeNull();
+		unmount();
+		render(<DashboardPage patients={[]} consultations={[]} plugins={[]} notifications={[]} />);
+		expect(screen.getByText("No notifications yet.")).toBeTruthy();
+	});
 });

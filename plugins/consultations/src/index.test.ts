@@ -7,7 +7,7 @@ import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { patients as patientsTable } from "@ktb/patients/schema";
 import { patientsServicesPlugin, PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
-import { makeEventBus } from "@effect-server-utils/cqrs";
+import { makeEventBus, Query } from "@effect-server-utils/cqrs";
 import {
 	makePlatformAdminGate,
 	parsePlatformAdminEmails,
@@ -17,9 +17,11 @@ import {
 } from "@ktb/platform";
 import { ClipboardListIcon } from "lucide-react";
 import { consultations as consultationsTable } from "./schema.ts";
+import { ConsultationsQueries } from "./api.ts";
 import {
 	Consultations,
 	ConsultationsLive,
+	ConsultationsQueriesLive,
 	appendTranscript,
 	attachAudioRecord,
 	audioJobRecord,
@@ -796,6 +798,71 @@ describe("Consultations.deletePatient", () => {
 		await expect(remove("u1", "u1", orphan)).rejects.toMatchObject({ _tag: "Forbidden" });
 		for (const id of [patientId, shared, orphan]) expect(await patientExists(id)).toBe(true);
 		expect(await consultationCount(shared)).toBe(2);
+	});
+});
+
+describe("consultations.audioJobs query", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
+	let testDb: ReturnType<typeof makeDb>;
+
+	const dispatch = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Query.Registered<typeof ConsultationsQueries>>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
+		);
+
+	const audioJobs = (userId: string | null, email?: string) =>
+		dispatch(
+			userId,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const queries = yield* Query.dispatcher(ConsultationsQueries);
+					return yield* queries["consultations.audioJobs"]({});
+				}),
+			),
+			email,
+		);
+
+	beforeAll(async () => {
+		testDb = makeDb(makeD1(DDL));
+		runtime = ManagedRuntime.make(
+			ConsultationsQueriesLive.pipe(Layer.provide(liveDeps(testDb))),
+		) as ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
+		const [p] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Jobs Paciente", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await testDb
+			.update(consultationsTable)
+			.set({
+				patientId: p!.id,
+				audioStatus: "processing",
+				audioError: null,
+			})
+			.where(eq(consultationsTable.id, id));
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("returns the minimal audio-job projection for an allowlisted admin", async () => {
+		const rows = await audioJobs("u1", "admin@x.com");
+		const row = rows.find((r) => r.audioStatus === "processing");
+		expect(row).toBeDefined();
+		expect(row).toMatchObject({ patientName: "Jobs Paciente", audioError: null });
+		expect(row?.createdAt).toBeInstanceOf(Date);
+	});
+
+	it("fails Forbidden for non-admin, missing email and null principal", async () => {
+		await expect(audioJobs("u1", "other@x.com")).rejects.toMatchObject({
+			_tag: "Forbidden",
+			path: "platform.admin",
+		});
+		await expect(audioJobs("u1")).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(audioJobs(null)).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
 });
 

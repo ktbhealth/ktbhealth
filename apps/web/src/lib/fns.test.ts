@@ -27,11 +27,13 @@ import { consultations } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
+	adminListAudioJobsFn,
 	adminListConsultationsFn,
 	adminListGroupsFn,
 	adminListPatientsFn,
 	adminListUsersFn,
 	attachAnamnesisFn,
+	countMyUnreadNotificationsFn,
 	createPatientFn,
 	deletePatientFn,
 	extractAnamnesisFn,
@@ -40,8 +42,11 @@ import {
 	getPatientFn,
 	getSessionUserFn,
 	listConsultationsFn,
+	listMyNotificationsFn,
 	listPatientConsultationsFn,
 	listPatientsFn,
+	markAllMyNotificationsReadFn,
+	markMyNotificationsReadFn,
 	patientDeletionImpactFn,
 	patientHistoryFn,
 	platformAdminFn,
@@ -474,6 +479,7 @@ describe("server fns", () => {
 		expect(await platformAdminFn()).toBe(false);
 		expect(await adminListPatientsFn()).toEqual([]);
 		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await adminListAudioJobsFn()).toEqual([]);
 		expect(await adminListUsersFn()).toEqual([]);
 		expect(await adminListGroupsFn()).toEqual([]);
 
@@ -482,6 +488,7 @@ describe("server fns", () => {
 		expect(await platformAdminFn()).toBe(false);
 		expect(await adminListPatientsFn()).toEqual([]);
 		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await adminListAudioJobsFn()).toEqual([]);
 		expect(await adminListUsersFn()).toEqual([]);
 		expect(await adminListGroupsFn()).toEqual([]);
 
@@ -504,5 +511,31 @@ describe("server fns", () => {
 		const groupRows = await adminListGroupsFn();
 		expect(Array.isArray(groupRows)).toBe(true);
 		expect(groupRows.every((r) => typeof r.memberCount === "number")).toBe(true);
+		// The audioJobs CQRS query answers the same admin gate.
+		const audioJobs = await adminListAudioJobsFn();
+		expect(Array.isArray(audioJobs)).toBe(true);
+	});
+
+	it("notifications fns list, count and mark read for the session user", async () => {
+		headers.current = new Headers();
+		expect(await listMyNotificationsFn()).toEqual([]);
+		expect(await countMyUnreadNotificationsFn()).toBe(0);
+
+		headers.current = new Headers({ cookie });
+		// PatientCreated → a persisted notification via the event bus.
+		await newPatient("Notificada");
+		const list = await listMyNotificationsFn();
+		expect(list.some((n) => n.title === "Patient created")).toBe(true);
+		const unread = await countMyUnreadNotificationsFn();
+		expect(unread).toBeGreaterThan(0);
+
+		const target = list.find((n) => n.title === "Patient created")!;
+		expect(await markMyNotificationsReadFn({ data: [Number(target.id)] })).toBe(true);
+		expect(await countMyUnreadNotificationsFn()).toBe(unread - 1);
+
+		expect(await markAllMyNotificationsReadFn()).toBe(true);
+		expect(await countMyUnreadNotificationsFn()).toBe(0);
+		// Ids that aren't yours are ignored, not errors.
+		expect(await markMyNotificationsReadFn({ data: [999999] })).toBe(true);
 	});
 });

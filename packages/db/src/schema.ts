@@ -3,4 +3,5 @@
 export * from "@ktb/patients/schema";
 export * from "@ktb/consultations/schema";
 export * from "@ktb/groups/schema";
+export * from "@ktb/notifications/schema";
 export * from "@ktb/auth/schema";

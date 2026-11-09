@@ -11,8 +11,19 @@ import { authClient } from "@ktb/auth-better/client";
 import { platformHeaderPlugin } from "@ktb/platform-header";
 import { PlatformConsoleShell } from "@ktb/platform-sidebar/views";
 import { JobsDataContext, jobsFromAudioRows } from "@ktb/jobs";
+import {
+	NotificationsActionsContext,
+	NotificationsDataContext,
+	type NotificationsActions,
+} from "@ktb/notifications/context";
 
-import { adminListConsultationsFn, platformAdminFn } from "#/lib/fns.ts";
+import {
+	adminListAudioJobsFn,
+	listMyNotificationsFn,
+	markAllMyNotificationsReadFn,
+	markMyNotificationsReadFn,
+	platformAdminFn,
+} from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
 import { plugins } from "#/plugins.ts";
 
@@ -27,17 +38,26 @@ import { plugins } from "#/plugins.ts";
 // Header widgets: when the platform.header extension-point plugin is
 // registered, every plugin's `panel.headerActions` render on the right
 // side of the top bar. The jobs feed is provided through
-// JobsDataContext, fed by the consultations admin list (the only jobs
-// source today); plugins without header actions are unaffected.
+// JobsDataContext, fed by the `consultations.audioJobs` CQRS query
+// (dispatched by adminListAudioJobsFn — the jobs plugin never reaches
+// into consultations tables); the notifications feed is seeded through
+// NotificationsDataContext, kept live by the header action's
+// /api/notifications EventSource, and gets mark-read actions through
+// NotificationsActionsContext (only when the notifications backend is
+// registered). Plugins without header actions are unaffected.
 const headerEnabled = plugins.some((p) => p.id === platformHeaderPlugin.id);
 const hasJobsPlugin = plugins.some((p) => p.id === "jobs.header");
+const hasNotificationsPlugin = plugins.some((p) => p.id === "notifications.services");
 
 export const Route = createFileRoute("/platform")({
 	beforeLoad: async () => {
 		await requireSession();
 		if (!(await platformAdminFn())) throw notFound();
 	},
-	loader: () => (hasJobsPlugin ? adminListConsultationsFn() : Promise.resolve([])),
+	loader: async () => ({
+		audioJobs: hasJobsPlugin ? await adminListAudioJobsFn() : [],
+		notifications: hasNotificationsPlugin ? await listMyNotificationsFn() : [],
+	}),
 	component: PlatformLayout,
 });
 
@@ -46,27 +66,41 @@ const rootApi = getRouteApi("__root__");
 function PlatformLayout() {
 	const pathname = useLocation({ select: (l) => l.pathname });
 	const user = rootApi.useLoaderData();
-	const consultations = Route.useLoaderData();
+	const { audioJobs, notifications } = Route.useLoaderData();
 	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
 	const headerActions = headerEnabled
 		? plugins
 				.flatMap((p) => p.panel?.headerActions ?? [])
 				.map(({ id, component }) => createElement(component, { key: id }))
 		: undefined;
+	// Host-injected write path for the notifications popover — plugins
+	// never import server fns; the context stays null when the
+	// notifications backend isn't registered so the UI hides the
+	// affordances instead of offering dead buttons.
+	const notificationActions: NotificationsActions | null = hasNotificationsPlugin
+		? {
+				markRead: (ids) => markMyNotificationsReadFn({ data: [...ids] }),
+				markAllRead: () => markAllMyNotificationsReadFn(),
+			}
+		: null;
 	return (
-		<JobsDataContext.Provider value={jobsFromAudioRows(consultations)}>
-			<PlatformConsoleShell
-				items={items}
-				pathname={pathname}
-				userEmail={user?.email}
-				headerActions={headerActions}
-				onSignOut={async () => {
-					await authClient.signOut();
-					window.location.assign("/");
-				}}
-			>
-				<Outlet />
-			</PlatformConsoleShell>
+		<JobsDataContext.Provider value={jobsFromAudioRows(audioJobs)}>
+			<NotificationsDataContext.Provider value={notifications}>
+				<NotificationsActionsContext.Provider value={notificationActions}>
+					<PlatformConsoleShell
+						items={items}
+						pathname={pathname}
+						userEmail={user?.email}
+						headerActions={headerActions}
+						onSignOut={async () => {
+							await authClient.signOut();
+							window.location.assign("/");
+						}}
+					>
+						<Outlet />
+					</PlatformConsoleShell>
+				</NotificationsActionsContext.Provider>
+			</NotificationsDataContext.Provider>
 		</JobsDataContext.Provider>
 	);
 }

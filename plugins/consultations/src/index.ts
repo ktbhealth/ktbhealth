@@ -327,6 +327,35 @@ export async function listAllConsultations(db: DbClient): Promise<AdminConsultat
 	}));
 }
 
+/** Row shape behind the `consultations.audioJobs` query — the minimal
+ * audio-pipeline projection the /platform jobs feed maps. */
+export interface AudioJobRow {
+	readonly id: number;
+	readonly audioStatus: string;
+	readonly audioError: string | null;
+	readonly createdAt: Date;
+	readonly patientName: string | null;
+}
+
+/**
+ * Cross-owner audio-pipeline listing for the /platform jobs feed.
+ * Callers MUST have passed the `PlatformAdmin` gate first — this repo
+ * function itself is unauthenticated, like `listAllConsultations`.
+ */
+export async function listAudioJobRows(db: DbClient): Promise<AudioJobRow[]> {
+	return db
+		.select({
+			id: consultations.id,
+			audioStatus: consultations.audioStatus,
+			audioError: consultations.audioError,
+			createdAt: consultations.createdAt,
+			patientName: patients.name,
+		})
+		.from(consultations)
+		.leftJoin(patients, eq(consultations.patientId, patients.id))
+		.orderBy(desc(consultations.id));
+}
+
 /** Owner lookup for authz checks — fetches by id regardless of caller. */
 async function consultationOwnerId(db: DbClient, id: number): Promise<string | null> {
 	const rows = await db
@@ -735,6 +764,16 @@ export const ConsultationsQueriesLive = Query.handlersOf(ConsultationsQueries, {
 					.from(consultations)
 					.where(eq(consultations.patientId, patientId)),
 			);
+		}),
+	// Cross-owner read — same gate as `Consultations.adminList`: the
+	// platform-admin check fails Forbidden for non-admins and for
+	// system contexts (null principal) alike.
+	"consultations.audioJobs": () =>
+		Effect.gen(function* () {
+			const platformAdmin = yield* PlatformAdmin;
+			yield* platformAdmin.requireAdmin();
+			const db = yield* Db;
+			return yield* Effect.promise(() => listAudioJobRows(db));
 		}),
 });
 

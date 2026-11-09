@@ -14,6 +14,7 @@ import { Route as captureTestRouteImport } from './routes/capture-test'
 import { Route as loginRouteImport } from './routes/login'
 import { Route as platformRouteImport } from './routes/platform'
 import { Route as ApiBotsRouteImport } from './routes/api/bots'
+import { Route as ApiNotificationsRouteImport } from './routes/api/notifications'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as consultationsIndexRouteImport } from './routes/consultations/index'
 import { Route as consultationsIdRouteImport } from './routes/consultations/$id'
@@ -57,6 +58,11 @@ const platformRoute = platformRouteImport.update({
 const ApiBotsRoute = ApiBotsRouteImport.update({
   id: '/api/bots',
   path: '/api/bots',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotificationsRoute = ApiNotificationsRouteImport.update({
+  id: '/api/notifications',
+  path: '/api/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof loginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
@@ -189,6 +196,7 @@ export interface FileRoutesByTo {
   '/capture-test': typeof captureTestRoute
   '/login': typeof loginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
@@ -216,6 +224,7 @@ export interface FileRoutesById {
   '/login': typeof loginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/notifications': typeof ApiNotificationsRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
@@ -244,6 +253,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/platform'
     | '/api/bots'
+    | '/api/notifications'
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/capture-test'
     | '/login'
     | '/api/bots'
+    | '/api/notifications'
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/platform'
     | '/api/bots'
+    | '/api/notifications'
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
@@ -322,6 +334,7 @@ export interface RootRouteChildren {
   loginRoute: typeof loginRoute
   platformRoute: typeof platformRouteWithChildren
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
+  ApiNotificationsRoute: typeof ApiNotificationsRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   consultationsIdRoute: typeof consultationsIdRoute
   consultationsNewRoute: typeof consultationsNewRoute
@@ -372,6 +385,13 @@ declare module '@tanstack/react-router' {
       path: '/api/bots'
       fullPath: '/api/bots'
       preLoaderRoute: typeof ApiBotsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications': {
+      id: '/api/notifications'
+      path: '/api/notifications'
+      fullPath: '/api/notifications'
+      preLoaderRoute: typeof ApiNotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/transcribe': {
@@ -547,6 +567,7 @@ const rootRouteChildren: RootRouteChildren = {
   loginRoute: loginRoute,
   platformRoute: platformRouteWithChildren,
   ApiBotsRoute: ApiBotsRouteWithChildren,
+  ApiNotificationsRoute: ApiNotificationsRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   consultationsIdRoute: consultationsIdRoute,
   consultationsNewRoute: consultationsNewRoute,

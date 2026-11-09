@@ -5,8 +5,12 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 const platformAdminFn = vi.fn(async () => true);
 const adminListPatientsFn = vi.fn(async () => [] as unknown[]);
+const adminListAudioJobsFn = vi.fn(async () => [] as unknown[]);
 const adminListUsersFn = vi.fn(async () => [] as unknown[]);
 const adminListGroupsFn = vi.fn(async () => [] as unknown[]);
+const countMyUnreadNotificationsFn = vi.fn(async () => 0);
+const markMyNotificationsReadFn = vi.fn(async (_arg?: unknown) => true);
+const markAllMyNotificationsReadFn = vi.fn(async () => true);
 const getSessionUserFn = vi.fn(
 	async (): Promise<{ id: string; email: string; name: string } | null> => ({
 		id: "u1",
@@ -18,13 +22,19 @@ const getSessionUserFn = vi.fn(
 vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
 	adminListPatientsFn: () => adminListPatientsFn(),
+	adminListAudioJobsFn: () => adminListAudioJobsFn(),
 	adminListConsultationsFn: () => adminListConsultationsFn(),
+	listMyNotificationsFn: () => listMyNotificationsFn(),
+	countMyUnreadNotificationsFn: () => countMyUnreadNotificationsFn(),
+	markMyNotificationsReadFn: (arg: unknown) => markMyNotificationsReadFn(arg),
+	markAllMyNotificationsReadFn: () => markAllMyNotificationsReadFn(),
 	adminListUsersFn: () => adminListUsersFn(),
 	adminListGroupsFn: () => adminListGroupsFn(),
 	getSessionUserFn: () => getSessionUserFn(),
 }));
 
 const adminListConsultationsFn = vi.fn(async () => [] as unknown[]);
+const listMyNotificationsFn = vi.fn(async () => [] as unknown[]);
 let loaderData: unknown = { patients: [], consultations: [] };
 let pathname = "/platform";
 
@@ -85,18 +95,29 @@ afterEach(() => {
 	pathname = "/platform";
 	platformAdminFn.mockReset().mockResolvedValue(true);
 	adminListPatientsFn.mockReset().mockResolvedValue([]);
+	adminListAudioJobsFn.mockReset().mockResolvedValue([]);
 	adminListConsultationsFn.mockReset().mockResolvedValue([]);
+	listMyNotificationsFn.mockReset().mockResolvedValue([]);
+	countMyUnreadNotificationsFn.mockReset().mockResolvedValue(0);
+	markMyNotificationsReadFn.mockReset().mockResolvedValue(true);
+	markAllMyNotificationsReadFn.mockReset().mockResolvedValue(true);
 	adminListUsersFn.mockReset().mockResolvedValue([]);
 	adminListGroupsFn.mockReset().mockResolvedValue([]);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
-	loaderData = { patients: [], consultations: [] };
+	loaderData = {
+		patients: [],
+		consultations: [],
+		notifications: undefined,
+		unreadCount: undefined,
+	};
 });
 
 describe("/platform layout", () => {
-	// The layout's Route.useLoaderData is the /platform loader — an array of
-	// consultation rows fed to jobsFromAudioRows (jobs plugin, d7922a1).
+	// The layout's Route.useLoaderData is the /platform loader —
+	// { audioJobs, notifications } seeded into the jobs/notifications
+	// header-action contexts.
 	beforeEach(() => {
-		loaderData = [];
+		loaderData = { audioJobs: [], notifications: [] };
 	});
 
 	it("renders sidebar items aggregated from plugin panel contributions", () => {
@@ -152,7 +173,7 @@ describe("/platform index", () => {
 		expect(screen.getByText("dashboard.panel")).toBeTruthy();
 	});
 
-	it("loader calls both admin list fns", () => {
+	it("loader calls the admin and notifications list fns", () => {
 		const loader = (
 			PlatformIndexRoute as unknown as {
 				options: { loader: () => Promise<unknown> };
@@ -161,6 +182,9 @@ describe("/platform index", () => {
 		return loader().then(() => {
 			expect(adminListPatientsFn).toHaveBeenCalled();
 			expect(adminListConsultationsFn).toHaveBeenCalled();
+			// notifications.services is registered → console-activity data loads.
+			expect(listMyNotificationsFn).toHaveBeenCalled();
+			expect(countMyUnreadNotificationsFn).toHaveBeenCalled();
 		});
 	});
 });

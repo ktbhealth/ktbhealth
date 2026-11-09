@@ -1,5 +1,6 @@
 import type { AdminConsultationRow } from "@ktb/consultations";
 import type { Plugin } from "@ktb/kernel";
+import type { ConsoleNotification } from "@ktb/notifications/context";
 import type { AdminPatientRow } from "@ktb/patients";
 import {
 	Table,
@@ -36,17 +37,25 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 /**
  * /platform landing view — system overview for platform admins: headline
- * counts, latest consultations, and the plugin registry. Dense by
+ * counts, latest consultations, the plugin registry, and (when the
+ * notifications backend is registered) a console-activity card with the
+ * unread count and the caller's most recent notifications. Dense by
  * design.
  */
 export function DashboardPage({
 	patients,
 	consultations,
 	plugins,
+	notifications,
+	unreadCount = 0,
 }: {
 	patients: AdminPatientRow[];
 	consultations: AdminConsultationRow[];
 	plugins: readonly Plugin[];
+	/** Session user's recent notifications — `undefined` hides the
+	 * console-activity card entirely (backend plugin not registered). */
+	notifications?: readonly ConsoleNotification[];
+	unreadCount?: number;
 }) {
 	const recent = consultations.slice(0, 8);
 	const sidebarItems = plugins.reduce((n, p) => n + (p.panel?.sidebar?.length ?? 0), 0);
@@ -125,6 +134,46 @@ export function DashboardPage({
 					</div>
 				</section>
 			</div>
+
+			{notifications !== undefined ? (
+				<section className="mt-6">
+					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+						Console activity
+					</h2>
+					<div className="mt-2 max-w-md rounded-lg border border-border px-3 py-2.5">
+						<div className="flex items-baseline justify-between">
+							<span className="text-[10px] tracking-widest text-muted-foreground uppercase">
+								Unread notifications
+							</span>
+							<span className="text-lg font-bold">{unreadCount}</span>
+						</div>
+						{notifications.length === 0 ? (
+							<p className="mt-2 text-xs text-muted-foreground">No notifications yet.</p>
+						) : (
+							<ul className="mt-1 divide-y divide-border">
+								{notifications.slice(0, 5).map((n) => (
+									<li key={n.id} className="flex gap-2.5 py-2">
+										<span
+											className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
+												n.read ? "bg-transparent" : "bg-primary"
+											}`}
+										/>
+										<div className="min-w-0">
+											<p className="truncate text-sm">{n.title}</p>
+											{n.description ? (
+												<p className="truncate text-xs text-muted-foreground">{n.description}</p>
+											) : null}
+											{n.meta ? (
+												<p className="mt-0.5 text-[11px] text-muted-foreground/70">{n.meta}</p>
+											) : null}
+										</div>
+									</li>
+								))}
+							</ul>
+						)}
+					</div>
+				</section>
+			) : null}
 		</div>
 	);
 }

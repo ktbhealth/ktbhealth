@@ -23,6 +23,7 @@
 		"db:seed": "bun scripts/seed-users.ts"
 	},
 	"dependencies": {
+		"@effect-server-utils/cqrs": "0.1.0-beta.10",
 		"@huggingface/transformers": "^4.3.2",
 		"@inlang/paraglide-js": "2.29.3",
 		"@ktb/anamnesis": "workspace:*",
@@ -41,6 +42,7 @@
 		"@ktb/interop-fhir": "workspace:*",
 		"@ktb/interop-openehr": "workspace:*",
 		"@ktb/jobs": "workspace:*",
+		"@ktb/notifications": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
 		"@ktb/platform-header": "workspace:*",

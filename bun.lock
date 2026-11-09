@@ -19,6 +19,7 @@
     "apps/web": {
       "name": "@ktb/web",
       "dependencies": {
+        "@effect-server-utils/cqrs": "0.1.0-beta.10",
         "@huggingface/transformers": "^4.3.2",
         "@inlang/paraglide-js": "2.29.3",
         "@ktb/anamnesis": "workspace:*",
@@ -37,6 +38,7 @@
         "@ktb/interop-fhir": "workspace:*",
         "@ktb/interop-openehr": "workspace:*",
         "@ktb/jobs": "workspace:*",
+        "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/platform-header": "workspace:*",
@@ -210,6 +212,7 @@
         "@ktb/auth": "workspace:*",
         "@ktb/consultations": "workspace:*",
         "@ktb/groups": "workspace:*",
+        "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
@@ -323,6 +326,7 @@
       "dependencies": {
         "@ktb/consultations": "workspace:*",
         "@ktb/kernel": "workspace:*",
+        "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
@@ -383,10 +387,17 @@
     "plugins/notifications": {
       "name": "@ktb/notifications",
       "dependencies": {
+        "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/authz": "workspace:*",
+        "@ktb/consultations": "workspace:*",
+        "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
+        "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/platform-header": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
         "lucide-react": "0.544.0",
       },
       "devDependencies": {

@@ -1,11 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { Consultations, type AdminConsultationRow } from "@ktb/consultations";
+import { ConsultationsQueries } from "@ktb/consultations/api";
+import { Query } from "@effect-server-utils/cqrs";
 import { Groups, type AdminGroupRow } from "@ktb/groups";
 import { Patients, type AdminPatientRow } from "@ktb/patients";
 import { demographicContext, TEXT_FIELDS, validatePatient } from "@ktb/patients/record";
 import { Users, type AdminUserRow } from "@ktb/users";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
+import { Notifications, rowToConsole } from "@ktb/notifications";
 import { audioBucket, run, runAs } from "#/lib/platform.ts";
 import { purgeAudio } from "#/lib/audio-purge.ts";
 import { PlatformAdmin } from "@ktb/platform";
@@ -458,6 +461,98 @@ export const attachAnamnesisFn = createServerFn({ method: "POST" })
 			}),
 		);
 	});
+
+/**
+ * The session user's recent console notifications, mapped to the
+ * serializable ConsoleNotification shape — seeds NotificationsDataContext
+ * on /platform before the SSE feed takes over. Only called when the
+ * notifications.services plugin is registered (the service tag is absent
+ * otherwise).
+ */
+export const listMyNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const notifications = yield* Notifications;
+			const rows = yield* notifications.list(user.id, 50);
+			return rows.map(rowToConsole);
+		}),
+	);
+});
+
+/** Exact unread count for the /platform dashboard card — the list fn
+ * above is capped at 50 rows, so it can't be derived client-side. */
+export const countMyUnreadNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return 0;
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const notifications = yield* Notifications;
+			return yield* notifications.unreadCount(user.id);
+		}),
+	);
+});
+
+const decodeNotificationIds = Schema.decodeUnknownSync(Schema.Array(Schema.Number));
+
+/** Mark specific notifications read — ids are the numeric row ids
+ * behind ConsoleNotification.id. Missing/foreign ids are ignored by
+ * the service's user-scoped UPDATE. */
+export const markMyNotificationsReadFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => decodeNotificationIds(input))
+	.handler(async ({ data: ids }) => {
+		const user = await ensureSessionUser();
+		return runAs(
+			user,
+			Effect.gen(function* () {
+				const notifications = yield* Notifications;
+				return yield* notifications.markRead(user.id, ids).pipe(
+					Effect.as(true),
+					Effect.catchTag("Forbidden", () => Effect.succeed(false)),
+				);
+			}),
+		);
+	});
+
+export const markAllMyNotificationsReadFn = createServerFn({ method: "POST" }).handler(async () => {
+	const user = await ensureSessionUser();
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const notifications = yield* Notifications;
+			return yield* notifications.markAllRead(user.id).pipe(
+				Effect.as(true),
+				Effect.catchTag("Forbidden", () => Effect.succeed(false)),
+			);
+		}),
+	);
+});
+
+/**
+ * Cross-owner audio-pipeline rows for the /platform jobs feed — the
+ * `consultations.audioJobs` CQRS query, dispatched inside runAs so the
+ * bound Principal reaches the handler's platform-admin check. Non-admins
+ * (the layout guard 404s them first anyway) get the same empty feed as
+ * an empty table.
+ */
+export const adminListAudioJobsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.scoped(
+			Effect.gen(function* () {
+				const queries = yield* Query.dispatcher(ConsultationsQueries);
+				return yield* queries["consultations.audioJobs"]({}).pipe(
+					Effect.catchTag("Forbidden", () => Effect.succeed([])),
+				);
+			}),
+		),
+	);
+});
 
 /** Record the doctor's consent declaration (LGPD trail). */
 export const recordConsentFn = createServerFn({ method: "POST" })
