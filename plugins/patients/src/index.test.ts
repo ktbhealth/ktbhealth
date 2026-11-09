@@ -7,7 +7,15 @@ import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { createPatient, listPatients, Patients, PatientsLive, plugin } from "./index.ts";
+import {
+	createPatient,
+	listPatients,
+	Patients,
+	PatientsLive,
+	patientsServicesPlugin,
+	patientsTablesPlugin,
+	plugins,
+} from "./index.ts";
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -126,13 +134,20 @@ describe("PatientsLive", () => {
 	});
 });
 
-describe("plugin", () => {
-	it("has id + tables", () => {
-		expect(plugin.id).toBe("patients");
-		expect(plugin.tables?.patients).toBeDefined();
+describe("plugins", () => {
+	it("declares tables and services as single-concern plugins", () => {
+		expect(patientsTablesPlugin.id).toBe("patients.tables");
+		expect(patientsTablesPlugin.tables?.patients).toBeDefined();
+		expect(patientsServicesPlugin.id).toBe("patients.services");
+		expect(patientsServicesPlugin.services).toBe(PatientsLive);
 	});
 
-	it("has no standalone routes", () => {
-		expect((plugin as Plugin).routes).toBeUndefined();
+	it("contributes no routes or nav", () => {
+		expect((patientsTablesPlugin as Plugin).routes).toBeUndefined();
+		expect((patientsServicesPlugin as Plugin).nav).toBeUndefined();
+	});
+
+	it("exports the discovery plugins array", () => {
+		expect(plugins.map((p) => p.id)).toEqual(["patients.tables", "patients.services"]);
 	});
 });

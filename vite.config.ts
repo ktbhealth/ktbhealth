@@ -88,7 +88,8 @@ export default defineConfig({
 			},
 			{
 				// Plugin entry contract: every plugin must export
-				// `const plugin = definePlugin({...})` for host discovery.
+				// `plugins` — an array of `definePlugin({...})` entries —
+				// for host discovery.
 				files: ["plugins/*/src/index.ts"],
 				rules: {
 					"ktb-arch/plugin-contract": "error",

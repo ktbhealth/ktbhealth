@@ -6,13 +6,13 @@ import { and, count, desc, eq, ne } from "drizzle-orm";
 import { index, route } from "@tanstack/virtual-file-routes";
 
 import { Db, type DbClient } from "@ktb/db";
-import { definePlugin } from "@ktb/kernel";
+import { definePlugin, type Plugin } from "@ktb/kernel";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import type { Anamnesis, PatientHistory, PriorVisit } from "@ktb/anamnesis";
 import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
-import { plugin as patientsPlugin } from "@ktb/patients";
+import { patientsServicesPlugin } from "@ktb/patients";
 import { consultations } from "./schema.ts";
 
 export type ConsultationRow = typeof consultations.$inferSelect;
@@ -579,13 +579,23 @@ export const ConsultationsLive = Layer.effect(
 	}),
 );
 
-export const plugin = definePlugin({
-	id: "consultations",
-	requiredDeps: [patientsPlugin.id],
-	// Route subtree composed into the host's virtualRouteConfig. File paths
-	// resolve relative to the host's routes directory (apps/web/src/routes);
-	// the route modules there wire these paths to this plugin's views and to
-	// host server functions, which plugins cannot import.
+export const consultationsTablesPlugin = definePlugin({
+	id: "consultations.tables",
+	tables: { consultations },
+});
+
+export const consultationsServicesPlugin = definePlugin({
+	id: "consultations.services",
+	requiredDeps: [patientsServicesPlugin.id],
+	services: ConsultationsLive,
+});
+
+// Route subtree composed into the host's virtualRouteConfig. File paths
+// resolve relative to the host's routes directory (apps/web/src/routes);
+// the route modules there wire these paths to this plugin's views and to
+// host server functions, which plugins cannot import.
+export const consultationsRoutesPlugin = definePlugin({
+	id: "consultations.routes",
 	routes: [
 		route("consultations", [
 			index("consultations/index.tsx"),
@@ -593,15 +603,29 @@ export const plugin = definePlugin({
 			route("new", "consultations/new.tsx"),
 		]),
 	],
-	nav: [{ to: "/consultations", label: "Consultations" }],
-	tables: { consultations },
-	services: ConsultationsLive,
 });
+
+export const consultationsNavPlugin = definePlugin({
+	id: "consultations.nav",
+	nav: [{ to: "/consultations", label: "Consultations" }],
+});
+
+/** Single-concern plugins contributed by this module — the host
+ * discovery contract (`discoverPlugins` reads this export). */
+export const plugins: readonly Plugin[] = [
+	consultationsTablesPlugin,
+	consultationsServicesPlugin,
+	consultationsRoutesPlugin,
+	consultationsNavPlugin,
+];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
-		consultations: true;
+		"consultations.tables": true;
+		"consultations.services": true;
+		"consultations.routes": true;
+		"consultations.nav": true;
 	}
 }

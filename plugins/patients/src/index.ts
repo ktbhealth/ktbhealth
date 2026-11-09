@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import { eq } from "drizzle-orm";
 
 import { Db, type DbClient } from "@ktb/db";
-import { definePlugin } from "@ktb/kernel";
+import { definePlugin, type Plugin } from "@ktb/kernel";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import { patients } from "./schema.ts";
 
@@ -59,16 +59,25 @@ export const PatientsLive = Layer.effect(
 	}),
 );
 
-export const plugin = definePlugin({
-	id: "patients",
+export const patientsTablesPlugin = definePlugin({
+	id: "patients.tables",
 	tables: { patients },
+});
+
+export const patientsServicesPlugin = definePlugin({
+	id: "patients.services",
 	services: PatientsLive,
 });
+
+/** Single-concern plugins contributed by this module — the host
+ * discovery contract (`discoverPlugins` reads this export). */
+export const plugins: readonly Plugin[] = [patientsTablesPlugin, patientsServicesPlugin];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
-		patients: true;
+		"patients.tables": true;
+		"patients.services": true;
 	}
 }

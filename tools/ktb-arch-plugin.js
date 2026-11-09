@@ -5,8 +5,9 @@
  * only for the file globs that can violate it (see `lint.overrides`):
  *
  * - `ktb-arch/plugin-contract` — each plugin's `src/index.ts` must export
- *   `const plugin = definePlugin({...})` with `definePlugin` imported from
- *   `@ktb/kernel`, so the host's filesystem plugin discovery keeps working.
+ *   `plugins`, an array of single-concern plugins each initialized with
+ *   `definePlugin({...})` (imported from `@ktb/kernel`), so the host's
+ *   filesystem plugin discovery keeps working.
  * - `ktb-arch/driver-contract` — any file exporting a `*Driver`/`*Drivers`
  *   descriptor (object or array literal) must import `Driver` from
  *   `@ktb/driver-framework`, keeping port→impl selection typed.
@@ -84,6 +85,23 @@ const exportedNames = (program) => {
 	return names;
 };
 
+/**
+ * Whether `init` is a `definePlugin({...})` call with `definePlugin`
+ * imported from @ktb/kernel.
+ */
+const isDefinePluginInit = (init, imports) => {
+	const callee = init?.type === "CallExpression" ? init.callee : undefined;
+	if (
+		callee?.type !== "Identifier" ||
+		init.arguments.length === 0 ||
+		init.arguments[0]?.type !== "ObjectExpression"
+	) {
+		return false;
+	}
+	const binding = imports.get(callee.name);
+	return binding?.source === KERNEL && binding.imported === "definePlugin";
+};
+
 const pluginContract = {
 	create(context) {
 		return {
@@ -92,37 +110,39 @@ const pluginContract = {
 
 				const imports = namedImports(node);
 				const decls = topLevelDeclarators(node);
-				const declarator = decls.get("plugin");
+				const declarator = decls.get("plugins");
+				const elements =
+					declarator?.init?.type === "ArrayExpression" ? declarator.init.elements : undefined;
 
-				if (!exportedNames(node).has("plugin") || declarator === undefined) {
+				if (
+					!exportedNames(node).has("plugins") ||
+					elements === undefined ||
+					elements.length === 0
+				) {
 					context.report({
 						node,
 						message:
-							"plugin entry must export `const plugin = definePlugin({...})` — the host discovers plugins by this export",
+							"plugin entry must export `plugins` — a non-empty array of `definePlugin({...})` plugins for host discovery",
 					});
 					return;
 				}
 
-				const init = declarator.init;
-				const callee = init?.type === "CallExpression" ? init.callee : undefined;
-				if (
-					callee?.type !== "Identifier" ||
-					init.arguments.length === 0 ||
-					init.arguments[0]?.type !== "ObjectExpression"
-				) {
-					context.report({
-						node: declarator,
-						message: "`plugin` must be initialized with `definePlugin({...})`",
-					});
-					return;
-				}
-
-				const binding = imports.get(callee.name);
-				if (binding?.source !== KERNEL || binding.imported !== "definePlugin") {
-					context.report({
-						node: callee,
-						message: `\`${callee.name}\` must be \`definePlugin\` imported from "${KERNEL}" — plugin metadata is defined by the kernel contract`,
-					});
+				for (const el of elements) {
+					// Each element is either an inline `definePlugin({...})`
+					// call or a const bound to one.
+					const init =
+						el?.type === "Identifier"
+							? decls.get(el.name)?.init
+							: el?.type === "CallExpression"
+								? el
+								: undefined;
+					if (init === undefined || !isDefinePluginInit(init, imports)) {
+						context.report({
+							node: el ?? node,
+							message:
+								'`plugins` entries must be `definePlugin({...})` calls or consts initialized with `definePlugin` imported from "@ktb/kernel"',
+						});
+					}
 				}
 			},
 		};

@@ -6,6 +6,7 @@ import { user as userTable } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { patients as patientsTable } from "@ktb/patients/schema";
+import { patientsServicesPlugin } from "@ktb/patients";
 import { consultations as consultationsTable } from "./schema.ts";
 import {
 	Consultations,
@@ -15,12 +16,16 @@ import {
 	audioJobRecord,
 	beginAudioJob,
 	completeAudioJob,
+	consultationsNavPlugin,
+	consultationsRoutesPlugin,
+	consultationsServicesPlugin,
+	consultationsTablesPlugin,
 	createConsultation,
 	failAudioJob,
 	finishConsultation,
 	markAudioQueued,
 	ownsBot,
-	plugin,
+	plugins,
 	saveCorrectedTranscript,
 	type SaveConsultationInput,
 } from "./index.ts";
@@ -585,17 +590,23 @@ describe("Consultations.history", () => {
 	});
 });
 
-describe("plugin", () => {
-	it("has id, nav, tables", () => {
-		expect(plugin.id).toBe("consultations");
-		expect(plugin.nav?.[0]?.to).toBe("/consultations");
-		expect(plugin.tables?.consultations).toBeDefined();
+describe("plugins", () => {
+	it("declares tables, services, routes and nav as single-concern plugins", () => {
+		expect(consultationsTablesPlugin.id).toBe("consultations.tables");
+		expect(consultationsTablesPlugin.tables?.consultations).toBeDefined();
+		expect(consultationsServicesPlugin.id).toBe("consultations.services");
+		expect(consultationsServicesPlugin.services).toBe(ConsultationsLive);
+		expect(consultationsServicesPlugin.requiredDeps).toEqual([patientsServicesPlugin.id]);
+		expect(consultationsNavPlugin.id).toBe("consultations.nav");
+		expect(consultationsNavPlugin.nav?.[0]?.to).toBe("/consultations");
 	});
 
 	it("owns the consultations route subtree", () => {
-		const paths = (plugin.routes ?? []).map((n) => (n.type === "route" ? n.path : n.type));
+		const paths = (consultationsRoutesPlugin.routes ?? []).map((n) =>
+			n.type === "route" ? n.path : n.type,
+		);
 		expect(paths).toEqual(["consultations"]);
-		const [consultations] = plugin.routes ?? [];
+		const [consultations] = consultationsRoutesPlugin.routes ?? [];
 		expect(consultations).toMatchObject({
 			type: "route",
 			path: "consultations",
@@ -605,5 +616,14 @@ describe("plugin", () => {
 				{ type: "route", path: "new", file: "consultations/new.tsx" },
 			],
 		});
+	});
+
+	it("exports the discovery plugins array", () => {
+		expect(plugins.map((p) => p.id)).toEqual([
+			"consultations.tables",
+			"consultations.services",
+			"consultations.routes",
+			"consultations.nav",
+		]);
 	});
 });

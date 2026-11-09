@@ -22,14 +22,35 @@ const p = (
 ): Plugin => ({ id, requiredDeps, optionalDeps });
 
 describe("discoverPlugins", () => {
-	it("keeps only modules exporting a plugin-shaped value", () => {
+	it("collects every plugin in each module's plugins export", () => {
 		const plugins = discoverPlugins({
-			"./patients.ts": { plugin: p("patients") },
-			"./random.ts": { something: 1 },
-			"./broken.ts": { plugin: { noId: true } },
-			"./null.ts": null,
+			"./patients.ts": { plugins: [p("patients.tables"), p("patients.services")] },
+			"./consultations.ts": { plugins: [p("consultations.services")] },
+			"./empty.ts": { plugins: [] },
 		});
-		expect(plugins.map((x) => x.id)).toEqual(["patients"]);
+		expect(plugins.map((x) => x.id)).toEqual([
+			"patients.tables",
+			"patients.services",
+			"consultations.services",
+		]);
+	});
+
+	it("throws when a module does not export a plugins array", () => {
+		expect(() => discoverPlugins({ "./broken.ts": { plugin: p("x") } })).toThrow(
+			'plugin module "./broken.ts" must export `plugins` as a Plugin array',
+		);
+		expect(() => discoverPlugins({ "./null.ts": null })).toThrow(
+			'plugin module "./null.ts" must export `plugins` as a Plugin array',
+		);
+		expect(() => discoverPlugins({ "./scalar.ts": { plugins: "nope" } })).toThrow(
+			'plugin module "./scalar.ts" must export `plugins` as a Plugin array',
+		);
+	});
+
+	it("throws when the plugins array contains a non-plugin value", () => {
+		expect(() => discoverPlugins({ "./mixed.ts": { plugins: [p("ok"), { noId: true }] } })).toThrow(
+			'plugin module "./mixed.ts" exports a value that is not a Plugin',
+		);
 	});
 });
 

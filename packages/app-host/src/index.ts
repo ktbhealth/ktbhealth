@@ -20,10 +20,10 @@ import { correctTranscript as correctTranscriptEffect } from "@ktb/anamnesis-llm
 
 /**
  * Plugin registry discovered from the filesystem: every module under
- * packages/plugins/* exporting `plugin` is registered, topo-sorted by
- * `requiredDeps`/`optionalDeps`. import.meta.glob is a build-time
- * transform — Vite emits static imports, so workerd bundling and type
- * safety are preserved.
+ * packages/plugins/* exporting `plugins` (single-concern Plugin objects)
+ * is registered, topo-sorted by `requiredDeps`/`optionalDeps`.
+ * import.meta.glob is a build-time transform — Vite emits static imports,
+ * so workerd bundling and type safety are preserved.
  */
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins(import.meta.glob("../../../plugins/*/src/index.ts", { eager: true })),

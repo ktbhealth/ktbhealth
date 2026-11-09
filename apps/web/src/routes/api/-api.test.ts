@@ -36,8 +36,11 @@ vi.mock("@ktb/consultations", async (importOriginal) => {
 	return {
 		...m,
 		ConsultationsLive,
-		// app-host composes plugin.services, not the named export.
-		plugin: { ...m.plugin, services: ConsultationsLive },
+		// app-host composes the discovered `plugins` array, not the named
+		// plugin exports — swap the services layer on the matching entry.
+		plugins: m.plugins.map((p) =>
+			p.id === "consultations.services" ? { ...p, services: ConsultationsLive } : p,
+		),
 	};
 });
 

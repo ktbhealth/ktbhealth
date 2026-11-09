@@ -4,21 +4,34 @@ import type { Plugin } from "@ktb/kernel";
 export * from "./drivers.ts";
 
 interface PluginModule {
-	readonly plugin?: Plugin;
+	readonly plugins?: unknown;
 }
 
 const isPlugin = (value: unknown): value is Plugin =>
 	typeof value === "object" && value !== null && typeof (value as Plugin).id === "string";
 
 /**
- * Filter Vite `import.meta.glob(..., { eager: true })` modules down to
- * plugin exports. Convention: a module is a plugin iff it exports a
- * `plugin` value satisfying the Plugin contract.
+ * Collect every plugin object exported by Vite
+ * `import.meta.glob(..., { eager: true })` modules. Convention: a plugin
+ * entry module exports `plugins` — an array of single-concern Plugin
+ * values (each built with `definePlugin`). A module that does not export
+ * a `plugins` array, or one containing a non-plugin value, is a broken
+ * entry and throws — discovery fails loudly rather than dropping it.
  */
-export const discoverPlugins = (modules: Record<string, unknown>): Plugin[] =>
-	Object.values(modules)
-		.map((m) => (typeof m === "object" && m !== null ? (m as PluginModule).plugin : undefined))
-		.filter(isPlugin);
+export const discoverPlugins = (modules: Record<string, unknown>): Plugin[] => {
+	const plugins: Plugin[] = [];
+	for (const [path, m] of Object.entries(modules)) {
+		const exported = typeof m === "object" && m !== null ? (m as PluginModule).plugins : undefined;
+		if (!Array.isArray(exported))
+			throw new Error(`plugin module "${path}" must export \`plugins\` as a Plugin array`);
+		for (const p of exported) {
+			if (!isPlugin(p))
+				throw new Error(`plugin module "${path}" exports a value that is not a Plugin`);
+			plugins.push(p);
+		}
+	}
+	return plugins;
+};
 
 /**
  * Topologically sort plugins by their deps using effect/Graph.
