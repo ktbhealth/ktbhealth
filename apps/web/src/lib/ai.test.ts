@@ -98,3 +98,52 @@ describe("createLocalAi", () => {
 		await expect(ai.run("m", { weird: 1 })).rejects.toThrow("unsupported inputs");
 	});
 });
+
+describe("createLocalAi — payload and error edges", () => {
+	const audioFile = async (audio: unknown) => {
+		const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ text: "x" }));
+		await createLocalAi("http://localhost:8080", fetchImpl).run("whisper", { audio });
+		const form = fetchImpl.mock.calls[0]![1]?.body as FormData;
+		return new Uint8Array(await (form.get("file") as Blob).arrayBuffer());
+	};
+
+	it("accepts Uint8Array audio payloads", async () => {
+		expect(await audioFile(new Uint8Array([1, 2, 3]))).toEqual(new Uint8Array([1, 2, 3]));
+	});
+
+	it("accepts ArrayBuffer audio payloads", async () => {
+		expect(await audioFile(new Uint8Array([4, 5]).buffer)).toEqual(new Uint8Array([4, 5]));
+	});
+
+	it("rejects unsupported audio payloads", async () => {
+		const ai = createLocalAi("http://localhost:8080", vi.fn<typeof fetch>());
+		await expect(ai.run("whisper", { audio: 42 })).rejects.toThrow("unsupported audio payload");
+	});
+
+	it("throws on a failed transcription request", async () => {
+		const failing = vi.fn<typeof fetch>(async () => new Response("nope", { status: 503 }));
+		const ai = createLocalAi("http://localhost:8080", failing);
+		await expect(ai.run("whisper", { audio: [1] })).rejects.toThrow(
+			"local AI transcription failed: HTTP 503",
+		);
+	});
+
+	it("treats null inputs as unsupported", async () => {
+		const ai = createLocalAi("http://localhost:8080", vi.fn<typeof fetch>());
+		await expect(ai.run("m", null)).rejects.toThrow("unsupported inputs");
+	});
+
+	it("returns an empty response when the chat completion has no choices", async () => {
+		const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({}));
+		const ai = createLocalAi("http://localhost:8080", fetchImpl);
+		await expect(ai.run("m", { messages: [] })).resolves.toEqual({ response: "" });
+	});
+
+	it("omits max_tokens when it is not a number", async () => {
+		const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ choices: [] }));
+		await createLocalAi("http://localhost:8080", fetchImpl).run("m", { messages: [] });
+		expect(JSON.parse(fetchImpl.mock.calls[0]![1]?.body as string)).not.toHaveProperty(
+			"max_tokens",
+		);
+	});
+});

@@ -41,4 +41,22 @@ describe("AdminUsersPage", () => {
 		expect(screen.getAllByText("user").length).toBeGreaterThan(0);
 		expect(screen.getByText("2 users across the platform.")).toBeTruthy();
 	});
+
+	it("shows whether each email is verified", () => {
+		render(
+			<AdminUsersPage
+				users={[
+					user({ id: "u1", emailVerified: true }),
+					user({ id: "u2", email: "n@x.com", emailVerified: false }),
+				]}
+			/>,
+		);
+		expect(screen.getByText("yes")).toBeTruthy();
+		expect(screen.getByText("no")).toBeTruthy();
+	});
+
+	it("uses the singular for a single user", () => {
+		render(<AdminUsersPage users={[user({})]} />);
+		expect(screen.getByText("1 user across the platform.")).toBeTruthy();
+	});
 });

@@ -65,6 +65,34 @@ describe("whisper-worker", () => {
 		expect(envObj.backends).toMatchObject({ onnx: { wasm: { wasmPaths: expect.anything() } } });
 	});
 
+	it("routes model and wasm fetches through the page origin in a browser worker", async () => {
+		(fakeSelf as { location?: { origin: string } }).location = { origin: "https://app.ktb.test" };
+		try {
+			await importWorker();
+		} finally {
+			delete (fakeSelf as { location?: unknown }).location;
+		}
+		expect(envObj.remoteHost).toBe("https://app.ktb.test/api/cdn/huggingface/");
+		const { wasmPaths } = (
+			envObj.backends as { onnx: { wasm: { wasmPaths: Record<string, string> } } }
+		).onnx.wasm;
+		expect(wasmPaths.mjs).toMatch(
+			/^https:\/\/app\.ktb\.test\/api\/cdn\/jsdelivr\/npm\/onnxruntime-web@.+\.mjs$/,
+		);
+		expect(wasmPaths.wasm).toMatch(
+			/^https:\/\/app\.ktb\.test\/api\/cdn\/jsdelivr\/npm\/onnxruntime-web@.+\.wasm$/,
+		);
+	});
+
+	it("uses the public CDN directly outside a browser worker", async () => {
+		await importWorker();
+		expect(envObj.remoteHost).toBeUndefined();
+		const { wasmPaths } = (
+			envObj.backends as { onnx: { wasm: { wasmPaths: Record<string, string> } } }
+		).onnx.wasm;
+		expect(wasmPaths.wasm).toMatch(/^https:\/\/cdn\.jsdelivr\.net\/npm\/onnxruntime-web@/);
+	});
+
 	it("load picks wasm when no webgpu, posts ready", async () => {
 		const self = await importWorker();
 		await dispatch(self, { type: "load" });

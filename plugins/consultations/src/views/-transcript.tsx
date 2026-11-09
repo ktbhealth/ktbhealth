@@ -79,9 +79,8 @@ export function useConsultationAudio<T extends AudioPipelineInfo>(
 		let cancelled = false;
 		let settleLeft = SETTLE_POLLS;
 		let timer: ReturnType<typeof setInterval> | undefined;
-		const stop = () => {
-			if (timer !== undefined) clearInterval(timer);
-		};
+		// clearInterval(undefined) is a no-op, so no guard is needed.
+		const stop = () => clearInterval(timer);
 		const tick = async () => {
 			try {
 				const d = await fetcher({ data: consultationId });
@@ -184,15 +183,17 @@ export function AudioTranscriptPanel({
 	const primaryOriginal = originals[0] ?? null;
 	// Tabs only earn their keep when a corrected text exists AND differs
 	// from the raw ASR output; otherwise a single pane is clearer.
-	const showTabs =
+	const tabbed =
 		correctedView !== null &&
 		primaryOriginal !== null &&
-		correctedView.text.trim() !== primaryOriginal.text.trim();
+		correctedView.text.trim() !== primaryOriginal.text.trim()
+			? { corrected: correctedView, original: primaryOriginal }
+			: null;
 
-	const active: TranscriptView | null = showTabs
+	const active: TranscriptView | null = tabbed
 		? tab === "corrected"
-			? correctedView
-			: primaryOriginal
+			? tabbed.corrected
+			: tabbed.original
 		: (correctedView ?? primaryOriginal);
 	const lastReported = useRef("");
 	useEffect(() => {
@@ -218,11 +219,13 @@ export function AudioTranscriptPanel({
 							<span className="mr-1 inline-block size-1.5 animate-pulse rounded-full bg-amber-500" />
 							{status === "stored" ? "audio stored" : "enhancing transcript…"}
 						</Badge>
-					) : correctedView ? (
+					) : (
+						// Outer condition: failed || inFlight || correctedView — so
+						// here correctedView is set.
 						<Badge variant="secondary" className={`ring-1 ${BADGE_TONES.green}`}>
 							enhanced ✓
 						</Badge>
-					) : null}
+					)}
 					{hasAudio && consultationId !== null ? (
 						<audio
 							controls
@@ -235,7 +238,7 @@ export function AudioTranscriptPanel({
 				</div>
 			) : null}
 
-			{showTabs ? (
+			{tabbed ? (
 				<Tabs
 					value={tab}
 					onValueChange={(v) => setTab(v as "corrected" | "original")}
@@ -246,7 +249,7 @@ export function AudioTranscriptPanel({
 						<TabsTrigger value="original">Original</TabsTrigger>
 					</TabsList>
 					<TabsContent value="corrected" className="pt-2">
-						{correctedView ? <SourceBlock view={correctedView} /> : null}
+						<SourceBlock view={tabbed.corrected} />
 					</TabsContent>
 					<TabsContent value="original" className="space-y-4 pt-2">
 						{originals.map((b) => (
