@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { Principal } from "@ktb/authz";
-import type { Plugin } from "@ktb/kernel";
 import * as Effect from "effect/Effect";
 
 import {
@@ -72,7 +71,7 @@ describe("plugins", () => {
 		expect(platformRoutesPlugin.routes).toHaveLength(1);
 		expect(platformPanelPlugin.id).toBe("platform.panel");
 		expect(platformPanelPlugin.requiredDeps).toEqual(["platform.routes"]);
-		expect((platformPanelPlugin as Plugin).panel).toBeUndefined();
+		expect("panel" in platformPanelPlugin).toBe(false);
 	});
 
 	it("exports the discovery plugins array", () => {

@@ -11,15 +11,20 @@ describe("definePlugin", () => {
 		expect(p.id).toBe("x");
 	});
 
-	it("carries nav, panel and tables", () => {
-		const p = definePlugin({
+	it("carries a single contribution kind per plugin", () => {
+		const nav = definePlugin({ id: "x", nav: [{ to: "/y", label: "Y" }] });
+		const panel = definePlugin({
 			id: "x",
-			nav: [{ to: "/y", label: "Y" }],
 			panel: { sidebar: [{ to: "/platform/x", label: "X" }] },
-			tables: { t },
 		});
-		expect(p.nav?.[0]?.to).toBe("/y");
-		expect(p.panel?.sidebar?.[0]?.to).toBe("/platform/x");
-		expect(p.tables?.t).toBe(t);
+		const tables = definePlugin({ id: "x", tables: { t } });
+		expect("nav" in nav && nav.nav[0]?.to).toBe("/y");
+		expect("panel" in panel && panel.panel.sidebar?.[0]?.to).toBe("/platform/x");
+		expect("tables" in tables && tables.tables.t).toBe(t);
+	});
+
+	it("rejects multi-concern plugin objects at compile time", () => {
+		// @ts-expect-error — a plugin may declare exactly one contribution kind
+		definePlugin({ id: "x", tables: { t }, nav: [{ to: "/y", label: "Y" }] });
 	});
 });

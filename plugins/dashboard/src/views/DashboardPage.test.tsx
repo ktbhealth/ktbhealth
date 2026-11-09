@@ -43,10 +43,8 @@ const consultation = (over: Partial<AdminConsultationRow>): AdminConsultationRow
 	...over,
 });
 
-const plugin = (id: string, sidebar = 0): Plugin => ({
-	id,
-	panel: sidebar ? { sidebar: [{ to: "/x", label: id }] } : undefined,
-});
+const plugin = (id: string, sidebar = 0): Plugin =>
+	sidebar ? { id, panel: { sidebar: [{ to: "/x", label: id }] } } : { id };
 
 afterEach(cleanup);
 

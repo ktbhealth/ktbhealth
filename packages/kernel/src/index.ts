@@ -35,11 +35,19 @@ export interface PanelSidebarItem {
 
 /**
  * Feature plugin contract. The host (apps/web) registers plugins in a
- * static list; each plugin contributes routes, nav, schema slices and
- * Effect services. Everything is statically imported — workerd can't
- * do dynamic module loading, and static keeps 100% type safety.
+ * static list; each plugin object contributes EXACTLY ONE kind of
+ * contribution — every union member below forbids the other
+ * contribution keys (`?: never`), so a multi-concern plugin object is a
+ * compile error. A plugin that only anchors dependency edges (e.g.
+ * `platform.admin`, `platform.panel`) is a MarkerPlugin: no contribution
+ * field at all. Everything is statically imported — workerd can't do
+ * dynamic module loading, and static keeps 100% type safety.
+ *
+ * Consumers read a contribution with optional access (`p.nav ?? []`) —
+ * forbidden keys are declared `?: never`, so `"<field>" in p` does not
+ * discriminate the union.
  */
-export interface Plugin {
+interface PluginBase {
 	readonly id: string;
 	/** Hard dependency: the dep's services compose before this plugin's
 	 * (topo order) and composition fails when the dep is absent. */
@@ -50,22 +58,55 @@ export interface Plugin {
 	 * type-erased (`Layer.Any`), so this is a documented contract, not a
 	 * statically enforced one. */
 	readonly optionalDeps?: readonly PluginId[];
-	/** Route subtree composed into the host's virtualRouteConfig. */
-	readonly routes?: readonly VirtualRouteNode[];
-	/** Nav links surfaced in the host shell. */
-	readonly nav?: ReadonlyArray<{ to: string; label: string }>;
-	/** System-console (panel) contribution: sidebar entries rendered by
-	 * the /platform shell, ordered by plugin topo order. */
-	readonly panel?: {
+}
+
+type ContributionField = "tables" | "services" | "routes" | "nav" | "panel";
+
+/** Marks every contribution field EXCEPT `K` as forbidden (`?: never`). */
+type ForbiddenContributions<K extends ContributionField> = {
+	readonly [F in Exclude<ContributionField, K>]?: never;
+};
+
+/** Dependency anchor only — no contribution of its own. */
+export interface MarkerPlugin extends PluginBase, ForbiddenContributions<never> {}
+
+/** Drizzle table slice composed into @ktb/db/schema. */
+export interface TablesPlugin extends PluginBase, ForbiddenContributions<"tables"> {
+	readonly tables: Record<string, SQLiteTable>;
+}
+
+/** Effect layers: services the plugin needs/provides at runtime.
+ * Heterogeneous by design: each plugin provides its own services.
+ * Type-erased to Layer.Any; the host verifies requirements at
+ * ManagedRuntime composition. */
+export interface ServicesPlugin extends PluginBase, ForbiddenContributions<"services"> {
+	readonly services: Layer.Any;
+}
+
+/** Route subtree composed into the host's virtualRouteConfig. */
+export interface RoutesPlugin extends PluginBase, ForbiddenContributions<"routes"> {
+	readonly routes: readonly VirtualRouteNode[];
+}
+
+/** Nav links surfaced in the host shell. */
+export interface NavPlugin extends PluginBase, ForbiddenContributions<"nav"> {
+	readonly nav: ReadonlyArray<{ to: string; label: string }>;
+}
+
+/** System-console (panel) contribution: sidebar entries rendered by
+ * the /platform shell, ordered by plugin topo order. */
+export interface PanelPlugin extends PluginBase, ForbiddenContributions<"panel"> {
+	readonly panel: {
 		readonly sidebar?: ReadonlyArray<PanelSidebarItem>;
 	};
-	/** Drizzle table slice composed into @ktb/db/schema. */
-	readonly tables?: Record<string, SQLiteTable>;
-	/** Effect layers: services the plugin needs/provides at runtime. */
-	/** Heterogeneous by design: each plugin provides its own services.
-	 * Type-erased to Layer.Any; the host verifies requirements at
-	 * ManagedRuntime composition. */
-	readonly services?: Layer.Any;
 }
+
+export type Plugin =
+	| MarkerPlugin
+	| TablesPlugin
+	| ServicesPlugin
+	| RoutesPlugin
+	| NavPlugin
+	| PanelPlugin;
 
 export const definePlugin = <const P extends Plugin>(plugin: P): P => plugin;

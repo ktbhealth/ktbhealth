@@ -23,6 +23,6 @@ describe("dashboardPanelPlugin", () => {
 	it("exports the discovery plugins array", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["dashboard.panel"]);
 		const p: Plugin = dashboardPanelPlugin;
-		expect(p.panel?.sidebar?.[0]?.group).toBeUndefined();
+		expect("panel" in p && p.panel.sidebar?.[0]?.group).toBeUndefined();
 	});
 });

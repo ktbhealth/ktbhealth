@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import type { Plugin } from "@ktb/kernel";
 import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -254,8 +253,8 @@ describe("plugins", () => {
 
 	it("contributes no routes or top-nav", () => {
 		for (const p of [groupsTablesPlugin, groupsServicesPlugin, groupsPanelPlugin]) {
-			expect((p as Plugin).routes).toBeUndefined();
-			expect((p as Plugin).nav).toBeUndefined();
+			expect("routes" in p).toBe(false);
+			expect("nav" in p).toBe(false);
 		}
 	});
 

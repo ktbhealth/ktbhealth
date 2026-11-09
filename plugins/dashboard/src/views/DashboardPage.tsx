@@ -17,8 +17,8 @@ const contributions = (p: Plugin) =>
 		p.routes?.length ? "routes" : null,
 		p.nav?.length ? "nav" : null,
 		p.panel?.sidebar?.length ? "panel" : null,
-		p.tables ? "tables" : null,
-		p.services ? "services" : null,
+		p.tables !== undefined ? "tables" : null,
+		p.services !== undefined ? "services" : null,
 	]
 		.filter(Boolean)
 		.join(", ") || "—";

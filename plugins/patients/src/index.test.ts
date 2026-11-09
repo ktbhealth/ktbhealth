@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import type { Plugin } from "@ktb/kernel";
 import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -322,10 +321,10 @@ describe("plugins", () => {
 	});
 
 	it("keeps routes and nav out of the tables, services and panel plugins", () => {
-		expect((patientsTablesPlugin as Plugin).routes).toBeUndefined();
-		expect((patientsServicesPlugin as Plugin).nav).toBeUndefined();
-		expect((patientsPanelPlugin as Plugin).routes).toBeUndefined();
-		expect((patientsPanelPlugin as Plugin).nav).toBeUndefined();
+		expect("routes" in patientsTablesPlugin).toBe(false);
+		expect("nav" in patientsServicesPlugin).toBe(false);
+		expect("routes" in patientsPanelPlugin).toBe(false);
+		expect("nav" in patientsPanelPlugin).toBe(false);
 	});
 
 	it("declares the /patients route subtree and nav entry", () => {

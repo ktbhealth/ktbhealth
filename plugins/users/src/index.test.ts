@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import type { Plugin } from "@ktb/kernel";
 import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -117,10 +116,10 @@ describe("plugins", () => {
 	});
 
 	it("contributes no routes, tables or top-nav", () => {
-		expect((usersServicesPlugin as Plugin).routes).toBeUndefined();
-		expect((usersServicesPlugin as Plugin).tables).toBeUndefined();
-		expect((usersPanelPlugin as Plugin).routes).toBeUndefined();
-		expect((usersPanelPlugin as Plugin).nav).toBeUndefined();
+		expect("routes" in usersServicesPlugin).toBe(false);
+		expect("tables" in usersServicesPlugin).toBe(false);
+		expect("routes" in usersPanelPlugin).toBe(false);
+		expect("nav" in usersPanelPlugin).toBe(false);
 	});
 
 	it("exports the discovery plugins array", () => {

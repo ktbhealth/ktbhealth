@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type { Plugin } from "@ktb/kernel";
-
 import { platformSidebarPlugin, plugins } from "./index.ts";
 
 describe("platform-sidebar plugin", () => {
@@ -9,6 +7,6 @@ describe("platform-sidebar plugin", () => {
 		expect(plugins).toEqual([platformSidebarPlugin]);
 		expect(platformSidebarPlugin.id).toBe("platform.sidebar");
 		expect(platformSidebarPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect((platformSidebarPlugin as Plugin).panel).toBeUndefined();
+		expect("panel" in platformSidebarPlugin).toBe(false);
 	});
 });
