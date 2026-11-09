@@ -7,7 +7,8 @@ const mocks = vi.hoisted(() => ({
 	requireSession: vi.fn(async () => undefined),
 	getPatientFn: vi.fn(),
 	listPatientsFn: vi.fn(),
-	listPatientConsultationsFn: vi.fn(),
+	patientConsultationsFn: vi.fn(),
+	localeFn: vi.fn(async () => "pt-BR"),
 	invalidate: vi.fn(),
 	navigate: vi.fn(),
 	notFound: vi.fn(() => new Error("not-found")),
@@ -15,17 +16,24 @@ const mocks = vi.hoisted(() => ({
 	props: { current: undefined as Record<string, unknown> | undefined },
 }));
 
-vi.mock("#/lib/guard.ts", () => ({ requireSession: mocks.requireSession }));
-vi.mock("#/lib/fns.ts", () => ({
+vi.mock("./guard.ts", () => ({ requireSession: mocks.requireSession }));
+vi.mock("./fns.ts", () => ({
 	getPatientFn: mocks.getPatientFn,
 	listPatientsFn: mocks.listPatientsFn,
-	listPatientConsultationsFn: mocks.listPatientConsultationsFn,
+	patientConsultationsFn: mocks.patientConsultationsFn,
+	localeFn: mocks.localeFn,
 	createPatientFn: vi.fn(),
 	updatePatientFn: vi.fn(),
+	deletePatientFn: vi.fn(),
+	patientDeletionImpactFn: vi.fn(),
+	sessionUserFn: vi.fn(),
 }));
-vi.mock("#/paraglide/runtime.js", () => ({ getLocale: () => "pt-BR" }));
-vi.mock("./-delete-api.ts", () => ({ patientDeleteApi: { tag: "delete-api" } }));
-vi.mock("@ktb/patients/views", () => {
+vi.mock("./apis.ts", () => ({
+	patientDeleteApi: { tag: "delete-api" },
+	newPatientApi: { tag: "new-api" },
+	editPatientApi: vi.fn((id: number) => ({ tag: `edit-api-${id}` })),
+}));
+vi.mock("./views/index.ts", () => {
 	const capture = (name: string) => (props: Record<string, unknown>) => {
 		mocks.props.current = props;
 		return createElement("div", { "data-testid": name });
@@ -50,10 +58,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 	};
 });
 
-import { Route as IndexRoute } from "./index.tsx";
-import { Route as NewRoute } from "./new.tsx";
-import { Route as DetailRoute } from "./$id.tsx";
-import { Route as EditRoute } from "./$id.edit.tsx";
+import { Route as IndexRoute } from "./routes/index.tsx";
+import { Route as NewRoute } from "./routes/new.tsx";
+import { Route as DetailRoute } from "./routes/$id/index.tsx";
+import { Route as EditRoute } from "./routes/$id/edit.tsx";
 
 type Opts = {
 	beforeLoad?: () => Promise<unknown>;
@@ -79,13 +87,16 @@ describe("patient routes", () => {
 	});
 
 	describe("/patients", () => {
-		it("loads the patient list", async () => {
+		it("loads the patient list and locale", async () => {
 			mocks.listPatientsFn.mockResolvedValue([{ id: 1 }]);
-			await expect(opts(IndexRoute).loader!()).resolves.toEqual([{ id: 1 }]);
+			await expect(opts(IndexRoute).loader!()).resolves.toEqual({
+				patients: [{ id: 1 }],
+				locale: "pt-BR",
+			});
 		});
 
 		it("renders the list with locale and delete wiring; deletion invalidates the router", () => {
-			mocks.loaderData.current = [{ id: 1 }];
+			mocks.loaderData.current = { patients: [{ id: 1 }], locale: "pt-BR" };
 			render(createElement(opts(IndexRoute).component));
 			expect(props().patients).toEqual([{ id: 1 }]);
 			expect(props().locale).toBe("pt-BR");
@@ -97,7 +108,9 @@ describe("patient routes", () => {
 
 	describe("/patients/new", () => {
 		it("navigates to the created patient after saving", () => {
+			mocks.loaderData.current = "pt-BR";
 			render(createElement(opts(NewRoute).component));
+			expect(props().api).toEqual({ tag: "new-api" });
 			expect(props().locale).toBe("pt-BR");
 			(props().onSaved as (id: number) => void)(42);
 			expect(mocks.navigate).toHaveBeenCalledWith({
@@ -112,28 +125,34 @@ describe("patient routes", () => {
 			expect(opts(DetailRoute).staleTime).toBe(30_000);
 		});
 
-		it("loads the patient with their consultations", async () => {
+		it("loads the patient with their consultations and locale", async () => {
 			mocks.getPatientFn.mockResolvedValue({ id: 5 });
-			mocks.listPatientConsultationsFn.mockResolvedValue([{ id: 9 }]);
+			mocks.patientConsultationsFn.mockResolvedValue([{ id: 9 }]);
 			await expect(opts(DetailRoute).loader!({ params: { id: "5" } })).resolves.toEqual({
 				patient: { id: 5 },
 				consultations: [{ id: 9 }],
+				locale: "pt-BR",
 			});
 			expect(mocks.getPatientFn).toHaveBeenCalledWith({ data: 5 });
-			expect(mocks.listPatientConsultationsFn).toHaveBeenCalledWith({ data: 5 });
+			expect(mocks.patientConsultationsFn).toHaveBeenCalledWith({ data: 5 });
 		});
 
 		it("throws notFound when the patient does not exist", async () => {
 			mocks.getPatientFn.mockResolvedValue(null);
-			mocks.listPatientConsultationsFn.mockResolvedValue([]);
+			mocks.patientConsultationsFn.mockResolvedValue([]);
 			await expect(opts(DetailRoute).loader!({ params: { id: "5" } })).rejects.toThrow("not-found");
 		});
 
 		it("renders the detail page; deletion returns to the list", () => {
-			mocks.loaderData.current = { patient: { id: 5 }, consultations: [{ id: 9 }] };
+			mocks.loaderData.current = {
+				patient: { id: 5 },
+				consultations: [{ id: 9 }],
+				locale: "pt-BR",
+			};
 			render(createElement(opts(DetailRoute).component));
 			expect(props().patient).toEqual({ id: 5 });
 			expect(props().consultations).toEqual([{ id: 9 }]);
+			expect(props().locale).toBe("pt-BR");
 			expect(props().deleteApi).toEqual({ tag: "delete-api" });
 			(props().onDeleted as () => void)();
 			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/patients" });
@@ -141,9 +160,12 @@ describe("patient routes", () => {
 	});
 
 	describe("/patients/$id/edit", () => {
-		it("loads the patient", async () => {
+		it("loads the patient and locale", async () => {
 			mocks.getPatientFn.mockResolvedValue({ id: 5 });
-			await expect(opts(EditRoute).loader!({ params: { id: "5" } })).resolves.toEqual({ id: 5 });
+			await expect(opts(EditRoute).loader!({ params: { id: "5" } })).resolves.toEqual({
+				patient: { id: 5 },
+				locale: "pt-BR",
+			});
 			expect(mocks.getPatientFn).toHaveBeenCalledWith({ data: 5 });
 		});
 
@@ -153,9 +175,10 @@ describe("patient routes", () => {
 		});
 
 		it("renders the form for the loaded patient and navigates after saving", () => {
-			mocks.loaderData.current = { id: 5, name: "Ana" };
+			mocks.loaderData.current = { patient: { id: 5, name: "Ana" }, locale: "pt-BR" };
 			render(createElement(opts(EditRoute).component));
 			expect(props().patient).toEqual({ id: 5, name: "Ana" });
+			expect(props().api).toEqual({ tag: "edit-api-5" });
 			expect(props().locale).toBe("pt-BR");
 			(props().onSaved as (id: number) => void)(5);
 			expect(mocks.navigate).toHaveBeenCalledWith({
