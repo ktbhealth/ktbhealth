@@ -9,18 +9,30 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import {
 	createPatient,
+	getPatient,
 	listPatients,
 	Patients,
 	PatientsLive,
+	patientsNavPlugin,
+	patientsRoutesPlugin,
 	patientsServicesPlugin,
 	patientsTablesPlugin,
 	plugins,
+	updatePatient,
 } from "./index.ts";
+import { validatePatient, type PatientFields } from "./record.ts";
+
+/** Validated fields for a name (birth date fixed — only the name varies in these tests). */
+const fields = (name: string, extra: Record<string, string> = {}): PatientFields => {
+	const r = validatePatient({ name, birthDate: "1984-03-05", ...extra });
+	if (!r.ok) throw new Error(JSON.stringify(r.errors));
+	return r.fields;
+};
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, created_at INTEGER);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
 `;
 
 describe("patients repo", () => {
@@ -31,8 +43,8 @@ describe("patients repo", () => {
 	});
 
 	it("creates and lists scoped by owner", async () => {
-		await createPatient(db, "u1", "Ana");
-		await createPatient(db, "u1", "Bia");
+		await createPatient(db, "u1", fields("Ana"));
+		await createPatient(db, "u1", fields("Bia"));
 		const rows = await listPatients(db, "u1");
 		expect(rows.map((r) => r.name)).toEqual(["Ana", "Bia"]);
 	});
@@ -42,7 +54,7 @@ describe("patients repo", () => {
 	});
 
 	it("returns the created row", async () => {
-		const p = await createPatient(db, "u1", "Cid");
+		const p = await createPatient(db, "u1", fields("Cid"));
 		expect(p?.name).toBe("Cid");
 		expect(p?.ownerId).toBe("u1");
 	});
@@ -51,7 +63,28 @@ describe("patients repo", () => {
 		const stub = {
 			insert: () => ({ values: () => ({ returning: async () => [] }) }),
 		} as unknown as typeof db;
-		expect(await createPatient(stub, "u1", "X")).toBeNull();
+		expect(await createPatient(stub, "u1", fields("X"))).toBeNull();
+	});
+
+	it("persists the full record and gets it by id", async () => {
+		const p = await createPatient(
+			db,
+			"u1",
+			fields("Dora", { cpf: "529.982.247-25", city: "Recife" }),
+		);
+		const row = await getPatient(db, p!.id);
+		expect(row).toMatchObject({ name: "Dora", cpf: "52998224725", city: "Recife", active: true });
+		expect(row?.birthDate).toBe("1984-03-05");
+		expect(await getPatient(db, 9999)).toBeNull();
+	});
+
+	it("updates a record and stamps updatedAt", async () => {
+		const p = await createPatient(db, "u1", fields("Eva"));
+		expect(p?.updatedAt).toBeNull();
+		const updated = await updatePatient(db, p!.id, { ...fields("Eva Lima"), active: false });
+		expect(updated).toMatchObject({ name: "Eva Lima", active: false });
+		expect(updated?.updatedAt).toBeInstanceOf(Date);
+		expect(await updatePatient(db, 9999, fields("Nobody"))).toBeNull();
 	});
 });
 
@@ -76,7 +109,7 @@ describe("PatientsLive", () => {
 	it("list returns own patients for the bound principal", async () => {
 		await asUser(
 			"u1",
-			call((p) => p.create("u1", "Ana")),
+			call((p) => p.create("u1", fields("Ana"))),
 		);
 		const rows = await asUser(
 			"u1",
@@ -107,7 +140,7 @@ describe("PatientsLive", () => {
 	it("create succeeds for the principal's own id", async () => {
 		const patient = await asUser(
 			"u1",
-			call((p) => p.create("u1", "Svc Patient")),
+			call((p) => p.create("u1", fields("Svc Patient"))),
 		);
 		expect(patient?.name).toBe("Svc Patient");
 		expect(patient?.ownerId).toBe("u1");
@@ -117,7 +150,7 @@ describe("PatientsLive", () => {
 		await expect(
 			asUser(
 				"u1",
-				call((p) => p.create("u2", "X")),
+				call((p) => p.create("u2", fields("X"))),
 			),
 		).rejects.toMatchObject({
 			_tag: "Forbidden",
@@ -126,11 +159,92 @@ describe("PatientsLive", () => {
 		await expect(
 			asUser(
 				null,
-				call((p) => p.create("u1", "X")),
+				call((p) => p.create("u1", fields("X"))),
 			),
 		).rejects.toMatchObject({
 			_tag: "Forbidden",
 		});
+	});
+
+	it("get returns the owner's patient, null when missing", async () => {
+		const created = await asUser(
+			"u1",
+			call((p) => p.create("u1", fields("Gil"))),
+		);
+		const got = await asUser(
+			"u1",
+			call((p) => p.get("u1", created!.id)),
+		);
+		expect(got?.name).toBe("Gil");
+		expect(
+			await asUser(
+				"u1",
+				call((p) => p.get("u1", 9999)),
+			),
+		).toBeNull();
+	});
+
+	it("get fails Forbidden for another owner's row, owner mismatch and null principal", async () => {
+		const created = await asUser(
+			"u1",
+			call((p) => p.create("u1", fields("Private"))),
+		);
+		// u2's own principal, reading u1's row → permix denies on the real owner.
+		await expect(
+			asUser(
+				"u2",
+				call((p) => p.get("u2", created!.id)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patient.read" });
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.get("u2", created!.id)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				null,
+				call((p) => p.get("u1", created!.id)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("update rewrites the owner's patient, null when missing", async () => {
+		const created = await asUser(
+			"u1",
+			call((p) => p.create("u1", fields("Hugo"))),
+		);
+		const updated = await asUser(
+			"u1",
+			call((p) => p.update("u1", created!.id, fields("Hugo Reis", { city: "Natal" }))),
+		);
+		expect(updated).toMatchObject({ name: "Hugo Reis", city: "Natal" });
+		expect(
+			await asUser(
+				"u1",
+				call((p) => p.update("u1", 9999, fields("X"))),
+			),
+		).toBeNull();
+	});
+
+	it("update fails Forbidden for another owner's row and null principal", async () => {
+		const created = await asUser(
+			"u1",
+			call((p) => p.create("u1", fields("Locked"))),
+		);
+		await expect(
+			asUser(
+				"u2",
+				call((p) => p.update("u2", created!.id, fields("Hijack"))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patient.update" });
+		await expect(
+			asUser(
+				null,
+				call((p) => p.update("u1", created!.id, fields("X"))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
 });
 
@@ -142,12 +256,24 @@ describe("plugins", () => {
 		expect(patientsServicesPlugin.services).toBe(PatientsLive);
 	});
 
-	it("contributes no routes or nav", () => {
+	it("keeps routes and nav out of the tables and services plugins", () => {
 		expect((patientsTablesPlugin as Plugin).routes).toBeUndefined();
 		expect((patientsServicesPlugin as Plugin).nav).toBeUndefined();
 	});
 
+	it("declares the /patients route subtree and nav entry", () => {
+		expect(patientsRoutesPlugin.id).toBe("patients.routes");
+		expect(JSON.stringify(patientsRoutesPlugin.routes)).toContain("patients/$id.edit.tsx");
+		expect(patientsNavPlugin.id).toBe("patients.nav");
+		expect(patientsNavPlugin.nav).toEqual([{ to: "/patients", label: "Patients" }]);
+	});
+
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["patients.tables", "patients.services"]);
+		expect(plugins.map((p) => p.id)).toEqual([
+			"patients.tables",
+			"patients.services",
+			"patients.routes",
+			"patients.nav",
+		]);
 	});
 });

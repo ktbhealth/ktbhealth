@@ -51,6 +51,8 @@ export interface ConsultationListItem {
 	source: string | null;
 	status: string;
 	consentAt: Date | null;
+	/** Absent on rows from older callers; null when unlinked. */
+	patientId?: number | null;
 	patientName: string | null;
 	chiefComplaint: string | null;
 	hasAnamnesis: boolean;
@@ -138,6 +140,15 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 								<span className="text-xs text-muted-foreground">
 									#{c.id} · {new Date(c.createdAt).toLocaleString()}
 								</span>
+								{c.patientId ? (
+									<Link
+										to="/patients/$id"
+										params={{ id: String(c.patientId) }}
+										className="relative z-10 text-xs text-primary hover:underline"
+									>
+										Patient record
+									</Link>
+								) : null}
 							</div>
 							<p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
 								{c.chiefComplaint && !c.chiefComplaint.startsWith("A preencher")

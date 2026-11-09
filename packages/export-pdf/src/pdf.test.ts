@@ -105,4 +105,23 @@ describe("renderAnamnesisPdf", () => {
 		expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
 		expect(pdf.length).toBeGreaterThan(1000);
 	});
+
+	it("adds the patient record line under the patient name", async () => {
+		const anamnesis = await new HeuristicExtractor().extract(SAMPLE_TRANSCRIPT);
+		const base = {
+			consultationId: 7,
+			createdAt: new Date("2026-11-06T14:30:00"),
+			patientName: "José da Conceição",
+			doctorName: "Dra. Ana Lúcia",
+			consentAt: null,
+			anamnesis,
+		};
+		const without = await renderAnamnesisPdf(base);
+		const withDetails = await renderAnamnesisPdf({
+			...base,
+			patientDetails: "Male · 42 years · CPF 529.982.247-25",
+		});
+		expect(withDetails.subarray(0, 5).toString()).toBe("%PDF-");
+		expect(withDetails.length).toBeGreaterThan(without.length);
+	});
 });

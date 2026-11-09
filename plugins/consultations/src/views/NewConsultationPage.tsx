@@ -28,6 +28,7 @@ import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
 import { CONFIDENCE_LABELS, type AnamnesisSectionKey } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
+import { birthDateFromAge } from "@ktb/patients/record";
 import {
 	needsServerFallback,
 	type Transcriber,
@@ -81,17 +82,26 @@ export interface NewConsultationApi {
 	}): Promise<{ ok: boolean }>;
 	saveConsultation(input: { data: unknown }): Promise<{ id: number; updated?: boolean }>;
 	recordConsent(input: { data: number }): Promise<{ ok: boolean }>;
-	createPatient(input: { data: string }): Promise<{ id: number; name: string } | null>;
+	/** Quick registration: name + approximate (year-only) birth date. */
+	createPatient(input: {
+		data: { name: string; birthDate: string };
+	}): Promise<
+		| { ok: true; patient: { id: number; name: string } }
+		| { ok: false; errors: Partial<Record<string, string>> }
+	>;
 	/** Optional: refetch after audio upload to track server transcription. */
 	getConsultation?(input: { data: number }): Promise<ConsultationAudioInfo | null>;
 }
 
 export function NewConsultationPage({
 	initialPatients,
+	initialPatientId,
 	api,
 	backend,
 }: {
 	initialPatients: Array<{ id: number; name: string }>;
+	/** Preselect a patient (e.g. "New consultation" from the patient record). */
+	initialPatientId?: number;
 	api: NewConsultationApi;
 	backend: TranscriptionBackend;
 }) {
@@ -112,8 +122,13 @@ export function NewConsultationPage({
 	const [liveId, setLiveId] = useState<number | null>(null);
 	const [liveStatus, setLiveStatus] = useState<string | null>(null);
 	const [consented, setConsented] = useState(false);
-	const [patientId, setPatientId] = useState<number | null>(null);
+	const [patientId, setPatientId] = useState<number | null>(() =>
+		initialPatients.some((p) => p.id === initialPatientId) ? initialPatientId! : null,
+	);
 	const [patientName, setPatientName] = useState("");
+	const [patientAge, setPatientAge] = useState("");
+	const [patientError, setPatientError] = useState<string | null>(null);
+	const [quickCreatedId, setQuickCreatedId] = useState<number | null>(null);
 	const [patients, setPatients] = useState<Array<{ id: number; name: string }>>(() =>
 		initialPatients.map((p: { id: number; name: string }) => ({
 			id: p.id,
@@ -566,7 +581,7 @@ export function NewConsultationPage({
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex flex-wrap items-center gap-2">
 						<Input
 							value={patientName}
 							onChange={(e) => setPatientName(e.target.value)}
@@ -574,22 +589,62 @@ export function NewConsultationPage({
 							aria-label="New patient name"
 							className="w-40"
 						/>
+						<Input
+							type="number"
+							min={0}
+							max={130}
+							inputMode="numeric"
+							value={patientAge}
+							onChange={(e) => setPatientAge(e.target.value)}
+							placeholder="age"
+							aria-label="New patient age"
+							className="w-20"
+						/>
 						<Button
 							type="button"
 							variant="outline"
 							size="sm"
 							onClick={async () => {
 								if (!patientName.trim()) return;
-								const p = await api.createPatient({ data: patientName });
-								if (p) {
-									setPatients((prev) => [...prev, { id: p.id, name: p.name }]);
-									setPatientId(p.id);
-									setPatientName("");
+								const age = Number(patientAge);
+								if (patientAge === "" || !Number.isInteger(age) || age < 0) {
+									setPatientError("Enter the patient's age.");
+									return;
 								}
+								setPatientError(null);
+								const res = await api.createPatient({
+									data: { name: patientName, birthDate: birthDateFromAge(age) },
+								});
+								if (!res.ok) {
+									setPatientError(
+										Object.values(res.errors)[0] ?? "Could not register the patient.",
+									);
+									return;
+								}
+								const p = res.patient;
+								setPatients((prev) => [...prev, { id: p.id, name: p.name }]);
+								setPatientId(p.id);
+								setQuickCreatedId(p.id);
+								setPatientName("");
+								setPatientAge("");
 							}}
 						>
 							+ patient
 						</Button>
+						{patientError ? (
+							<span role="alert" className="text-xs text-destructive">
+								{patientError}
+							</span>
+						) : null}
+						{quickCreatedId !== null && quickCreatedId === patientId ? (
+							<Link
+								to="/patients/$id/edit"
+								params={{ id: String(quickCreatedId) }}
+								className="text-xs font-medium underline"
+							>
+								Complete the record
+							</Link>
+						) : null}
 					</div>
 					<label
 						className={`ml-auto flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-xs ${

@@ -36,7 +36,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, created_at INTEGER);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
 `;
 
@@ -557,6 +557,21 @@ describe("Consultations.history", () => {
 			Effect.flatMap(Consultations, (c) => c.history(patientId, "u2")),
 		);
 		expect(h2).toBeNull();
+	});
+
+	it("lists only the given patient's consultations, with patientId", async () => {
+		const rows = await asUser(
+			"u1",
+			Effect.flatMap(Consultations, (c) => c.list("u1", patientId)),
+		);
+		// 4 done + 1 live for this patient; the other patient's and u2's are excluded
+		expect(rows).toHaveLength(5);
+		expect(rows.every((r) => r.patientId === patientId && r.patientName === "Maria")).toBe(true);
+		const all = await asUser(
+			"u1",
+			Effect.flatMap(Consultations, (c) => c.list("u1")),
+		);
+		expect(all.length).toBeGreaterThan(rows.length);
 	});
 
 	it("denies history without a bound principal", async () => {

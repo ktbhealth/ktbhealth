@@ -111,7 +111,18 @@ export function ConsultationDetailPage({
 			<header className="mt-3 flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">
-						{c.patientName ?? `Consultation #${c.id}`}
+						{c.patientId && c.patientName ? (
+							<Link
+								to="/patients/$id"
+								params={{ id: String(c.patientId) }}
+								className="hover:underline"
+								title="Open patient record"
+							>
+								{c.patientName}
+							</Link>
+						) : (
+							(c.patientName ?? `Consultation #${c.id}`)
+						)}
 					</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
 						Consultation #{c.id} · {when}

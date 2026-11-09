@@ -67,10 +67,22 @@ export interface PatientHistory {
 	readonly visits: readonly PriorVisit[];
 }
 
-/** Input to AnamnesisEngine.extract — transcript plus optional patient history. */
+/**
+ * Demographics from the patient record (FHIR Patient.gender / birthDate),
+ * resolved server-side. Context for the drafter only — never evidence.
+ */
+export interface PatientContext {
+	/** FHIR AdministrativeGender label, e.g. "female". */
+	readonly sex?: string;
+	/** Whole years (approximate when the record only has a birth year). */
+	readonly age?: number;
+}
+
+/** Input to AnamnesisEngine.extract — transcript plus optional patient context. */
 export interface ExtractInput {
 	readonly transcript: string;
 	readonly history?: PatientHistory;
+	readonly patient?: PatientContext;
 }
 
 export const SECTION_LABELS: Record<AnamnesisSectionKey, string> = {

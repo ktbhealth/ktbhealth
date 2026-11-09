@@ -23,19 +23,28 @@ export const newConsultationApi: NewConsultationApi = {
 	attachAnamnesis: (input: { data: unknown }) => attachAnamnesisFn(input as never),
 	saveConsultation: (input: { data: unknown }) => saveConsultationFn(input as never),
 	recordConsent: (input: { data: number }) => recordConsentFn(input),
-	createPatient: (input: { data: string }) => createPatientFn(input),
+	createPatient: (input: { data: { name: string; birthDate: string } }) => createPatientFn(input),
 	getConsultation: (input: { data: number }) => getConsultationFn(input),
 };
 
+/** `?patientId=` preselects the patient ("New consultation" from the record page). */
+export const validateNewConsultationSearch = (search: Record<string, unknown>) => {
+	const id = Number(search.patientId);
+	return Number.isInteger(id) && id > 0 ? { patientId: id } : {};
+};
+
 export const Route = createFileRoute("/consultations/new")({
+	validateSearch: validateNewConsultationSearch,
 	beforeLoad: () => requireSession(),
 	loader: () => listPatientsFn(),
 	component: function NewRoute() {
 		const initialPatients = Route.useLoaderData();
+		const { patientId } = Route.useSearch();
 		useEffect(() => prefetchWhisperModel(), []);
 		return (
 			<NewConsultationPage
 				initialPatients={initialPatients}
+				initialPatientId={patientId}
 				api={newConsultationApi}
 				backend={whisperBackend}
 			/>

@@ -93,7 +93,7 @@ function makeApi(overrides: Partial<NewConsultationApi> = {}): NewConsultationAp
 		attachAnamnesis: vi.fn(async () => ({ ok: true })),
 		saveConsultation: vi.fn(async () => ({ id: 42 })),
 		recordConsent: vi.fn(async () => ({ ok: true })),
-		createPatient: vi.fn(async () => ({ id: 7, name: "Ana" })),
+		createPatient: vi.fn(async () => ({ ok: true as const, patient: { id: 7, name: "Ana" } })),
 		...overrides,
 	} as NewConsultationApi;
 }
@@ -103,8 +103,15 @@ const PATIENTS = [
 	{ id: 2, name: "João" },
 ];
 
-function renderPage(api = makeApi(), patients = PATIENTS) {
-	return render(<NewConsultationPage initialPatients={patients} api={api} backend={backend} />);
+function renderPage(api = makeApi(), patients = PATIENTS, initialPatientId?: number) {
+	return render(
+		<NewConsultationPage
+			initialPatients={patients}
+			initialPatientId={initialPatientId}
+			api={api}
+			backend={backend}
+		/>,
+	);
 }
 
 async function consent(user: ReturnType<typeof userEvent.setup>) {
@@ -161,14 +168,46 @@ describe("NewConsultationPage", () => {
 		expect(screen.getByText("Review")).toBeTruthy();
 	});
 
-	it("creates a new patient", async () => {
+	it("creates a new patient from name + age and offers to complete the record", async () => {
+		const user = userEvent.setup();
+		const api = makeApi();
+		renderPage(api);
+		await user.type(screen.getByLabelText("New patient name"), "Ana");
+		await user.type(screen.getByLabelText("New patient age"), "40");
+		await user.click(screen.getByText("+ patient"));
+		await waitFor(() =>
+			expect(api.createPatient).toHaveBeenCalledWith({
+				data: { name: "Ana", birthDate: String(new Date().getFullYear() - 40) },
+			}),
+		);
+		await waitFor(() => expect(screen.getByLabelText("Patient").textContent).toContain("Ana"));
+		expect(screen.getByText("Complete the record").getAttribute("href")).toBe("/patients/$id/edit");
+		expect((screen.getByLabelText("New patient age") as HTMLInputElement).value).toBe("");
+		// switching to another patient hides the shortcut
+		await choosePatient(user, "Maria");
+		expect(screen.queryByText("Complete the record")).toBeNull();
+	});
+
+	it("requires an age for quick registration", async () => {
 		const user = userEvent.setup();
 		const api = makeApi();
 		renderPage(api);
 		await user.type(screen.getByLabelText("New patient name"), "Ana");
 		await user.click(screen.getByText("+ patient"));
-		await waitFor(() => expect(api.createPatient).toHaveBeenCalledWith({ data: "Ana" }));
-		await waitFor(() => expect(screen.getByLabelText("Patient").textContent).toContain("Ana"));
+		expect(screen.getByText("Enter the patient's age.").getAttribute("role")).toBe("alert");
+		await user.type(screen.getByLabelText("New patient age"), "4.5");
+		await user.click(screen.getByText("+ patient"));
+		expect(api.createPatient).not.toHaveBeenCalled();
+	});
+
+	it("preselects the patient passed by the record page", () => {
+		renderPage(makeApi(), PATIENTS, 2);
+		expect(screen.getByLabelText("Patient").textContent).toContain("João");
+	});
+
+	it("ignores an unknown preselected patient", () => {
+		renderPage(makeApi(), PATIENTS, 99);
+		expect(screen.getByLabelText("Patient").textContent).toContain("unlinked");
 	});
 
 	it("ignores empty patient name", async () => {
@@ -179,13 +218,29 @@ describe("NewConsultationPage", () => {
 		expect(api.createPatient).not.toHaveBeenCalled();
 	});
 
-	it("handles createPatient returning null", async () => {
+	it("shows the server's validation error for quick registration", async () => {
 		const user = userEvent.setup();
-		const api = makeApi({ createPatient: vi.fn(async () => null) });
+		const api = makeApi({
+			createPatient: vi.fn(async () => ({
+				ok: false as const,
+				errors: { birthDate: "Enter a valid date." },
+			})),
+		});
 		renderPage(api);
 		await user.type(screen.getByLabelText("New patient name"), "X");
+		await user.type(screen.getByLabelText("New patient age"), "200");
 		await user.click(screen.getByText("+ patient"));
-		await waitFor(() => expect(api.createPatient).toHaveBeenCalled());
+		expect(await screen.findByText("Enter a valid date.")).toBeTruthy();
+	});
+
+	it("falls back to a generic error when the server gives no field error", async () => {
+		const user = userEvent.setup();
+		const api = makeApi({ createPatient: vi.fn(async () => ({ ok: false as const, errors: {} })) });
+		renderPage(api);
+		await user.type(screen.getByLabelText("New patient name"), "X");
+		await user.type(screen.getByLabelText("New patient age"), "30");
+		await user.click(screen.getByText("+ patient"));
+		expect(await screen.findByText("Could not register the patient.")).toBeTruthy();
 	});
 
 	it("selects an existing patient and toggles consent", async () => {

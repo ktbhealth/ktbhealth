@@ -42,6 +42,20 @@ describe("ConsultationsPage", () => {
 		expect(screen.getByText("Start consultation")).toBeTruthy();
 	});
 
+	it("links to the patient record only for linked consultations", () => {
+		render(
+			<ConsultationsPage
+				consultations={[
+					item({ id: 1, patientId: 5 }),
+					item({ id: 2, patientId: null, patientName: null }),
+				]}
+			/>,
+		);
+		const links = screen.getAllByText("Patient record");
+		expect(links).toHaveLength(1);
+		expect(links[0]!.getAttribute("href")).toBe("/patients/$id");
+	});
+
 	it("renders singular/plural count and list", () => {
 		render(<ConsultationsPage consultations={[item({})]} />);
 		expect(screen.getByText("1 consultation recorded.")).toBeTruthy();

@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
+import { Patients } from "@ktb/patients";
+import { recordSummary } from "@ktb/patients/record";
 import { getSessionUser } from "#/lib/auth.ts";
 import { runAs } from "#/lib/platform.ts";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
@@ -17,13 +19,19 @@ export const Route = createFileRoute("/api/consultations/$id/pdf")({
 					return Response.json({ error: "not found" }, { status: 404 });
 
 				// Non-owner → service fails Forbidden → same 404 as missing.
-				const detail = await runAs(
+				const { detail, patient } = await runAs(
 					user,
 					Effect.gen(function* () {
 						const consultations = yield* Consultations;
-						return yield* consultations
+						const detail = yield* consultations
 							.get(id, user.id)
 							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
+						if (!detail?.patientId) return { detail, patient: null };
+						const patients = yield* Patients;
+						const patient = yield* patients
+							.get(user.id, detail.patientId)
+							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
+						return { detail, patient };
 					}),
 				);
 				if (!detail) return Response.json({ error: "not found" }, { status: 404 });
@@ -34,6 +42,7 @@ export const Route = createFileRoute("/api/consultations/$id/pdf")({
 					consultationId: detail.id,
 					createdAt: detail.createdAt,
 					patientName: detail.patientName,
+					patientDetails: patient ? recordSummary(patient) : null,
 					doctorName: user.name,
 					consentAt: detail.consentAt,
 					anamnesis: detail.anamnesis,

@@ -20,6 +20,7 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
+import { env } from "cloudflare:workers";
 import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/anamnesis";
 import { auth, db } from "./platform.ts";
 import { consultations } from "@ktb/db/schema";
@@ -29,14 +30,24 @@ import {
 	extractAnamnesisFn,
 	getConsultationFn,
 	getLiveConsultationFn,
+	getPatientFn,
 	getSessionUserFn,
 	listConsultationsFn,
+	listPatientConsultationsFn,
 	listPatientsFn,
 	patientHistoryFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
+	updatePatientFn,
 } from "./fns.ts";
+
+/** Registers a patient through the server fn, failing the test on validation errors. */
+async function newPatient(name: string, extra: Record<string, string> = {}) {
+	const res = await createPatientFn({ data: { name, birthDate: "1984-03-05", ...extra } });
+	if (!res.ok) throw new Error(`patient not created: ${JSON.stringify(res.errors)}`);
+	return res.patient;
+}
 
 const section = (content: string): AnamnesisSection => ({
 	content,
@@ -91,7 +102,14 @@ describe("server fns", () => {
 			}),
 		).toEqual({ ok: false });
 		expect(await recordConsentFn({ data: 1 })).toEqual({ ok: false });
-		await expect(createPatientFn({ data: "X" })).rejects.toThrow("unauthenticated");
+		await expect(createPatientFn({ data: { name: "X", birthDate: "1984" } })).rejects.toThrow(
+			"unauthenticated",
+		);
+		await expect(
+			updatePatientFn({ data: { id: 1, name: "X", birthDate: "1984" } }),
+		).rejects.toThrow("unauthenticated");
+		expect(await getPatientFn({ data: 1 })).toBeNull();
+		expect(await listPatientConsultationsFn({ data: 1 })).toEqual([]);
 		await expect(
 			saveConsultationFn({
 				data: { transcript: "t", anamnesis: makeAnamnesis("q"), engine: "e" },
@@ -105,7 +123,7 @@ describe("server fns", () => {
 
 	it("full patient + consultation lifecycle", async () => {
 		headers.current = new Headers({ cookie });
-		const patient = await createPatientFn({ data: "Maria Silva" });
+		const patient = await newPatient("Maria Silva");
 		expect(patient!.id).toBeGreaterThan(0);
 		expect((await listPatientsFn())[0]?.name).toBe("Maria Silva");
 
@@ -169,7 +187,7 @@ describe("server fns", () => {
 
 	it("attachAnamnesis with patientId set covers ?? left side", async () => {
 		headers.current = new Headers({ cookie });
-		const patient = await createPatientFn({ data: "João" });
+		const patient = await newPatient("João");
 		const saved = await saveConsultationFn({
 			data: { transcript: "t3", anamnesis: makeAnamnesis("Q3"), engine: "e" },
 		});
@@ -223,7 +241,7 @@ describe("server fns", () => {
 
 	it("patientHistoryFn summarizes prior consultations and feeds extraction", async () => {
 		headers.current = new Headers({ cookie });
-		const patient = await createPatientFn({ data: "Histórico" });
+		const patient = await newPatient("Histórico");
 		await saveConsultationFn({
 			data: {
 				transcript: "t",
@@ -266,7 +284,7 @@ describe("server fns", () => {
 
 	it("tolerates non-number patientId on the wire (undefined/null/string)", async () => {
 		headers.current = new Headers({ cookie });
-		const patient = await createPatientFn({ data: "Wire" });
+		const patient = await newPatient("Wire");
 		// key present with undefined / null must not fail schema decode
 		for (const patientId of [undefined, null, ""] as const) {
 			const res = await extractAnamnesisFn({
@@ -281,11 +299,94 @@ describe("server fns", () => {
 		expect(res.engine).toBeTruthy();
 	});
 
+	it("createPatientFn returns field errors instead of saving", async () => {
+		headers.current = new Headers({ cookie });
+		const before = (await listPatientsFn()).length;
+		const res = await createPatientFn({
+			data: { name: " ", birthDate: "2999-01-01", cpf: "111.111.111-11", phone: null },
+		});
+		expect(res).toEqual({
+			ok: false,
+			errors: {
+				name: "Name is required.",
+				birthDate: "Birth date cannot be in the future.",
+				cpf: "Invalid CPF.",
+			},
+		});
+		expect((await listPatientsFn()).length).toBe(before);
+	});
+
+	it("gets, updates and lists consultations for a full FHIR record", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await newPatient("Registro Completo", {
+			gender: "female",
+			cpf: "529.982.247-25",
+			country: "BR",
+			state: "pe",
+			postalCode: "50050-000",
+		});
+		expect(patient).toMatchObject({ cpf: "52998224725", state: "PE", postalCode: "50050000" });
+		expect((await getPatientFn({ data: patient.id }))?.name).toBe("Registro Completo");
+		expect(await getPatientFn({ data: 999999 })).toBeNull();
+
+		// wire tolerance: numeric-string id, nullable fields
+		const updated = await updatePatientFn({
+			data: {
+				id: String(patient.id) as never,
+				name: "Registro Editado",
+				birthDate: "1984",
+				city: null,
+				active: false,
+			},
+		});
+		expect(updated).toMatchObject({
+			ok: true,
+			patient: { name: "Registro Editado", active: false },
+		});
+		expect(
+			await updatePatientFn({ data: { id: patient.id, name: "", birthDate: "1984" } }),
+		).toEqual({ ok: false, errors: { name: "Name is required." } });
+		expect(
+			await updatePatientFn({ data: { id: 999999, name: "Ghost", birthDate: "1984" } }),
+		).toEqual({ ok: false, errors: {} });
+
+		await saveConsultationFn({
+			data: {
+				transcript: "t",
+				anamnesis: makeAnamnesis("Do paciente"),
+				engine: "e",
+				patientId: patient.id,
+			},
+		});
+		await saveConsultationFn({
+			data: { transcript: "t", anamnesis: makeAnamnesis("Sem paciente"), engine: "e" },
+		});
+		const own = await listPatientConsultationsFn({ data: patient.id });
+		expect(own.map((c) => c.chiefComplaint)).toEqual(["Do paciente"]);
+		expect(own[0]?.patientId).toBe(patient.id);
+	});
+
+	it("extraction receives the record's sex and age as context", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await newPatient("Contexto", { gender: "male" });
+		const run = vi.spyOn(env.AI, "run");
+		try {
+			await extractAnamnesisFn({ data: { transcript: SAMPLE_TRANSCRIPT, patientId: patient.id } });
+			const input = run.mock.calls.at(-1)?.[1] as { messages: Array<{ content: string }> };
+			expect(input.messages[0]!.content).toMatch(
+				/PATIENT — from the patient record \(context only, NOT evidence\): male, \d+ years old\./,
+			);
+		} finally {
+			run.mockRestore();
+		}
+	});
+
 	it("services deny cross-user access via the bound principal", async () => {
 		headers.current = new Headers({ cookie });
 		const saved = await saveConsultationFn({
 			data: { transcript: "t", anamnesis: makeAnamnesis("Q"), engine: "e" },
 		});
+		const foreignPatient = await newPatient("Alheio");
 
 		// Second user: lists are scoped empty; entity access is denied
 		// (service fails Forbidden → handlers return the "not visible" shape).
@@ -293,6 +394,15 @@ describe("server fns", () => {
 		headers.current = new Headers({ cookie: cookie2 });
 		expect(await listConsultationsFn()).toEqual([]);
 		expect(await listPatientsFn()).toEqual([]);
+		expect(await getPatientFn({ data: foreignPatient.id })).toBeNull();
+		expect(
+			await updatePatientFn({ data: { id: foreignPatient.id, name: "Hijack", birthDate: "1984" } }),
+		).toEqual({ ok: false, errors: {} });
+		// someone else's patient is not used as extraction context
+		const extracted = await extractAnamnesisFn({
+			data: { transcript: SAMPLE_TRANSCRIPT, patientId: foreignPatient.id },
+		});
+		expect(extracted.anamnesis).toBeTruthy();
 		expect(await getConsultationFn({ data: saved.id! })).toBeNull();
 		expect(await getLiveConsultationFn({ data: saved.id! })).toBeNull();
 		expect(await recordConsentFn({ data: saved.id! })).toEqual({ ok: false });

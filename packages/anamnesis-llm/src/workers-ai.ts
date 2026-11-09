@@ -71,7 +71,7 @@ export const makeWorkersAiAnamnesisEngine = (
 		AnamnesisEngine,
 		AnamnesisEngine.of({
 			extract: Effect.fn("AnamnesisEngine.extract")((input: ExtractInput) =>
-				runChat(ai, model, buildPrompt(input.history), input.transcript).pipe(
+				runChat(ai, model, buildPrompt(input.history, input.patient), input.transcript).pipe(
 					Effect.flatMap((text) =>
 						Effect.try({ try: () => extractJson(text), catch: (e) => e }).pipe(
 							Effect.flatMap((raw) => Schema.decodeUnknownEffect(AnamnesisSchema)(raw)),

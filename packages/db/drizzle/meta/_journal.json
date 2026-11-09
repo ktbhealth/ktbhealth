@@ -15,6 +15,13 @@
       "when": 1794163546903,
       "tag": "0001_loud_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794186873819,
+      "tag": "0002_smart_black_widow",
+      "breakpoints": true
     }
   ]
 }

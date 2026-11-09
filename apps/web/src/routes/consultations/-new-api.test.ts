@@ -28,7 +28,7 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
-import { newConsultationApi } from "./new.tsx";
+import { newConsultationApi, validateNewConsultationSearch } from "./new.tsx";
 
 describe("newConsultationApi wiring", () => {
 	const sec = { content: "x", confidence: "media" as const, evidence: [] as string[] };
@@ -62,8 +62,17 @@ describe("newConsultationApi wiring", () => {
 			} as never),
 		).rejects.toThrow("unauthenticated");
 		await expect(newConsultationApi.recordConsent({ data: 1 })).resolves.toEqual({ ok: false });
-		await expect(newConsultationApi.createPatient({ data: "Ana" })).rejects.toThrow(
-			"unauthenticated",
-		);
+		await expect(
+			newConsultationApi.createPatient({ data: { name: "Ana", birthDate: "1984" } }),
+		).rejects.toThrow("unauthenticated");
+	});
+
+	it("accepts only a positive integer patientId search param", () => {
+		expect(validateNewConsultationSearch({ patientId: "7" })).toEqual({ patientId: 7 });
+		expect(validateNewConsultationSearch({ patientId: 7 })).toEqual({ patientId: 7 });
+		expect(validateNewConsultationSearch({})).toEqual({});
+		expect(validateNewConsultationSearch({ patientId: "abc" })).toEqual({});
+		expect(validateNewConsultationSearch({ patientId: "-1" })).toEqual({});
+		expect(validateNewConsultationSearch({ patientId: "1.5" })).toEqual({});
 	});
 });

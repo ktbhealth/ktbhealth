@@ -39,6 +39,7 @@ export interface ConsultationSummary {
 	readonly source: string;
 	readonly status: string;
 	readonly consentAt: Date | null;
+	readonly patientId: number | null;
 	readonly patientName: string | null;
 	readonly hasAnamnesis: boolean;
 	readonly chiefComplaint: string | null;
@@ -232,7 +233,15 @@ async function saveConsultation(db: DbClient, userId: string, data: SaveConsulta
 	return { id: rows[0]!.id };
 }
 
-async function listConsultations(db: DbClient, userId: string): Promise<ConsultationSummary[]> {
+async function listConsultations(
+	db: DbClient,
+	userId: string,
+	patientId?: number,
+): Promise<ConsultationSummary[]> {
+	const where =
+		patientId === undefined
+			? eq(consultations.userId, userId)
+			: and(eq(consultations.userId, userId), eq(consultations.patientId, patientId));
 	const rows = await db
 		.select({
 			id: consultations.id,
@@ -243,11 +252,12 @@ async function listConsultations(db: DbClient, userId: string): Promise<Consulta
 			status: consultations.status,
 			consentAt: consultations.consentAt,
 			anamnesis: consultations.anamnesis,
+			patientId: consultations.patientId,
 			patientName: patients.name,
 		})
 		.from(consultations)
 		.leftJoin(patients, eq(consultations.patientId, patients.id))
-		.where(eq(consultations.userId, userId))
+		.where(where)
 		.orderBy(desc(consultations.id));
 	return rows.map(({ anamnesis, ...c }) => {
 		const parsed = parseStored(anamnesis, decodeAnamnesisOption);
@@ -396,7 +406,11 @@ export class Consultations extends Context.Service<
 			userId: string,
 			input: SaveConsultationInput,
 		) => Effect.Effect<{ id: number }, Forbidden>;
-		readonly list: (userId: string) => Effect.Effect<ConsultationSummary[], Forbidden>;
+		/** Owner's consultations, optionally only those linked to `patientId`. */
+		readonly list: (
+			userId: string,
+			patientId?: number,
+		) => Effect.Effect<ConsultationSummary[], Forbidden>;
 		readonly get: (
 			id: number,
 			userId: string,
@@ -479,9 +493,9 @@ export const ConsultationsLive = Layer.effect(
 				yield* Effect.logInfo("consultation save", { userId, engine: input.engine });
 				return yield* Effect.promise(() => saveConsultation(db, userId, input));
 			}),
-			list: Effect.fn("Consultations.list")(function* (userId: string) {
+			list: Effect.fn("Consultations.list")(function* (userId: string, patientId?: number) {
 				yield* requireCanAs("consultation.read", { userId });
-				return yield* Effect.promise(() => listConsultations(db, userId));
+				return yield* Effect.promise(() => listConsultations(db, userId, patientId));
 			}),
 			get: Effect.fn("Consultations.get")(function* (id: number, userId: string) {
 				yield* requirePrincipalUser(userId, "consultation.read");

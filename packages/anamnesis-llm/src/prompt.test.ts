@@ -30,4 +30,22 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("- 20/01/2026 (#9)");
 		expect(prompt).toContain("TRANSCRIPT:");
 	});
+
+	it("injects record demographics as context, never evidence", () => {
+		const prompt = buildPrompt(null, { sex: "female", age: 42 });
+		expect(prompt).toContain(
+			"PATIENT — from the patient record (context only, NOT evidence): female, 42 years old.",
+		);
+		expect(prompt).not.toContain("PATIENT HISTORY");
+		expect(buildPrompt(undefined, { age: 0 })).toContain(": 0 years old.");
+		expect(buildPrompt(undefined, { sex: "male" })).toContain(": male.");
+		expect(buildPrompt(undefined, {})).toBe(PROMPT);
+		expect(buildPrompt(undefined, null)).toBe(PROMPT);
+	});
+
+	it("puts demographics before history when both are known", () => {
+		const prompt = buildPrompt(HISTORY, { sex: "female", age: 42 });
+		expect(prompt.indexOf("PATIENT —")).toBeLessThan(prompt.indexOf("PATIENT HISTORY"));
+		expect(prompt.endsWith("TRANSCRIPT:\n")).toBe(true);
+	});
 });

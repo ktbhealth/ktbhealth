@@ -7,6 +7,8 @@ export interface AnamnesisPdfInput {
 	consultationId: number;
 	createdAt: Date;
 	patientName: string | null;
+	/** Record demographics/identifiers line, e.g. "Female · 42 years · CPF 529.982.247-25". */
+	patientDetails?: string | null;
 	doctorName: string | null;
 	consentAt: Date | null;
 	anamnesis: Anamnesis;
@@ -39,6 +41,7 @@ export function renderAnamnesisPdf(input: AnamnesisPdfInput): Promise<Buffer> {
 		doc.font("Helvetica").fontSize(9.5).fillColor("#555");
 		doc.text(`Consultation #${input.consultationId} · ${fmt(input.createdAt)}`);
 		if (input.patientName) doc.text(`Patient: ${input.patientName}`);
+		if (input.patientDetails) doc.text(input.patientDetails);
 		if (input.doctorName) doc.text(`Physician: ${input.doctorName}`);
 		doc.text(
 			input.consentAt

@@ -187,7 +187,10 @@ describe("router integration", () => {
 		headers.current = new Headers({
 			cookie: (res.headers.get("set-cookie") ?? "").split(";")[0],
 		});
-		const patient = await createPatientFn({ data: "Paciente Recorrente" });
+		const created = await createPatientFn({
+			data: { name: "Paciente Recorrente", birthDate: "1984-03-05" },
+		});
+		const patient = created.ok ? created.patient : null;
 		const mk = (qp: string, plan: string) =>
 			saveConsultationFn({
 				data: {

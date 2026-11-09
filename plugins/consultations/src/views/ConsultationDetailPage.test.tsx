@@ -70,6 +70,19 @@ describe("ConsultationDetailPage", () => {
 		expect(screen.queryByText("Segunda opinião")).toBeNull();
 	});
 
+	it("links the patient name to the patient record", () => {
+		render(<ConsultationDetailPage c={detail({})} history={null} />);
+		const link = screen.getByTitle("Open patient record");
+		expect(link.textContent).toBe("Maria");
+		expect(link.getAttribute("href")).toBe("/patients/$id");
+	});
+
+	it("shows an unlinked patient name as plain text", () => {
+		render(<ConsultationDetailPage c={detail({ patientId: null })} history={null} />);
+		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Maria");
+		expect(screen.queryByTitle("Open patient record")).toBeNull();
+	});
+
 	it("renders minimal detail: no anamnesis/patient/consent", () => {
 		render(
 			<ConsultationDetailPage

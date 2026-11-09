@@ -37,7 +37,7 @@ export const makeAnamnesisEngine = (
 							objectName: "anamnesis",
 							schema: AnamnesisSchema,
 							prompt: [
-								Prompt.systemMessage({ content: buildPrompt(input.history) }),
+								Prompt.systemMessage({ content: buildPrompt(input.history, input.patient) }),
 								Prompt.userMessage({
 									content: [Prompt.textPart({ text: input.transcript })],
 								}),
