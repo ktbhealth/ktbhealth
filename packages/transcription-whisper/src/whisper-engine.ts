@@ -34,7 +34,7 @@ function ensureWorker(): Worker {
 	});
 	w.onmessage = (e: MessageEvent<EngineMessage>) => {
 		const m = e.data;
-		console.log("[whisper] worker →", m.type, m.message ?? m.text ?? "");
+		console.debug("[whisper] worker →", m.type, m.message ?? m.text ?? "");
 		if (m.type === "ready") {
 			state = "ready";
 			device = m.device ?? null;

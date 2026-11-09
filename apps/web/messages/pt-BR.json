@@ -1,5 +1,6 @@
 {
 	"meta_title": "KTB Health",
+	"meta_description": "O KTB Health transforma a conversa da consulta em um rascunho de anamnese estruturada para revisão do médico.",
 	"nav_sign_in": "Entrar",
 	"nav_sign_out": "Sair",
 	"nav_new_consultation": "+ Nova consulta",
@@ -12,6 +13,9 @@
 	"notfound_title": "Página não encontrada",
 	"notfound_body": "O endereço não existe ou a consulta não é sua.",
 	"notfound_cta": "Ir para consultas",
+	"error_title": "Algo deu errado",
+	"error_body": "Ocorreu um erro inesperado. Tente novamente ou volte às suas consultas.",
+	"error_retry": "Tentar novamente",
 	"footer_disclaimer": "Prova de conceito: a anamnese é um rascunho e deve ser revisada pelo médico responsável.",
 	"login_meta_title": "Entrar | KTB Health",
 	"login_heading_in": "Entrar",

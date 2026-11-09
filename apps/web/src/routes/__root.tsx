@@ -11,9 +11,16 @@ import {
 } from "@ktbhealth/ui/components/dropdown-menu";
 import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { createRootRoute, HeadContent, Link, Scripts, useLocation } from "@tanstack/react-router";
+import {
+	createRootRoute,
+	type ErrorComponentProps,
+	HeadContent,
+	Link,
+	Scripts,
+	useLocation,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { BookPlusIcon, SearchXIcon } from "lucide-react";
+import { BookPlusIcon, SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import * as m from "#/paraglide/messages.js";
 import { getLocale, locales } from "#/paraglide/runtime.js";
 import { LanguageToggle } from "@ktbhealth/ui/components/language-toggle";
@@ -29,10 +36,19 @@ export const Route = createRootRoute({
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
 			{ title: m.meta_title() },
+			{ name: "description", content: m.meta_description() },
+			{ name: "robots", content: "index, follow" },
+			{ property: "og:type", content: "website" },
+			{ property: "og:title", content: m.meta_title() },
+			{ property: "og:description", content: m.meta_description() },
+			{ name: "twitter:card", content: "summary" },
+			{ name: "twitter:title", content: m.meta_title() },
+			{ name: "twitter:description", content: m.meta_description() },
 		],
 		links: [{ rel: "stylesheet", href: appCss }],
 	}),
 	shellComponent: RootDocument,
+	errorComponent: RootError,
 	notFoundComponent: () => (
 		<div className="py-24 text-center">
 			<SearchXIcon className="mx-auto size-12 text-muted-foreground" />
@@ -47,6 +63,36 @@ export const Route = createRootRoute({
 		</div>
 	),
 });
+
+/**
+ * Root error boundary — friendly localized message, never a stack trace.
+ * `reset` re-runs the failed loader; the link offers a way out when the
+ * failure is permanent.
+ */
+function RootError({ reset }: ErrorComponentProps) {
+	return (
+		<div className="py-24 text-center">
+			<TriangleAlertIcon className="mx-auto size-12 text-muted-foreground" />
+			<h1 className="mt-4 text-2xl font-bold tracking-tight">{m.error_title()}</h1>
+			<p className="mt-1 text-sm text-muted-foreground">{m.error_body()}</p>
+			<div className="mt-6 flex items-center justify-center gap-3">
+				<button
+					type="button"
+					onClick={reset}
+					className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+				>
+					{m.error_retry()}
+				</button>
+				<Link
+					to="/consultations"
+					className="rounded-lg border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+				>
+					{m.notfound_cta()}
+				</Link>
+			</div>
+		</div>
+	);
+}
 
 const NAV_LINK =
 	"rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground";

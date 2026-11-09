@@ -9,6 +9,21 @@ import { run } from "./runtime.ts";
 export type { SessionUser };
 
 /**
+ * Thrown by `ensureSessionUser` when no session exists. The `status`
+ * field is read by TanStack Start's error serializer
+ * (`getErrorStatus` → `error.status`), so server-fn callers get a real
+ * 401 instead of a generic 500. Keep the message stable — callers and
+ * tests match on "unauthenticated".
+ */
+export class UnauthenticatedError extends Error {
+	readonly status = 401;
+	constructor() {
+		super("unauthenticated");
+		this.name = "UnauthenticatedError";
+	}
+}
+
+/**
  * Session helpers for plugin server functions — the same contract the
  * host's `lib/auth.ts` wrappers had, reached through the runtime
  * registry instead of the app's platform module (P-033).
@@ -31,6 +46,6 @@ export async function getSessionUser(headers?: Headers): Promise<SessionUser | n
 
 export async function ensureSessionUser(headers?: Headers): Promise<SessionUser> {
 	const user = await getSessionUser(headers);
-	if (!user) throw new Error("unauthenticated");
+	if (!user) throw new UnauthenticatedError();
 	return user;
 }

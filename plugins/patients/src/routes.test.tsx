@@ -143,6 +143,14 @@ describe("patient routes", () => {
 			await expect(opts(DetailRoute).loader!({ params: { id: "5" } })).rejects.toThrow("not-found");
 		});
 
+		it("throws notFound for non-numeric ids without calling the fns", async () => {
+			for (const id of ["abc", "NaN", "1.5", "-3", ""]) {
+				await expect(opts(DetailRoute).loader!({ params: { id } })).rejects.toThrow("not-found");
+			}
+			expect(mocks.getPatientFn).not.toHaveBeenCalled();
+			expect(mocks.patientConsultationsFn).not.toHaveBeenCalled();
+		});
+
 		it("renders the detail page; deletion returns to the list", () => {
 			mocks.loaderData.current = {
 				patient: { id: 5 },
@@ -172,6 +180,13 @@ describe("patient routes", () => {
 		it("throws notFound when the patient does not exist", async () => {
 			mocks.getPatientFn.mockResolvedValue(null);
 			await expect(opts(EditRoute).loader!({ params: { id: "5" } })).rejects.toThrow("not-found");
+		});
+
+		it("throws notFound for non-numeric ids without calling the fns", async () => {
+			for (const id of ["abc", "NaN", "1.5", "-3", ""]) {
+				await expect(opts(EditRoute).loader!({ params: { id } })).rejects.toThrow("not-found");
+			}
+			expect(mocks.getPatientFn).not.toHaveBeenCalled();
 		});
 
 		it("renders the form for the loaded patient and navigates after saving", () => {

@@ -1,5 +1,6 @@
 {
 	"meta_title": "KTB Health",
+	"meta_description": "KTB Health turns the consultation conversation into a structured anamnesis draft for physician review.",
 	"nav_sign_in": "Sign in",
 	"nav_sign_out": "Sign out",
 	"nav_new_consultation": "+ New consultation",
@@ -12,6 +13,9 @@
 	"notfound_title": "Page not found",
 	"notfound_body": "The address does not exist or the consultation is not yours.",
 	"notfound_cta": "Go to consultations",
+	"error_title": "Something went wrong",
+	"error_body": "An unexpected error occurred. Try again, or head back to your consultations.",
+	"error_retry": "Try again",
 	"footer_disclaimer": "Proof of concept: the anamnesis is a draft and must be reviewed by the responsible physician.",
 	"login_meta_title": "Sign in | KTB Health",
 	"login_heading_in": "Sign in",

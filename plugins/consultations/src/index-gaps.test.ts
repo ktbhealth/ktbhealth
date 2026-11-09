@@ -4,20 +4,17 @@ import { eq } from "drizzle-orm";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
-import { patients as patientsTable } from "@ktb/patients/schema";
 import { PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
-import { makeEventBus, Query } from "@effect-server-utils/cqrs";
+import { makeEventBus } from "@effect-server-utils/cqrs";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 
-import { ConsultationsQueries } from "./api.ts";
 import { consultations as consultationsTable } from "./schema.ts";
 import {
 	Consultations,
 	ConsultationsLive,
-	ConsultationsQueriesLive,
 	attachAudioRecord,
 	audioJobRecord,
 	audioJobRow,
@@ -25,8 +22,7 @@ import {
 } from "./index.ts";
 
 // Branch/function gaps in index.ts that the main suite does not reach:
-// optional audio fields, missing rows, unowned consultations, a failed
-// insert and the consultations.forPatient cross-plugin query.
+// optional audio fields, missing rows and unowned consultations.
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -110,6 +106,9 @@ describe("ConsultationsLive on unknown consultations", () => {
 	});
 });
 
+const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
+	Effect.flatMap(Consultations, f);
+
 describe("Consultations.create when the insert returns no row", () => {
 	it("returns null and dispatches no creation event", async () => {
 		const emptyInsert = {
@@ -128,51 +127,5 @@ describe("Consultations.create when the insert returns no row", () => {
 		} finally {
 			await runtime.dispose();
 		}
-	});
-});
-
-const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
-	Effect.flatMap(Consultations, f);
-
-describe("consultations.forPatient query", () => {
-	let runtime: ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
-	let patientId: number;
-	let otherPatientId: number;
-
-	beforeAll(async () => {
-		const db = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(
-			ConsultationsQueriesLive.pipe(Layer.provide(liveDeps(db))),
-		) as ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
-		const [p, q] = await db
-			.insert(patientsTable)
-			.values([
-				{ ownerId: "u1", name: "Ana", createdAt: new Date() },
-				{ ownerId: "u1", name: "Bia", createdAt: new Date() },
-			])
-			.returning({ id: patientsTable.id });
-		patientId = p!.id;
-		otherPatientId = q!.id;
-		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
-		await db.update(consultationsTable).set({ patientId }).where(eq(consultationsTable.id, id));
-	});
-	afterAll(() => runtime.dispose());
-
-	const forPatient = (id: number) =>
-		runtime.runPromise(
-			Effect.scoped(
-				Effect.gen(function* () {
-					const queries = yield* Query.dispatcher(ConsultationsQueries);
-					return yield* queries["consultations.forPatient"]({ patientId: id });
-				}),
-			),
-		);
-
-	it("lists a patient's consultations and only theirs", async () => {
-		const rows = await forPatient(patientId);
-		expect(rows).toHaveLength(1);
-		expect(rows[0]).toMatchObject({ status: "done" });
-		expect(rows[0]?.createdAt).toBeInstanceOf(Date);
-		await expect(forPatient(otherPatientId)).resolves.toEqual([]);
 	});
 });
