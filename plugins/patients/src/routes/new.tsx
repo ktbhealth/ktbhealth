@@ -1,22 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { PatientFormPage, type PatientFormApi } from "@ktb/patients/views";
-import { createPatientFn } from "#/lib/fns.ts";
-import { requireSession } from "#/lib/guard.ts";
-import { getLocale } from "#/paraglide/runtime.js";
-
-export const newPatientApi: PatientFormApi = {
-	save: (draft) => createPatientFn({ data: draft }),
-};
+import { PatientFormPage } from "../views/index.ts";
+import { localeFn } from "../fns.ts";
+import { newPatientApi } from "../apis.ts";
+import { requireSession } from "../guard.ts";
 
 export const Route = createFileRoute("/patients/new")({
 	beforeLoad: () => requireSession(),
+	loader: () => localeFn(),
 	component: function NewPatientRoute() {
+		const locale = Route.useLoaderData();
 		const navigate = useNavigate();
 		return (
 			<PatientFormPage
 				api={newPatientApi}
-				locale={getLocale()}
+				locale={locale}
 				onSaved={(id) => navigate({ to: "/patients/$id", params: { id: String(id) } })}
 			/>
 		);

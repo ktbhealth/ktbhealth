@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { asc, desc, eq } from "drizzle-orm";
-import { index, route } from "@tanstack/virtual-file-routes";
+import { physical } from "@tanstack/virtual-file-routes";
 import { UsersIcon } from "lucide-react";
 
 import { user as users } from "@ktb/auth/schema";
@@ -214,19 +214,16 @@ export const patientsServicesPlugin = definePlugin({
 	services: Layer.mergeAll(PatientsLive, PatientsQueriesLive, PatientsCommandsLive),
 });
 
-// Route subtree composed into the host's virtualRouteConfig. File paths
-// resolve relative to the host's routes directory (apps/web/src/routes);
-// the route modules there wire these paths to this plugin's views and to
-// host server functions, which plugins cannot import.
+// Route subtree composed into the host's virtualRouteConfig (P-033):
+// the route modules live in THIS package (src/routes/**) and are
+// discovered by a physical() directory scan. The directory path is
+// resolved relative to the host's routes directory
+// (apps/web/src/routes) — "../../../../" escapes to the repo root —
+// and the modules reach the app runtime through @ktb/server-fns, so
+// the plugin owns routes end to end with zero host route files.
 export const patientsRoutesPlugin = definePlugin({
 	id: "patients.routes",
-	routes: [
-		route("patients", [
-			index("patients/index.tsx"),
-			route("new", "patients/new.tsx"),
-			route("$id", [index("patients/$id.tsx"), route("edit", "patients/$id.edit.tsx")]),
-		]),
-	],
+	routes: [physical("/patients", "../../../../plugins/patients/src/routes")],
 });
 
 export const patientsLandingNavPlugin = definePlugin({

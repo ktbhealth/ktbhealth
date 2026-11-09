@@ -4,11 +4,10 @@ import { Consultations } from "@ktb/consultations";
 import { ConsultationsQueries } from "@ktb/consultations/api";
 import { Query } from "@effect-server-utils/cqrs";
 import { Patients } from "@ktb/patients";
-import { demographicContext, TEXT_FIELDS, validatePatient } from "@ktb/patients/record";
+import { demographicContext } from "@ktb/patients/record";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
 import { Notifications, rowToConsole } from "@ktb/notifications";
-import { audioBucket, run, runAs } from "#/lib/platform.ts";
-import { purgeAudio } from "#/lib/audio-purge.ts";
+import { run, runAs } from "#/lib/platform.ts";
 import { platformPages } from "#/lib/platform-pages.ts";
 import { PlatformAdmin } from "@ktb/platform";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
@@ -71,29 +70,6 @@ const HistoryInput = Schema.Struct({
 	patientId: Schema.Number,
 	excludeId: Schema.optionalKey(Schema.Number),
 });
-
-// Patient record: every FHIR text field optional/nullable on the wire;
-// semantic validation (codes, CPF/CNS, dates) is validatePatient's job.
-const draftFields = Object.fromEntries(
-	TEXT_FIELDS.map((k) => [k, Schema.optionalKey(Schema.NullishOr(Schema.String))]),
-);
-const PatientDraftInput = Schema.Struct({
-	...draftFields,
-	active: Schema.optionalKey(Schema.Boolean),
-});
-const PatientUpdateInput = Schema.Struct({
-	...draftFields,
-	active: Schema.optionalKey(Schema.Boolean),
-	id: Schema.Number,
-});
-
-const decodePatientDraft = Schema.decodeUnknownSync(PatientDraftInput);
-/** `id` tolerates a numeric string, like `patientId` elsewhere. */
-const decodePatientUpdate = (input: unknown) => {
-	const o = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
-	const id = typeof o.id === "string" && o.id.trim() !== "" ? Number(o.id) : o.id;
-	return Schema.decodeUnknownSync(PatientUpdateInput)({ ...o, id });
-};
 
 const decodeExtractInput = (input: unknown) =>
 	Schema.decodeUnknownSync(ExtractInput)(normalizePatientId(input));
@@ -213,136 +189,19 @@ export const patientHistoryFn = createServerFn({ method: "GET" })
 	});
 
 // ---------- patients ----------
-// All domain calls go through `runAs(user, …)`: the service enforces
-// ownership via the bound Principal — no handler-level requireCan.
-
-export const listPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
-	if (!user) return [];
-	return runAs(
-		user,
-		Effect.gen(function* () {
-			const patients = yield* Patients;
-			return yield* patients.list(user.id);
-		}),
-	);
-});
-
-/** What deleting a patient takes with it — shown before the doctor confirms. */
-export const patientDeletionImpactFn = createServerFn({ method: "GET" })
-	.validator((id: number) => decodeNumber(id))
-	.handler(async ({ data: id }) => {
-		const user = await getSessionUser();
-		if (!user) return null;
-		return runAs(
-			user,
-			Effect.gen(function* () {
-				const patients = yield* Patients;
-				const patient = yield* patients
-					.get(user.id, id)
-					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
-				if (!patient) return null;
-				const consultations = yield* Consultations;
-				return { consultations: (yield* consultations.list(user.id, id)).length };
-			}),
-		);
-	});
-
-/**
- * Permanently delete a patient and every consultation linked to them
- * (one D1 batch), then purge their recordings from R2. Missing or not
- * owned → `{ ok: false }`.
- */
-export const deletePatientFn = createServerFn({ method: "POST" })
-	.validator((id: number) => decodeNumber(id))
-	.handler(async ({ data: id }) => {
-		const user = await ensureSessionUser();
-		const result = await runAs(
-			user,
-			Effect.gen(function* () {
-				const consultations = yield* Consultations;
-				return yield* consultations
-					.deletePatient(user.id, id)
-					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
-			}),
-		);
-		if (!result) return { ok: false as const };
-		const leftover = await purgeAudio(audioBucket, result.audioKeys);
-		return {
-			ok: true as const,
-			consultations: result.consultations,
-			/** Recordings still in storage after a failed purge (0 when clean). */
-			orphanedAudio: leftover.length,
-		};
-	});
-
-export const getPatientFn = createServerFn({ method: "GET" })
-	.validator((id: number) => decodeNumber(id))
-	.handler(async ({ data: id }) => {
-		const user = await getSessionUser();
-		if (!user) return null;
-		// Someone else's patient fails Forbidden inside the service → null (404).
-		return runAs(
-			user,
-			Effect.gen(function* () {
-				const patients = yield* Patients;
-				return yield* patients
-					.get(user.id, id)
-					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
-			}),
-		);
-	});
-
-/** Field errors come back as data (`ok: false`) so the form can show them inline. */
-export const createPatientFn = createServerFn({ method: "POST" })
-	.validator((input: unknown) => decodePatientDraft(input))
-	.handler(async ({ data }) => {
-		const user = await ensureSessionUser();
-		const result = validatePatient(data);
-		if (!result.ok) return { ok: false as const, errors: result.errors };
-		return runAs(
-			user,
-			Effect.gen(function* () {
-				const patients = yield* Patients;
-				const patient = yield* patients.create(user.id, result.fields);
-				return patient ? { ok: true as const, patient } : { ok: false as const, errors: {} };
-			}),
-		);
-	});
-
-export const updatePatientFn = createServerFn({ method: "POST" })
-	.validator((input: unknown) => decodePatientUpdate(input))
-	.handler(async ({ data: { id, ...draft } }) => {
-		const user = await ensureSessionUser();
-		const result = validatePatient(draft);
-		if (!result.ok) return { ok: false as const, errors: result.errors };
-		return runAs(
-			user,
-			Effect.gen(function* () {
-				const patients = yield* Patients;
-				// Missing or not owned → same "not saved" answer.
-				const patient = yield* patients
-					.update(user.id, id, result.fields)
-					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
-				return patient ? { ok: true as const, patient } : { ok: false as const, errors: {} };
-			}),
-		);
-	});
-
-/** The patient record page's consultation list (owner-scoped). */
-export const listPatientConsultationsFn = createServerFn({ method: "GET" })
-	.validator((patientId: number) => decodeNumber(patientId))
-	.handler(async ({ data: patientId }) => {
-		const user = await getSessionUser();
-		if (!user) return [];
-		return runAs(
-			user,
-			Effect.gen(function* () {
-				const consultations = yield* Consultations;
-				return yield* consultations.list(user.id, patientId);
-			}),
-		);
-	});
+// Patient server functions are owned by the patients plugin (P-033) —
+// its route modules and this host file share the same implementations
+// through @ktb/patients/fns. Re-exported here so existing host callers
+// (consultations routes, tests) keep their import path.
+export {
+	createPatientFn,
+	deletePatientFn,
+	getPatientFn,
+	listPatientsFn,
+	patientConsultationsFn as listPatientConsultationsFn,
+	patientDeletionImpactFn,
+	updatePatientFn,
+} from "@ktb/patients/fns";
 
 // ---------- consultations (owner-scoped) ----------
 

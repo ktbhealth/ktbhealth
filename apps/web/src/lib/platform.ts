@@ -1,5 +1,8 @@
 import { env } from "cloudflare:workers";
 
+import { setServerRuntime } from "@ktb/server-fns";
+import { getLocale } from "#/paraglide/runtime.js";
+
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
@@ -34,6 +37,17 @@ for (const key of [...LLM_ENV_KEYS, ...APP_ENV_KEYS]) {
 const app = createApp(appEnv as unknown as typeof env);
 
 export const { BindingLive, CaptchaLive, run, runAs, correctTranscript, db, auth } = app;
+
+// P-033: publish the runtime to @ktb/server-fns so plugin-owned server
+// functions (plugins/*/src/**) reach run/runAs, audio purge and locale
+// without importing this module. Env reads stay here — the registry
+// only hands out already-resolved capabilities.
+setServerRuntime({
+	run,
+	runAs,
+	audio: env.AUDIO_BUCKET,
+	getLocale,
+});
 
 // Raw platform binding passthrough — not composed, just exposed.
 export const ai = aiBinding;

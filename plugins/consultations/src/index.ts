@@ -11,14 +11,19 @@ import { user as users } from "@ktb/auth/schema";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
-import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
+import { Forbidden, Principal, requireCanAs, requirePrincipalUser } from "@ktb/authz";
 import { ClipboardListIcon } from "lucide-react";
 import type { Anamnesis, PatientHistory, PriorVisit } from "@ktb/anamnesis";
 import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
 import { patientsServicesPlugin } from "@ktb/patients";
-import { PatientsCommands, PatientsQueries } from "@ktb/patients/api";
+import {
+	PatientCascadeCommands,
+	PatientRecordConsultationsQueries,
+	PatientsCommands,
+	PatientsQueries,
+} from "@ktb/patients/api";
 import { ConsultationAudioUpdated, ConsultationCreated, ConsultationsQueries } from "./api.ts";
 import { ConsultationsPlatformPage } from "./platform-page.tsx";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
@@ -848,10 +853,70 @@ export const ConsultationsQueriesLive = Query.handlersOf(ConsultationsQueries, {
 		}),
 });
 
+/**
+ * `patients.*` CQRS surface owned by this plugin (P-033): the patients
+ * plugin's server functions dispatch these groups; the defs live in
+ * @ktb/patients/api so patients never imports @ktb/consultations.
+ * Handlers reuse the same authz + row helpers as the Consultations
+ * service methods they mirror.
+ */
+export const PatientRecordConsultationsLive = Query.handlersOf(PatientRecordConsultationsQueries, {
+	"patients.recordConsultations": ({ patientId }) =>
+		Effect.gen(function* () {
+			const principal = yield* Principal;
+			if (principal === null) return yield* Effect.fail(new Forbidden({ path: "principal" }));
+			const db = yield* Db;
+			// Same gate as Consultations.list — owner-scoped read.
+			yield* requireCanAs("consultation.read", { userId: principal.userId });
+			const rows = yield* Effect.promise(() => listConsultations(db, principal.userId, patientId));
+			return rows.map((r) => ({
+				id: r.id,
+				// Rows are filtered by patientId — the column is nullable
+				// in the schema but never null here.
+				patientId: r.patientId ?? patientId,
+				createdAt: r.createdAt,
+				status: r.status,
+				hasAnamnesis: r.hasAnamnesis,
+				chiefComplaint: r.chiefComplaint,
+			}));
+		}),
+});
+
+export const PatientDeleteCascadeLive = Command.handlersOf(PatientCascadeCommands, {
+	"patients.deleteCascade": ({ patientId }) =>
+		Effect.gen(function* () {
+			const principal = yield* Principal;
+			if (principal === null) return yield* Effect.fail(new Forbidden({ path: "principal" }));
+			const db = yield* Db;
+			const patientQueries = yield* Query.dispatcher(PatientsQueries);
+			const patientCommands = yield* Command.dispatcher(PatientsCommands);
+			// Mirrors Consultations.deletePatient — the caller is the bound
+			// Principal (no userId param to cross-check), so the flow is:
+			// patient owner lookup → per-consultation authz → cascade →
+			// `patients.delete` (which owns patient authz + the row delete).
+			const owner = yield* patientQueries["patients.ownerOf"]({ id: patientId });
+			if (owner === null) return null;
+			const rows = yield* Effect.promise(() => patientConsultationRows(db, patientId));
+			for (const row of rows)
+				yield* requireCanAs("consultation.delete", { userId: row.userId ?? "" });
+			yield* Effect.promise(() => deletePatientConsultations(db, patientId));
+			yield* patientCommands["patients.delete"]({ id: patientId });
+			return {
+				consultations: rows.length,
+				audioKeys: rows.flatMap((r) => (r.audioKey ? [r.audioKey] : [])),
+			};
+		}),
+});
+
 export const consultationsServicesPlugin = definePlugin({
 	id: "consultations.services",
 	requiredDeps: [patientsServicesPlugin.id, platformAdminPlugin.id],
-	services: Layer.mergeAll(ConsultationsLive, ConsultationsQueriesLive),
+	services: Layer.mergeAll(
+		ConsultationsLive,
+		ConsultationsQueriesLive,
+		PatientRecordConsultationsLive,
+		PatientDeleteCascadeLive,
+	),
 });
 
 // Route subtree composed into the host's virtualRouteConfig. File paths

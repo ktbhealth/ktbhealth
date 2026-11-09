@@ -1,0 +1,13 @@
+{
+	"name": "@ktb/server-fns",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/auth": "workspace:*",
+		"@tanstack/react-start": "1.169.4",
+		"effect": "4.1.2"
+	}
+}

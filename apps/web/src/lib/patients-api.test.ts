@@ -28,9 +28,10 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
-import { editPatientApi } from "./$id.edit.tsx";
-import { newPatientApi } from "./new.tsx";
-import { patientDeleteApi } from "./-delete-api.ts";
+// platform.ts publishes the server runtime (@ktb/server-fns) that the
+// patients plugin's fns reach through the registry (P-033).
+import "./platform.ts";
+import { editPatientApi, newPatientApi, patientDeleteApi } from "@ktb/patients/apis";
 
 describe("patient form api wiring", () => {
 	it("delegates create and update to the server fns", async () => {

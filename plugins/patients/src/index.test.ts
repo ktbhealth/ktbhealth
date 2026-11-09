@@ -331,7 +331,9 @@ describe("plugins", () => {
 
 	it("declares the /patients route subtree and nav entry", () => {
 		expect(patientsRoutesPlugin.id).toBe("patients.routes");
-		expect(JSON.stringify(patientsRoutesPlugin.routes)).toContain("patients/$id.edit.tsx");
+		// P-033: the subtree is a physical() mount of this package's own
+		// src/routes directory — resolved against the host routes dir.
+		expect(JSON.stringify(patientsRoutesPlugin.routes)).toContain("plugins/patients/src/routes");
 		expect(patientsLandingNavPlugin.id).toBe("patients.landing-nav");
 		expect(patientsLandingNavPlugin.landingNav).toEqual([{ to: "/patients", label: "Patients" }]);
 	});

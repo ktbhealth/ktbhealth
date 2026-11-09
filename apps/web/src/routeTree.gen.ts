@@ -20,15 +20,15 @@ import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as consultationsIndexRouteImport } from './routes/consultations/index'
 import { Route as consultationsIdRouteImport } from './routes/consultations/$id'
 import { Route as consultationsNewRouteImport } from './routes/consultations/new'
-import { Route as patientsIndexRouteImport } from './routes/patients/index'
-import { Route as patientsNewRouteImport } from './routes/patients/new'
+import { Route as PatientsIndexRouteImport } from './../../../plugins/patients/src/routes/index'
+import { Route as PatientsNewRouteImport } from './../../../plugins/patients/src/routes/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
 import { Route as SplatRouteImport } from './routes/platform/$'
 import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
-import { Route as patientsIdRouteImport } from './routes/patients/$id'
-import { Route as patientsIdDoteditRouteImport } from './routes/patients/$id.edit'
+import { Route as PatientsIdIndexRouteImport } from './../../../plugins/patients/src/routes/$id/index'
+import { Route as PatientsIdEditRouteImport } from './../../../plugins/patients/src/routes/$id/edit'
 import { Route as ApiConsultationsDotidDotaudioRouteImport } from './routes/api/consultations.$id.audio'
 import { Route as ApiConsultationsDotidDotpdfRouteImport } from './routes/api/consultations.$id.pdf'
 import { Route as ApiPatientsDotidDotexportRouteImport } from './routes/api/patients.$id.export'
@@ -88,12 +88,12 @@ const consultationsNewRoute = consultationsNewRouteImport.update({
   path: '/consultations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
-const patientsIndexRoute = patientsIndexRouteImport.update({
+const PatientsIndexRoute = PatientsIndexRouteImport.update({
   id: '/patients/',
   path: '/patients/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const patientsNewRoute = patientsNewRouteImport.update({
+const PatientsNewRoute = PatientsNewRouteImport.update({
   id: '/patients/new',
   path: '/patients/new',
   getParentRoute: () => rootRouteImport,
@@ -123,12 +123,12 @@ const ApiCdnSplatRoute = ApiCdnSplatRouteImport.update({
   path: '/api/cdn/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const patientsIdRoute = patientsIdRouteImport.update({
+const PatientsIdIndexRoute = PatientsIdIndexRouteImport.update({
   id: '/patients/$id/',
   path: '/patients/$id/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const patientsIdDoteditRoute = patientsIdDoteditRouteImport.update({
+const PatientsIdEditRoute = PatientsIdEditRouteImport.update({
   id: '/patients/$id/edit',
   path: '/patients/$id/edit',
   getParentRoute: () => rootRouteImport,
@@ -163,16 +163,16 @@ export interface FileRoutesByFullPath {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
-  '/patients/new': typeof patientsNewRoute
+  '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/consultations/': typeof consultationsIndexRoute
-  '/patients/': typeof patientsIndexRoute
+  '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
-  '/patients/$id/': typeof patientsIdRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
-  '/patients/$id/edit': typeof patientsIdDoteditRoute
+  '/patients/$id/edit': typeof PatientsIdEditRoute
+  '/patients/$id/': typeof PatientsIdIndexRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
   '/api/patients/$id/export': typeof ApiPatientsDotidDotexportRoute
@@ -187,16 +187,16 @@ export interface FileRoutesByTo {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
-  '/patients/new': typeof patientsNewRoute
+  '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/consultations': typeof consultationsIndexRoute
-  '/patients': typeof patientsIndexRoute
+  '/patients': typeof PatientsIndexRoute
   '/platform': typeof IndexRoute
-  '/patients/$id': typeof patientsIdRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
-  '/patients/$id/edit': typeof patientsIdDoteditRoute
+  '/patients/$id/edit': typeof PatientsIdEditRoute
+  '/patients/$id': typeof PatientsIdIndexRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
   '/api/patients/$id/export': typeof ApiPatientsDotidDotexportRoute
@@ -213,16 +213,16 @@ export interface FileRoutesById {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
-  '/patients/new': typeof patientsNewRoute
+  '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/consultations/': typeof consultationsIndexRoute
-  '/patients/': typeof patientsIndexRoute
+  '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
-  '/patients/$id/': typeof patientsIdRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
-  '/patients/$id/edit': typeof patientsIdDoteditRoute
+  '/patients/$id/edit': typeof PatientsIdEditRoute
+  '/patients/$id/': typeof PatientsIdIndexRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
   '/api/patients/$id/export': typeof ApiPatientsDotidDotexportRoute
@@ -245,11 +245,11 @@ export interface FileRouteTypes {
     | '/consultations/'
     | '/patients/'
     | '/platform/'
-    | '/patients/$id/'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
     | '/patients/$id/edit'
+    | '/patients/$id/'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
     | '/api/patients/$id/export'
@@ -269,11 +269,11 @@ export interface FileRouteTypes {
     | '/consultations'
     | '/patients'
     | '/platform'
-    | '/patients/$id'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
     | '/patients/$id/edit'
+    | '/patients/$id'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
     | '/api/patients/$id/export'
@@ -294,11 +294,11 @@ export interface FileRouteTypes {
     | '/consultations/'
     | '/patients/'
     | '/platform/'
-    | '/patients/$id/'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
     | '/patients/$id/edit'
+    | '/patients/$id/'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
     | '/api/patients/$id/export'
@@ -315,13 +315,13 @@ export interface RootRouteChildren {
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   consultationsIdRoute: typeof consultationsIdRoute
   consultationsNewRoute: typeof consultationsNewRoute
-  patientsNewRoute: typeof patientsNewRoute
+  PatientsNewRoute: typeof PatientsNewRoute
   consultationsIndexRoute: typeof consultationsIndexRoute
-  patientsIndexRoute: typeof patientsIndexRoute
-  patientsIdRoute: typeof patientsIdRoute
+  PatientsIndexRoute: typeof PatientsIndexRoute
   ApiAuthDotsplatRoute: typeof ApiAuthDotsplatRoute
   ApiCdnSplatRoute: typeof ApiCdnSplatRoute
-  patientsIdDoteditRoute: typeof patientsIdDoteditRoute
+  PatientsIdEditRoute: typeof PatientsIdEditRoute
+  PatientsIdIndexRoute: typeof PatientsIdIndexRoute
   ApiConsultationsDotidDotaudioRoute: typeof ApiConsultationsDotidDotaudioRoute
   ApiConsultationsDotidDotpdfRoute: typeof ApiConsultationsDotidDotpdfRoute
   ApiPatientsDotidDotexportRoute: typeof ApiPatientsDotidDotexportRoute
@@ -410,14 +410,14 @@ declare module '@tanstack/react-router' {
       id: '/patients/'
       path: '/patients'
       fullPath: '/patients/'
-      preLoaderRoute: typeof patientsIndexRouteImport
+      preLoaderRoute: typeof PatientsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/patients/new': {
       id: '/patients/new'
       path: '/patients/new'
       fullPath: '/patients/new'
-      preLoaderRoute: typeof patientsNewRouteImport
+      preLoaderRoute: typeof PatientsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/platform/': {
@@ -459,14 +459,14 @@ declare module '@tanstack/react-router' {
       id: '/patients/$id/'
       path: '/patients/$id'
       fullPath: '/patients/$id/'
-      preLoaderRoute: typeof patientsIdRouteImport
+      preLoaderRoute: typeof PatientsIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/patients/$id/edit': {
       id: '/patients/$id/edit'
       path: '/patients/$id/edit'
       fullPath: '/patients/$id/edit'
-      preLoaderRoute: typeof patientsIdDoteditRouteImport
+      preLoaderRoute: typeof PatientsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/consultations/$id/audio': {
@@ -529,13 +529,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscribeRoute: ApiTranscribeRoute,
   consultationsIdRoute: consultationsIdRoute,
   consultationsNewRoute: consultationsNewRoute,
-  patientsNewRoute: patientsNewRoute,
+  PatientsNewRoute: PatientsNewRoute,
   consultationsIndexRoute: consultationsIndexRoute,
-  patientsIndexRoute: patientsIndexRoute,
-  patientsIdRoute: patientsIdRoute,
+  PatientsIndexRoute: PatientsIndexRoute,
   ApiAuthDotsplatRoute: ApiAuthDotsplatRoute,
   ApiCdnSplatRoute: ApiCdnSplatRoute,
-  patientsIdDoteditRoute: patientsIdDoteditRoute,
+  PatientsIdEditRoute: PatientsIdEditRoute,
+  PatientsIdIndexRoute: PatientsIdIndexRoute,
   ApiConsultationsDotidDotaudioRoute: ApiConsultationsDotidDotaudioRoute,
   ApiConsultationsDotidDotpdfRoute: ApiConsultationsDotidDotpdfRoute,
   ApiPatientsDotidDotexportRoute: ApiPatientsDotidDotexportRoute,
