@@ -60,7 +60,8 @@ bun install
 # apps/web/.env.local
 #   DATABASE_URL=./data/app.db   (SQLite for local dev)
 
-bun run dev      # http://localhost:3000
+bun run dev      # http://localhost:3000 (stub auth/captcha — no secrets needed)
+bun run dev:secrets   # same, but injects real secrets via cuora (needs vault access)
 bun run check    # fmt + lint + typecheck
 bun run test     # vitest, per-package projects
 bun run build    # production build (worker bundle)

@@ -6,7 +6,8 @@
 		"#/*": "./src/*"
 	},
 	"scripts": {
-		"dev": "cuora run --config ../../cuora.toml -- vp dev --port 3000",
+		"dev": "vp dev --port 3000",
+		"dev:secrets": "cuora run --config ../../cuora.toml -- vp dev --port 3000",
 		"build": "vp build && node scripts/strip-oversized-assets.mjs",
 		"preview": "vp preview",
 		"test": "vp test",
