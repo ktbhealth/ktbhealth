@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { AsteriskIcon, CalendarIcon } from "lucide-react";
 import type { Locale as CalendarLocale } from "react-day-picker";
-import { ptBR } from "react-day-picker/locale";
+import { enUS, ptBR } from "react-day-picker/locale";
 
 import { Alert } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
@@ -434,8 +434,15 @@ const toFhirDate = (date: Date): string =>
 
 const FIRST_MONTH = new Date(1900, 0);
 
-/** react-day-picker locales for the app locales that are not its English default. */
-const CALENDAR_LOCALES: Partial<Record<PatientLocale, CalendarLocale>> = { "pt-BR": ptBR };
+/**
+ * react-day-picker locales per app locale. English is explicit (not the library
+ * default): the design-system Calendar formats month names with the locale
+ * code, and `undefined` falls back to the host system locale.
+ */
+const CALENDAR_LOCALES: Partial<Record<PatientLocale, CalendarLocale>> = {
+	en: enUS,
+	"pt-BR": ptBR,
+};
 
 /** Exact-date picker: design-system Calendar in a Popover; value is a FHIR date or "". */
 function DateInput({
