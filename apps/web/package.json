@@ -39,6 +39,7 @@
 		"@ktb/dashboard": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/export-pdf": "workspace:*",
+		"@ktb/groups": "workspace:*",
 		"@ktb/infra-cloudflare": "workspace:*",
 		"@ktb/interop": "workspace:*",
 		"@ktb/interop-fhir": "workspace:*",

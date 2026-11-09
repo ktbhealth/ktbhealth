@@ -6,6 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 const platformAdminFn = vi.fn(async () => true);
 const adminListPatientsFn = vi.fn(async () => [] as unknown[]);
 const adminListUsersFn = vi.fn(async () => [] as unknown[]);
+const adminListGroupsFn = vi.fn(async () => [] as unknown[]);
 const getSessionUserFn = vi.fn(
 	async (): Promise<{ id: string; email: string; name: string } | null> => ({
 		id: "u1",
@@ -19,6 +20,7 @@ vi.mock("#/lib/fns.ts", () => ({
 	adminListPatientsFn: () => adminListPatientsFn(),
 	adminListConsultationsFn: () => adminListConsultationsFn(),
 	adminListUsersFn: () => adminListUsersFn(),
+	adminListGroupsFn: () => adminListGroupsFn(),
 	getSessionUserFn: () => getSessionUserFn(),
 }));
 
@@ -71,6 +73,7 @@ import { Route as PlatformRoute } from "./platform.tsx";
 import { Route as PlatformIndexRoute } from "./platform/index.tsx";
 import { Route as PlatformPatientsRoute } from "./platform/patients.tsx";
 import { Route as PlatformUsersRoute } from "./platform/users.tsx";
+import { Route as PlatformGroupsRoute } from "./platform/groups.tsx";
 
 const component = (route: unknown) =>
 	(route as { options: { component: () => ReactElement } }).options.component;
@@ -84,6 +87,7 @@ afterEach(() => {
 	adminListPatientsFn.mockReset().mockResolvedValue([]);
 	adminListConsultationsFn.mockReset().mockResolvedValue([]);
 	adminListUsersFn.mockReset().mockResolvedValue([]);
+	adminListGroupsFn.mockReset().mockResolvedValue([]);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
 	loaderData = { patients: [], consultations: [] };
 });
@@ -214,6 +218,37 @@ describe("/platform/users", () => {
 		).options.loader;
 		return loader().then(() => {
 			expect(adminListUsersFn).toHaveBeenCalled();
+		});
+	});
+});
+
+describe("/platform/groups", () => {
+	it("loads via adminListGroupsFn and renders rows", () => {
+		loaderData = [
+			{
+				id: 3,
+				name: "Clinic A",
+				slug: "clinic-a",
+				kind: "clinic",
+				meta: null,
+				createdAt: new Date("2026-11-01T10:00:00Z"),
+				updatedAt: new Date("2026-11-01T10:00:00Z"),
+				memberCount: 4,
+			},
+		];
+		render(createElement(component(PlatformGroupsRoute)));
+		expect(screen.getByText("Clinic A")).toBeTruthy();
+		expect(screen.getByText("clinic-a")).toBeTruthy();
+	});
+
+	it("loader calls the admin server fn", () => {
+		const loader = (
+			PlatformGroupsRoute as unknown as {
+				options: { loader: () => Promise<unknown> };
+			}
+		).options.loader;
+		return loader().then(() => {
+			expect(adminListGroupsFn).toHaveBeenCalled();
 		});
 	});
 });

@@ -1,0 +1,29 @@
+{
+	"name": "@ktb/groups",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./views": "./src/views/index.ts",
+		"./schema": "./src/schema.ts"
+	},
+	"dependencies": {
+		"@ktb/authz": "workspace:*",
+		"@ktb/db": "workspace:*",
+		"@ktb/kernel": "workspace:*",
+		"@ktb/platform": "workspace:*",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.1.2",
+		"lucide-react": "0.544.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"peerDependencies": {
+		"react": "^19.2.0"
+	}
+}

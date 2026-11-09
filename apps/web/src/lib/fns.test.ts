@@ -28,6 +28,7 @@ import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
 	adminListConsultationsFn,
+	adminListGroupsFn,
 	adminListPatientsFn,
 	adminListUsersFn,
 	attachAnamnesisFn,
@@ -474,6 +475,7 @@ describe("server fns", () => {
 		expect(await adminListPatientsFn()).toEqual([]);
 		expect(await adminListConsultationsFn()).toEqual([]);
 		expect(await adminListUsersFn()).toEqual([]);
+		expect(await adminListGroupsFn()).toEqual([]);
 
 		// Signed-in non-admin → still not admin, empty list.
 		headers.current = new Headers({ cookie });
@@ -481,6 +483,7 @@ describe("server fns", () => {
 		expect(await adminListPatientsFn()).toEqual([]);
 		expect(await adminListConsultationsFn()).toEqual([]);
 		expect(await adminListUsersFn()).toEqual([]);
+		expect(await adminListGroupsFn()).toEqual([]);
 
 		// Allowlisted admin (PLATFORM_ADMIN_EMAILS test double) → full
 		// cross-owner listing.
@@ -498,5 +501,8 @@ describe("server fns", () => {
 		const userRows = await adminListUsersFn();
 		expect(Array.isArray(userRows)).toBe(true);
 		expect(userRows.every((r) => typeof r.isAdmin === "boolean")).toBe(true);
+		const groupRows = await adminListGroupsFn();
+		expect(Array.isArray(groupRows)).toBe(true);
+		expect(groupRows.every((r) => typeof r.memberCount === "number")).toBe(true);
 	});
 });

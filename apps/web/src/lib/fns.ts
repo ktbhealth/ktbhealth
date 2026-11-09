@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { Consultations, type AdminConsultationRow } from "@ktb/consultations";
+import { Groups, type AdminGroupRow } from "@ktb/groups";
 import { Patients, type AdminPatientRow } from "@ktb/patients";
 import { demographicContext, TEXT_FIELDS, validatePatient } from "@ktb/patients/record";
 import { Users, type AdminUserRow } from "@ktb/users";
@@ -336,6 +337,26 @@ export const adminListUsersFn = createServerFn({ method: "GET" }).handler(async 
 			return yield* users
 				.adminList()
 				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminUserRow[])));
+		}),
+	);
+});
+
+/**
+ * Cross-owner group listing for the /platform console. The service
+ * re-checks the platform admin gate against the bound principal —
+ * non-admins get the same empty result as an empty table (the layout
+ * guard already 404s them before this is reachable).
+ */
+export const adminListGroupsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const groups = yield* Groups;
+			return yield* groups
+				.list()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminGroupRow[])));
 		}),
 	);
 });
