@@ -4,6 +4,10 @@
    detection ignores node_modules, so scan its sources explicitly. */
 @source "../node_modules/@ktbhealth/ui/packages/react/src";
 
+/* Plugin views live outside this app's root — scan them too, or their
+   utilities (spacing, grids) are silently missing from the build. */
+@source "../../../plugins";
+
 #app {
 	min-height: 100%;
 }

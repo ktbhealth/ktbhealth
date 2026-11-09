@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ClipboardListIcon, PencilIcon } from "lucide-react";
+import { ArrowLeftIcon, ClipboardListIcon, PencilIcon, PlusIcon } from "lucide-react";
 
 import { Alert } from "@ktbhealth/ui/components/alert";
 import { Badge } from "@ktbhealth/ui/components/badge";
-import { buttonVariants } from "@ktbhealth/ui/components/button";
+import { Button } from "@ktbhealth/ui/components/button";
 import { Empty, EmptyDescription, EmptyMedia } from "@ktbhealth/ui/components/empty";
 import type { Patient } from "../index.ts";
 import {
@@ -112,9 +112,16 @@ export function PatientDetailPage({
 
 	return (
 		<div>
-			<Link to="/patients" className="text-sm text-muted-foreground hover:text-foreground">
-				← Patients
-			</Link>
+			<Button
+				variant="ghost"
+				size="sm"
+				className="-ml-2"
+				nativeButton={false}
+				render={<Link to="/patients" />}
+			>
+				<ArrowLeftIcon />
+				Patients
+			</Button>
 
 			<div className="mt-3 flex flex-wrap items-start justify-between gap-4">
 				<div className="flex items-center gap-4">
@@ -130,26 +137,26 @@ export function PatientDetailPage({
 					</div>
 				</div>
 				<div className="flex gap-2">
-					<Link
-						to="/patients/$id/edit"
-						params={{ id }}
-						className={buttonVariants({ variant: "outline" })}
+					<Button
+						variant="outline"
+						nativeButton={false}
+						render={<Link to="/patients/$id/edit" params={{ id }} />}
 					>
-						<PencilIcon className="mr-1 inline size-3.5 -translate-y-px" />
+						<PencilIcon data-icon="inline-start" />
 						Edit record
-					</Link>
-					<Link
-						to="/consultations/new"
-						search={{ patientId: patient.id }}
-						className={buttonVariants()}
+					</Button>
+					<Button
+						nativeButton={false}
+						render={<Link to="/consultations/new" search={{ patientId: patient.id }} />}
 					>
-						+ New consultation
-					</Link>
+						<PlusIcon data-icon="inline-start" />
+						New consultation
+					</Button>
 				</div>
 			</div>
 
 			{!patient.birthDate ? (
-				<Alert className="mt-6 border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+				<Alert className="mt-5 border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
 					This record is incomplete: birth date is missing.{" "}
 					<Link to="/patients/$id/edit" params={{ id }} className="font-medium underline">
 						Complete the record
@@ -157,7 +164,7 @@ export function PatientDetailPage({
 				</Alert>
 			) : null}
 
-			<div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
+			<div className="mt-5 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
 				<section className="space-y-4">
 					{filled.map(([title, rows]) => (
 						<div key={title} className="rounded-2xl border border-border bg-card p-5 shadow-sm">

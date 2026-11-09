@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { SearchIcon, UsersIcon } from "lucide-react";
+import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react";
 
 import { Badge } from "@ktbhealth/ui/components/badge";
-import { buttonVariants } from "@ktbhealth/ui/components/button";
+import { Button } from "@ktbhealth/ui/components/button";
 import {
 	Empty,
 	EmptyContent,
@@ -47,13 +47,14 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 							: `${patients.length} patient${patients.length > 1 ? "s" : ""} registered.`}
 					</p>
 				</div>
-				<Link to="/patients/new" className={buttonVariants()}>
-					+ New patient
-				</Link>
+				<Button nativeButton={false} render={<Link to="/patients/new" />}>
+					<PlusIcon data-icon="inline-start" />
+					New patient
+				</Button>
 			</div>
 
 			{patients.length > 0 ? (
-				<div className="relative mt-6 w-full max-w-sm">
+				<div className="relative mt-5 w-full max-w-sm">
 					<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						type="search"
@@ -66,7 +67,7 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 				</div>
 			) : null}
 
-			<div className="mt-5 space-y-3">
+			<div className="mt-4 space-y-3">
 				{shown.map((p) => (
 					<article
 						key={p.id}
@@ -119,9 +120,9 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 							</EmptyDescription>
 						</EmptyHeader>
 						<EmptyContent>
-							<Link to="/patients/new" className={buttonVariants()}>
+							<Button nativeButton={false} render={<Link to="/patients/new" />}>
 								Register patient
-							</Link>
+							</Button>
 						</EmptyContent>
 					</Empty>
 				) : null}

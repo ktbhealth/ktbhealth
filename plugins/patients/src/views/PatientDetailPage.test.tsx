@@ -86,7 +86,7 @@ describe("PatientDetailPage", () => {
 		expect(screen.getByText("Edit record").closest("a")?.getAttribute("href")).toBe(
 			"/patients/7/edit",
 		);
-		expect(screen.getByText("+ New consultation").getAttribute("href")).toBe(
+		expect(screen.getByText("New consultation").closest("a")!.getAttribute("href")).toBe(
 			"/consultations/new?patientId=7",
 		);
 		expect(screen.getByText("No consultations for this patient yet.")).toBeTruthy();

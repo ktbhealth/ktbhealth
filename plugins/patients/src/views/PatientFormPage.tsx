@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
+import { AsteriskIcon } from "lucide-react";
 
 import { Alert } from "@ktbhealth/ui/components/alert";
-import { Button, buttonVariants } from "@ktbhealth/ui/components/button";
+import { Button } from "@ktbhealth/ui/components/button";
 import { Checkbox } from "@ktbhealth/ui/components/checkbox";
 import {
 	Field,
@@ -156,7 +157,7 @@ export function PatientFormPage({
 				date (or age) are required.
 			</p>
 
-			<div className="mt-8 space-y-6">
+			<div className="mt-6 space-y-6">
 				<Section legend="Identification">
 					{text("name", "Full name", { required: true, autoComplete: "name", wide: true })}
 					{text("socialName", "Social name", {
@@ -170,7 +171,8 @@ export function PatientFormPage({
 					)}
 					<Field data-invalid={errors.birthDate ? true : undefined}>
 						<FieldLabel htmlFor="birthDate">
-							Birth date <Required />
+							Birth date
+							<Required />
 						</FieldLabel>
 						<div className="flex items-center gap-2">
 							<Input
@@ -286,9 +288,9 @@ export function PatientFormPage({
 			) : null}
 
 			<div className="mt-6 flex justify-end gap-2">
-				<Link to={cancelTo} className={buttonVariants({ variant: "outline" })}>
+				<Button variant="outline" nativeButton={false} render={<Link to={cancelTo} />}>
 					Cancel
-				</Link>
+				</Button>
 				<Button type="submit" disabled={saving}>
 					{saving ? <Spinner /> : null}
 					{patient ? "Save changes" : "Register patient"}
@@ -307,12 +309,9 @@ function Section({ legend, children }: { legend: string; children: ReactNode }) 
 	);
 }
 
+/** Required-field marker (decorative — inputs carry the semantics). */
 function Required() {
-	return (
-		<span className="text-destructive" aria-hidden="true">
-			*
-		</span>
-	);
+	return <AsteriskIcon className="size-3 text-destructive" aria-hidden="true" />;
 }
 
 interface TextInputProps {
