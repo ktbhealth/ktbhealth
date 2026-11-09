@@ -1,0 +1,21 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"ignoreBinaries": ["cuora"],
+	"workspaces": {
+		"apps/web": {
+			"entry": [
+				"alchemy.run.ts",
+				"wrangler.jsonc",
+				"wrangler.dev.jsonc",
+				"src/routes.ts",
+				"src/routes/**/*.{ts,tsx}",
+				"src/test/**/*.{ts,tsx}"
+			],
+			// Resolved by @tailwindcss/vite through @ktbhealth/ui's globals.css.
+			"ignoreDependencies": ["tailwindcss"]
+		},
+		"packages/db": {
+			"entry": ["scripts/**/*.mjs"]
+		}
+	}
+}
