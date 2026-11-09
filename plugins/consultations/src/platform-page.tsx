@@ -9,5 +9,6 @@ import { AdminConsultationsPage } from "./views/AdminConsultationsPage.tsx";
  * `Consultations.adminList`).
  */
 export function ConsultationsPlatformPage({ data }: { data: unknown }) {
-	return <AdminConsultationsPage consultations={data as AdminConsultationRow[]} />;
+	const consultations = data as AdminConsultationRow[];
+	return <AdminConsultationsPage consultations={consultations} />;
 }

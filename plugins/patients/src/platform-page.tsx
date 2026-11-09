@@ -9,5 +9,6 @@ import { AdminPatientsPage } from "./views/AdminPatientsPage.tsx";
  * beforeLoad and inside `Patients.adminList`).
  */
 export function PatientsPlatformPage({ data }: { data: unknown }) {
-	return <AdminPatientsPage patients={data as AdminPatientRow[]} />;
+	const patients = data as AdminPatientRow[];
+	return <AdminPatientsPage patients={patients} />;
 }

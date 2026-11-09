@@ -8,5 +8,6 @@ import { AdminUsersPage } from "./views/AdminUsersPage.tsx";
  * the layout's beforeLoad and inside `Users.adminList`).
  */
 export function UsersPlatformPage({ data }: { data: unknown }) {
-	return <AdminUsersPage users={data as AdminUserRow[]} />;
+	const users = data as AdminUserRow[];
+	return <AdminUsersPage users={users} />;
 }

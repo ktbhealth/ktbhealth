@@ -8,5 +8,6 @@ import { AdminGroupsPage } from "./views/AdminGroupsPage.tsx";
  * the layout's beforeLoad and inside `Groups.list`).
  */
 export function GroupsPlatformPage({ data }: { data: unknown }) {
-	return <AdminGroupsPage groups={data as AdminGroupRow[]} />;
+	const groups = data as AdminGroupRow[];
+	return <AdminGroupsPage groups={groups} />;
 }
