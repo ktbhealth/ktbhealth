@@ -19,7 +19,8 @@
 		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && cuora run --env prod --config ../../cuora.toml -- alchemy deploy --stage prod -y",
 		"infra:destroy": "alchemy destroy --stage prod",
 		"test:e2e": "playwright test",
-		"test:coverage": "vp test"
+		"test:coverage": "vp test",
+		"db:seed": "bun scripts/seed-users.ts"
 	},
 	"dependencies": {
 		"@huggingface/transformers": "^4.3.2",
