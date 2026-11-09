@@ -72,8 +72,11 @@ describe("audio-jobs pure helpers", () => {
 
 	it("extractWhisperText tolerates shapes", () => {
 		expect(extractWhisperText({ text: "oi" })).toBe("oi");
+		expect(extractWhisperText({ transcription: "alt" })).toBe("alt");
 		expect(extractWhisperText("raw")).toBe("raw");
 		expect(() => extractWhisperText({ nope: 1 })).toThrow("unrecognized");
+		expect(() => extractWhisperText(null)).toThrow("unrecognized");
+		expect(() => extractWhisperText(42)).toThrow("unrecognized");
 	});
 
 	it("transcribeAudio calls the large-v3-turbo model", async () => {
@@ -214,6 +217,56 @@ describe("processAudioJob", () => {
 		await attachAudioRecord(db2, id2, { audioKey: "audio/u1/1/a.webm", size: 3 });
 		await processAudioJob(job(id2), deps2);
 		expect((await row(db2, id2))?.audioStatus).toBe("done");
+	});
+
+	it("falls back to the job's audio key when the row has none", async () => {
+		const { db, deps } = makeDeps();
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await processAudioJob(job(id), deps);
+		expect((await row(db, id))?.audioStatus).toBe("done");
+	});
+
+	it("marks failed when neither the row nor the job carries an audio key", async () => {
+		const { db, deps } = makeDeps();
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await processAudioJob(job(id, { audioKey: "" }), deps);
+		const r = await row(db, id);
+		expect(r?.audioStatus).toBe("failed");
+		expect(r?.audioError).toBe("no audio key recorded");
+	});
+
+	it.each([
+		["bucket", { bucket: undefined }],
+		["ai binding", { ai: undefined }],
+	] as const)("marks failed when the %s is not configured", async (_name, over) => {
+		const { db, deps } = makeDeps(over);
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/a.webm", size: 3 });
+		await processAudioJob(job(id), deps);
+		const r = await row(db, id);
+		expect(r?.audioStatus).toBe("failed");
+		expect(r?.audioError).toBe("audio pipeline not configured");
+	});
+
+	it("marks failed when the transcription comes back empty", async () => {
+		const { db, deps, calls } = makeDeps({ ai: { run: async () => ({ text: "   " }) } });
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/a.webm", size: 3 });
+		await processAudioJob(job(id), deps);
+		const r = await row(db, id);
+		expect(r?.audioStatus).toBe("failed");
+		expect(r?.audioError).toBe("transcription returned empty text");
+		expect(calls.corrected).toEqual([]);
+	});
+
+	it("keeps only the original transcript when cleanup yields nothing", async () => {
+		const { db, deps } = makeDeps({ correctTranscript: async () => null });
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/a.webm", size: 3 });
+		await processAudioJob(job(id), deps);
+		const r = await row(db, id);
+		expect(r?.audioStatus).toBe("done");
+		expect(r?.correctedTranscript).toBeNull();
 	});
 
 	it("keeps status done when LLM cleanup fails", async () => {

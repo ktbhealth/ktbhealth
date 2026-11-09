@@ -20,6 +20,7 @@ import {
 	NotificationsActionsContext,
 	NotificationsDataContext,
 	type ConsoleNotification,
+	type NotificationsActions,
 } from "../context.ts";
 
 const NotificationBody = ({ notification }: { notification: ConsoleNotification }) => (
@@ -134,8 +135,7 @@ export function NotificationsHeaderAction() {
 	const applyRead = (ids: ReadonlySet<string>) =>
 		setLive((prev) => markIdsRead(prev ?? seeded, ids));
 
-	const markRead = (notification: ConsoleNotification) => {
-		if (!actions) return;
+	const markRead = (actions: NotificationsActions, notification: ConsoleNotification) => {
 		const id = Number(notification.id);
 		if (!Number.isFinite(id)) return;
 		void actions.markRead([id]).then((ok) => {
@@ -143,8 +143,7 @@ export function NotificationsHeaderAction() {
 		});
 	};
 
-	const markAllRead = () => {
-		if (!actions) return;
+	const markAllRead = (actions: NotificationsActions) => {
 		void actions.markAllRead().then((ok) => {
 			if (ok) applyRead(new Set(notifications.map((n) => n.id)));
 		});
@@ -191,7 +190,7 @@ export function NotificationsHeaderAction() {
 											variant="ghost"
 											size="xs"
 											className="h-6 px-2 text-xs"
-											onClick={markAllRead}
+											onClick={() => markAllRead(actions)}
 										>
 											Mark all read
 										</Button>
@@ -208,7 +207,7 @@ export function NotificationsHeaderAction() {
 								<NotificationRow
 									key={n.id}
 									notification={n}
-									onMarkRead={actions && !n.read ? () => markRead(n) : undefined}
+									onMarkRead={actions && !n.read ? () => markRead(actions, n) : undefined}
 								/>
 							))}
 						</ul>

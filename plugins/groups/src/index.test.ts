@@ -1,15 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { Db, makeDb } from "@ktb/db";
+import { Query } from "@effect-server-utils/cqrs";
+import { Db, makeDb, type DbClient } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import { Principal } from "@ktb/authz";
+import { Forbidden, Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import { eq } from "drizzle-orm";
 import { BoxesIcon } from "lucide-react";
 
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 
+import { GroupsQueries } from "./api.ts";
+import { groups as groupsTable } from "./schema.ts";
 import {
 	addMember,
 	createGroup,
@@ -17,6 +21,7 @@ import {
 	getGroup,
 	Groups,
 	GroupsLive,
+	GroupsQueriesLive,
 	groupsPanelPlugin,
 	groupsServicesPlugin,
 	groupsTablesPlugin,
@@ -91,6 +96,48 @@ describe("groups repo", () => {
 		expect(removed?.id).toBe(member!.id);
 		expect(await findMembership(db, 2, "user", "u9")).toBeNull();
 		expect(await removeMember(db, { groupId: 2, memberKind: "user", memberId: "u9" })).toBeNull();
+	});
+	it("createGroup stores the optional meta payload", async () => {
+		const created = await createGroup(db, {
+			name: "With meta",
+			slug: "with-meta",
+			kind: "clinic",
+			meta: '{"city":"rj"}',
+		});
+		expect(created!.meta).toBe('{"city":"rj"}');
+	});
+
+	it("listGroups reports zero members for a group nobody joined", async () => {
+		const empty = await createGroup(db, { name: "Empty", slug: "empty-group", kind: "cohort" });
+		const rows = await listGroups(db);
+		expect(rows.find((r) => r.id === empty!.id)?.memberCount).toBe(0);
+	});
+
+	it("addMember stores a null role when none is given", async () => {
+		const member = await addMember(db, { groupId: 2, memberKind: "user", memberId: "norole" });
+		expect(member!.role).toBeNull();
+	});
+
+	it("updating a group refreshes updated_at through the $onUpdate hook", async () => {
+		await db.update(groupsTable).set({ name: "Clinic A2" }).where(eq(groupsTable.id, 1));
+		const row = await getGroup(db, 1);
+		expect(row!.name).toBe("Clinic A2");
+		expect(row!.updatedAt.getTime()).toBeGreaterThan(1000);
+	});
+});
+
+describe("groups repo — empty driver results", () => {
+	// A driver that returns no rows from INSERT ... RETURNING / COUNT: the
+	// repo helpers must degrade to null / 0 instead of throwing.
+	const emptyInsert = {
+		insert: () => ({ values: () => ({ returning: async () => [] }) }),
+	} as unknown as DbClient;
+
+	it("createGroup and addMember return null when RETURNING yields no row", async () => {
+		expect(await createGroup(emptyInsert, { name: "X", slug: "x", kind: "k" })).toBeNull();
+		expect(
+			await addMember(emptyInsert, { groupId: 1, memberKind: "user", memberId: "u" }),
+		).toBeNull();
 	});
 });
 
@@ -235,6 +282,99 @@ describe("GroupsLive", () => {
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden", path: "groups.member" });
 	});
+
+	it("create inserts a group for admins and is Forbidden otherwise", async () => {
+		const created = await asUser(
+			"u1",
+			call((p) => p.create({ name: "New", slug: "new-group", kind: "custom", meta: "{}" })),
+			"admin@x.com",
+		);
+		expect(created).toMatchObject({ slug: "new-group", kind: "custom", meta: "{}" });
+		await expect(
+			asUser(
+				"u2",
+				call((p) => p.create({ name: "Nope", slug: "nope", kind: "custom" })),
+				"doc@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+	});
+
+	it("requireMember fails Forbidden when the bound user has no membership row", async () => {
+		// u1 IS the principal, but belongs to group 1 only — group 2 has no row.
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.requireMember(2, "user", "u1")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "groups.member" });
+		// Non-user kinds skip the principal check and still need the row.
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.requireMember(2, "patient", "ghost")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "groups.member" });
+	});
+});
+
+describe("GroupsLive with a driver that returns no rows", () => {
+	it("get reports zero members when the COUNT query yields no row", async () => {
+		const group = { id: 1, name: "G", slug: "g", kind: "k", meta: null };
+		const results: unknown[][] = [[group], []];
+		const fakeDb = {
+			select: () => ({ from: () => ({ where: async () => results.shift() ?? [] }) }),
+		} as unknown as DbClient;
+		const deps = Layer.merge(
+			Layer.succeed(Db, fakeDb),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+		);
+		const runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+		try {
+			const row = await runtime.runPromise(
+				Effect.provideService(
+					Effect.flatMap(Groups, (p) => p.get(1)),
+					Principal,
+					{ userId: "u1", email: "admin@x.com" },
+				),
+			);
+			expect(row).toMatchObject({ id: 1, memberCount: 0 });
+		} finally {
+			await runtime.dispose();
+		}
+	});
+});
+
+describe("GroupsQueriesLive", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Query.Registered<typeof GroupsQueries>, never>;
+
+	beforeAll(() => {
+		const db = makeDb(makeD1(DDL));
+		runtime = ManagedRuntime.make(
+			GroupsQueriesLive.pipe(Layer.provide(Layer.succeed(Db, db))) as Layer.Layer<
+				Query.Registered<typeof GroupsQueries>,
+				never,
+				never
+			>,
+		);
+	});
+
+	afterAll(() => runtime.dispose());
+
+	const get = (id: number) =>
+		runtime.runPromise(
+			Effect.gen(function* () {
+				const queries = yield* Query.dispatcher(GroupsQueries);
+				return yield* queries["groups.get"]({ id });
+			}).pipe(Effect.scoped),
+		);
+
+	it("groups.get returns the raw group row", async () => {
+		expect(await get(1)).toEqual({ id: 1, name: "Clinic A", slug: "clinic-a", kind: "clinic" });
+	});
+
+	it("groups.get returns null for an unknown id", async () => {
+		expect(await get(999)).toBeNull();
+	});
 });
 
 describe("plugins", () => {
@@ -249,6 +389,29 @@ describe("plugins", () => {
 		expect(groupsPanelPlugin.panel?.sidebar).toEqual([
 			{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
 		]);
+	});
+
+	describe("panel page loader", () => {
+		const loader = groupsPanelPlugin.panel!.pages![0]!.loader as () => Effect.Effect<
+			unknown,
+			never,
+			Groups
+		>;
+		const withGroups = (list: Groups["Service"]["list"]) =>
+			Effect.runPromise(
+				loader().pipe(Effect.provideService(Groups, { list } as unknown as Groups["Service"])),
+			);
+
+		it("returns the group listing for admins", async () => {
+			const rows = [{ id: 1, memberCount: 2 }];
+			expect(await withGroups(() => Effect.succeed(rows as never))).toEqual(rows);
+		});
+
+		it("collapses Forbidden to an empty table", async () => {
+			expect(
+				await withGroups(() => Effect.fail(new Forbidden({ path: "platform.admin" }))),
+			).toEqual([]);
+		});
 	});
 
 	it("contributes no routes or top-nav", () => {
