@@ -264,6 +264,28 @@ describe("NotificationsLive", () => {
 		expect(out.after).toBe(0);
 	});
 
+	it("CQRS list query and markRead command dispatch with principal authz", async () => {
+		const out = await runtime.runPromise(
+			Effect.provideService(
+				Effect.gen(function* () {
+					const bus = yield* EventBus;
+					yield* bus.dispatch([PatientCreated.make({ id: 13, ownerId: "u1", name: "Listed" })]);
+					const queries = yield* Query.dispatcher(NotificationsQueries);
+					const commands = yield* Command.dispatcher(NotificationsCommands);
+					const rows = yield* queries["notifications.list"]({ userId: "u1", limit: 1 });
+					yield* commands["notifications.markRead"]({ userId: "u1", ids: rows.map((r) => r.id) });
+					const after = yield* queries["notifications.list"]({ userId: "u1", limit: 1 });
+					return { rows, after };
+				}).pipe(Effect.scoped),
+				Principal,
+				{ userId: "u1" },
+			),
+		);
+		expect(out.rows).toHaveLength(1);
+		expect(out.rows[0]?.readAt).toBeNull();
+		expect(out.after[0]?.readAt).toBeInstanceOf(Date);
+	});
+
 	it("markRead fans the updated row out so other streams see it read", async () => {
 		const result = await runtime.runPromise(
 			Effect.provideService(

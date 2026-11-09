@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
-import { createElement, type ReactElement } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement, useContext, type ReactElement } from "react";
+import { NotificationsActionsContext, type NotificationsActions } from "@ktb/notifications/context";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const platformAdminFn = vi.fn(async () => true);
@@ -22,6 +23,9 @@ const getSessionUserFn = vi.fn(
 	}),
 );
 const listMyNotificationsFn = vi.fn(async () => [] as unknown[]);
+const signOut = vi.fn(async () => {});
+
+vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: () => signOut() } }));
 
 vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
@@ -37,6 +41,8 @@ vi.mock("#/lib/fns.ts", () => ({
 let loaderData: unknown = { patients: [], consultations: [] };
 let pathname = "/platform";
 let pageParam = "patients";
+// When set, replaces the <Outlet /> stub so a test can read context values.
+let outletChild: (() => ReactElement | null) | null = null;
 
 beforeAll(() => {
 	// jsdom has no matchMedia; the ui sidebar's useIsMobile needs it.
@@ -76,7 +82,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			const { to, children, ...rest } = props;
 			return React.createElement("a", { href: to as string, ...rest }, children as never);
 		},
-		Outlet: () => React.createElement("div", { "data-testid": "platform-outlet" }),
+		Outlet: () =>
+			outletChild
+				? React.createElement(outletChild)
+				: React.createElement("div", { "data-testid": "platform-outlet" }),
 	};
 });
 
@@ -99,6 +108,9 @@ const loader = (route: unknown) =>
 
 afterEach(() => {
 	cleanup();
+	vi.unstubAllGlobals();
+	outletChild = null;
+	signOut.mockClear();
 	pathname = "/platform";
 	pageParam = "patients";
 	platformAdminFn.mockReset().mockResolvedValue(true);
@@ -151,6 +163,37 @@ describe("/platform layout", () => {
 				.find((el) => el.getAttribute("href") === href && el.hasAttribute("data-active"));
 		expect(sidebarLink("/platform")).toBeUndefined();
 		expect(sidebarLink("/platform/patients")).toBeTruthy();
+	});
+
+	it("loader seeds the jobs and notifications feeds", async () => {
+		adminListAudioJobsFn.mockResolvedValue([{ id: 1 }]);
+		listMyNotificationsFn.mockResolvedValue([{ id: 2 }]);
+		await expect(loader(PlatformRoute)!()).resolves.toEqual({
+			audioJobs: [{ id: 1 }],
+			notifications: [{ id: 2 }],
+		});
+	});
+
+	it("injects mark-read actions for the notifications popover", async () => {
+		let actions: NotificationsActions | null = null;
+		outletChild = function Probe() {
+			actions = useContext(NotificationsActionsContext);
+			return null;
+		};
+		render(createElement(component(PlatformRoute)));
+		await actions!.markRead([1, 2]);
+		expect(markMyNotificationsReadFn).toHaveBeenCalledWith({ data: [1, 2] });
+		await actions!.markAllRead();
+		expect(markAllMyNotificationsReadFn).toHaveBeenCalledOnce();
+	});
+
+	it("signs out, then returns to the home page", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("location", { assign });
+		render(createElement(component(PlatformRoute)));
+		fireEvent.click(screen.getByTitle("Sign out"));
+		await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+		expect(signOut).toHaveBeenCalledOnce();
 	});
 
 	it("beforeLoad redirects anonymous users to /login", async () => {

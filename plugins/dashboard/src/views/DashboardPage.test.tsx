@@ -46,6 +46,8 @@ const consultation = (over: Partial<AdminConsultationRow>): AdminConsultationRow
 const plugin = (id: string, sidebar = 0): Plugin =>
 	sidebar ? { id, panel: { sidebar: [{ to: "/x", label: id }] } } : { id };
 
+const Landing = () => null;
+
 afterEach(cleanup);
 
 describe("DashboardPage", () => {
@@ -126,5 +128,47 @@ describe("DashboardPage", () => {
 		unmount();
 		render(<DashboardPage patients={[]} consultations={[]} plugins={[]} notifications={[]} />);
 		expect(screen.getByText("No notifications yet.")).toBeTruthy();
+	});
+
+	it("lists landing and landing-footer among a plugin's contributions", () => {
+		render(
+			<DashboardPage
+				patients={[]}
+				consultations={[]}
+				plugins={[
+					{ id: "site.landing", landing: { page: Landing } },
+					{ id: "site.footer", landingFooter: { blocks: [{ links: [{ to: "/a", label: "A" }] }] } },
+				]}
+			/>,
+		);
+		expect(screen.getByText("landing")).toBeTruthy();
+		expect(screen.getByText("landing-footer")).toBeTruthy();
+	});
+
+	it("falls back from the owner name to the email and then to a dash", () => {
+		render(
+			<DashboardPage
+				patients={[]}
+				consultations={[
+					consultation({ id: 3, ownerName: null, ownerEmail: "only@x.com" }),
+					consultation({ id: 2, ownerName: null, ownerEmail: null }),
+				]}
+				plugins={[]}
+			/>,
+		);
+		expect(screen.getByText("only@x.com")).toBeTruthy();
+		expect(screen.getByText("—")).toBeTruthy();
+	});
+
+	it("lists routes, landing nav, tables and services among a plugin's contributions", () => {
+		const everything = {
+			id: "full.stack",
+			routes: [{ path: "/x" }],
+			landingNav: [{ to: "/a", label: "A" }],
+			tables: {},
+			services: {},
+		} as unknown as Plugin;
+		render(<DashboardPage patients={[]} consultations={[]} plugins={[everything]} />);
+		expect(screen.getByText("routes, landing-nav, tables, services")).toBeTruthy();
 	});
 });
