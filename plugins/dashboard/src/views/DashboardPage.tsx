@@ -26,10 +26,8 @@ const contributions = (p: Plugin) =>
 function Stat({ label, value }: { label: string; value: number }) {
 	return (
 		<div className="rounded-lg border border-border px-3 py-2.5">
-			<div className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-				{label}
-			</div>
-			<div className="mt-1 font-mono text-2xl font-bold">{value}</div>
+			<div className="text-[10px] tracking-widest text-muted-foreground uppercase">{label}</div>
+			<div className="mt-1 text-2xl font-bold">{value}</div>
 		</div>
 	);
 }
@@ -52,8 +50,8 @@ export function DashboardPage({
 	const sidebarItems = plugins.reduce((n, p) => n + (p.panel?.sidebar?.length ?? 0), 0);
 	return (
 		<div>
-			<h1 className="font-mono text-lg font-bold tracking-tight">dashboard</h1>
-			<p className="mt-1 font-mono text-xs text-muted-foreground">
+			<h1 className="text-lg font-bold tracking-tight">dashboard</h1>
+			<p className="mt-1 text-xs text-muted-foreground">
 				System overview — aggregated across plugins.
 			</p>
 
@@ -66,11 +64,11 @@ export function DashboardPage({
 
 			<div className="mt-6 grid gap-6 lg:grid-cols-2">
 				<section>
-					<h2 className="font-mono text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
 						Recent consultations
 					</h2>
 					{recent.length === 0 ? (
-						<p className="mt-2 font-mono text-xs text-muted-foreground">No consultations yet.</p>
+						<p className="mt-2 text-xs text-muted-foreground">No consultations yet.</p>
 					) : (
 						<div className="mt-2 overflow-hidden rounded-lg border border-border">
 							<Table>
@@ -86,9 +84,7 @@ export function DashboardPage({
 								<TableBody>
 									{recent.map((c) => (
 										<TableRow key={c.id}>
-											<TableCell className="font-mono text-xs text-muted-foreground">
-												{c.id}
-											</TableCell>
+											<TableCell className="text-xs text-muted-foreground">{c.id}</TableCell>
 											<TableCell className="font-medium">{c.status}</TableCell>
 											<TableCell className="text-muted-foreground">{c.source}</TableCell>
 											<TableCell>{c.ownerName ?? c.ownerEmail ?? "—"}</TableCell>
@@ -104,7 +100,7 @@ export function DashboardPage({
 				</section>
 
 				<section>
-					<h2 className="font-mono text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
 						Registered plugins
 					</h2>
 					<div className="mt-2 overflow-hidden rounded-lg border border-border">
@@ -118,7 +114,7 @@ export function DashboardPage({
 							<TableBody>
 								{plugins.map((p) => (
 									<TableRow key={p.id}>
-										<TableCell className="font-mono text-xs">{p.id}</TableCell>
+										<TableCell className="text-xs">{p.id}</TableCell>
 										<TableCell className="text-muted-foreground">{contributions(p)}</TableCell>
 									</TableRow>
 								))}

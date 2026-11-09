@@ -19,8 +19,8 @@ const fmtDate = (d: Date) => d.toLocaleString();
 export function AdminGroupsPage({ groups }: { groups: AdminGroupRow[] }) {
 	return (
 		<div>
-			<h1 className="font-mono text-lg font-bold tracking-tight">Groups</h1>
-			<p className="mt-1 font-mono text-xs text-muted-foreground">
+			<h1 className="text-lg font-bold tracking-tight">Groups</h1>
+			<p className="mt-1 text-xs text-muted-foreground">
 				{groups.length === 0
 					? "No groups registered."
 					: `${groups.length} group${groups.length === 1 ? "" : "s"} across the platform.`}
@@ -48,11 +48,11 @@ export function AdminGroupsPage({ groups }: { groups: AdminGroupRow[] }) {
 						<TableBody>
 							{groups.map((g) => (
 								<TableRow key={g.id}>
-									<TableCell className="font-mono text-xs text-muted-foreground">{g.id}</TableCell>
+									<TableCell className="text-xs text-muted-foreground">{g.id}</TableCell>
 									<TableCell className="font-medium">{g.name}</TableCell>
-									<TableCell className="font-mono text-xs">{g.slug}</TableCell>
+									<TableCell className="text-xs">{g.slug}</TableCell>
 									<TableCell>{g.kind}</TableCell>
-									<TableCell className="text-right font-mono text-xs">{g.memberCount}</TableCell>
+									<TableCell className="text-right text-xs">{g.memberCount}</TableCell>
 									<TableCell className="text-right text-muted-foreground">
 										{fmtDate(g.createdAt)}
 									</TableCell>

@@ -19,8 +19,8 @@ const fmtDate = (d: Date) => d.toLocaleString();
 export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
 	return (
 		<div>
-			<h1 className="font-mono text-lg font-bold tracking-tight">Users</h1>
-			<p className="mt-1 font-mono text-xs text-muted-foreground">
+			<h1 className="text-lg font-bold tracking-tight">Users</h1>
+			<p className="mt-1 text-xs text-muted-foreground">
 				{users.length === 0
 					? "No users registered."
 					: `${users.length} user${users.length === 1 ? "" : "s"} across the platform.`}
@@ -50,17 +50,15 @@ export function AdminUsersPage({ users }: { users: AdminUserRow[] }) {
 						<TableBody>
 							{users.map((u) => (
 								<TableRow key={u.id}>
-									<TableCell className="font-mono text-xs text-muted-foreground">{u.id}</TableCell>
+									<TableCell className="text-xs text-muted-foreground">{u.id}</TableCell>
 									<TableCell className="font-medium">{u.name}</TableCell>
 									<TableCell>{u.email}</TableCell>
 									<TableCell>{u.emailVerified ? "yes" : "no"}</TableCell>
-									<TableCell className="text-right font-mono text-xs">{u.patientCount}</TableCell>
-									<TableCell className="text-right font-mono text-xs">
-										{u.consultationCount}
-									</TableCell>
+									<TableCell className="text-right text-xs">{u.patientCount}</TableCell>
+									<TableCell className="text-right text-xs">{u.consultationCount}</TableCell>
 									<TableCell>
 										{u.isAdmin ? (
-											<span className="font-mono text-xs font-semibold text-foreground">admin</span>
+											<span className="text-xs font-semibold text-foreground">admin</span>
 										) : (
 											<span className="text-muted-foreground">user</span>
 										)}

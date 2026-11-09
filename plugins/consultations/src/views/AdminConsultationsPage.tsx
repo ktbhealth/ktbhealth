@@ -23,8 +23,8 @@ export function AdminConsultationsPage({
 }) {
 	return (
 		<div>
-			<h1 className="font-mono text-lg font-bold tracking-tight">Consultations</h1>
-			<p className="mt-1 font-mono text-xs text-muted-foreground">
+			<h1 className="text-lg font-bold tracking-tight">Consultations</h1>
+			<p className="mt-1 text-xs text-muted-foreground">
 				{consultations.length === 0
 					? "No consultations yet."
 					: `${consultations.length} consultation${consultations.length === 1 ? "" : "s"} across all owners.`}
@@ -53,7 +53,7 @@ export function AdminConsultationsPage({
 						<TableBody>
 							{consultations.map((c) => (
 								<TableRow key={c.id}>
-									<TableCell className="font-mono text-xs text-muted-foreground">{c.id}</TableCell>
+									<TableCell className="text-xs text-muted-foreground">{c.id}</TableCell>
 									<TableCell className="font-medium">{c.status}</TableCell>
 									<TableCell className="text-muted-foreground">{c.source}</TableCell>
 									<TableCell>{c.patientName ?? "—"}</TableCell>

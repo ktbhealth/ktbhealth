@@ -19,8 +19,8 @@ const fmtDate = (d: Date) => d.toLocaleString();
 export function AdminPatientsPage({ patients }: { patients: AdminPatientRow[] }) {
 	return (
 		<div>
-			<h1 className="font-mono text-lg font-bold tracking-tight">Patients</h1>
-			<p className="mt-1 font-mono text-xs text-muted-foreground">
+			<h1 className="text-lg font-bold tracking-tight">Patients</h1>
+			<p className="mt-1 text-xs text-muted-foreground">
 				{patients.length === 0
 					? "No patients registered."
 					: `${patients.length} patient${patients.length === 1 ? "" : "s"} across all owners.`}
@@ -47,12 +47,10 @@ export function AdminPatientsPage({ patients }: { patients: AdminPatientRow[] })
 						<TableBody>
 							{patients.map((p) => (
 								<TableRow key={p.id}>
-									<TableCell className="font-mono text-xs text-muted-foreground">{p.id}</TableCell>
+									<TableCell className="text-xs text-muted-foreground">{p.id}</TableCell>
 									<TableCell className="font-medium">{p.name}</TableCell>
 									<TableCell>{p.ownerName ?? p.ownerEmail ?? "—"}</TableCell>
-									<TableCell className="font-mono text-xs text-muted-foreground">
-										{p.ownerId}
-									</TableCell>
+									<TableCell className="text-xs text-muted-foreground">{p.ownerId}</TableCell>
 									<TableCell className="text-right text-muted-foreground">
 										{fmtDate(p.createdAt)}
 									</TableCell>
