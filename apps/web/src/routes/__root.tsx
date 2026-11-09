@@ -56,8 +56,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	const user = Route.useLoaderData();
 	const pathname = useLocation({ select: (l) => l.pathname });
 	// /platform is a system console, not an app page — it owns the whole
-	// viewport (own chrome, dark theme) so the marketing header/footer
-	// and the max-w-6xl column don't wrap it.
+	// viewport (own chrome) so the marketing header/footer and the
+	// max-w-6xl column don't wrap it.
 	const isConsole = pathname === "/platform" || pathname.startsWith("/platform/");
 	return (
 		<html lang={getLocale()}>

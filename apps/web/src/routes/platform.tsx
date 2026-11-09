@@ -24,7 +24,7 @@ import { getRouteApi } from "@tanstack/react-router";
 
 // /platform console shell (P-031): a system console, not an app page —
 // the root route drops its marketing chrome on /platform* and this
-// layout owns the full viewport: dark theme, fixed sidebar aggregating
+// layout owns the full viewport: light theme, fixed sidebar aggregating
 // every plugin's `panel.sidebar` contribution in topo order, dense
 // top bar. The admin gate is server-side — non-admins get a hard 404,
 // never just hidden nav.
@@ -47,7 +47,7 @@ function PlatformLayout() {
 	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
 	const current = items.find((i) => isItemActive(pathname, i));
 	return (
-		<SidebarProvider className="dark h-dvh min-h-0">
+		<SidebarProvider className="h-dvh min-h-0">
 			<Sidebar collapsible="none" className="border-sidebar-border border-r">
 				<SidebarHeader>
 					<div className="flex items-center gap-2 px-2 pt-1">
