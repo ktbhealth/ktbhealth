@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
-import { Consultations } from "@ktb/consultations";
+import { Consultations, type AdminConsultationRow } from "@ktb/consultations";
 import { Patients, type AdminPatientRow } from "@ktb/patients";
 import type { PatientHistory } from "@ktb/anamnesis";
 import { run, runAs } from "#/lib/platform.ts";
@@ -206,6 +206,26 @@ export const listConsultationsFn = createServerFn({ method: "GET" }).handler(asy
 		Effect.gen(function* () {
 			const consultations = yield* Consultations;
 			return yield* consultations.list(user.id);
+		}),
+	);
+});
+
+/**
+ * Cross-owner consultation listing for the /platform console. The
+ * service re-checks the platform admin gate against the bound
+ * principal — non-admins get the same empty result as an empty table
+ * (the layout guard already 404s them before this is reachable).
+ */
+export const adminListConsultationsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const consultations = yield* Consultations;
+			return yield* consultations
+				.adminList()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminConsultationRow[])));
 		}),
 	);
 });

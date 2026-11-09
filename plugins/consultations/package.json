@@ -9,10 +9,12 @@
 	},
 	"dependencies": {
 		"@ktb/anamnesis": "workspace:*",
+		"@ktb/auth": "workspace:*",
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
+		"@ktb/platform": "workspace:*",
 		"@ktb/transcription": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.0@react",
 		"@tanstack/react-router": "1.170.46",

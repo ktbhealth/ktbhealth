@@ -5,9 +5,12 @@ import { Option } from "effect";
 import { and, count, desc, eq, ne } from "drizzle-orm";
 import { index, route } from "@tanstack/virtual-file-routes";
 
+import { user as users } from "@ktb/auth/schema";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
+import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
+import { ClipboardListIcon } from "lucide-react";
 import type { Anamnesis, PatientHistory, PriorVisit } from "@ktb/anamnesis";
 import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
@@ -259,6 +262,38 @@ async function listConsultations(db: DbClient, userId: string): Promise<Consulta
 	});
 }
 
+/** Admin-console row: consultation plus owner/patient display fields. */
+export interface AdminConsultationRow extends ConsultationRow {
+	readonly ownerEmail: string | null;
+	readonly ownerName: string | null;
+	readonly patientName: string | null;
+}
+
+/**
+ * Cross-owner listing for the /platform console. Callers MUST have
+ * passed the `PlatformAdmin` gate first — this repo function itself is
+ * unauthenticated, like the other helpers.
+ */
+export async function listAllConsultations(db: DbClient): Promise<AdminConsultationRow[]> {
+	const rows = await db
+		.select({
+			consultation: consultations,
+			ownerEmail: users.email,
+			ownerName: users.name,
+			patientName: patients.name,
+		})
+		.from(consultations)
+		.leftJoin(users, eq(consultations.userId, users.id))
+		.leftJoin(patients, eq(consultations.patientId, patients.id))
+		.orderBy(desc(consultations.id));
+	return rows.map(({ consultation, ownerEmail, ownerName, patientName }) => ({
+		...consultation,
+		ownerEmail,
+		ownerName,
+		patientName,
+	}));
+}
+
 /** Owner lookup for authz checks — fetches by id regardless of caller. */
 async function consultationOwnerId(db: DbClient, id: number): Promise<string | null> {
 	const rows = await db
@@ -397,6 +432,8 @@ export class Consultations extends Context.Service<
 			input: SaveConsultationInput,
 		) => Effect.Effect<{ id: number }, Forbidden>;
 		readonly list: (userId: string) => Effect.Effect<ConsultationSummary[], Forbidden>;
+		/** Cross-owner listing for the /platform console — platform admins only. */
+		readonly adminList: () => Effect.Effect<AdminConsultationRow[], Forbidden>;
 		readonly get: (
 			id: number,
 			userId: string,
@@ -433,6 +470,7 @@ export const ConsultationsLive = Layer.effect(
 	Consultations,
 	Effect.gen(function* () {
 		const db = yield* Db;
+		const platformAdmin = yield* PlatformAdmin;
 		return Consultations.of({
 			create: Effect.fn("Consultations.create")(function* (fields: {
 				userId: string;
@@ -482,6 +520,14 @@ export const ConsultationsLive = Layer.effect(
 			list: Effect.fn("Consultations.list")(function* (userId: string) {
 				yield* requireCanAs("consultation.read", { userId });
 				return yield* Effect.promise(() => listConsultations(db, userId));
+			}),
+			adminList: Effect.fn("Consultations.adminList")(function* () {
+				// Platform gate first — fails Forbidden for non-admins and
+				// for system contexts (null principal) alike.
+				yield* platformAdmin.requireAdmin();
+				yield* Effect.annotateCurrentSpan({ adminList: true });
+				yield* Effect.logInfo("consultations admin list");
+				return yield* Effect.promise(() => listAllConsultations(db));
 			}),
 			get: Effect.fn("Consultations.get")(function* (id: number, userId: string) {
 				yield* requirePrincipalUser(userId, "consultation.read");
@@ -586,7 +632,7 @@ export const consultationsTablesPlugin = definePlugin({
 
 export const consultationsServicesPlugin = definePlugin({
 	id: "consultations.services",
-	requiredDeps: [patientsServicesPlugin.id],
+	requiredDeps: [patientsServicesPlugin.id, platformAdminPlugin.id],
 	services: ConsultationsLive,
 });
 
@@ -610,6 +656,18 @@ export const consultationsNavPlugin = definePlugin({
 	nav: [{ to: "/consultations", label: "Consultations" }],
 });
 
+// Panel (system console) contribution: /platform/consultations is
+// mounted by the platform plugin's physical route subtree; this plugin
+// only declares the sidebar entry. The dep edge orders it after the
+// platform shell.
+export const consultationsPanelPlugin = definePlugin({
+	id: "consultations.panel",
+	requiredDeps: [platformPanelPlugin.id],
+	panel: {
+		sidebar: [{ to: "/platform/consultations", label: "Consultations", icon: ClipboardListIcon }],
+	},
+});
+
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
 export const plugins: readonly Plugin[] = [
@@ -617,6 +675,7 @@ export const plugins: readonly Plugin[] = [
 	consultationsServicesPlugin,
 	consultationsRoutesPlugin,
 	consultationsNavPlugin,
+	consultationsPanelPlugin,
 ];
 
 // Compile-time dep registry: ids declared here are referenceable in
@@ -627,5 +686,6 @@ declare module "@ktb/kernel" {
 		"consultations.services": true;
 		"consultations.routes": true;
 		"consultations.nav": true;
+		"consultations.panel": true;
 	}
 }
