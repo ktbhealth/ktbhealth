@@ -22,7 +22,7 @@ import { ai, audioBucket, correctTranscript, db } from "#/lib/platform.ts";
  * the D1 row (owner match) before any work happens.
  */
 
-export const WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo";
+const WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo";
 
 /**
  * Workers AI rejects oversized audio and chunked transcription is not
@@ -46,7 +46,7 @@ const AudioJobMessageSchema = Schema.Struct({
 const decodeAudioJob = Schema.decodeUnknownSync(AudioJobMessageSchema);
 
 /** Minimal R2 read surface — the real R2Bucket satisfies this. */
-export interface AudioBucketLike {
+interface AudioBucketLike {
 	get(key: string): Promise<{ readonly size: number; arrayBuffer(): Promise<ArrayBuffer> } | null>;
 }
 
@@ -54,7 +54,7 @@ export interface AudioTranscriber {
 	run(model: string, inputs: unknown): Promise<unknown>;
 }
 
-export interface CorrectedTranscript {
+interface CorrectedTranscript {
 	readonly corrected: string;
 	readonly engine: string;
 }

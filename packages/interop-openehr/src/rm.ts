@@ -4,7 +4,7 @@
  * DV_CODED_TEXT objects, and archetype roots carry `archetype_details`.
  */
 
-export const RM_VERSION = "1.1.0";
+const RM_VERSION = "1.1.0";
 
 export type Json = { readonly [key: string]: unknown };
 
@@ -37,7 +37,7 @@ export const dvBoolean = (value: boolean): Json => ({ _type: "DV_BOOLEAN", value
 
 export const hierId = (value: string): Json => ({ _type: "HIER_OBJECT_ID", value });
 
-export const archetyped = (archetypeId: string): Json => ({
+const archetyped = (archetypeId: string): Json => ({
 	_type: "ARCHETYPED",
 	archetype_id: { _type: "ARCHETYPE_ID", value: archetypeId },
 	rm_version: RM_VERSION,

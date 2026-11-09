@@ -12,7 +12,6 @@
 	},
 	"dependencies": {
 		"@ktb/auth": "workspace:*",
-		"@ktb/auth-better": "workspace:*",
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",

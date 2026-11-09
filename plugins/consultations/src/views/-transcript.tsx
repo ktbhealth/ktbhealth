@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ktbhealth/ui/componen
 import { BADGE_TONES, SPEAKER_STYLE } from "./-ui.ts";
 
 /** "Doctor: text" lines become chat-style bubbles. */
-export function Transcript({ text }: { text: string }) {
+function Transcript({ text }: { text: string }) {
 	const lines = text.split("\n").filter((l) => l.trim());
 	if (!lines.length) return <p className="text-sm text-muted-foreground">No transcript.</p>;
 	return (

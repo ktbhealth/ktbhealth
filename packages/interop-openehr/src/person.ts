@@ -25,7 +25,7 @@ import {
 	root,
 } from "./rm.ts";
 
-export const ARCHETYPES = {
+const ARCHETYPES = {
 	person: "openEHR-DEMOGRAPHIC-PERSON.person.v0",
 	personName: "openEHR-DEMOGRAPHIC-PARTY_IDENTITY.person_name.v0",
 	personDetails: "openEHR-DEMOGRAPHIC-ITEM_TREE.person_details.v0",
@@ -35,7 +35,7 @@ export const ARCHETYPES = {
 } as const;
 
 /** External terminologies, named by their FHIR canonical URIs (same codes as the FHIR export). */
-export const TERMINOLOGIES = {
+const TERMINOLOGIES = {
 	raceColor: "https://terminologia.saude.gov.br/fhir/CodeSystem/BRRacaCor",
 	maritalStatus: "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
 	nullFlavor: "http://terminology.hl7.org/CodeSystem/v3-NullFlavor",

@@ -16,6 +16,10 @@
 		},
 		"packages/db": {
 			"entry": ["scripts/**/*.mjs"]
+		},
+		"packages/app-host": {
+			// Ambient globals via /// <reference types> in src/env.d.ts.
+			"ignoreDependencies": ["@cloudflare/workers-types"]
 		}
 	}
 }

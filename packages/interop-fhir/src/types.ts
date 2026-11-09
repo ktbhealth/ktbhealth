@@ -38,12 +38,12 @@ export interface HumanName {
 	readonly text: string;
 }
 
-export interface ContactPoint {
+interface ContactPoint {
 	readonly system: "phone" | "email";
 	readonly value: string;
 }
 
-export interface Address {
+interface Address {
 	readonly use?: "home" | "work" | "temp" | "old" | "billing";
 	readonly line?: readonly string[];
 	readonly district?: string;
@@ -59,7 +59,7 @@ export interface Narrative {
 	readonly div: string;
 }
 
-export interface Meta {
+interface Meta {
 	readonly profile?: readonly string[];
 }
 

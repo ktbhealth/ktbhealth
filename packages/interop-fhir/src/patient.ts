@@ -15,7 +15,7 @@ import type { CodeableConcept, Extension, HumanName, Identifier, Patient } from 
 export const BR_CORE_PATIENT =
 	"https://br-core.saude.gov.br/fhir/StructureDefinition/br-core-patient";
 
-export const SYSTEMS = {
+const SYSTEMS = {
 	cpf: "https://saude.gov.br/fhir/sid/cpf",
 	cns: "https://saude.gov.br/fhir/sid/cns",
 	identifierType: "http://terminology.hl7.org/CodeSystem/v2-0203",
@@ -28,7 +28,7 @@ export const SYSTEMS = {
 	bcp47: "urn:ietf:bcp:47",
 } as const;
 
-export const EXTENSIONS = {
+const EXTENSIONS = {
 	raceColor: "https://ips.saude.gov.br/fhir/StructureDefinition/raca-br-ips",
 	nationality: "http://hl7.org/fhir/StructureDefinition/patient-nationality",
 } as const;

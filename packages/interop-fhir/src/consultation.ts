@@ -17,7 +17,7 @@ import type { ConsultationRecord } from "@ktb/interop";
 
 import type { CodeableConcept, Coding, Narrative, Reference, Resource } from "./types.ts";
 
-export const LOINC = "http://loinc.org";
+const LOINC = "http://loinc.org";
 
 /** LOINC 34108-1 — the document type for a general outpatient visit note. */
 export const NOTE_TYPE: Coding = { system: LOINC, code: "34108-1", display: "Outpatient Note" };
