@@ -250,7 +250,6 @@ async function patientConsultationRows(db: DbClient, patientId: number) {
 		.where(eq(consultations.patientId, patientId));
 }
 
-
 /** Patient + linked consultations in one D1 batch: all rows go, or none do. */
 async function deletePatientCascade(db: DbClient, patientId: number) {
 	await db.batch([

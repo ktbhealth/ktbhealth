@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { createElement, type ReactElement } from "react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const platformAdminFn = vi.fn(async () => true);
 const adminListPatientsFn = vi.fn(async () => [] as unknown[]);
@@ -93,6 +93,12 @@ afterEach(() => {
 });
 
 describe("/platform layout", () => {
+	// The layout's Route.useLoaderData is the /platform loader — an array of
+	// consultation rows fed to jobsFromAudioRows (jobs plugin, d7922a1).
+	beforeEach(() => {
+		loaderData = [];
+	});
+
 	it("renders sidebar items aggregated from plugin panel contributions", () => {
 		render(createElement(component(PlatformRoute)));
 		const platform = screen
