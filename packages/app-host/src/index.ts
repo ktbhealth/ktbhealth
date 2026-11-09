@@ -1,5 +1,6 @@
 import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
+import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 import { Bot } from "@ktb/bot";
 import { recallDriver } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
@@ -43,6 +44,8 @@ export interface AppEnv {
 	readonly LLM_BASE_URL?: string;
 	readonly LLM_MODEL?: string;
 	readonly WORKERS_AI_MODEL?: string;
+	/** Comma-separated admin allowlist for the /platform console (P-026). */
+	readonly PLATFORM_ADMIN_EMAILS?: string;
 	/** Workers AI binding — optional; any object with `run(model, inputs)`. */
 	readonly AI?: {
 		run(model: string, inputs: unknown): Promise<unknown>;
@@ -132,7 +135,20 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		workersAiModel: env.WORKERS_AI_MODEL,
 	};
 	const AnamnesisEngineLive = layerFor<AnamnesisEngine>(AnamnesisEngine.key, llmConfig);
-	const core = Layer.mergeAll(BotLive, CaptchaLive, DbLive, AuthServiceLive, AnamnesisEngineLive);
+	// Platform admin gate (P-026): env allowlist resolved once here; the
+	// gate fails closed (Forbidden) when the list is unset/empty.
+	const PlatformAdminLive = Layer.succeed(
+		PlatformAdmin,
+		makePlatformAdminGate(parsePlatformAdminEmails(env.PLATFORM_ADMIN_EMAILS)),
+	);
+	const core = Layer.mergeAll(
+		BotLive,
+		CaptchaLive,
+		DbLive,
+		AuthServiceLive,
+		AnamnesisEngineLive,
+		PlatformAdminLive,
+	);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),
 		// Single-line JSON logs → workerd console / wrangler observability.
@@ -161,12 +177,12 @@ export const createApp = <E extends AppEnv>(env: E) => {
 	 * depth — handlers no longer need per-call `requireCan`).
 	 */
 	const runAs = <A, E>(
-		user: { readonly id: string },
+		user: { readonly id: string; readonly email?: string },
 		effect: Effect.Effect<A, E, unknown>,
 	): Promise<A> =>
 		runtime.runPromise(
 			effect.pipe(
-				Effect.provideService(Principal, { userId: user.id }),
+				Effect.provideService(Principal, { userId: user.id, email: user.email }),
 				Effect.provide(AuthzLive(user.id)),
 			),
 		);

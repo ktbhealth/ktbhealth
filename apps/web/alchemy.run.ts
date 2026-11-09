@@ -52,6 +52,11 @@ export default Alchemy.Stack(
 						.filter((k) => process.env[k])
 						.map((k) => [k, Redacted.make(process.env[k] as string)]),
 				),
+				// /platform console admin allowlist (P-026) — plain config,
+				// not a secret, but bound the same way for parity.
+				...(process.env.PLATFORM_ADMIN_EMAILS
+					? { PLATFORM_ADMIN_EMAILS: process.env.PLATFORM_ADMIN_EMAILS }
+					: {}),
 			},
 			compatibilityFlags: ["nodejs_compat"],
 		});

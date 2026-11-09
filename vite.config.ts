@@ -151,8 +151,8 @@ export default defineConfig({
 				//   deploy target.
 				// - new.tsx injects the whisper backend client-side;
 				//   whisper-prefetch.ts warms the model on consultations pages.
-				// - login.tsx / __root.tsx use the better-auth client SDK,
-				//   which is inherently impl-bound.
+				// - login.tsx / __root.tsx / platform.tsx use the better-auth
+				//   client SDK, which is inherently impl-bound.
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
@@ -161,6 +161,7 @@ export default defineConfig({
 					"apps/web/src/routes/consultations/new.tsx",
 					"apps/web/src/routes/login.tsx",
 					"apps/web/src/routes/__root.tsx",
+					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
 				],
 				rules: {

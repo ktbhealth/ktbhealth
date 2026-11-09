@@ -7,6 +7,14 @@ import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { patients as patientsTable } from "@ktb/patients/schema";
 import { patientsServicesPlugin } from "@ktb/patients";
+import {
+	makePlatformAdminGate,
+	parsePlatformAdminEmails,
+	PlatformAdmin,
+	platformAdminPlugin,
+	platformPanelPlugin,
+} from "@ktb/platform";
+import { ClipboardListIcon } from "lucide-react";
 import { consultations as consultationsTable } from "./schema.ts";
 import {
 	Consultations,
@@ -17,12 +25,14 @@ import {
 	beginAudioJob,
 	completeAudioJob,
 	consultationsNavPlugin,
+	consultationsPanelPlugin,
 	consultationsRoutesPlugin,
 	consultationsServicesPlugin,
 	consultationsTablesPlugin,
 	createConsultation,
 	failAudioJob,
 	finishConsultation,
+	listAllConsultations,
 	markAudioQueued,
 	ownsBot,
 	plugins,
@@ -39,6 +49,14 @@ INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
 `;
+
+// ConsultationsLive requires PlatformAdmin (adminList) — every runtime
+// below provides the same allowlisted gate.
+const liveDeps = (db: ReturnType<typeof makeDb>) =>
+	Layer.merge(
+		Layer.succeed(Db, db),
+		Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+	);
 
 describe("consultations repo", () => {
 	let db: ReturnType<typeof makeDb>;
@@ -109,15 +127,38 @@ describe("consultations repo", () => {
 		} as unknown as typeof db;
 		expect(await createConsultation(stub, { userId: "u1", source: "browser" })).toBeNull();
 	});
+
+	it("listAllConsultations returns cross-owner rows with owner and patient fields", async () => {
+		const [p] = await db
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Repo Paciente", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		const id = await createConsultation(db, { userId: "u1", source: "browser" });
+		await db
+			.update(consultationsTable)
+			.set({ patientId: p!.id })
+			.where(eq(consultationsTable.id, id!));
+		const rows = await listAllConsultations(db);
+		const row = rows.find((r) => r.id === id);
+		expect(row?.ownerEmail).toBe("d@x.com");
+		expect(row?.ownerName).toBe("Dra");
+		expect(row?.patientName).toBe("Repo Paciente");
+		// Newest first.
+		expect(rows[0]?.id).toBeGreaterThanOrEqual(rows.at(-1)?.id ?? 0);
+	});
 });
 
 describe("ConsultationsLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
 	let testDb: ReturnType<typeof makeDb>;
 
-	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Consultations>) =>
+	const asUser = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Consultations>,
+		email?: string,
+	) =>
 		runtime.runPromise(
-			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
 		);
 
 	const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
@@ -132,7 +173,7 @@ describe("ConsultationsLive", () => {
 
 	beforeAll(() => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -274,6 +315,40 @@ describe("ConsultationsLive", () => {
 		});
 	});
 
+	it("adminList returns cross-owner rows for an allowlisted principal", async () => {
+		const rows = await asUser(
+			"u1",
+			call((c) => c.adminList()),
+			"admin@x.com",
+		);
+		expect(rows.length).toBeGreaterThan(0);
+		// Fixture consultations are u1-owned; the join resolves the
+		// owner's email — proof adminList is not owner-scoped.
+		expect(rows.every((r) => r.ownerEmail === "d@x.com")).toBe(true);
+	});
+
+	it("adminList fails Forbidden for non-admin email, missing email and null principal", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminList()),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminList()),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				null,
+				call((c) => c.adminList()),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
 	it("denies reads on ownerless rows (null userId)", async () => {
 		const id = await createConsultation(testDb, { userId: "u1", source: "mic" });
 		await testDb
@@ -373,7 +448,7 @@ describe("audio pipeline", () => {
 
 	beforeAll(() => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -483,7 +558,7 @@ describe("Consultations.history", () => {
 
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
 		const [p] = await testDb
 			.insert(patientsTable)
 			.values({ ownerId: "u1", name: "Maria", createdAt: new Date() })
@@ -659,7 +734,7 @@ describe("Consultations.deletePatient", () => {
 
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
 		await testDb.insert(userTable).values({
 			id: "u2",
 			name: "Dr B",
@@ -715,14 +790,27 @@ describe("Consultations.deletePatient", () => {
 });
 
 describe("plugins", () => {
-	it("declares tables, services, routes and nav as single-concern plugins", () => {
+	it("declares tables, services, routes, nav and panel as single-concern plugins", () => {
 		expect(consultationsTablesPlugin.id).toBe("consultations.tables");
 		expect(consultationsTablesPlugin.tables?.consultations).toBeDefined();
 		expect(consultationsServicesPlugin.id).toBe("consultations.services");
 		expect(consultationsServicesPlugin.services).toBe(ConsultationsLive);
-		expect(consultationsServicesPlugin.requiredDeps).toEqual([patientsServicesPlugin.id]);
+		expect(consultationsServicesPlugin.requiredDeps).toEqual([
+			patientsServicesPlugin.id,
+			platformAdminPlugin.id,
+		]);
 		expect(consultationsNavPlugin.id).toBe("consultations.nav");
 		expect(consultationsNavPlugin.nav?.[0]?.to).toBe("/consultations");
+		expect(consultationsPanelPlugin.id).toBe("consultations.panel");
+		expect(consultationsPanelPlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
+		expect(consultationsPanelPlugin.panel?.sidebar).toEqual([
+			{
+				to: "/platform/consultations",
+				label: "Consultations",
+				icon: ClipboardListIcon,
+				group: "Domains",
+			},
+		]);
 	});
 
 	it("owns the consultations route subtree", () => {
@@ -748,6 +836,7 @@ describe("plugins", () => {
 			"consultations.services",
 			"consultations.routes",
 			"consultations.nav",
+			"consultations.panel",
 		]);
 	});
 });

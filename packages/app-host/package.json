@@ -19,6 +19,7 @@
 		"@ktb/db": "workspace:*",
 		"@ktb/driver-framework": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/platform": "workspace:*",
 		"effect": "4.1.2"
 	},
 	"devDependencies": {

@@ -27,6 +27,9 @@ import { consultations } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
+	adminListConsultationsFn,
+	adminListPatientsFn,
+	adminListUsersFn,
 	attachAnamnesisFn,
 	createPatientFn,
 	deletePatientFn,
@@ -40,6 +43,7 @@ import {
 	listPatientsFn,
 	patientDeletionImpactFn,
 	patientHistoryFn,
+	platformAdminFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
@@ -461,5 +465,38 @@ describe("server fns", () => {
 		// Owner still reads fine afterwards.
 		headers.current = new Headers({ cookie });
 		expect(await getConsultationFn({ data: saved.id! })).not.toBeNull();
+	});
+
+	it("platform admin gate: allowlist decides /platform access", async () => {
+		// Anonymous → not admin, empty list.
+		headers.current = new Headers();
+		expect(await platformAdminFn()).toBe(false);
+		expect(await adminListPatientsFn()).toEqual([]);
+		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await adminListUsersFn()).toEqual([]);
+
+		// Signed-in non-admin → still not admin, empty list.
+		headers.current = new Headers({ cookie });
+		expect(await platformAdminFn()).toBe(false);
+		expect(await adminListPatientsFn()).toEqual([]);
+		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await adminListUsersFn()).toEqual([]);
+
+		// Allowlisted admin (PLATFORM_ADMIN_EMAILS test double) → full
+		// cross-owner listing.
+		const adminCookie = await signIn("platform-admin@ktb.test");
+		headers.current = new Headers({ cookie: adminCookie });
+		expect(await platformAdminFn()).toBe(true);
+		const rows = await adminListPatientsFn();
+		expect(rows.length).toBeGreaterThan(0);
+		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
+
+		// Same gate covers the consultations and users console listings.
+		const consultRows = await adminListConsultationsFn();
+		expect(Array.isArray(consultRows)).toBe(true);
+		expect(consultRows.every((r) => r.ownerEmail !== undefined)).toBe(true);
+		const userRows = await adminListUsersFn();
+		expect(Array.isArray(userRows)).toBe(true);
+		expect(userRows.every((r) => typeof r.isAdmin === "boolean")).toBe(true);
 	});
 });

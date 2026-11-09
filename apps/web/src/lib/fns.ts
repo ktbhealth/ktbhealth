@@ -1,11 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 
-import { Consultations } from "@ktb/consultations";
-import { Patients } from "@ktb/patients";
+import { Consultations, type AdminConsultationRow } from "@ktb/consultations";
+import { Patients, type AdminPatientRow } from "@ktb/patients";
 import { demographicContext, TEXT_FIELDS, validatePatient } from "@ktb/patients/record";
+import { Users, type AdminUserRow } from "@ktb/users";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
-import { audioBucket, runAs } from "#/lib/platform.ts";
+import { audioBucket, run, runAs } from "#/lib/platform.ts";
 import { purgeAudio } from "#/lib/audio-purge.ts";
+import { PlatformAdmin } from "@ktb/platform";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";
@@ -98,6 +100,23 @@ const decodeHistoryInput = (input: unknown) =>
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
+
+/**
+ * /platform console gate: true when the session user's email is in the
+ * `PLATFORM_ADMIN_EMAILS` allowlist. Non-admins get `false` — route
+ * guards turn that into a hard 404; admin data paths enforce the same
+ * gate again inside domain services (defense in depth).
+ */
+export const platformAdminFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return false;
+	return run(
+		Effect.gen(function* () {
+			const platformAdmin = yield* PlatformAdmin;
+			return yield* platformAdmin.isAdmin(user.email);
+		}),
+	);
+});
 
 // LLM helpers touch no owned data but still require a session: they proxy
 // paid model calls and must not be an open endpoint.
@@ -281,6 +300,46 @@ export const listPatientConsultationsFn = createServerFn({ method: "GET" })
 		);
 	});
 
+/**
+ * Cross-owner patient listing for the /platform console. The service
+ * re-checks the platform admin gate against the bound principal —
+ * non-admins get the same empty result as an empty table (the layout
+ * guard already 404s them before this is reachable).
+ */
+export const adminListPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const patients = yield* Patients;
+			return yield* patients
+				.adminList()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[])));
+		}),
+	);
+});
+
+/**
+ * Cross-owner user listing for the /platform console. The service
+ * re-checks the platform admin gate against the bound principal —
+ * non-admins get the same empty result as an empty table (the layout
+ * guard already 404s them before this is reachable).
+ */
+export const adminListUsersFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const users = yield* Users;
+			return yield* users
+				.adminList()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminUserRow[])));
+		}),
+	);
+});
+
 // ---------- consultations (owner-scoped) ----------
 
 export const saveConsultationFn = createServerFn({ method: "POST" })
@@ -304,6 +363,26 @@ export const listConsultationsFn = createServerFn({ method: "GET" }).handler(asy
 		Effect.gen(function* () {
 			const consultations = yield* Consultations;
 			return yield* consultations.list(user.id);
+		}),
+	);
+});
+
+/**
+ * Cross-owner consultation listing for the /platform console. The
+ * service re-checks the platform admin gate against the bound
+ * principal — non-admins get the same empty result as an empty table
+ * (the layout guard already 404s them before this is reachable).
+ */
+export const adminListConsultationsFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const consultations = yield* Consultations;
+			return yield* consultations
+				.adminList()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminConsultationRow[])));
 		}),
 	);
 });

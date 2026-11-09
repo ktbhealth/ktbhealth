@@ -4,6 +4,8 @@ declare namespace Cloudflare {
 		BETTER_AUTH_URL?: string;
 		TURNSTILE_SECRET_KEY?: string;
 		CAPTCHA_STUB?: string;
+		/** Comma-separated admin allowlist for the /platform console (P-026). */
+		PLATFORM_ADMIN_EMAILS?: string;
 		/** R2 bucket for consultation audio (P-015). */
 		AUDIO_BUCKET?: R2Bucket;
 		/** Queue producer for async transcription jobs (P-016). */

@@ -7,13 +7,16 @@
 		"./i18n": "./src/i18n.ts",
 		"./record": "./src/record.ts",
 		"./schema": "./src/schema.ts",
+		"./testing": "./src/testing.ts",
 		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {
+		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/platform": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
 		"@tanstack/react-router": "1.170.46",
 		"@tanstack/virtual-file-routes": "1.162.0",
@@ -26,7 +29,9 @@
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
-		"better-sqlite3": "^13.0.3"
+		"better-sqlite3": "^13.0.3",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0"
 	},
 	"peerDependencies": {
 		"react": "^19.2.0"

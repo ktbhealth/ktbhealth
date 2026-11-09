@@ -19,7 +19,8 @@
 		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && cuora run --env prod --config ../../cuora.toml -- alchemy deploy --stage prod -y",
 		"infra:destroy": "alchemy destroy --stage prod",
 		"test:e2e": "playwright test",
-		"test:coverage": "vp test"
+		"test:coverage": "vp test",
+		"db:seed": "bun scripts/seed-users.ts"
 	},
 	"dependencies": {
 		"@huggingface/transformers": "^4.3.2",
@@ -35,6 +36,7 @@
 		"@ktb/captcha-stub": "workspace:*",
 		"@ktb/captcha-turnstile": "workspace:*",
 		"@ktb/consultations": "workspace:*",
+		"@ktb/dashboard": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/export-pdf": "workspace:*",
 		"@ktb/infra-cloudflare": "workspace:*",
@@ -43,8 +45,10 @@
 		"@ktb/interop-openehr": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
+		"@ktb/platform": "workspace:*",
 		"@ktb/transcription": "workspace:*",
 		"@ktb/transcription-whisper": "workspace:*",
+		"@ktb/users": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
 		"@tailwindcss/vite": "^4.1.18",
 		"@tanstack/react-devtools": "0.10.14",

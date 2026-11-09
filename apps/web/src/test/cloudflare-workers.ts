@@ -79,4 +79,7 @@ export const env = {
 	OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 	LLM_BASE_URL: process.env.LLM_BASE_URL,
 	LLM_MODEL: process.env.LLM_MODEL,
+	// Test double: fixed admin allowlist so platform-gate tests are
+	// deterministic regardless of the developer's shell env.
+	PLATFORM_ADMIN_EMAILS: process.env.PLATFORM_ADMIN_EMAILS ?? "platform-admin@ktb.test",
 };
