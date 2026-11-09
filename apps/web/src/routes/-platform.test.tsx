@@ -84,8 +84,12 @@ afterEach(() => {
 describe("/platform layout", () => {
 	it("renders sidebar items aggregated from plugin panel contributions", () => {
 		render(createElement(component(PlatformRoute)));
-		const platform = screen.getByRole("link", { name: "Platform" });
-		const patients = screen.getByRole("link", { name: "Patients" });
+		const platform = screen
+			.getAllByRole("link", { name: "Platform" })
+			.find((el) => el.getAttribute("href") === "/platform")!;
+		const patients = screen
+			.getAllByRole("link", { name: "Patients" })
+			.find((el) => el.getAttribute("href") === "/platform/patients")!;
 		expect(platform.getAttribute("href")).toBe("/platform");
 		expect(patients.getAttribute("href")).toBe("/platform/patients");
 		expect(platform.hasAttribute("data-active")).toBe(true);
@@ -96,8 +100,14 @@ describe("/platform layout", () => {
 	it("marks descendant routes active unless the item is exact", () => {
 		pathname = "/platform/patients";
 		render(createElement(component(PlatformRoute)));
-		expect(screen.getByRole("link", { name: "Platform" }).hasAttribute("data-active")).toBe(false);
-		expect(screen.getByRole("link", { name: "Patients" }).hasAttribute("data-active")).toBe(true);
+		// BreadcrumbPage also renders role="link" — select sidebar items
+		// by href + data-active instead of accessible name.
+		const sidebarLink = (href: string) =>
+			screen
+				.getAllByRole("link")
+				.find((el) => el.getAttribute("href") === href && el.hasAttribute("data-active"));
+		expect(sidebarLink("/platform")).toBeUndefined();
+		expect(sidebarLink("/platform/patients")).toBeTruthy();
 	});
 
 	it("beforeLoad redirects anonymous users to /login", async () => {

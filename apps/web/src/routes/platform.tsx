@@ -3,6 +3,14 @@ import { LogOutIcon, ArrowLeftIcon } from "lucide-react";
 
 import { authClient } from "@ktb/auth-better/client";
 import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "@ktbhealth/ui/components/breadcrumb";
+import {
 	Sidebar,
 	SidebarContent,
 	SidebarFooter,
@@ -46,6 +54,12 @@ function PlatformLayout() {
 	const user = rootApi.useLoaderData();
 	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
 	const current = items.find((i) => isItemActive(pathname, i));
+	// Breadcrumb leaf: the matched sidebar item's label (the plugin
+	// provides it via panel.sidebar), else the last path segment.
+	const leaf =
+		pathname === "/platform"
+			? "overview"
+			: (current?.label ?? pathname.split("/").filter(Boolean).at(-1) ?? "overview");
 	return (
 		<SidebarProvider className="h-dvh min-h-0">
 			<Sidebar collapsible="none" className="border-sidebar-border border-r">
@@ -100,11 +114,17 @@ function PlatformLayout() {
 			</Sidebar>
 			<div className="flex min-w-0 flex-1 flex-col">
 				<header className="flex h-11 shrink-0 items-center gap-3 border-b border-border px-4">
-					<nav className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-						<span>platform</span>
-						<span>/</span>
-						<span className="text-foreground">{current?.label ?? "overview"}</span>
-					</nav>
+					<Breadcrumb className="font-mono text-xs">
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<BreadcrumbLink render={<Link to="/platform" />}>platform</BreadcrumbLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator />
+							<BreadcrumbItem>
+								<BreadcrumbPage>{leaf}</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					</Breadcrumb>
 					<div className="ml-auto">
 						<Link
 							to="/"
