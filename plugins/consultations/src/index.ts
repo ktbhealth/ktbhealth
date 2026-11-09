@@ -16,8 +16,9 @@ import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
 import { patientsServicesPlugin } from "@ktb/patients";
-import { PatientsQueries } from "@ktb/patients/api";
-import { Query } from "@effect-server-utils/cqrs";
+import { PatientsCommands, PatientsQueries } from "@ktb/patients/api";
+import { ConsultationCreated, ConsultationsQueries } from "./api.ts";
+import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { consultations } from "./schema.ts";
 
 export type ConsultationRow = typeof consultations.$inferSelect;
@@ -250,12 +251,12 @@ async function patientConsultationRows(db: DbClient, patientId: number) {
 		.where(eq(consultations.patientId, patientId));
 }
 
-/** Patient + linked consultations in one D1 batch: all rows go, or none do. */
-async function deletePatientCascade(db: DbClient, patientId: number) {
-	await db.batch([
-		db.delete(consultations).where(eq(consultations.patientId, patientId)),
-		db.delete(patients).where(eq(patients.id, patientId)),
-	]);
+/** Linked consultation rows only — the patient row itself goes through
+ * the `patients.delete` command (authz + `patient.deleted` event live
+ * in the patients plugin). Consultations are deleted first so a FK
+ * constraint can't block the patient delete. */
+async function deletePatientConsultations(db: DbClient, patientId: number) {
+	await db.delete(consultations).where(eq(consultations.patientId, patientId));
 }
 
 async function listConsultations(
@@ -519,6 +520,8 @@ export const ConsultationsLive = Layer.effect(
 		const db = yield* Db;
 		const platformAdmin = yield* PlatformAdmin;
 		const patientQueries = yield* Query.dispatcher(PatientsQueries);
+		const patientCommands = yield* Command.dispatcher(PatientsCommands);
+		const events = yield* EventBus;
 		return Consultations.of({
 			create: Effect.fn("Consultations.create")(function* (fields: {
 				userId: string;
@@ -534,7 +537,17 @@ export const ConsultationsLive = Layer.effect(
 					userId: fields.userId,
 					source: fields.source,
 				});
-				return yield* Effect.promise(() => createConsultation(db, fields));
+				const id = yield* Effect.promise(() => createConsultation(db, fields));
+				if (id !== null) {
+					yield* events.dispatch([
+						ConsultationCreated.make({
+							id,
+							userId: fields.userId,
+							source: fields.source,
+						}),
+					]);
+				}
+				return id;
 			}),
 			appendTranscript: Effect.fn("Consultations.appendTranscript")(function* (
 				consultationId: number,
@@ -674,10 +687,12 @@ export const ConsultationsLive = Layer.effect(
 				patientId: number,
 			) {
 				yield* requirePrincipalUser(userId, "patient.delete");
+				// Missing patient → null, same contract as before. The
+				// `patients.delete` command below owns patient authz + the
+				// row delete; it runs in this fiber so Principal/Db/EventBus
+				// flow through.
 				const owner = yield* patientQueries["patients.ownerOf"]({ id: patientId });
-				const ownerId = owner?.ownerId ?? null;
-				if (ownerId === null) return null;
-				yield* requireCanAs("patient.delete", { ownerId });
+				if (owner === null) return null;
 				const rows = yield* Effect.promise(() => patientConsultationRows(db, patientId));
 				// Any consultation owned by someone else blocks the whole cascade.
 				for (const row of rows)
@@ -688,7 +703,8 @@ export const ConsultationsLive = Layer.effect(
 					patientId,
 					consultations: rows.length,
 				});
-				yield* Effect.promise(() => deletePatientCascade(db, patientId));
+				yield* Effect.promise(() => deletePatientConsultations(db, patientId));
+				yield* patientCommands["patients.delete"]({ id: patientId });
 				return {
 					consultations: rows.length,
 					audioKeys: rows.flatMap((r) => (r.audioKey ? [r.audioKey] : [])),
@@ -703,10 +719,29 @@ export const consultationsTablesPlugin = definePlugin({
 	tables: { consultations },
 });
 
+/** Cross-plugin query surface — registered so other plugins can
+ * `Query.dispatcher(ConsultationsQueries)` against it. */
+export const ConsultationsQueriesLive = Query.handlersOf(ConsultationsQueries, {
+	"consultations.forPatient": ({ patientId }) =>
+		Effect.gen(function* () {
+			const db = yield* Db;
+			return yield* Effect.promise(() =>
+				db
+					.select({
+						id: consultations.id,
+						status: consultations.status,
+						createdAt: consultations.createdAt,
+					})
+					.from(consultations)
+					.where(eq(consultations.patientId, patientId)),
+			);
+		}),
+});
+
 export const consultationsServicesPlugin = definePlugin({
 	id: "consultations.services",
 	requiredDeps: [patientsServicesPlugin.id, platformAdminPlugin.id],
-	services: ConsultationsLive,
+	services: Layer.mergeAll(ConsultationsLive, ConsultationsQueriesLive),
 });
 
 // Route subtree composed into the host's virtualRouteConfig. File paths

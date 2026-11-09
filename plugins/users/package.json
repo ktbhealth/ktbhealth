@@ -7,6 +7,7 @@
 		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {
+		"@effect-server-utils/cqrs": "0.1.0-beta.10",
 		"@ktb/auth": "workspace:*",
 		"@ktb/authz": "workspace:*",
 		"@ktb/consultations": "workspace:*",

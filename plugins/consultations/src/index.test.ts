@@ -6,9 +6,8 @@ import { user as userTable } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { patients as patientsTable } from "@ktb/patients/schema";
-import { getPatientOwnerId, patientsServicesPlugin } from "@ktb/patients";
-import { PatientsQueries } from "@ktb/patients/api";
-import { Query } from "@effect-server-utils/cqrs";
+import { patientsServicesPlugin, PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
+import { makeEventBus } from "@effect-server-utils/cqrs";
 import {
 	makePlatformAdminGate,
 	parsePlatformAdminEmails,
@@ -54,16 +53,20 @@ CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT R
 
 // ConsultationsLive requires PlatformAdmin (adminList) — every runtime
 // below provides the same allowlisted gate.
-const liveDeps = (db: ReturnType<typeof makeDb>) =>
-	Layer.mergeAll(
+const liveDeps = (db: ReturnType<typeof makeDb>) => {
+	const infra = Layer.mergeAll(
 		Layer.succeed(Db, db),
 		Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
-		// ConsultationsLive dispatches `patients.ownerOf` — register the real
-		// handler against the test db (same impl the patients plugin ships).
-		Query.handlersOf(PatientsQueries, {
-			"patients.ownerOf": ({ id }) => Effect.promise(() => getPatientOwnerId(db, id)),
-		}),
+		makeEventBus(),
 	);
+	return Layer.mergeAll(
+		infra,
+		// ConsultationsLive dispatches `patients.ownerOf` / `patients.delete`
+		// — register the real handlers against the test db (same impls the
+		// patients plugin ships).
+		Layer.mergeAll(PatientsQueriesLive, PatientsCommandsLive).pipe(Layer.provide(infra)),
+	);
+};
 
 describe("consultations repo", () => {
 	let db: ReturnType<typeof makeDb>;
@@ -801,7 +804,7 @@ describe("plugins", () => {
 		expect(consultationsTablesPlugin.id).toBe("consultations.tables");
 		expect(consultationsTablesPlugin.tables?.consultations).toBeDefined();
 		expect(consultationsServicesPlugin.id).toBe("consultations.services");
-		expect(consultationsServicesPlugin.services).toBe(ConsultationsLive);
+		expect(consultationsServicesPlugin.services).toBeDefined();
 		expect(consultationsServicesPlugin.requiredDeps).toEqual([
 			patientsServicesPlugin.id,
 			platformAdminPlugin.id,

@@ -18,6 +18,7 @@ import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
 import { correctTranscript as correctTranscriptEffect } from "@ktb/anamnesis-llm";
+import { makeEventBus } from "@effect-server-utils/cqrs";
 
 /**
  * Plugin registry discovered from the filesystem: every module under
@@ -148,6 +149,9 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		AuthServiceLive,
 		AnamnesisEngineLive,
 		PlatformAdminLive,
+		// Cross-plugin event bus — plugins publish/subscribe via EventBus
+		// inside their service layers (CQRS event surface).
+		makeEventBus(),
 	);
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
 		Layer.provideMerge(BindingLive),

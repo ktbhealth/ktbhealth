@@ -115,6 +115,7 @@
     "packages/app-host": {
       "name": "@ktb/app-host",
       "dependencies": {
+        "@effect-server-utils/cqrs": "0.1.0-beta.10",
         "@ktb/anamnesis": "workspace:*",
         "@ktb/anamnesis-llm": "workspace:*",
         "@ktb/auth": "workspace:*",
@@ -339,6 +340,7 @@
     "plugins/groups": {
       "name": "@ktb/groups",
       "dependencies": {
+        "@effect-server-utils/cqrs": "0.1.0-beta.10",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
@@ -467,6 +469,7 @@
     "plugins/users": {
       "name": "@ktb/users",
       "dependencies": {
+        "@effect-server-utils/cqrs": "0.1.0-beta.10",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/consultations": "workspace:*",

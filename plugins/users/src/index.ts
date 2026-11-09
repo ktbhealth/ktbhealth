@@ -1,7 +1,7 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { count, desc } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { UserCogIcon } from "lucide-react";
 
 import { user as users } from "@ktb/auth/schema";
@@ -11,6 +11,8 @@ import { definePlugin, type Plugin } from "@ktb/kernel";
 import { patients } from "@ktb/patients/schema";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import type { Forbidden } from "@ktb/authz";
+import { Query } from "@effect-server-utils/cqrs";
+import { UsersQueries } from "./api.ts";
 
 /** Repo-level user row: auth user fields plus aggregate counts. */
 export type UserRow = typeof users.$inferSelect & {
@@ -78,12 +80,28 @@ export const UsersLive = Layer.effect(
 	}),
 );
 
+/** Cross-plugin query surface — raw user lookup for other plugins. */
+export const UsersQueriesLive = Query.handlersOf(UsersQueries, {
+	"users.get": ({ id }) =>
+		Effect.gen(function* () {
+			const db = yield* Db;
+			const rows = yield* Effect.promise(() =>
+				db
+					.select({ id: users.id, email: users.email, name: users.name })
+					.from(users)
+					.where(eq(users.id, id))
+					.limit(1),
+			);
+			return rows[0] ?? null;
+		}),
+});
+
 export const usersServicesPlugin = definePlugin({
 	id: "users.services",
 	// adminList consumes the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
-	services: UsersLive,
+	services: Layer.mergeAll(UsersLive, UsersQueriesLive),
 });
 
 // Panel (system console) contribution: /platform/users is mounted by

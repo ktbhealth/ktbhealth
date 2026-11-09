@@ -8,7 +8,9 @@ import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
+import { Query } from "@effect-server-utils/cqrs";
 
+import { GroupsQueries } from "./api.ts";
 import { groupMembers, groups } from "./schema.ts";
 
 export type Group = typeof groups.$inferSelect;
@@ -231,12 +233,33 @@ export const groupsTablesPlugin = definePlugin({
 	tables: { groups, groupMembers },
 });
 
+/** Cross-plugin query surface — raw group lookup for other plugins. */
+export const GroupsQueriesLive = Query.handlersOf(GroupsQueries, {
+	"groups.get": ({ id }) =>
+		Effect.gen(function* () {
+			const db = yield* Db;
+			const rows = yield* Effect.promise(() =>
+				db
+					.select({
+						id: groups.id,
+						name: groups.name,
+						slug: groups.slug,
+						kind: groups.kind,
+					})
+					.from(groups)
+					.where(eq(groups.id, id))
+					.limit(1),
+			);
+			return rows[0] ?? null;
+		}),
+});
+
 export const groupsServicesPlugin = definePlugin({
 	id: "groups.services",
 	// Admin ops consume the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
-	services: GroupsLive,
+	services: Layer.mergeAll(GroupsLive, GroupsQueriesLive),
 });
 
 // Panel (system console) contribution: /platform/groups is mounted by

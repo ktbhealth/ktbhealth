@@ -6,6 +6,7 @@ import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import { makeEventBus } from "@effect-server-utils/cqrs";
 import { UsersIcon } from "lucide-react";
 import {
 	createPatient,
@@ -109,9 +110,10 @@ describe("PatientsLive", () => {
 
 	beforeAll(() => {
 		const db = makeDb(makeD1(DDL));
-		const deps = Layer.merge(
+		const deps = Layer.mergeAll(
 			Layer.succeed(Db, db),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+			makeEventBus(),
 		);
 		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
 	});

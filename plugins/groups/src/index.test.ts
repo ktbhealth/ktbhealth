@@ -243,7 +243,7 @@ describe("plugins", () => {
 		expect(groupsTablesPlugin.tables).toBeDefined();
 		expect(groupsServicesPlugin.id).toBe("groups.services");
 		expect(groupsServicesPlugin.requiredDeps).toEqual(["platform.admin"]);
-		expect(groupsServicesPlugin.services).toBe(GroupsLive);
+		expect(groupsServicesPlugin.services).toBeDefined();
 		expect(groupsPanelPlugin.id).toBe("groups.panel");
 		expect(groupsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
 		expect(groupsPanelPlugin.panel?.sidebar).toEqual([

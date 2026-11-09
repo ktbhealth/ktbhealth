@@ -8,8 +8,8 @@ import { UsersIcon } from "lucide-react";
 import { user as users } from "@ktb/auth/schema";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import { Query } from "@effect-server-utils/cqrs";
-import { PatientsQueries } from "./api.ts";
+import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
+import { PatientCreated, PatientDeleted, PatientsCommands, PatientsQueries } from "./api.ts";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import type { PatientFields } from "./record.ts";
@@ -65,6 +65,12 @@ export async function getPatientOwnerId(db: DbClient, id: number) {
 	return rows[0] ?? null;
 }
 
+/** Row delete behind the `patients.delete` command — authz happens in
+ * the command handler, not here. */
+export async function deletePatientRow(db: DbClient, id: number) {
+	await db.delete(patients).where(eq(patients.id, id));
+}
+
 export async function createPatient(db: DbClient, ownerId: string, fields: PatientFields) {
 	const rows = await db
 		.insert(patients)
@@ -117,6 +123,7 @@ export const PatientsLive = Layer.effect(
 	Effect.gen(function* () {
 		const db = yield* Db;
 		const platformAdmin = yield* PlatformAdmin;
+		const events = yield* EventBus;
 		return Patients.of({
 			list: Effect.fn("Patients.list")(function* (ownerId: string) {
 				yield* requireCanAs("patient.read", { ownerId });
@@ -135,7 +142,11 @@ export const PatientsLive = Layer.effect(
 				yield* requireCanAs("patient.create");
 				yield* Effect.annotateCurrentSpan({ ownerId });
 				yield* Effect.logInfo("patient create", { ownerId });
-				return yield* Effect.promise(() => createPatient(db, ownerId, fields));
+				const row = yield* Effect.promise(() => createPatient(db, ownerId, fields));
+				if (row !== null) {
+					yield* events.dispatch([PatientCreated.make({ id: row.id, ownerId, name: row.name })]);
+				}
+				return row;
 			}),
 			update: Effect.fn("Patients.update")(function* (
 				ownerId: string,
@@ -177,12 +188,29 @@ export const PatientsQueriesLive = Query.handlersOf(PatientsQueries, {
 		}),
 });
 
+/** `patients.delete` command — authz + row delete + `patient.deleted`
+ * event. Consumers (e.g. consultations cascade) execute it through
+ * `Command.dispatcher(PatientsCommands)` instead of touching the
+ * patients table directly. */
+export const PatientsCommandsLive = Command.handlersOf(PatientsCommands, {
+	"patients.delete": ({ id }) =>
+		Effect.gen(function* () {
+			const db = yield* Db;
+			const events = yield* EventBus;
+			const row = yield* Effect.promise(() => getPatient(db, id));
+			if (row === null) return;
+			yield* requireCanAs("patient.delete", { ownerId: row.ownerId });
+			yield* Effect.promise(() => deletePatientRow(db, id));
+			yield* events.dispatch([PatientDeleted.make({ id, ownerId: row.ownerId })]);
+		}),
+});
+
 export const patientsServicesPlugin = definePlugin({
 	id: "patients.services",
 	// adminList consumes the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
-	services: Layer.mergeAll(PatientsLive, PatientsQueriesLive),
+	services: Layer.mergeAll(PatientsLive, PatientsQueriesLive, PatientsCommandsLive),
 });
 
 // Route subtree composed into the host's virtualRouteConfig. File paths
