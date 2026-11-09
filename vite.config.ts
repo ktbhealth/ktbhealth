@@ -3,6 +3,19 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
 	defaultPackage: "./apps/web",
 
+	// Task runner (`vp run`). CI tasks are prefixed `ci:` because a task cannot
+	// share a name with a package.json script. `vp build` generates the
+	// paraglide output (src/paraglide, gitignored) that the type-aware lint
+	// in `check` and the tests import, so both depend on it; results are
+	// cached and restored on a hit.
+	run: {
+		tasks: {
+			"ci:build": { command: "vp build" },
+			"ci:check": { command: "vp check", dependsOn: ["ci:build"] },
+			"ci:test": { command: "vp test", dependsOn: ["ci:build"] },
+		},
+	},
+
 	fmt: {
 		useTabs: true,
 		ignorePatterns: [
