@@ -28,10 +28,6 @@ import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
 	adminListAudioJobsFn,
-	adminListConsultationsFn,
-	adminListGroupsFn,
-	adminListPatientsFn,
-	adminListUsersFn,
 	attachAnamnesisFn,
 	countMyUnreadNotificationsFn,
 	createPatientFn,
@@ -50,6 +46,7 @@ import {
 	patientDeletionImpactFn,
 	patientHistoryFn,
 	platformAdminFn,
+	platformPageDataFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
@@ -474,46 +471,69 @@ describe("server fns", () => {
 	});
 
 	it("platform admin gate: allowlist decides /platform access", async () => {
-		// Anonymous → not admin, empty list.
+		// Anonymous → not admin, no loader data (the layout guard
+		// redirects/404s before any page loader runs).
 		headers.current = new Headers();
 		expect(await platformAdminFn()).toBe(false);
-		expect(await adminListPatientsFn()).toEqual([]);
-		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/patients" })).toBeNull();
+		expect(await platformPageDataFn({ data: "/platform/consultations" })).toBeNull();
 		expect(await adminListAudioJobsFn()).toEqual([]);
-		expect(await adminListUsersFn()).toEqual([]);
-		expect(await adminListGroupsFn()).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/users" })).toBeNull();
+		expect(await platformPageDataFn({ data: "/platform/groups" })).toBeNull();
+		// Unknown console paths have no descriptor → null.
+		expect(await platformPageDataFn({ data: "/platform/nope" })).toBeNull();
 
-		// Signed-in non-admin → still not admin, empty list.
+		// Signed-in non-admin → still not admin; page loaders collapse
+		// Forbidden to the same empty tables the old fns returned.
 		headers.current = new Headers({ cookie });
 		expect(await platformAdminFn()).toBe(false);
-		expect(await adminListPatientsFn()).toEqual([]);
-		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/patients" })).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/consultations" })).toEqual([]);
 		expect(await adminListAudioJobsFn()).toEqual([]);
-		expect(await adminListUsersFn()).toEqual([]);
-		expect(await adminListGroupsFn()).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/users" })).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/groups" })).toEqual([]);
 
 		// Allowlisted admin (PLATFORM_ADMIN_EMAILS test double) → full
 		// cross-owner listing.
 		const adminCookie = await signIn("platform-admin@ktb.test");
 		headers.current = new Headers({ cookie: adminCookie });
 		expect(await platformAdminFn()).toBe(true);
-		const rows = await adminListPatientsFn();
+		const rows = (await platformPageDataFn({ data: "/platform/patients" })) as {
+			ownerEmail: string | null;
+		}[];
 		expect(rows.length).toBeGreaterThan(0);
 		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
 
 		// Same gate covers the consultations and users console listings.
-		const consultRows = await adminListConsultationsFn();
+		const consultRows = (await platformPageDataFn({
+			data: "/platform/consultations",
+		})) as { ownerEmail?: string }[];
 		expect(Array.isArray(consultRows)).toBe(true);
 		expect(consultRows.every((r) => r.ownerEmail !== undefined)).toBe(true);
-		const userRows = await adminListUsersFn();
+		const userRows = (await platformPageDataFn({ data: "/platform/users" })) as {
+			isAdmin: boolean;
+		}[];
 		expect(Array.isArray(userRows)).toBe(true);
 		expect(userRows.every((r) => typeof r.isAdmin === "boolean")).toBe(true);
-		const groupRows = await adminListGroupsFn();
+		const groupRows = (await platformPageDataFn({ data: "/platform/groups" })) as {
+			memberCount: number;
+		}[];
 		expect(Array.isArray(groupRows)).toBe(true);
 		expect(groupRows.every((r) => typeof r.memberCount === "number")).toBe(true);
 		// The audioJobs CQRS query answers the same admin gate.
 		const audioJobs = await adminListAudioJobsFn();
 		expect(Array.isArray(audioJobs)).toBe(true);
+		// The dashboard index aggregates listings + notification activity.
+		const dashboard = (await platformPageDataFn({ data: "/platform" })) as {
+			patients: unknown[];
+			consultations: unknown[];
+			notifications?: unknown[];
+			unreadCount?: number;
+		};
+		expect(dashboard.patients.length).toBeGreaterThan(0);
+		expect(Array.isArray(dashboard.consultations)).toBe(true);
+		expect(Array.isArray(dashboard.notifications)).toBe(true);
+		expect(typeof dashboard.unreadCount).toBe("number");
 	});
 
 	it("notifications fns list, count and mark read for the session user", async () => {

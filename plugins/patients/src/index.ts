@@ -10,6 +10,7 @@ import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { PatientCreated, PatientDeleted, PatientsCommands, PatientsQueries } from "./api.ts";
+import { PatientsPlatformPage } from "./platform-page.tsx";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import type { PatientFields } from "./record.ts";
@@ -241,6 +242,23 @@ export const patientsPanelPlugin = definePlugin({
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
 		sidebar: [{ to: "/platform/patients", label: "Patients", icon: UsersIcon, group: "Domains" }],
+		pages: [
+			{
+				id: "patients.admin",
+				path: "/platform/patients",
+				component: PatientsPlatformPage,
+				// Cross-owner listing for the console — the service
+				// re-checks the PlatformAdmin gate; Forbidden collapses
+				// to the same empty table the old server fn returned.
+				loader: () =>
+					Effect.gen(function* () {
+						const patients = yield* Patients;
+						return yield* patients
+							.adminList()
+							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[])));
+					}),
+			},
+		],
 	},
 });
 

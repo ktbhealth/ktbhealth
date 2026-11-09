@@ -38,6 +38,7 @@
         "@ktb/interop-fhir": "workspace:*",
         "@ktb/interop-openehr": "workspace:*",
         "@ktb/jobs": "workspace:*",
+        "@ktb/kernel": "workspace:*",
         "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
@@ -324,12 +325,14 @@
     "plugins/dashboard": {
       "name": "@ktb/dashboard",
       "dependencies": {
+        "@ktb/authz": "workspace:*",
         "@ktb/consultations": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "effect": "4.1.2",
         "lucide-react": "0.544.0",
       },
       "devDependencies": {

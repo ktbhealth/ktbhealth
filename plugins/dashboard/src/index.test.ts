@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { LayoutDashboardIcon } from "lucide-react";
 
 import { platformPanelPlugin } from "@ktb/platform";
+import { consultationsServicesPlugin } from "@ktb/consultations";
+import { notificationsServicesPlugin } from "@ktb/notifications";
+import { patientsServicesPlugin } from "@ktb/patients";
 import type { Plugin } from "@ktb/kernel";
 
 import { dashboardPanelPlugin, plugins } from "./index.ts";
@@ -9,7 +12,12 @@ import { dashboardPanelPlugin, plugins } from "./index.ts";
 describe("dashboardPanelPlugin", () => {
 	it("declares the ungrouped /platform sidebar entry", () => {
 		expect(dashboardPanelPlugin.id).toBe("dashboard.panel");
-		expect(dashboardPanelPlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
+		expect(dashboardPanelPlugin.requiredDeps).toEqual([
+			platformPanelPlugin.id,
+			patientsServicesPlugin.id,
+			consultationsServicesPlugin.id,
+		]);
+		expect(dashboardPanelPlugin.optionalDeps).toEqual([notificationsServicesPlugin.id]);
 		expect(dashboardPanelPlugin.panel?.sidebar).toEqual([
 			{
 				to: "/platform",

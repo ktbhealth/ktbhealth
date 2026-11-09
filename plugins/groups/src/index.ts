@@ -11,6 +11,7 @@ import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/pl
 import { Query } from "@effect-server-utils/cqrs";
 
 import { GroupsQueries } from "./api.ts";
+import { GroupsPlatformPage } from "./platform-page.tsx";
 import { groupMembers, groups } from "./schema.ts";
 
 export type Group = typeof groups.$inferSelect;
@@ -270,6 +271,23 @@ export const groupsPanelPlugin = definePlugin({
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
 		sidebar: [{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" }],
+		pages: [
+			{
+				id: "groups.admin",
+				path: "/platform/groups",
+				component: GroupsPlatformPage,
+				// Cross-owner listing for the console — the service
+				// re-checks the PlatformAdmin gate; Forbidden collapses
+				// to the same empty table the old server fn returned.
+				loader: () =>
+					Effect.gen(function* () {
+						const groups = yield* Groups;
+						return yield* groups
+							.list()
+							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminGroupRow[])));
+					}),
+			},
+		],
 	},
 });
 

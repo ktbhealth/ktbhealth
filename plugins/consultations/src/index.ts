@@ -20,6 +20,7 @@ import { patients } from "@ktb/patients/schema";
 import { patientsServicesPlugin } from "@ktb/patients";
 import { PatientsCommands, PatientsQueries } from "@ktb/patients/api";
 import { ConsultationAudioUpdated, ConsultationCreated, ConsultationsQueries } from "./api.ts";
+import { ConsultationsPlatformPage } from "./platform-page.tsx";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { consultations } from "./schema.ts";
 
@@ -887,6 +888,25 @@ export const consultationsPanelPlugin = definePlugin({
 				label: "Consultations",
 				icon: ClipboardListIcon,
 				group: "Domains",
+			},
+		],
+		pages: [
+			{
+				id: "consultations.admin",
+				path: "/platform/consultations",
+				component: ConsultationsPlatformPage,
+				// Cross-owner listing for the console — the service
+				// re-checks the PlatformAdmin gate; Forbidden collapses
+				// to the same empty table the old server fn returned.
+				loader: () =>
+					Effect.gen(function* () {
+						const consultations = yield* Consultations;
+						return yield* consultations
+							.adminList()
+							.pipe(
+								Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminConsultationRow[])),
+							);
+					}),
 			},
 		],
 	},

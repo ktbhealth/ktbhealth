@@ -13,6 +13,7 @@ import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/pl
 import type { Forbidden } from "@ktb/authz";
 import { Query } from "@effect-server-utils/cqrs";
 import { UsersQueries } from "./api.ts";
+import { UsersPlatformPage } from "./platform-page.tsx";
 
 /** Repo-level user row: auth user fields plus aggregate counts. */
 export type UserRow = typeof users.$inferSelect & {
@@ -112,6 +113,23 @@ export const usersPanelPlugin = definePlugin({
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
 		sidebar: [{ to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" }],
+		pages: [
+			{
+				id: "users.admin",
+				path: "/platform/users",
+				component: UsersPlatformPage,
+				// Cross-owner listing for the console — the service
+				// re-checks the PlatformAdmin gate; Forbidden collapses
+				// to the same empty table the old server fn returned.
+				loader: () =>
+					Effect.gen(function* () {
+						const users = yield* Users;
+						return yield* users
+							.adminList()
+							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminUserRow[])));
+					}),
+			},
+		],
 	},
 });
 

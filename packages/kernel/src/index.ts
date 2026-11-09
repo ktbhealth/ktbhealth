@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { VirtualRouteNode } from "@tanstack/virtual-file-routes";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
+import type * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
 
 /**
@@ -40,6 +41,28 @@ export interface PanelSidebarItem {
 export interface PanelHeaderAction {
 	readonly id: string;
 	readonly component: ComponentType;
+}
+
+/** Host-injected context handed to every panel page component — the
+ * discovered plugin registry, so console pages can render
+ * plugin-aware views without importing the app host. */
+export interface PanelPageContext {
+	readonly plugins: readonly Plugin[];
+}
+
+/** A console page contributed via `panel.pages` (P-050): the host
+ * mounts a generic dispatcher at `path` under /platform, runs `loader`
+ * as an Effect under the session principal (`runAs` binds Principal +
+ * AuthzLive — authz stays inside the domain services), and renders
+ * `component` with the result as `data`. `loader` runs on every
+ * navigation, like a route loader; pages without one get `data: null`.
+ * `path` must be a single segment under /platform ("/platform" itself
+ * or "/platform/<name>") — the host's param route only matches one. */
+export interface PanelPage {
+	readonly id: string;
+	readonly path: string;
+	readonly component: ComponentType<{ data: unknown; ctx: PanelPageContext }>;
+	readonly loader?: () => Effect.Effect<unknown, unknown, unknown>;
 }
 
 /**
@@ -146,6 +169,10 @@ export interface PanelPlugin extends PluginBase, ForbiddenContributions<"panel">
 		 * header, in plugin topo order. Only taken into account when the
 		 * `platform.header` extension point is present. */
 		readonly headerActions?: ReadonlyArray<PanelHeaderAction>;
+		/** Console pages the host dispatches under /platform — each
+		 * `path` gets a generic route that runs `loader` and renders
+		 * `component`. Paths must be unique across plugins. */
+		readonly pages?: ReadonlyArray<PanelPage>;
 	};
 }
 

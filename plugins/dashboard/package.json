@@ -7,12 +7,14 @@
 		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {
+		"@ktb/authz": "workspace:*",
 		"@ktb/consultations": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/notifications": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+		"effect": "4.1.2",
 		"lucide-react": "0.544.0"
 	},
 	"devDependencies": {

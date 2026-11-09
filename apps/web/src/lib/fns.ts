@@ -1,16 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 
-import { Consultations, type AdminConsultationRow } from "@ktb/consultations";
+import { Consultations } from "@ktb/consultations";
 import { ConsultationsQueries } from "@ktb/consultations/api";
 import { Query } from "@effect-server-utils/cqrs";
-import { Groups, type AdminGroupRow } from "@ktb/groups";
-import { Patients, type AdminPatientRow } from "@ktb/patients";
+import { Patients } from "@ktb/patients";
 import { demographicContext, TEXT_FIELDS, validatePatient } from "@ktb/patients/record";
-import { Users, type AdminUserRow } from "@ktb/users";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
 import { Notifications, rowToConsole } from "@ktb/notifications";
 import { audioBucket, run, runAs } from "#/lib/platform.ts";
 import { purgeAudio } from "#/lib/audio-purge.ts";
+import { platformPages } from "#/lib/platform-pages.ts";
 import { PlatformAdmin } from "@ktb/platform";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
@@ -121,6 +120,27 @@ export const platformAdminFn = createServerFn({ method: "GET" }).handler(async (
 		}),
 	);
 });
+
+/**
+ * Loader data for /platform console pages contributed via
+ * `panel.pages` (P-050): resolves the descriptor registered for `path`
+ * and runs its Effect under the session principal (`runAs` binds
+ * Principal + AuthzLive — authz stays inside the domain services).
+ * Anonymous callers and pages without a loader get `null`; unknown
+ * paths also `null` — the route dispatcher 404s before calling this.
+ */
+export const platformPageDataFn = createServerFn({ method: "GET" })
+	.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
+	// Loader results are plugin-defined `unknown` at the kernel
+	// boundary; the wire type is whatever each page's loader returns
+	// (serializable rows — same shape the retired per-page fns sent).
+	.handler(async ({ data: path }): Promise<any> => {
+		const user = await getSessionUser();
+		if (!user) return null;
+		const page = platformPages.get(path);
+		if (page?.loader === undefined) return null;
+		return runAs(user, page.loader());
+	});
 
 // LLM helpers touch no owned data but still require a session: they proxy
 // paid model calls and must not be an open endpoint.
@@ -304,66 +324,6 @@ export const listPatientConsultationsFn = createServerFn({ method: "GET" })
 		);
 	});
 
-/**
- * Cross-owner patient listing for the /platform console. The service
- * re-checks the platform admin gate against the bound principal —
- * non-admins get the same empty result as an empty table (the layout
- * guard already 404s them before this is reachable).
- */
-export const adminListPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
-	if (!user) return [];
-	return runAs(
-		user,
-		Effect.gen(function* () {
-			const patients = yield* Patients;
-			return yield* patients
-				.adminList()
-				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[])));
-		}),
-	);
-});
-
-/**
- * Cross-owner user listing for the /platform console. The service
- * re-checks the platform admin gate against the bound principal —
- * non-admins get the same empty result as an empty table (the layout
- * guard already 404s them before this is reachable).
- */
-export const adminListUsersFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
-	if (!user) return [];
-	return runAs(
-		user,
-		Effect.gen(function* () {
-			const users = yield* Users;
-			return yield* users
-				.adminList()
-				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminUserRow[])));
-		}),
-	);
-});
-
-/**
- * Cross-owner group listing for the /platform console. The service
- * re-checks the platform admin gate against the bound principal —
- * non-admins get the same empty result as an empty table (the layout
- * guard already 404s them before this is reachable).
- */
-export const adminListGroupsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
-	if (!user) return [];
-	return runAs(
-		user,
-		Effect.gen(function* () {
-			const groups = yield* Groups;
-			return yield* groups
-				.list()
-				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminGroupRow[])));
-		}),
-	);
-});
-
 // ---------- consultations (owner-scoped) ----------
 
 export const saveConsultationFn = createServerFn({ method: "POST" })
@@ -387,26 +347,6 @@ export const listConsultationsFn = createServerFn({ method: "GET" }).handler(asy
 		Effect.gen(function* () {
 			const consultations = yield* Consultations;
 			return yield* consultations.list(user.id);
-		}),
-	);
-});
-
-/**
- * Cross-owner consultation listing for the /platform console. The
- * service re-checks the platform admin gate against the bound
- * principal — non-admins get the same empty result as an empty table
- * (the layout guard already 404s them before this is reachable).
- */
-export const adminListConsultationsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
-	if (!user) return [];
-	return runAs(
-		user,
-		Effect.gen(function* () {
-			const consultations = yield* Consultations;
-			return yield* consultations
-				.adminList()
-				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminConsultationRow[])));
 		}),
 	);
 });

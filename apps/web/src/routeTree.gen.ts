@@ -23,10 +23,7 @@ import { Route as consultationsNewRouteImport } from './routes/consultations/new
 import { Route as patientsIndexRouteImport } from './routes/patients/index'
 import { Route as patientsNewRouteImport } from './routes/patients/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
-import { Route as ConsultationsRouteImport } from './routes/platform/consultations'
-import { Route as GroupsRouteImport } from './routes/platform/groups'
-import { Route as PatientsRouteImport } from './routes/platform/patients'
-import { Route as UsersRouteImport } from './routes/platform/users'
+import { Route as PageRouteImport } from './routes/platform/$page'
 import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
@@ -106,24 +103,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => platformRoute,
 } as any)
-const ConsultationsRoute = ConsultationsRouteImport.update({
-  id: '/consultations',
-  path: '/consultations',
-  getParentRoute: () => platformRoute,
-} as any)
-const GroupsRoute = GroupsRouteImport.update({
-  id: '/groups',
-  path: '/groups',
-  getParentRoute: () => platformRoute,
-} as any)
-const PatientsRoute = PatientsRouteImport.update({
-  id: '/patients',
-  path: '/patients',
-  getParentRoute: () => platformRoute,
-} as any)
-const UsersRoute = UsersRouteImport.update({
-  id: '/users',
-  path: '/users',
+const PageRoute = PageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
   getParentRoute: () => platformRoute,
 } as any)
 const ApiAuthDotsplatRoute = ApiAuthDotsplatRouteImport.update({
@@ -182,10 +164,7 @@ export interface FileRoutesByFullPath {
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
   '/patients/new': typeof patientsNewRoute
-  '/platform/consultations': typeof ConsultationsRoute
-  '/platform/groups': typeof GroupsRoute
-  '/platform/patients': typeof PatientsRoute
-  '/platform/users': typeof UsersRoute
+  '/platform/$page': typeof PageRoute
   '/consultations/': typeof consultationsIndexRoute
   '/patients/': typeof patientsIndexRoute
   '/platform/': typeof IndexRoute
@@ -209,10 +188,7 @@ export interface FileRoutesByTo {
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
   '/patients/new': typeof patientsNewRoute
-  '/platform/consultations': typeof ConsultationsRoute
-  '/platform/groups': typeof GroupsRoute
-  '/platform/patients': typeof PatientsRoute
-  '/platform/users': typeof UsersRoute
+  '/platform/$page': typeof PageRoute
   '/consultations': typeof consultationsIndexRoute
   '/patients': typeof patientsIndexRoute
   '/platform': typeof IndexRoute
@@ -238,10 +214,7 @@ export interface FileRoutesById {
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
   '/patients/new': typeof patientsNewRoute
-  '/platform/consultations': typeof ConsultationsRoute
-  '/platform/groups': typeof GroupsRoute
-  '/platform/patients': typeof PatientsRoute
-  '/platform/users': typeof UsersRoute
+  '/platform/$page': typeof PageRoute
   '/consultations/': typeof consultationsIndexRoute
   '/patients/': typeof patientsIndexRoute
   '/platform/': typeof IndexRoute
@@ -268,10 +241,7 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/patients/new'
-    | '/platform/consultations'
-    | '/platform/groups'
-    | '/platform/patients'
-    | '/platform/users'
+    | '/platform/$page'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
@@ -295,10 +265,7 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/patients/new'
-    | '/platform/consultations'
-    | '/platform/groups'
-    | '/platform/patients'
-    | '/platform/users'
+    | '/platform/$page'
     | '/consultations'
     | '/patients'
     | '/platform'
@@ -323,10 +290,7 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/patients/new'
-    | '/platform/consultations'
-    | '/platform/groups'
-    | '/platform/patients'
-    | '/platform/users'
+    | '/platform/$page'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
@@ -463,32 +427,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof platformRoute
     }
-    '/platform/consultations': {
-      id: '/platform/consultations'
-      path: '/consultations'
-      fullPath: '/platform/consultations'
-      preLoaderRoute: typeof ConsultationsRouteImport
-      parentRoute: typeof platformRoute
-    }
-    '/platform/groups': {
-      id: '/platform/groups'
-      path: '/groups'
-      fullPath: '/platform/groups'
-      preLoaderRoute: typeof GroupsRouteImport
-      parentRoute: typeof platformRoute
-    }
-    '/platform/patients': {
-      id: '/platform/patients'
-      path: '/patients'
-      fullPath: '/platform/patients'
-      preLoaderRoute: typeof PatientsRouteImport
-      parentRoute: typeof platformRoute
-    }
-    '/platform/users': {
-      id: '/platform/users'
-      path: '/users'
-      fullPath: '/platform/users'
-      preLoaderRoute: typeof UsersRouteImport
+    '/platform/$page': {
+      id: '/platform/$page'
+      path: '/$page'
+      fullPath: '/platform/$page'
+      preLoaderRoute: typeof PageRouteImport
       parentRoute: typeof platformRoute
     }
     '/api/auth/$': {
@@ -551,18 +494,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface platformRouteChildren {
-  ConsultationsRoute: typeof ConsultationsRoute
-  GroupsRoute: typeof GroupsRoute
-  PatientsRoute: typeof PatientsRoute
-  UsersRoute: typeof UsersRoute
+  PageRoute: typeof PageRoute
   IndexRoute: typeof IndexRoute
 }
 
 const platformRouteChildren: platformRouteChildren = {
-  ConsultationsRoute: ConsultationsRoute,
-  GroupsRoute: GroupsRoute,
-  PatientsRoute: PatientsRoute,
-  UsersRoute: UsersRoute,
+  PageRoute: PageRoute,
   IndexRoute: IndexRoute,
 }
 

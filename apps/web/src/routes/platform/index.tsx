@@ -1,39 +1,28 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createElement } from "react";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { DashboardPage } from "@ktb/dashboard/views";
-import {
-	adminListConsultationsFn,
-	adminListPatientsFn,
-	countMyUnreadNotificationsFn,
-	listMyNotificationsFn,
-} from "#/lib/fns.ts";
+import { platformPageDataFn } from "#/lib/fns.ts";
+import { platformPages } from "#/lib/platform-pages.ts";
 import { plugins } from "#/plugins.ts";
 
-// Console-activity card data is only fetched when the notifications
-// backend plugin is registered — DashboardPage hides the section
-// entirely when `notifications` is undefined (feature absent ≠ empty).
-const hasNotifications = plugins.some((p) => p.id === "notifications.services");
+const PATH = "/platform";
 
+// Console landing page (P-050): the dashboard plugin contributes a
+// `panel.pages` descriptor for "/platform"; this route is a generic
+// dispatcher — it resolves the descriptor, 404s when absent, fetches
+// the loader Effect's result via the platformPageDataFn server fn
+// (isomorphic: direct on SSR, RPC on client navigation), and renders
+// the contributed component with `{ data, ctx: { plugins } }`.
 export const Route = createFileRoute("/platform/")({
 	loader: async () => {
-		const [patients, consultations, notifications, unreadCount] = await Promise.all([
-			adminListPatientsFn(),
-			adminListConsultationsFn(),
-			hasNotifications ? listMyNotificationsFn() : Promise.resolve(undefined),
-			hasNotifications ? countMyUnreadNotificationsFn() : Promise.resolve(undefined),
-		]);
-		return { patients, consultations, notifications, unreadCount };
+		const page = platformPages.get(PATH);
+		if (page === undefined) throw notFound();
+		return platformPageDataFn({ data: PATH });
 	},
 	component: function PlatformIndexRoute() {
-		const { patients, consultations, notifications, unreadCount } = Route.useLoaderData();
-		return (
-			<DashboardPage
-				patients={patients}
-				consultations={consultations}
-				plugins={plugins}
-				notifications={notifications}
-				unreadCount={unreadCount}
-			/>
-		);
+		const data = Route.useLoaderData();
+		const page = platformPages.get(PATH);
+		if (page === undefined) return null;
+		return createElement(page.component, { data, ctx: { plugins } });
 	},
 });

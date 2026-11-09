@@ -4,10 +4,8 @@ import { createElement, type ReactElement } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const platformAdminFn = vi.fn(async () => true);
-const adminListPatientsFn = vi.fn(async () => [] as unknown[]);
+const platformPageDataFn = vi.fn(async (_path: string) => null as unknown);
 const adminListAudioJobsFn = vi.fn(async () => [] as unknown[]);
-const adminListUsersFn = vi.fn(async () => [] as unknown[]);
-const adminListGroupsFn = vi.fn(async () => [] as unknown[]);
 const countMyUnreadNotificationsFn = vi.fn(async () => 0);
 const markMyNotificationsReadFn = vi.fn(async (_arg?: unknown) => true);
 const markAllMyNotificationsReadFn = vi.fn(async () => true);
@@ -18,25 +16,22 @@ const getSessionUserFn = vi.fn(
 		name: "A",
 	}),
 );
+const listMyNotificationsFn = vi.fn(async () => [] as unknown[]);
 
 vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
-	adminListPatientsFn: () => adminListPatientsFn(),
+	platformPageDataFn: (arg: { data: string }) => platformPageDataFn(arg.data),
 	adminListAudioJobsFn: () => adminListAudioJobsFn(),
-	adminListConsultationsFn: () => adminListConsultationsFn(),
 	listMyNotificationsFn: () => listMyNotificationsFn(),
 	countMyUnreadNotificationsFn: () => countMyUnreadNotificationsFn(),
 	markMyNotificationsReadFn: (arg: unknown) => markMyNotificationsReadFn(arg),
 	markAllMyNotificationsReadFn: () => markAllMyNotificationsReadFn(),
-	adminListUsersFn: () => adminListUsersFn(),
-	adminListGroupsFn: () => adminListGroupsFn(),
 	getSessionUserFn: () => getSessionUserFn(),
 }));
 
-const adminListConsultationsFn = vi.fn(async () => [] as unknown[]);
-const listMyNotificationsFn = vi.fn(async () => [] as unknown[]);
 let loaderData: unknown = { patients: [], consultations: [] };
 let pathname = "/platform";
+let pageParam = "patients";
 
 beforeAll(() => {
 	// jsdom has no matchMedia; the ui sidebar's useIsMobile needs it.
@@ -63,6 +58,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		createFileRoute: () => (opts: Record<string, unknown>) => ({
 			options: opts,
 			useLoaderData: () => loaderData,
+			useParams: () => ({ page: pageParam }),
 		}),
 		useLocation: (opts?: { select?: (l: { pathname: string }) => unknown }) => {
 			const loc = { pathname };
@@ -81,28 +77,30 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 import { Route as PlatformRoute } from "./platform.tsx";
 import { Route as PlatformIndexRoute } from "./platform/index.tsx";
-import { Route as PlatformPatientsRoute } from "./platform/patients.tsx";
-import { Route as PlatformUsersRoute } from "./platform/users.tsx";
-import { Route as PlatformGroupsRoute } from "./platform/groups.tsx";
+import { Route as PlatformPageRoute } from "./platform/$page.tsx";
 
 const component = (route: unknown) =>
 	(route as { options: { component: () => ReactElement } }).options.component;
 const beforeLoad = (route: unknown) =>
 	(route as { options: { beforeLoad?: () => Promise<unknown> } }).options.beforeLoad;
+const loader = (route: unknown) =>
+	(
+		route as {
+			options: { loader: (arg?: { params?: { page: string } }) => Promise<unknown> };
+		}
+	).options.loader;
 
 afterEach(() => {
 	cleanup();
 	pathname = "/platform";
+	pageParam = "patients";
 	platformAdminFn.mockReset().mockResolvedValue(true);
-	adminListPatientsFn.mockReset().mockResolvedValue([]);
+	platformPageDataFn.mockReset().mockResolvedValue(null);
 	adminListAudioJobsFn.mockReset().mockResolvedValue([]);
-	adminListConsultationsFn.mockReset().mockResolvedValue([]);
 	listMyNotificationsFn.mockReset().mockResolvedValue([]);
 	countMyUnreadNotificationsFn.mockReset().mockResolvedValue(0);
 	markMyNotificationsReadFn.mockReset().mockResolvedValue(true);
 	markAllMyNotificationsReadFn.mockReset().mockResolvedValue(true);
-	adminListUsersFn.mockReset().mockResolvedValue([]);
-	adminListGroupsFn.mockReset().mockResolvedValue([]);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
 	loaderData = {
 		patients: [],
@@ -173,24 +171,15 @@ describe("/platform index", () => {
 		expect(screen.getByText("dashboard.panel")).toBeTruthy();
 	});
 
-	it("loader calls the admin and notifications list fns", () => {
-		const loader = (
-			PlatformIndexRoute as unknown as {
-				options: { loader: () => Promise<unknown> };
-			}
-		).options.loader;
-		return loader().then(() => {
-			expect(adminListPatientsFn).toHaveBeenCalled();
-			expect(adminListConsultationsFn).toHaveBeenCalled();
-			// notifications.services is registered → console-activity data loads.
-			expect(listMyNotificationsFn).toHaveBeenCalled();
-			expect(countMyUnreadNotificationsFn).toHaveBeenCalled();
-		});
+	it("loader dispatches the /platform page descriptor", async () => {
+		await loader(PlatformIndexRoute)!();
+		expect(platformPageDataFn).toHaveBeenCalledWith("/platform");
 	});
 });
 
-describe("/platform/patients", () => {
-	it("loads via adminListPatientsFn and renders rows", () => {
+describe("/platform/$page dispatcher", () => {
+	it("renders the patients page contributed by the patients plugin", () => {
+		pageParam = "patients";
 		loaderData = [
 			{
 				id: 7,
@@ -201,26 +190,14 @@ describe("/platform/patients", () => {
 				ownerName: "Dra",
 			},
 		];
-		render(createElement(component(PlatformPatientsRoute)));
+		render(createElement(component(PlatformPageRoute)));
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.getByText("Dra")).toBeTruthy();
 		expect(screen.getByText("u1")).toBeTruthy();
 	});
 
-	it("loader calls the admin server fn", () => {
-		const loader = (
-			PlatformPatientsRoute as unknown as {
-				options: { loader: () => Promise<unknown> };
-			}
-		).options.loader;
-		return loader().then(() => {
-			expect(adminListPatientsFn).toHaveBeenCalled();
-		});
-	});
-});
-
-describe("/platform/users", () => {
-	it("loads via adminListUsersFn and renders rows", () => {
+	it("renders the users page contributed by the users plugin", () => {
+		pageParam = "users";
 		loaderData = [
 			{
 				id: "u9",
@@ -235,25 +212,13 @@ describe("/platform/users", () => {
 				isAdmin: true,
 			},
 		];
-		render(createElement(component(PlatformUsersRoute)));
+		render(createElement(component(PlatformPageRoute)));
 		expect(screen.getByText("admin@ktb.test")).toBeTruthy();
 		expect(screen.getByText("admin")).toBeTruthy();
 	});
 
-	it("loader calls the admin server fn", () => {
-		const loader = (
-			PlatformUsersRoute as unknown as {
-				options: { loader: () => Promise<unknown> };
-			}
-		).options.loader;
-		return loader().then(() => {
-			expect(adminListUsersFn).toHaveBeenCalled();
-		});
-	});
-});
-
-describe("/platform/groups", () => {
-	it("loads via adminListGroupsFn and renders rows", () => {
+	it("renders the groups page contributed by the groups plugin", () => {
+		pageParam = "groups";
 		loaderData = [
 			{
 				id: 3,
@@ -266,19 +231,20 @@ describe("/platform/groups", () => {
 				memberCount: 4,
 			},
 		];
-		render(createElement(component(PlatformGroupsRoute)));
+		render(createElement(component(PlatformPageRoute)));
 		expect(screen.getByText("Clinic A")).toBeTruthy();
 		expect(screen.getByText("clinic-a")).toBeTruthy();
 	});
 
-	it("loader calls the admin server fn", () => {
-		const loader = (
-			PlatformGroupsRoute as unknown as {
-				options: { loader: () => Promise<unknown> };
-			}
-		).options.loader;
-		return loader().then(() => {
-			expect(adminListGroupsFn).toHaveBeenCalled();
+	it("loader resolves the descriptor path and calls the data fn", async () => {
+		await loader(PlatformPageRoute)!({ params: { page: "patients" } });
+		expect(platformPageDataFn).toHaveBeenCalledWith("/platform/patients");
+	});
+
+	it("loader 404s segments no plugin owns", async () => {
+		await expect(loader(PlatformPageRoute)!({ params: { page: "nope" } })).rejects.toMatchObject({
+			isNotFound: true,
 		});
+		expect(platformPageDataFn).not.toHaveBeenCalled();
 	});
 });
