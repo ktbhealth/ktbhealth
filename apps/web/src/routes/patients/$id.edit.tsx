@@ -3,6 +3,7 @@ import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { PatientFormPage, type PatientFormApi } from "@ktb/patients/views";
 import { getPatientFn, updatePatientFn } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
+import { getLocale } from "#/paraglide/runtime.js";
 
 export const editPatientApi = (id: number): PatientFormApi => ({
 	save: (draft) => updatePatientFn({ data: { ...draft, id } }),
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/patients/$id/edit")({
 			<PatientFormPage
 				patient={patient}
 				api={editPatientApi(patient.id)}
+				locale={getLocale()}
 				onSaved={(id) => navigate({ to: "/patients/$id", params: { id: String(id) } })}
 			/>
 		);

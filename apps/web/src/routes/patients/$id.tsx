@@ -1,8 +1,10 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 
 import { PatientDetailPage } from "@ktb/patients/views";
 import { getPatientFn, listPatientConsultationsFn } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
+import { patientDeleteApi } from "./-delete-api.ts";
+import { getLocale } from "#/paraglide/runtime.js";
 
 export const Route = createFileRoute("/patients/$id/")({
 	staleTime: 30_000,
@@ -18,6 +20,15 @@ export const Route = createFileRoute("/patients/$id/")({
 	},
 	component: function PatientRoute() {
 		const { patient, consultations } = Route.useLoaderData();
-		return <PatientDetailPage patient={patient} consultations={consultations} />;
+		const navigate = useNavigate();
+		return (
+			<PatientDetailPage
+				patient={patient}
+				consultations={consultations}
+				locale={getLocale()}
+				deleteApi={patientDeleteApi}
+				onDeleted={() => void navigate({ to: "/patients" })}
+			/>
+		);
 	},
 });

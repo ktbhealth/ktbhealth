@@ -16,16 +16,26 @@ describe("view formatting", () => {
 	});
 
 	it("labels exact, approximate, singular and unreadable ages", () => {
-		expect(ageLabel("1984-03-05", NOW)).toBe("42 years");
-		expect(ageLabel("1984", NOW)).toBe("~42 years");
-		expect(ageLabel("2025-10-01", NOW)).toBe("1 year");
-		expect(ageLabel(null, NOW)).toBeNull();
-		expect(ageLabel("garbage", NOW)).toBeNull();
+		expect(ageLabel("1984-03-05", "en", NOW)).toBe("42 years");
+		expect(ageLabel("1984", "en", NOW)).toBe("~42 years");
+		expect(ageLabel("2025-10-01", "en", NOW)).toBe("1 year");
+		expect(ageLabel(null, "en", NOW)).toBeNull();
+		expect(ageLabel("garbage", "en", NOW)).toBeNull();
 	});
 
 	it("joins whatever demographics are recorded", () => {
-		expect(demographics({ gender: "male", birthDate: "1984-03-05" }, NOW)).toBe("Male · 42 years");
-		expect(demographics({ gender: null, birthDate: "1984-03-05" }, NOW)).toBe("42 years");
-		expect(demographics({ gender: null, birthDate: null }, NOW)).toBe("");
+		expect(demographics({ gender: "male", birthDate: "1984-03-05" }, "en", NOW)).toBe(
+			"Male · 42 years",
+		);
+		expect(demographics({ gender: null, birthDate: "1984-03-05" }, "en", NOW)).toBe("42 years");
+		expect(demographics({ gender: null, birthDate: null }, "en", NOW)).toBe("");
+	});
+
+	it("localizes ages and sex", () => {
+		expect(ageLabel("1984", "pt-BR", NOW)).toBe("~42 anos");
+		expect(ageLabel("2025-10-01", "pt-BR", NOW)).toBe("1 ano");
+		expect(demographics({ gender: "female", birthDate: "1984-03-05" }, "pt-BR", NOW)).toBe(
+			"Feminino · 42 anos",
+		);
 	});
 });

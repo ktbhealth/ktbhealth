@@ -47,6 +47,9 @@ const fakeBucket = {
 			arrayBuffer: async () => bytes.buffer,
 		};
 	},
+	delete: async (keys: string | string[]) => {
+		for (const key of Array.isArray(keys) ? keys : [keys]) audioBucketStore.delete(key);
+	},
 };
 
 /** Queue producer double — sent messages land in audioQueueSent. */

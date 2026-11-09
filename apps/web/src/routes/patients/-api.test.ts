@@ -30,6 +30,7 @@ vi.mock("@tanstack/react-start", () => ({
 
 import { editPatientApi } from "./$id.edit.tsx";
 import { newPatientApi } from "./new.tsx";
+import { patientDeleteApi } from "./-delete-api.ts";
 
 describe("patient form api wiring", () => {
 	it("delegates create and update to the server fns", async () => {
@@ -40,5 +41,11 @@ describe("patient form api wiring", () => {
 		await expect(editPatientApi(3).save({ name: "Ana", birthDate: "1984" })).rejects.toThrow(
 			"unauthenticated",
 		);
+	});
+
+	it("delegates deletion impact and the cascade to the server fns", async () => {
+		// anonymous: impact is null, delete throws — both arrows execute end to end
+		await expect(patientDeleteApi.impact(3)).resolves.toBeNull();
+		await expect(patientDeleteApi.remove(3)).rejects.toThrow("unauthenticated");
 	});
 });

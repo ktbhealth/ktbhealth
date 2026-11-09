@@ -86,10 +86,15 @@ describe("dates", () => {
 });
 
 describe("countries", () => {
-	it("lists ISO 3166-1 alpha-2 codes with English names", () => {
+	it("lists ISO 3166-1 alpha-2 codes with English names by default", () => {
 		expect(COUNTRIES).toContain("BR");
 		expect(COUNTRIES.every((c) => /^[A-Z]{2}$/.test(c))).toBe(true);
 		expect(countryName("BR")).toBe("Brazil");
+	});
+
+	it("names countries in the requested locale", () => {
+		expect(countryName("DE", "pt-BR")).toBe("Alemanha");
+		expect(countryName("DE", "pt-BR")).toBe("Alemanha"); // cached formatter
 	});
 });
 
@@ -156,7 +161,7 @@ describe("validatePatient", () => {
 		const r = validatePatient({}, NOW);
 		expect(r).toEqual({
 			ok: false,
-			errors: { name: "Name is required.", birthDate: "Birth date (or age) is required." },
+			errors: { name: "name_required", birthDate: "birth_date_required" },
 		});
 	});
 
@@ -165,9 +170,9 @@ describe("validatePatient", () => {
 			const r = validatePatient({ name: "X", birthDate }, NOW);
 			return r.ok ? null : r.errors.birthDate;
 		};
-		expect(err("1984-02-30")).toBe("Enter a valid date.");
-		expect(err("1850")).toBe("Enter a valid date.");
-		expect(err("2027-01-01")).toBe("Birth date cannot be in the future.");
+		expect(err("1984-02-30")).toBe("invalid_date");
+		expect(err("1850")).toBe("invalid_date");
+		expect(err("2027-01-01")).toBe("future_date");
 		expect(err("2026-11-08")).toBeNull();
 	});
 
@@ -215,7 +220,7 @@ describe("validatePatient", () => {
 
 	it("validates the Brazilian CEP when the state is valid", () => {
 		const r = validatePatient({ ...minimal, country: "BR", state: "RJ", postalCode: "123" }, NOW);
-		expect(r.ok ? null : r.errors).toEqual({ postalCode: "CEP must have 8 digits." });
+		expect(r.ok ? null : r.errors).toEqual({ postalCode: "invalid_cep" });
 	});
 
 	it("accepts a Brazilian address without state or CEP", () => {
@@ -225,7 +230,7 @@ describe("validatePatient", () => {
 
 	it("rejects an unknown address country", () => {
 		const r = validatePatient({ ...minimal, country: "XX" }, NOW);
-		expect(r.ok ? null : r.errors.country).toBe("Choose a valid country.");
+		expect(r.ok ? null : r.errors.country).toBe("invalid_country");
 	});
 
 	it("defaults the clock to now", () => {
@@ -236,12 +241,12 @@ describe("validatePatient", () => {
 describe("record summaries", () => {
 	it("summarizes demographics and CPF for documents", () => {
 		expect(
-			recordSummary({ gender: "female", birthDate: "1984-03-05", cpf: "52998224725" }, NOW),
+			recordSummary({ gender: "female", birthDate: "1984-03-05", cpf: "52998224725" }, "en", NOW),
 		).toBe("Female · 42 years · CPF 529.982.247-25");
-		expect(recordSummary({ gender: null, birthDate: null, cpf: "52998224725" }, NOW)).toBe(
+		expect(recordSummary({ gender: null, birthDate: null, cpf: "52998224725" }, "en", NOW)).toBe(
 			"CPF 529.982.247-25",
 		);
-		expect(recordSummary({ gender: null, birthDate: null, cpf: null }, NOW)).toBeNull();
+		expect(recordSummary({ gender: null, birthDate: null, cpf: null }, "en", NOW)).toBeNull();
 	});
 
 	it("builds drafter context with only the known keys", () => {

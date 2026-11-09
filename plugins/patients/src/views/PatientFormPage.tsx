@@ -1,9 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
-import { AsteriskIcon } from "lucide-react";
+import { useMemo, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
+import { AsteriskIcon, CalendarIcon } from "lucide-react";
+import type { Locale as CalendarLocale } from "react-day-picker";
+import { ptBR } from "react-day-picker/locale";
 
 import { Alert } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
+import { Calendar } from "@ktbhealth/ui/components/calendar";
 import { Checkbox } from "@ktbhealth/ui/components/checkbox";
 import {
 	Field,
@@ -14,23 +17,28 @@ import {
 	FieldSet,
 } from "@ktbhealth/ui/components/field";
 import { Input } from "@ktbhealth/ui/components/input";
-import { NativeSelect, NativeSelectOption } from "@ktbhealth/ui/components/native-select";
+import { Popover, PopoverContent, PopoverTrigger } from "@ktbhealth/ui/components/popover";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ktbhealth/ui/components/select";
 import { Spinner } from "@ktbhealth/ui/components/spinner";
 import type { Patient } from "../index.ts";
+import { patientMessages, type PatientLocale } from "../i18n.ts";
 import {
 	ageFromBirthDate,
 	birthDateFromAge,
 	BR_STATES,
 	COUNTRIES,
 	countryName,
+	errorMessage,
 	formatBirthDate,
-	GENDER_LABELS,
 	GENDERS,
-	LANGUAGE_LABELS,
 	LANGUAGES,
-	MARITAL_STATUS_LABELS,
 	MARITAL_STATUSES,
-	RACE_COLOR_LABELS,
 	RACE_COLORS,
 	TEXT_FIELDS,
 	validatePatient,
@@ -65,22 +73,29 @@ function initialState(patient: Patient | undefined): FormState {
 }
 
 const FULL_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const FIX_FIELDS = "Please fix the highlighted fields.";
 
-const COUNTRY_OPTIONS = COUNTRIES.map((c) => [c, countryName(c)] as const).sort((a, b) =>
-	a[1].localeCompare(b[1]),
-);
+/** Countries by localized name, in the locale's collation order. */
+const countryOptions = (locale: string) =>
+	COUNTRIES.map((c) => [c, countryName(c, locale)] as const).sort((a, b) =>
+		a[1].localeCompare(b[1], locale),
+	);
 
 export function PatientFormPage({
 	patient,
 	api,
 	onSaved,
+	locale,
 }: {
 	/** Absent → registration; present → edit. */
 	patient?: Patient;
 	api: PatientFormApi;
 	onSaved: (id: number) => void;
+	/** Active UI locale, injected by the host. */
+	locale: string;
 }) {
+	const t = patientMessages(locale);
+	const f = t.fields;
+	const countries = useMemo(() => countryOptions(locale), [locale]);
 	const [form, setForm] = useState(() => initialState(patient));
 	const [ageText, setAgeText] = useState(() =>
 		form.birthDate.length === 4 ? String(ageFromBirthDate(form.birthDate)) : "",
@@ -89,7 +104,11 @@ export function PatientFormPage({
 	const [formError, setFormError] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 
-	const set = (key: TextField) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
+	const set = (key: TextField) => (value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+	const errorFor = (key: TextField) => {
+		const code = errors[key];
+		return code ? errorMessage(code, locale) : undefined;
+	};
 
 	const text = (key: TextField, label: string, extra: Partial<TextInputProps> = {}) => (
 		<TextInput
@@ -97,7 +116,7 @@ export function PatientFormPage({
 			label={label}
 			value={form[key]}
 			onChange={set(key)}
-			error={errors[key]}
+			error={errorFor(key)}
 			{...extra}
 		/>
 	);
@@ -113,7 +132,7 @@ export function PatientFormPage({
 			value={form[key]}
 			onChange={set(key)}
 			options={options}
-			error={errors[key]}
+			error={errorFor(key)}
 		/>
 	);
 
@@ -122,7 +141,7 @@ export function PatientFormPage({
 		const local = validatePatient(form);
 		if (!local.ok) {
 			setErrors(local.errors);
-			setFormError(FIX_FIELDS);
+			setFormError(t.form.fixFields);
 			return;
 		}
 		setErrors({});
@@ -135,9 +154,9 @@ export function PatientFormPage({
 				return;
 			}
 			setErrors(res.errors);
-			setFormError(Object.keys(res.errors).length > 0 ? FIX_FIELDS : "Could not save the patient.");
+			setFormError(Object.keys(res.errors).length > 0 ? t.form.fixFields : t.form.saveFailed);
 		} catch {
-			setFormError("Could not save the patient. Try again.");
+			setFormError(t.form.saveFailedRetry);
 		} finally {
 			setSaving(false);
 		}
@@ -150,42 +169,37 @@ export function PatientFormPage({
 	return (
 		<form onSubmit={submit} noValidate className="mx-auto max-w-3xl">
 			<h1 className="text-3xl font-bold tracking-tight">
-				{patient ? "Edit patient" : "New patient"}
+				{patient ? t.form.editTitle : t.common.newPatient}
 			</h1>
-			<p className="mt-1 text-sm text-muted-foreground">
-				Record based on HL7 FHIR R4 Patient with the Brazilian RNDS extensions. Only name and birth
-				date (or age) are required.
-			</p>
+			<p className="mt-1 text-sm text-muted-foreground">{t.form.intro}</p>
 
 			<div className="mt-6 space-y-6">
-				<Section legend="Identification">
-					{text("name", "Full name", { required: true, autoComplete: "name", wide: true })}
-					{text("socialName", "Social name", {
-						description: "Name the patient goes by; shown first when set.",
-						wide: true,
-					})}
+				<Section legend={t.sections.identification}>
+					{text("name", f.name, { required: true, autoComplete: "name", wide: true })}
+					{text("socialName", f.socialName, { description: f.socialNameHint, wide: true })}
 					{select(
 						"gender",
-						"Sex (administrative)",
-						GENDERS.map((g) => [g, GENDER_LABELS[g]]),
+						f.gender,
+						GENDERS.map((g) => [g, t.gender[g]]),
 					)}
 					<Field data-invalid={errors.birthDate ? true : undefined}>
 						<FieldLabel htmlFor="birthDate">
-							Birth date
+							{f.birthDate}
 							<Required />
 						</FieldLabel>
 						<div className="flex items-center gap-2">
-							<Input
+							<DateInput
 								id="birthDate"
-								type="date"
 								value={partialBirthDate ? "" : form.birthDate}
-								onChange={(e) => {
-									set("birthDate")(e.target.value);
+								onChange={(value) => {
+									set("birthDate")(value);
 									setAgeText("");
 								}}
-								aria-invalid={errors.birthDate ? true : undefined}
+								invalid={Boolean(errors.birthDate)}
+								locale={locale}
+								placeholder={t.form.pickDate}
 							/>
-							<span className="text-xs text-muted-foreground">or</span>
+							<span className="text-xs text-muted-foreground">{t.form.or}</span>
 							<Input
 								id="age"
 								type="number"
@@ -199,85 +213,88 @@ export function PatientFormPage({
 									const age = Number(raw);
 									set("birthDate")(raw !== "" && age >= 0 ? birthDateFromAge(age) : "");
 								}}
-								aria-label="Age in years"
-								placeholder="age"
+								aria-label={t.form.ageLabel}
+								placeholder={t.form.agePlaceholder}
 								className="w-20"
 							/>
 						</div>
 						{partialBirthDate ? (
 							<FieldDescription>
-								Recorded as {formatBirthDate(form.birthDate)} (approximate). Enter the exact date if
-								known.
+								{t.form.approximate(formatBirthDate(form.birthDate))}
 							</FieldDescription>
 						) : null}
-						<FieldError>{errors.birthDate}</FieldError>
+						<FieldError>{errorFor("birthDate")}</FieldError>
 					</Field>
 					{patient ? (
 						<label className="flex items-center gap-2 text-sm sm:col-span-2">
 							<Checkbox
 								checked={form.active}
-								onCheckedChange={(checked) => setForm((f) => ({ ...f, active: checked === true }))}
+								onCheckedChange={(checked) =>
+									setForm((prev) => ({ ...prev, active: checked === true }))
+								}
 							/>
-							Active record
+							{t.form.activeRecord}
 						</label>
 					) : null}
 				</Section>
 
-				<Section legend="Identifiers">
-					{text("cpf", "CPF", { inputMode: "numeric", placeholder: "000.000.000-00" })}
-					{text("cns", "CNS (Cartão SUS)", { inputMode: "numeric", placeholder: "15 digits" })}
-					{text("passport", "Passport / foreign ID")}
+				<Section legend={t.sections.identifiers}>
+					{text("cpf", f.cpf, { inputMode: "numeric", placeholder: "000.000.000-00" })}
+					{text("cns", f.cns, { inputMode: "numeric", placeholder: f.cnsPlaceholder })}
+					{text("passport", f.passport)}
 				</Section>
 
-				<Section legend="Contact">
-					{text("phone", "Phone", { type: "tel", autoComplete: "tel" })}
-					{text("email", "Email", { type: "email", autoComplete: "email" })}
+				<Section legend={t.sections.contact}>
+					{text("phone", f.phone, { type: "tel", autoComplete: "tel" })}
+					{text("email", f.email, { type: "email", autoComplete: "email" })}
 					{select(
 						"preferredLanguage",
-						"Preferred language",
-						LANGUAGES.map((l) => [l, LANGUAGE_LABELS[l]]),
+						f.preferredLanguage,
+						LANGUAGES.map((l) => [l, t.language[l]]),
 					)}
 				</Section>
 
-				<Section legend="Address">
-					{select("country", "Country", COUNTRY_OPTIONS)}
-					{text("postalCode", isBrazil ? "CEP" : "Postal code", {
+				<Section legend={t.sections.address}>
+					{select("country", f.country, countries)}
+					{text("postalCode", isBrazil ? f.cep : f.postalCode, {
 						autoComplete: "postal-code",
 						inputMode: isBrazil ? "numeric" : undefined,
 					})}
-					{text("addressLine", "Street", { autoComplete: "address-line1", wide: true })}
-					{text("addressNumber", "Number")}
-					{text("addressComplement", "Complement")}
-					{text("district", "District")}
-					{text("city", "City", { autoComplete: "address-level2" })}
+					{text("addressLine", f.street, { autoComplete: "address-line1", wide: true })}
+					{text("addressNumber", f.number)}
+					{text("addressComplement", f.complement)}
+					{text("district", f.district)}
+					{text("city", f.city, { autoComplete: "address-level2" })}
 					{isBrazil
 						? select(
 								"state",
-								"State",
+								f.state,
 								BR_STATES.map((s) => [s, s]),
 							)
-						: text("state", "State / province", { autoComplete: "address-level1" })}
+						: text("state", f.stateProvince, { autoComplete: "address-level1" })}
 				</Section>
 
-				<Section legend="Family and demographics">
-					{text("motherName", "Mother's name", { wide: true })}
+				<Section legend={t.sections.family}>
+					{text("motherName", f.motherName, { wide: true })}
 					{select(
 						"maritalStatus",
-						"Marital status",
-						MARITAL_STATUSES.map((s) => [s, MARITAL_STATUS_LABELS[s]]),
+						f.maritalStatus,
+						MARITAL_STATUSES.map((s) => [s, t.maritalStatus[s]]),
 					)}
 					{select(
 						"raceColor",
-						"Race / color (IBGE)",
-						RACE_COLORS.map((r) => [r, RACE_COLOR_LABELS[r]]),
+						f.raceColor,
+						RACE_COLORS.map((r) => [r, t.raceColor[r]]),
 					)}
-					{select("nationality", "Nationality", COUNTRY_OPTIONS)}
+					{select("nationality", f.nationality, countries)}
 				</Section>
 
-				<Section legend="Emergency contact">
-					{text("emergencyContactName", "Name")}
-					{text("emergencyContactRelationship", "Relationship", { placeholder: "e.g. daughter" })}
-					{text("emergencyContactPhone", "Phone", { type: "tel" })}
+				<Section legend={t.sections.emergency}>
+					{text("emergencyContactName", f.contactName)}
+					{text("emergencyContactRelationship", f.relationship, {
+						placeholder: f.relationshipPlaceholder,
+					})}
+					{text("emergencyContactPhone", f.phone, { type: "tel" })}
 				</Section>
 			</div>
 
@@ -289,11 +306,11 @@ export function PatientFormPage({
 
 			<div className="mt-6 flex justify-end gap-2">
 				<Button variant="outline" nativeButton={false} render={<Link to={cancelTo} />}>
-					Cancel
+					{t.form.cancel}
 				</Button>
 				<Button type="submit" disabled={saving}>
 					{saving ? <Spinner /> : null}
-					{patient ? "Save changes" : "Register patient"}
+					{patient ? t.form.saveChanges : t.common.registerPatient}
 				</Button>
 			</div>
 		</form>
@@ -375,24 +392,102 @@ function SelectInput({
 	options: ReadonlyArray<readonly [string, string]>;
 	error?: string;
 }) {
+	// Base UI models "nothing selected" as null; the record stores "".
+	const items = [{ value: null, label: "—" }, ...options.map(([v, l]) => ({ value: v, label: l }))];
 	return (
 		<Field data-invalid={error ? true : undefined}>
 			<FieldLabel htmlFor={id}>{label}</FieldLabel>
-			<NativeSelect
-				id={id}
-				value={value}
-				onChange={(e) => onChange(e.target.value)}
-				aria-invalid={error ? true : undefined}
-				className="w-full"
+			<Select
+				items={items}
+				value={value === "" ? null : value}
+				onValueChange={(v) => onChange(v ?? "")}
 			>
-				<NativeSelectOption value="">—</NativeSelectOption>
-				{options.map(([v, l]) => (
-					<NativeSelectOption key={v} value={v}>
-						{l}
-					</NativeSelectOption>
-				))}
-			</NativeSelect>
+				<SelectTrigger id={id} aria-invalid={error ? true : undefined} className="w-full">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					{items.map((item) => (
+						<SelectItem key={item.value ?? ""} value={item.value}>
+							{item.label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 			<FieldError>{error}</FieldError>
 		</Field>
+	);
+}
+
+/** "YYYY-MM-DD" ↔ local Date — no UTC round-trip, so the day never shifts. */
+const toDate = (value: string): Date | undefined => {
+	if (!FULL_DATE.test(value)) return undefined;
+	const [y, m, d] = value.split("-").map(Number);
+	return new Date(y, m - 1, d);
+};
+
+const toFhirDate = (date: Date): string =>
+	[
+		date.getFullYear(),
+		String(date.getMonth() + 1).padStart(2, "0"),
+		String(date.getDate()).padStart(2, "0"),
+	].join("-");
+
+const FIRST_MONTH = new Date(1900, 0);
+
+/** react-day-picker locales for the app locales that are not its English default. */
+const CALENDAR_LOCALES: Partial<Record<PatientLocale, CalendarLocale>> = { "pt-BR": ptBR };
+
+/** Exact-date picker: design-system Calendar in a Popover; value is a FHIR date or "". */
+function DateInput({
+	id,
+	value,
+	onChange,
+	invalid,
+	locale,
+	placeholder,
+}: {
+	id: string;
+	value: string;
+	onChange: (value: string) => void;
+	invalid?: boolean;
+	locale: string;
+	placeholder: string;
+}) {
+	const [open, setOpen] = useState(false);
+	const selected = toDate(value);
+	const [today] = useState(() => new Date());
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger
+				id={id}
+				aria-invalid={invalid || undefined}
+				render={
+					<Button
+						variant="outline"
+						className="flex-1 justify-start font-normal data-[empty=true]:text-muted-foreground"
+						data-empty={selected ? undefined : true}
+					/>
+				}
+			>
+				<CalendarIcon />
+				{selected ? formatBirthDate(value) : placeholder}
+			</PopoverTrigger>
+			<PopoverContent className="w-auto p-0" align="start">
+				<Calendar
+					mode="single"
+					captionLayout="dropdown"
+					locale={CALENDAR_LOCALES[locale as PatientLocale]}
+					selected={selected}
+					defaultMonth={selected}
+					startMonth={FIRST_MONTH}
+					endMonth={today}
+					disabled={{ after: today }}
+					onSelect={(date) => {
+						onChange(date ? toFhirDate(date) : "");
+						setOpen(false);
+					}}
+				/>
+			</PopoverContent>
+		</Popover>
 	);
 }

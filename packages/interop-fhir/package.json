@@ -1,0 +1,16 @@
+{
+	"name": "@ktb/interop-fhir",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/anamnesis": "workspace:*",
+		"@ktb/interop": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"ajv": "^8.20.0"
+	}
+}

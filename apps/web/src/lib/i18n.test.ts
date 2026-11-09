@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { PATIENT_LOCALES } from "@ktb/patients/i18n";
+import { locales } from "#/paraglide/runtime.js";
+
 import {
 	changeLocale,
 	localeFromCookieHeader,
@@ -67,9 +70,18 @@ describe("changeLocale", () => {
 describe("pluginNavLabel", () => {
 	it("localizes known plugin destinations", () => {
 		expect(pluginNavLabel("/consultations", "Consultations")).toBe("Consultations");
+		expect(pluginNavLabel("/patients", "Patients")).toBe("Patients");
 	});
 
 	it("falls back to the plugin-provided label", () => {
 		expect(pluginNavLabel("/other", "Other")).toBe("Other");
+	});
+});
+
+describe("plugin catalogs", () => {
+	// Plugins ship their own copy (they cannot import paraglide output);
+	// adding an app locale must come with a catalog in each plugin.
+	it("patients covers every app locale", () => {
+		expect([...PATIENT_LOCALES].sort()).toEqual([...locales].sort());
 	});
 });

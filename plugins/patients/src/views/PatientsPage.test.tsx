@@ -33,11 +33,21 @@ const BASE: PatientListItem = {
 
 const item = (over: Partial<PatientListItem>): PatientListItem => ({ ...BASE, ...over });
 
+import type { PatientDeleteApi } from "./DeletePatientDialog.tsx";
+
 afterEach(cleanup);
+
+const actions = {
+	deleteApi: {
+		impact: vi.fn<PatientDeleteApi["impact"]>(async () => ({ consultations: 0 })),
+		remove: vi.fn<PatientDeleteApi["remove"]>(async () => ({ ok: true })),
+	},
+	onDeleted: vi.fn<() => void>(),
+};
 
 describe("PatientsPage", () => {
 	it("renders the empty state with a registration link", () => {
-		render(<PatientsPage patients={[]} />);
+		render(<PatientsPage patients={[]} locale="en" {...actions} />);
 		expect(screen.getByText("No patients yet.")).toBeTruthy();
 		expect(screen.getByText("Register patient").getAttribute("href")).toBe("/patients/new");
 		expect(screen.queryByLabelText("Search patients")).toBeNull();
@@ -46,6 +56,8 @@ describe("PatientsPage", () => {
 	it("lists patients with demographics, CPF and record badges", () => {
 		render(
 			<PatientsPage
+				locale="en"
+				{...actions}
 				patients={[
 					BASE,
 					item({
@@ -73,15 +85,82 @@ describe("PatientsPage", () => {
 		expect(screen.getByText("JP")).toBeTruthy();
 	});
 
+	it("renders in Portuguese for pt-BR", () => {
+		render(
+			<PatientsPage
+				locale="pt-BR"
+				{...actions}
+				patients={[BASE, item({ id: 2, birthDate: null, gender: null, cpf: null, active: false })]}
+			/>,
+		);
+		expect(screen.getByRole("heading", { name: "Pacientes" })).toBeTruthy();
+		expect(screen.getByText("2 pacientes cadastrados.")).toBeTruthy();
+		expect(screen.getByText(/Feminino · \d+ anos · CPF 529\.982\.247-25/)).toBeTruthy();
+		expect(screen.getByLabelText("Buscar pacientes")).toBeTruthy();
+		expect(screen.getByText("Novo paciente")).toBeTruthy();
+		expect(screen.getByText("Inativo")).toBeTruthy();
+		expect(screen.getByText("Cadastro incompleto")).toBeTruthy();
+		expect(screen.getByText("Sem dados demográficos registrados")).toBeTruthy();
+	});
+
 	it("uses the singular count", () => {
-		render(<PatientsPage patients={[BASE]} />);
+		render(<PatientsPage patients={[BASE]} locale="en" {...actions} />);
 		expect(screen.getByText("1 patient registered.")).toBeTruthy();
+	});
+
+	it("offers edit, export and delete per patient from the row menu", async () => {
+		const user = userEvent.setup();
+		const deleteApi = {
+			impact: vi.fn<PatientDeleteApi["impact"]>(async () => ({ consultations: 2 })),
+			remove: vi.fn<PatientDeleteApi["remove"]>(async () => ({ ok: true })),
+		};
+		const onDeleted = vi.fn<(id: number) => void>();
+		render(
+			<PatientsPage
+				patients={[BASE, item({ id: 2, name: "João Pereira", socialName: "Joana Pereira" })]}
+				locale="en"
+				deleteApi={deleteApi}
+				onDeleted={onDeleted}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: "Actions for Joana Pereira" }));
+		expect(
+			(await screen.findByRole("menuitem", { name: "Edit record" })).getAttribute("href"),
+		).toBe("/patients/2/edit");
+		const fhir = screen.getByRole("menuitem", { name: "HL7 FHIR R4 (JSON)" });
+		expect(fhir.getAttribute("href")).toBe("/api/patients/2/export?format=fhir-r4");
+		expect(fhir.hasAttribute("download")).toBe(true);
+		expect(screen.getByRole("menuitem", { name: "openEHR (JSON)" }).getAttribute("href")).toBe(
+			"/api/patients/2/export?format=openehr",
+		);
+
+		await user.click(screen.getByRole("menuitem", { name: "Delete patient" }));
+		expect(
+			await screen.findByText("This permanently deletes the record of Joana Pereira."),
+		).toBeTruthy();
+		await user.click(await screen.findByRole("checkbox"));
+		await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+		expect(deleteApi.remove).toHaveBeenCalledWith(2);
+		expect(onDeleted).toHaveBeenCalledWith(2);
+		expect(screen.queryByText("This permanently deletes the record of Joana Pereira.")).toBeNull();
+	});
+
+	it("closes the delete dialog on cancel", async () => {
+		const user = userEvent.setup();
+		render(<PatientsPage patients={[BASE]} locale="pt-BR" {...actions} />);
+		await user.click(screen.getByRole("button", { name: "Ações para Maria Silva" }));
+		expect(await screen.findByRole("menuitem", { name: "Editar cadastro" })).toBeTruthy();
+		await user.click(screen.getByRole("menuitem", { name: "Excluir paciente" }));
+		await user.click(await screen.findByRole("button", { name: "Cancelar" }));
+		expect(screen.queryByText("Excluir paciente?")).toBeNull();
 	});
 
 	it("searches by name, social name, CPF and CNS", async () => {
 		const user = userEvent.setup();
 		render(
 			<PatientsPage
+				locale="en"
+				{...actions}
 				patients={[
 					BASE,
 					item({ id: 2, name: "Ana Costa", socialName: "Nina", cpf: null, cns: "100000000000007" }),

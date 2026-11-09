@@ -36,6 +36,9 @@
         "@ktb/db": "workspace:*",
         "@ktb/export-pdf": "workspace:*",
         "@ktb/infra-cloudflare": "workspace:*",
+        "@ktb/interop": "workspace:*",
+        "@ktb/interop-fhir": "workspace:*",
+        "@ktb/interop-openehr": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/transcription": "workspace:*",
@@ -243,6 +246,34 @@
         "@types/pdfkit": "^0.17.7",
       },
     },
+    "packages/interop": {
+      "name": "@ktb/interop",
+      "dependencies": {
+        "@ktb/anamnesis": "workspace:*",
+      },
+    },
+    "packages/interop-fhir": {
+      "name": "@ktb/interop-fhir",
+      "dependencies": {
+        "@ktb/anamnesis": "workspace:*",
+        "@ktb/interop": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.2",
+        "ajv": "^8.20.0",
+      },
+    },
+    "packages/interop-openehr": {
+      "name": "@ktb/interop-openehr",
+      "dependencies": {
+        "@ktb/anamnesis": "workspace:*",
+        "@ktb/interop": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.2",
+        "ajv": "^8.20.0",
+      },
+    },
     "packages/kernel": {
       "name": "@ktb/kernel",
       "dependencies": {
@@ -302,6 +333,7 @@
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
         "lucide-react": "0.544.0",
+        "react-day-picker": "^10.0.2",
       },
       "devDependencies": {
         "@types/better-sqlite3": "^9.6.0",
@@ -700,6 +732,12 @@
     "@ktb/infra-cloudflare": ["@ktb/infra-cloudflare@workspace:infra/cloudflare"],
 
     "@ktb/infra-ports": ["@ktb/infra-ports@workspace:infra/ports"],
+
+    "@ktb/interop": ["@ktb/interop@workspace:packages/interop"],
+
+    "@ktb/interop-fhir": ["@ktb/interop-fhir@workspace:packages/interop-fhir"],
+
+    "@ktb/interop-openehr": ["@ktb/interop-openehr@workspace:packages/interop-openehr"],
 
     "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
 

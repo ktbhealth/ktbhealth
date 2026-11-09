@@ -1,9 +1,26 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react";
+import {
+	DownloadIcon,
+	EllipsisVerticalIcon,
+	PencilIcon,
+	PlusIcon,
+	SearchIcon,
+	Trash2Icon,
+	UsersIcon,
+} from "lucide-react";
 
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button } from "@ktbhealth/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@ktbhealth/ui/components/dropdown-menu";
 import {
 	Empty,
 	EmptyContent,
@@ -14,16 +31,33 @@ import {
 } from "@ktbhealth/ui/components/empty";
 import { Input } from "@ktbhealth/ui/components/input";
 import type { Patient } from "../index.ts";
+import { patientMessages } from "../i18n.ts";
 import { formatCpf } from "../record.ts";
 import { demographics, displayName, initials } from "./-format.ts";
+import { exportLinks } from "./-export.ts";
+import { DeletePatientDialog, type PatientDeleteApi } from "./DeletePatientDialog.tsx";
 
 export type PatientListItem = Pick<
 	Patient,
 	"id" | "name" | "socialName" | "gender" | "birthDate" | "cpf" | "cns" | "active"
 >;
 
-export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
+export function PatientsPage({
+	patients,
+	locale,
+	deleteApi,
+	onDeleted,
+}: {
+	patients: PatientListItem[];
+	/** Active UI locale, injected by the host. */
+	locale: string;
+	deleteApi: PatientDeleteApi;
+	/** Called once a patient (and their consultations) are gone — the host refreshes the list. */
+	onDeleted: (id: number) => void;
+}) {
+	const t = patientMessages(locale);
 	const [q, setQ] = useState("");
+	const [toDelete, setToDelete] = useState<{ id: number; name: string } | null>(null);
 
 	const shown = useMemo(() => {
 		const needle = q.trim().toLowerCase();
@@ -40,16 +74,14 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 		<div>
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Patients</h1>
+					<h1 className="text-3xl font-bold tracking-tight">{t.common.patients}</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						{patients.length === 0
-							? "No patients yet."
-							: `${patients.length} patient${patients.length > 1 ? "s" : ""} registered.`}
+						{patients.length === 0 ? t.list.none : t.list.count(patients.length)}
 					</p>
 				</div>
 				<Button nativeButton={false} render={<Link to="/patients/new" />}>
 					<PlusIcon data-icon="inline-start" />
-					New patient
+					{t.common.newPatient}
 				</Button>
 			</div>
 
@@ -60,8 +92,8 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 						type="search"
 						value={q}
 						onChange={(e) => setQ(e.target.value)}
-						placeholder="Search by name, CPF, or CNS…"
-						aria-label="Search patients"
+						placeholder={t.list.searchPlaceholder}
+						aria-label={t.list.searchLabel}
 						className="pl-8"
 					/>
 				</div>
@@ -90,21 +122,74 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 								) : null}
 							</div>
 							<p className="mt-0.5 text-sm text-muted-foreground">
-								{[demographics(p), p.cpf ? `CPF ${formatCpf(p.cpf)}` : null]
+								{[demographics(p, locale), p.cpf ? `CPF ${formatCpf(p.cpf)}` : null]
 									.filter(Boolean)
-									.join(" · ") || "No demographics recorded"}
+									.join(" · ") || t.common.noDemographics}
 							</p>
 						</div>
 						<div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-							{!p.active ? <Badge variant="outline">Inactive</Badge> : null}
-							{!p.birthDate ? <Badge variant="outline">Incomplete record</Badge> : null}
+							{!p.active ? <Badge variant="outline">{t.common.inactive}</Badge> : null}
+							{!p.birthDate ? <Badge variant="outline">{t.list.incomplete}</Badge> : null}
+						</div>
+						{/* Above the card's stretched link so the menu stays clickable. */}
+						<div className="relative z-10 shrink-0">
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									render={
+										<Button
+											variant="ghost"
+											size="icon"
+											aria-label={t.actions.menu(displayName(p))}
+										/>
+									}
+								>
+									<EllipsisVerticalIcon />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" className="w-56">
+									<DropdownMenuItem
+										render={<Link to="/patients/$id/edit" params={{ id: String(p.id) }} />}
+									>
+										<PencilIcon />
+										{t.actions.edit}
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuGroup>
+										<DropdownMenuLabel>{t.detail.exportRecord}</DropdownMenuLabel>
+										{exportLinks(t, p.id).map(({ format, label, href }) => (
+											<DropdownMenuItem key={format} render={<a href={href} download />}>
+												<DownloadIcon />
+												{label}
+											</DropdownMenuItem>
+										))}
+									</DropdownMenuGroup>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										variant="destructive"
+										onClick={() => setToDelete({ id: p.id, name: displayName(p) })}
+									>
+										<Trash2Icon />
+										{t.actions.delete}
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</article>
 				))}
 
+				<DeletePatientDialog
+					patient={toDelete}
+					api={deleteApi}
+					t={t}
+					onClose={() => setToDelete(null)}
+					onDeleted={(id) => {
+						setToDelete(null);
+						onDeleted(id);
+					}}
+				/>
+
 				{patients.length > 0 && shown.length === 0 ? (
 					<Empty className="border">
-						<EmptyDescription>No patients match the search.</EmptyDescription>
+						<EmptyDescription>{t.list.noMatch}</EmptyDescription>
 					</Empty>
 				) : null}
 
@@ -114,14 +199,12 @@ export function PatientsPage({ patients }: { patients: PatientListItem[] }) {
 							<EmptyMedia variant="icon">
 								<UsersIcon />
 							</EmptyMedia>
-							<EmptyTitle>No patients yet</EmptyTitle>
-							<EmptyDescription>
-								Register a patient to link consultations and keep their history together.
-							</EmptyDescription>
+							<EmptyTitle>{t.list.emptyTitle}</EmptyTitle>
+							<EmptyDescription>{t.list.emptyDescription}</EmptyDescription>
 						</EmptyHeader>
 						<EmptyContent>
 							<Button nativeButton={false} render={<Link to="/patients/new" />}>
-								Register patient
+								{t.common.registerPatient}
 							</Button>
 						</EmptyContent>
 					</Empty>

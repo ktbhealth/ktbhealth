@@ -5,55 +5,30 @@
  * ones, so a FHIR export is a mapping, not a translation.
  *
  * Pure module (no db, no React): shared by the service, the server fns
- * (wire validation) and the form (inline errors).
+ * (wire validation) and the form (inline errors). Display copy lives in
+ * ./i18n.ts; validation reports error codes the views translate.
  */
+
+import { patientMessages, type PatientErrorCode } from "./i18n.ts";
 
 /** FHIR AdministrativeGender. */
 export const GENDERS = ["female", "male", "other", "unknown"] as const;
 export type Gender = (typeof GENDERS)[number];
-export const GENDER_LABELS: Record<Gender, string> = {
-	female: "Female",
-	male: "Male",
-	other: "Other",
-	unknown: "Unknown",
-};
 
-/** HL7 v3 MaritalStatus (FHIR Patient.maritalStatus). */
-export const MARITAL_STATUSES = ["S", "M", "T", "L", "D", "W", "U"] as const;
+/**
+ * FHIR R4 marital-status ValueSet: HL7 v3 MaritalStatus codes plus
+ * v3-NullFlavor `UNK` for "unknown" (v3 `U` means "unmarried", not unknown).
+ */
+export const MARITAL_STATUSES = ["S", "M", "T", "L", "D", "W", "UNK"] as const;
 export type MaritalStatus = (typeof MARITAL_STATUSES)[number];
-export const MARITAL_STATUS_LABELS: Record<MaritalStatus, string> = {
-	S: "Never married",
-	M: "Married",
-	T: "Domestic partner",
-	L: "Legally separated",
-	D: "Divorced",
-	W: "Widowed",
-	U: "Unknown",
-};
 
 /** RNDS BRRacaCor — IBGE race/color categories. */
 export const RACE_COLORS = ["01", "02", "03", "04", "05", "99"] as const;
 export type RaceColor = (typeof RACE_COLORS)[number];
-export const RACE_COLOR_LABELS: Record<RaceColor, string> = {
-	"01": "Branca (white)",
-	"02": "Preta (black)",
-	"03": "Parda (mixed)",
-	"04": "Amarela (East Asian)",
-	"05": "Indígena (indigenous)",
-	"99": "Not informed",
-};
 
 /** BCP-47 tags offered for Patient.communication.language. */
 export const LANGUAGES = ["pt-BR", "en", "es", "fr", "it", "de"] as const;
 export type Language = (typeof LANGUAGES)[number];
-export const LANGUAGE_LABELS: Record<Language, string> = {
-	"pt-BR": "Portuguese (Brazil)",
-	en: "English",
-	es: "Spanish",
-	fr: "French",
-	it: "Italian",
-	de: "German",
-};
 
 /** Brazilian federative units (address.state when country is BR). */
 export const BR_STATES = [
@@ -99,10 +74,17 @@ export const COUNTRIES = (
 	"VN VU WF WS YE YT ZA ZM ZW"
 ).split(" ");
 
-const REGION_NAMES = new Intl.DisplayNames(["en"], { type: "region" });
+const REGION_NAMES = new Map<string, Intl.DisplayNames>();
 
-/** English display name for an ISO 3166-1 alpha-2 code. */
-export const countryName = (code: string): string => String(REGION_NAMES.of(code));
+/** Localized display name for an ISO 3166-1 alpha-2 code. */
+export function countryName(code: string, locale = "en"): string {
+	let names = REGION_NAMES.get(locale);
+	if (!names) {
+		names = new Intl.DisplayNames([locale], { type: "region" });
+		REGION_NAMES.set(locale, names);
+	}
+	return String(names.of(code));
+}
 
 // ---------- record shape ----------
 
@@ -148,7 +130,7 @@ export type PatientFields = { [K in TextField]: string | null } & {
 	active: boolean;
 };
 
-export type PatientErrors = Partial<Record<TextField, string>>;
+export type PatientErrors = Partial<Record<TextField, PatientErrorCode>>;
 
 export type ValidationResult =
 	| { readonly ok: true; readonly fields: PatientFields }
@@ -240,12 +222,11 @@ export const birthDateFromAge = (age: number, now: Date = new Date()) =>
 	String(now.getFullYear() - age);
 
 /** "42 years", "~42 years" for a year-only birth date; null when unknown. */
-export function ageLabel(birthDate: string | null, now?: Date): string | null {
+export function ageLabel(birthDate: string | null, locale = "en", now?: Date): string | null {
 	if (!birthDate) return null;
 	const age = ageFromBirthDate(birthDate, now);
 	if (age === null) return null;
-	const approx = birthDate.length === 4 ? "~" : "";
-	return `${approx}${age} year${age === 1 ? "" : "s"}`;
+	return patientMessages(locale).age(age, birthDate.length === 4);
 }
 
 interface Demographic {
@@ -254,16 +235,21 @@ interface Demographic {
 }
 
 /** "Female · 42 years" — whatever of sex/age is recorded. */
-export function demographics(p: Demographic, now?: Date): string {
-	const sex = p.gender ? GENDER_LABELS[p.gender as Gender] : null;
-	return [sex, ageLabel(p.birthDate, now)].filter(Boolean).join(" · ");
+export function demographics(p: Demographic, locale = "en", now?: Date): string {
+	const sex = p.gender ? patientMessages(locale).gender[p.gender as Gender] : null;
+	return [sex, ageLabel(p.birthDate, locale, now)].filter(Boolean).join(" · ");
 }
 
 /** One-line record summary for documents (PDF header); null when nothing is recorded. */
-export function recordSummary(p: Demographic & { readonly cpf: string | null }, now?: Date) {
+export function recordSummary(
+	p: Demographic & { readonly cpf: string | null },
+	locale = "en",
+	now?: Date,
+) {
 	return (
-		[demographics(p, now), p.cpf ? `CPF ${formatCpf(p.cpf)}` : null].filter(Boolean).join(" · ") ||
-		null
+		[demographics(p, locale, now), p.cpf ? `CPF ${formatCpf(p.cpf)}` : null]
+			.filter(Boolean)
+			.join(" · ") || null
 	);
 }
 
@@ -284,7 +270,13 @@ export function formatBirthDate(birthDate: string): string {
 
 // ---------- validation ----------
 
-const MAX_TEXT = 200;
+export const MAX_TEXT = 200;
+
+/** Localized copy for a validation error code. */
+export function errorMessage(code: PatientErrorCode, locale = "en"): string {
+	const { errors } = patientMessages(locale);
+	return code === "too_long" ? errors.too_long(MAX_TEXT) : errors[code];
+}
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isOneOf = <T extends string>(list: readonly T[], v: string): v is T =>
 	(list as readonly string[]).includes(v);
@@ -305,57 +297,57 @@ export function validatePatient(draft: PatientDraft, now: Date = new Date()): Va
 		const raw = draft[key];
 		const text = typeof raw === "string" ? raw.trim() : "";
 		v[key] = text === "" ? null : text;
-		if (text.length > MAX_TEXT) errors[key] = `Must be at most ${MAX_TEXT} characters.`;
+		if (text.length > MAX_TEXT) errors[key] = "too_long";
 	}
 
-	if (v.name === null) errors.name = "Name is required.";
+	if (v.name === null) errors.name = "name_required";
 
 	if (v.birthDate === null) {
-		errors.birthDate = "Birth date (or age) is required.";
+		errors.birthDate = "birth_date_required";
 	} else {
 		const p = parseFhirDate(v.birthDate);
 		const age = ageFromBirthDate(v.birthDate, now);
-		if (!p || p.year < 1900) errors.birthDate = "Enter a valid date.";
-		else if (age === null || age < 0) errors.birthDate = "Birth date cannot be in the future.";
+		if (!p || p.year < 1900) errors.birthDate = "invalid_date";
+		else if (age === null || age < 0) errors.birthDate = "future_date";
 	}
 
-	if (v.gender !== null && !isOneOf(GENDERS, v.gender)) errors.gender = "Choose a valid option.";
+	if (v.gender !== null && !isOneOf(GENDERS, v.gender)) errors.gender = "invalid_option";
 	if (v.maritalStatus !== null && !isOneOf(MARITAL_STATUSES, v.maritalStatus))
-		errors.maritalStatus = "Choose a valid option.";
+		errors.maritalStatus = "invalid_option";
 	if (v.raceColor !== null && !isOneOf(RACE_COLORS, v.raceColor))
-		errors.raceColor = "Choose a valid option.";
+		errors.raceColor = "invalid_option";
 	if (v.preferredLanguage !== null && !isOneOf(LANGUAGES, v.preferredLanguage))
-		errors.preferredLanguage = "Choose a valid option.";
+		errors.preferredLanguage = "invalid_option";
 
 	for (const key of ["country", "nationality"] as const) {
 		const code = v[key]?.toUpperCase() ?? null;
 		v[key] = code;
-		if (code !== null && !COUNTRIES.includes(code)) errors[key] = "Choose a valid country.";
+		if (code !== null && !COUNTRIES.includes(code)) errors[key] = "invalid_country";
 	}
 
 	if (v.cpf !== null) {
 		if (isValidCpf(v.cpf)) v.cpf = digitsOf(v.cpf);
-		else errors.cpf = "Invalid CPF.";
+		else errors.cpf = "invalid_cpf";
 	}
 	if (v.cns !== null) {
 		if (isValidCns(v.cns)) v.cns = digitsOf(v.cns);
-		else errors.cns = "Invalid CNS.";
+		else errors.cns = "invalid_cns";
 	}
 
-	if (v.email !== null && !EMAIL.test(v.email)) errors.email = "Invalid email.";
+	if (v.email !== null && !EMAIL.test(v.email)) errors.email = "invalid_email";
 	for (const key of ["phone", "emergencyContactPhone"] as const) {
 		const phone = v[key];
-		if (phone !== null && !phoneDigitsOk(phone)) errors[key] = "Enter 8 to 15 digits.";
+		if (phone !== null && !phoneDigitsOk(phone)) errors[key] = "invalid_phone";
 	}
 
 	if (v.country === "BR") {
 		if (v.state !== null && !isOneOf(BR_STATES, v.state.toUpperCase()))
-			errors.state = "Choose a valid state.";
+			errors.state = "invalid_state";
 		else if (v.state !== null) v.state = v.state.toUpperCase();
 		if (v.postalCode !== null) {
 			const cep = digitsOf(v.postalCode);
 			if (cep.length === 8) v.postalCode = cep;
-			else errors.postalCode = "CEP must have 8 digits.";
+			else errors.postalCode = "invalid_cep";
 		}
 	}
 

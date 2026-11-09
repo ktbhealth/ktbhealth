@@ -26,6 +26,7 @@ import { Route as patientsIdRouteImport } from './routes/patients/$id'
 import { Route as patientsIdDoteditRouteImport } from './routes/patients/$id.edit'
 import { Route as ApiConsultationsDotidDotaudioRouteImport } from './routes/api/consultations.$id.audio'
 import { Route as ApiConsultationsDotidDotpdfRouteImport } from './routes/api/consultations.$id.pdf'
+import { Route as ApiPatientsDotidDotexportRouteImport } from './routes/api/patients.$id.export'
 
 const indexRoute = indexRouteImport.update({
   id: '/',
@@ -114,6 +115,12 @@ const ApiConsultationsDotidDotpdfRoute =
     path: '/api/consultations/$id/pdf',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPatientsDotidDotexportRoute =
+  ApiPatientsDotidDotexportRouteImport.update({
+    id: '/api/patients/$id/export',
+    path: '/api/patients/$id/export',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof indexRoute
@@ -133,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/patients/$id/edit': typeof patientsIdDoteditRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
+  '/api/patients/$id/export': typeof ApiPatientsDotidDotexportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof indexRoute
@@ -152,6 +160,7 @@ export interface FileRoutesByTo {
   '/patients/$id/edit': typeof patientsIdDoteditRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
+  '/api/patients/$id/export': typeof ApiPatientsDotidDotexportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -172,6 +181,7 @@ export interface FileRoutesById {
   '/patients/$id/edit': typeof patientsIdDoteditRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
+  '/api/patients/$id/export': typeof ApiPatientsDotidDotexportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/patients/$id/edit'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
+    | '/api/patients/$id/export'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -212,6 +223,7 @@ export interface FileRouteTypes {
     | '/patients/$id/edit'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
+    | '/api/patients/$id/export'
   id:
     | '__root__'
     | '/'
@@ -231,6 +243,7 @@ export interface FileRouteTypes {
     | '/patients/$id/edit'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
+    | '/api/patients/$id/export'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -250,6 +263,7 @@ export interface RootRouteChildren {
   patientsIdDoteditRoute: typeof patientsIdDoteditRoute
   ApiConsultationsDotidDotaudioRoute: typeof ApiConsultationsDotidDotaudioRoute
   ApiConsultationsDotidDotpdfRoute: typeof ApiConsultationsDotidDotpdfRoute
+  ApiPatientsDotidDotexportRoute: typeof ApiPatientsDotidDotexportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -373,6 +387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConsultationsDotidDotpdfRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/patients/$id/export': {
+      id: '/api/patients/$id/export'
+      path: '/api/patients/$id/export'
+      fullPath: '/api/patients/$id/export'
+      preLoaderRoute: typeof ApiPatientsDotidDotexportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -404,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   patientsIdDoteditRoute: patientsIdDoteditRoute,
   ApiConsultationsDotidDotaudioRoute: ApiConsultationsDotidDotaudioRoute,
   ApiConsultationsDotidDotpdfRoute: ApiConsultationsDotidDotpdfRoute,
+  ApiPatientsDotidDotexportRoute: ApiPatientsDotidDotexportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

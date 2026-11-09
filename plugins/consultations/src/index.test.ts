@@ -605,6 +605,115 @@ describe("Consultations.history", () => {
 	});
 });
 
+describe("Consultations.deletePatient", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let testDb: ReturnType<typeof makeDb>;
+
+	const asUser = <A, E>(userId: string | null, effect: Effect.Effect<A, E, Consultations>) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId }),
+		);
+	const remove = (userId: string | null, actAs: string, patientId: number) =>
+		asUser(
+			userId,
+			Effect.gen(function* () {
+				const c = yield* Consultations;
+				return yield* c.deletePatient(actAs, patientId);
+			}),
+		);
+
+	const addPatient = async (ownerId = "u1") => {
+		const [p] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId, name: "Maria", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		return p!.id;
+	};
+	const addConsultation = async (
+		patientId: number,
+		over: Partial<typeof consultationsTable.$inferInsert> = {},
+	) => {
+		const rows = await testDb
+			.insert(consultationsTable)
+			.values({
+				userId: "u1",
+				patientId,
+				transcript: "t",
+				source: "browser",
+				status: "done",
+				createdAt: new Date(),
+				...over,
+			})
+			.returning({ id: consultationsTable.id });
+		return rows[0]!.id;
+	};
+	const patientExists = async (id: number) =>
+		(await testDb.select().from(patientsTable).where(eq(patientsTable.id, id))).length === 1;
+	const consultationCount = async (patientId: number) =>
+		(
+			await testDb
+				.select()
+				.from(consultationsTable)
+				.where(eq(consultationsTable.patientId, patientId))
+		).length;
+
+	beforeAll(async () => {
+		testDb = makeDb(makeD1(DDL));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(Layer.succeed(Db, testDb))));
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+	});
+	afterAll(() => runtime.dispose());
+
+	it("deletes the patient with every linked consultation and returns their audio keys", async () => {
+		const patientId = await addPatient();
+		const other = await addPatient();
+		await addConsultation(patientId, { audioKey: "audio/a.webm" });
+		await addConsultation(patientId);
+		await addConsultation(other);
+		expect(await remove("u1", "u1", patientId)).toEqual({
+			consultations: 2,
+			audioKeys: ["audio/a.webm"],
+		});
+		expect(await patientExists(patientId)).toBe(false);
+		expect(await consultationCount(patientId)).toBe(0);
+		// Other patients are untouched.
+		expect(await patientExists(other)).toBe(true);
+		expect(await consultationCount(other)).toBe(1);
+	});
+
+	it("deletes a patient without consultations and reports a missing one as null", async () => {
+		const patientId = await addPatient();
+		expect(await remove("u1", "u1", patientId)).toEqual({ consultations: 0, audioKeys: [] });
+		expect(await remove("u1", "u1", 99_999)).toBeNull();
+	});
+
+	it("is owner-only and deletes nothing when any check fails", async () => {
+		const patientId = await addPatient();
+		await addConsultation(patientId);
+		await expect(remove(null, "u1", patientId)).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(remove("u2", "u1", patientId)).rejects.toMatchObject({ _tag: "Forbidden" });
+		// Someone else's patient.
+		await expect(remove("u2", "u2", patientId)).rejects.toMatchObject({ _tag: "Forbidden" });
+		// A linked consultation owned by another user (or by nobody) blocks the cascade.
+		const shared = await addPatient();
+		await addConsultation(shared);
+		await addConsultation(shared, { userId: "u2" });
+		await expect(remove("u1", "u1", shared)).rejects.toMatchObject({ _tag: "Forbidden" });
+		const orphan = await addPatient();
+		await addConsultation(orphan, { userId: null });
+		await expect(remove("u1", "u1", orphan)).rejects.toMatchObject({ _tag: "Forbidden" });
+		for (const id of [patientId, shared, orphan]) expect(await patientExists(id)).toBe(true);
+		expect(await consultationCount(shared)).toBe(2);
+	});
+});
+
 describe("plugins", () => {
 	it("declares tables, services, routes and nav as single-concern plugins", () => {
 		expect(consultationsTablesPlugin.id).toBe("consultations.tables");

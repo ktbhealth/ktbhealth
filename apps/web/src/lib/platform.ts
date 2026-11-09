@@ -1,6 +1,9 @@
 import { env } from "cloudflare:workers";
 
 import { createApp } from "@ktb/app-host";
+import type { ExportFormat, RecordExporter } from "@ktb/interop";
+import { fhirR4Exporter } from "@ktb/interop-fhir";
+import { openEhrExporter } from "@ktb/interop-openehr";
 
 // Deploy-target glue: the only place cloudflare:workers env is read.
 // All composition (plugin registry, layers, runtime) lives in @ktb/app-host.
@@ -39,3 +42,9 @@ export const {
 export const ai = env.AI;
 export const audioBucket = env.AUDIO_BUCKET;
 export const audioQueue = env.AUDIO_QUEUE;
+
+/** Interop adapters behind the @ktb/interop port, one per supported standard. */
+export const recordExporters: Record<ExportFormat, RecordExporter> = {
+	"fhir-r4": fhirR4Exporter,
+	openehr: openEhrExporter,
+};

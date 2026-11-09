@@ -1,25 +1,41 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftIcon, ClipboardListIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { useState } from "react";
+import {
+	ArrowLeftIcon,
+	ClipboardListIcon,
+	DownloadIcon,
+	PencilIcon,
+	PlusIcon,
+	Trash2Icon,
+} from "lucide-react";
 
 import { Alert } from "@ktbhealth/ui/components/alert";
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button } from "@ktbhealth/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuTrigger,
+} from "@ktbhealth/ui/components/dropdown-menu";
 import { Empty, EmptyDescription, EmptyMedia } from "@ktbhealth/ui/components/empty";
 import type { Patient } from "../index.ts";
+import { patientMessages, type PatientMessages } from "../i18n.ts";
 import {
 	countryName,
 	formatBirthDate,
 	formatCns,
 	formatCpf,
 	formatPostalCode,
-	LANGUAGE_LABELS,
-	MARITAL_STATUS_LABELS,
-	RACE_COLOR_LABELS,
 	type Language,
 	type MaritalStatus,
 	type RaceColor,
 } from "../record.ts";
 import { ageLabel, demographics, displayName, initials } from "./-format.ts";
+import { exportLinks } from "./-export.ts";
+import { DeletePatientDialog, type PatientDeleteApi } from "./DeletePatientDialog.tsx";
 
 /** The slice of a consultation summary the record page lists. */
 export interface PatientConsultationItem {
@@ -34,65 +50,72 @@ type Row = readonly [label: string, value: string | null];
 
 const joined = (parts: Array<string | null>, sep = ", ") => parts.filter(Boolean).join(sep) || null;
 
-function sections(p: Patient): Array<readonly [title: string, rows: Row[]]> {
-	const birth = p.birthDate ? `${formatBirthDate(p.birthDate)} (${ageLabel(p.birthDate)})` : null;
+function sections(
+	p: Patient,
+	t: PatientMessages,
+	locale: string,
+): Array<readonly [title: string, rows: Row[]]> {
+	const birth = p.birthDate
+		? `${formatBirthDate(p.birthDate)} (${ageLabel(p.birthDate, locale)})`
+		: null;
+	const f = t.fields;
 	return [
 		[
-			"Identification",
+			t.sections.identification,
 			[
-				["Full name", p.name],
-				["Social name", p.socialName],
-				["Birth date", birth],
+				[f.name, p.name],
+				[f.socialName, p.socialName],
+				[f.birthDate, birth],
 			],
 		],
 		[
-			"Identifiers",
+			t.sections.identifiers,
 			[
-				["CPF", p.cpf ? formatCpf(p.cpf) : null],
-				["CNS", p.cns ? formatCns(p.cns) : null],
-				["Passport / foreign ID", p.passport],
+				[f.cpf, p.cpf ? formatCpf(p.cpf) : null],
+				[f.cnsShort, p.cns ? formatCns(p.cns) : null],
+				[f.passport, p.passport],
 			],
 		],
 		[
-			"Contact",
+			t.sections.contact,
 			[
-				["Phone", p.phone],
-				["Email", p.email],
+				[f.phone, p.phone],
+				[f.email, p.email],
 				[
-					"Preferred language",
+					f.preferredLanguage,
 					p.preferredLanguage
-						? (LANGUAGE_LABELS[p.preferredLanguage as Language] ?? p.preferredLanguage)
+						? (t.language[p.preferredLanguage as Language] ?? p.preferredLanguage)
 						: null,
 				],
 			],
 		],
 		[
-			"Address",
+			t.sections.address,
 			[
-				["Street", joined([joined([p.addressLine, p.addressNumber]), p.addressComplement], " · ")],
-				["District", p.district],
-				["City", joined([p.city, p.state], " / ")],
-				["Postal code", p.postalCode ? formatPostalCode(p.postalCode, p.country) : null],
-				["Country", p.country ? countryName(p.country) : null],
+				[f.street, joined([joined([p.addressLine, p.addressNumber]), p.addressComplement], " · ")],
+				[f.district, p.district],
+				[f.city, joined([p.city, p.state], " / ")],
+				[f.postalCode, p.postalCode ? formatPostalCode(p.postalCode, p.country) : null],
+				[f.country, p.country ? countryName(p.country, locale) : null],
 			],
 		],
 		[
-			"Family and demographics",
+			t.sections.family,
 			[
-				["Mother's name", p.motherName],
+				[f.motherName, p.motherName],
 				[
-					"Marital status",
-					p.maritalStatus ? MARITAL_STATUS_LABELS[p.maritalStatus as MaritalStatus] : null,
+					f.maritalStatus,
+					p.maritalStatus ? t.maritalStatus[p.maritalStatus as MaritalStatus] : null,
 				],
-				["Race / color", p.raceColor ? RACE_COLOR_LABELS[p.raceColor as RaceColor] : null],
-				["Nationality", p.nationality ? countryName(p.nationality) : null],
+				[f.raceColorShort, p.raceColor ? t.raceColor[p.raceColor as RaceColor] : null],
+				[f.nationality, p.nationality ? countryName(p.nationality, locale) : null],
 			],
 		],
 		[
-			"Emergency contact",
+			t.sections.emergency,
 			[
-				["Name", joined([p.emergencyContactName, p.emergencyContactRelationship], " · ")],
-				["Phone", p.emergencyContactPhone],
+				[f.contactName, joined([p.emergencyContactName, p.emergencyContactRelationship], " · ")],
+				[f.phone, p.emergencyContactPhone],
 			],
 		],
 	];
@@ -101,12 +124,22 @@ function sections(p: Patient): Array<readonly [title: string, rows: Row[]]> {
 export function PatientDetailPage({
 	patient,
 	consultations,
+	locale,
+	deleteApi,
+	onDeleted,
 }: {
 	patient: Patient;
 	consultations: PatientConsultationItem[];
+	/** Active UI locale, injected by the host. */
+	locale: string;
+	deleteApi: PatientDeleteApi;
+	/** Called once the patient (and their consultations) are gone. */
+	onDeleted: () => void;
 }) {
+	const t = patientMessages(locale);
+	const [deleting, setDeleting] = useState(false);
 	const id = String(patient.id);
-	const filled = sections(patient)
+	const filled = sections(patient, t, locale)
 		.map(([title, rows]) => [title, rows.filter(([, v]) => v)] as const)
 		.filter(([, rows]) => rows.length > 0);
 
@@ -120,7 +153,7 @@ export function PatientDetailPage({
 				render={<Link to="/patients" />}
 			>
 				<ArrowLeftIcon />
-				Patients
+				{t.common.patients}
 			</Button>
 
 			<div className="mt-3 flex flex-wrap items-start justify-between gap-4">
@@ -131,38 +164,66 @@ export function PatientDetailPage({
 					<div>
 						<h1 className="text-3xl font-bold tracking-tight">{displayName(patient)}</h1>
 						<p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-							{demographics(patient) || "No demographics recorded"}
-							{!patient.active ? <Badge variant="outline">Inactive</Badge> : null}
+							{demographics(patient, locale) || t.common.noDemographics}
+							{!patient.active ? <Badge variant="outline">{t.common.inactive}</Badge> : null}
 						</p>
 					</div>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
+					<DropdownMenu>
+						<DropdownMenuTrigger render={<Button variant="outline" />}>
+							<DownloadIcon data-icon="inline-start" />
+							{t.detail.exportRecord}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-56">
+							<DropdownMenuGroup>
+								<DropdownMenuLabel>{t.detail.exportHeading}</DropdownMenuLabel>
+								{exportLinks(t, patient.id).map(({ format, label, href }) => (
+									<DropdownMenuItem key={format} render={<a href={href} download />}>
+										{label}
+									</DropdownMenuItem>
+								))}
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<Button
 						variant="outline"
 						nativeButton={false}
 						render={<Link to="/patients/$id/edit" params={{ id }} />}
 					>
 						<PencilIcon data-icon="inline-start" />
-						Edit record
+						{t.detail.editRecord}
 					</Button>
 					<Button
 						nativeButton={false}
 						render={<Link to="/consultations/new" search={{ patientId: patient.id }} />}
 					>
 						<PlusIcon data-icon="inline-start" />
-						New consultation
+						{t.detail.newConsultation}
+					</Button>
+					<Button variant="destructive" onClick={() => setDeleting(true)}>
+						<Trash2Icon data-icon="inline-start" />
+						{t.actions.delete}
 					</Button>
 				</div>
 			</div>
 
 			{!patient.birthDate ? (
 				<Alert className="mt-5 border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-					This record is incomplete: birth date is missing.{" "}
+					{t.detail.incomplete}{" "}
 					<Link to="/patients/$id/edit" params={{ id }} className="font-medium underline">
-						Complete the record
+						{t.detail.completeRecord}
 					</Link>
 				</Alert>
 			) : null}
+
+			<DeletePatientDialog
+				patient={deleting ? { id: patient.id, name: displayName(patient) } : null}
+				api={deleteApi}
+				t={t}
+				onClose={() => setDeleting(false)}
+				onDeleted={onDeleted}
+			/>
 
 			<div className="mt-5 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
 				<section className="space-y-4">
@@ -183,7 +244,7 @@ export function PatientDetailPage({
 
 				<section>
 					<h2 className="text-lg font-semibold">
-						Consultations{" "}
+						{t.detail.consultations}{" "}
 						<span className="text-sm font-normal text-muted-foreground">
 							({consultations.length})
 						</span>
@@ -200,18 +261,18 @@ export function PatientDetailPage({
 										params={{ id: String(c.id) }}
 										className="text-sm font-medium after:absolute after:inset-0 after:content-['']"
 									>
-										{new Date(c.createdAt).toLocaleDateString()}
+										{new Date(c.createdAt).toLocaleDateString(locale)}
 									</Link>
 									<span className="text-xs text-muted-foreground">
 										#{c.id}
-										{c.status === "live" ? " · live" : ""}
-										{c.hasAnamnesis ? "" : " · no anamnesis"}
+										{c.status === "live" ? ` · ${t.detail.live}` : ""}
+										{c.hasAnamnesis ? "" : ` · ${t.detail.noAnamnesis}`}
 									</span>
 								</div>
 								<p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
 									{c.chiefComplaint && !c.chiefComplaint.startsWith("A preencher")
 										? c.chiefComplaint
-										: "No chief complaint recorded."}
+										: t.detail.noChiefComplaint}
 								</p>
 							</article>
 						))}
@@ -220,7 +281,7 @@ export function PatientDetailPage({
 								<EmptyMedia variant="icon">
 									<ClipboardListIcon />
 								</EmptyMedia>
-								<EmptyDescription>No consultations for this patient yet.</EmptyDescription>
+								<EmptyDescription>{t.detail.noConsultations}</EmptyDescription>
 							</Empty>
 						) : null}
 					</div>

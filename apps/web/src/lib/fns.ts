@@ -4,7 +4,8 @@ import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { demographicContext, TEXT_FIELDS, validatePatient } from "@ktb/patients/record";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
-import { runAs } from "#/lib/platform.ts";
+import { audioBucket, runAs } from "#/lib/platform.ts";
+import { purgeAudio } from "#/lib/audio-purge.ts";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import { Schema } from "effect";
@@ -163,6 +164,54 @@ export const listPatientsFn = createServerFn({ method: "GET" }).handler(async ()
 		}),
 	);
 });
+
+/** What deleting a patient takes with it — shown before the doctor confirms. */
+export const patientDeletionImpactFn = createServerFn({ method: "GET" })
+	.validator((id: number) => decodeNumber(id))
+	.handler(async ({ data: id }) => {
+		const user = await getSessionUser();
+		if (!user) return null;
+		return runAs(
+			user,
+			Effect.gen(function* () {
+				const patients = yield* Patients;
+				const patient = yield* patients
+					.get(user.id, id)
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
+				if (!patient) return null;
+				const consultations = yield* Consultations;
+				return { consultations: (yield* consultations.list(user.id, id)).length };
+			}),
+		);
+	});
+
+/**
+ * Permanently delete a patient and every consultation linked to them
+ * (one D1 batch), then purge their recordings from R2. Missing or not
+ * owned → `{ ok: false }`.
+ */
+export const deletePatientFn = createServerFn({ method: "POST" })
+	.validator((id: number) => decodeNumber(id))
+	.handler(async ({ data: id }) => {
+		const user = await ensureSessionUser();
+		const result = await runAs(
+			user,
+			Effect.gen(function* () {
+				const consultations = yield* Consultations;
+				return yield* consultations
+					.deletePatient(user.id, id)
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
+			}),
+		);
+		if (!result) return { ok: false as const };
+		const leftover = await purgeAudio(audioBucket, result.audioKeys);
+		return {
+			ok: true as const,
+			consultations: result.consultations,
+			/** Recordings still in storage after a failed purge (0 when clean). */
+			orphanedAudio: leftover.length,
+		};
+	});
 
 export const getPatientFn = createServerFn({ method: "GET" })
 	.validator((id: number) => decodeNumber(id))

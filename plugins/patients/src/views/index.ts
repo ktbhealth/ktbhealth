@@ -5,3 +5,4 @@ export {
 	type SavePatientResult,
 } from "./PatientFormPage.tsx";
 export { PatientDetailPage, type PatientConsultationItem } from "./PatientDetailPage.tsx";
+export { DeletePatientDialog, type PatientDeleteApi } from "./DeletePatientDialog.tsx";

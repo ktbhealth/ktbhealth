@@ -37,7 +37,7 @@ export default defineConfig({
 				// or platform APIs. Composition roots (apps/*, @ktb/db schema
 				// aggregation) are the only places allowed to wire impls.
 				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,export-pdf,ui,db,driver-framework}/**/*.{ts,tsx}",
+					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,export-pdf,interop,ui,db,driver-framework}/**/*.{ts,tsx}",
 					"plugins/**/*.{ts,tsx}",
 				],
 				rules: {
@@ -61,6 +61,10 @@ export default defineConfig({
 								"@ktb/transcription-whisper/**",
 								"@ktb/anamnesis-llm",
 								"@ktb/anamnesis-llm/**",
+								"@ktb/interop-fhir",
+								"@ktb/interop-fhir/**",
+								"@ktb/interop-openehr",
+								"@ktb/interop-openehr/**",
 								"@ktb/infra-cloudflare",
 								"@ktb/infra-cloudflare/**",
 								"cloudflare:*",
@@ -73,7 +77,7 @@ export default defineConfig({
 				// Env access is adapter-only: domain code receives config
 				// through ports/layers, never process.env.
 				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,driver-framework}/src/**/*.ts",
+					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,interop,driver-framework}/src/**/*.ts",
 					"plugins/*/src/**/*.ts",
 				],
 				rules: {
@@ -127,6 +131,10 @@ export default defineConfig({
 								"@ktb/transcription-whisper/**",
 								"@ktb/anamnesis-llm",
 								"@ktb/anamnesis-llm/**",
+								"@ktb/interop-fhir",
+								"@ktb/interop-fhir/**",
+								"@ktb/interop-openehr",
+								"@ktb/interop-openehr/**",
 								"@ktb/infra-cloudflare",
 								"@ktb/infra-cloudflare/**",
 								"@ktb/app-host",
@@ -139,7 +147,8 @@ export default defineConfig({
 			{
 				// Documented exceptions to the impl-import ban above:
 				// - platform.ts / plugins.ts are the composition root wiring
-				//   @ktb/app-host into the deploy target.
+				//   @ktb/app-host (and the @ktb/interop-* exporters) into the
+				//   deploy target.
 				// - new.tsx injects the whisper backend client-side;
 				//   whisper-prefetch.ts warms the model on consultations pages.
 				// - login.tsx / __root.tsx use the better-auth client SDK,

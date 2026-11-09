@@ -233,6 +233,35 @@ async function saveConsultation(db: DbClient, userId: string, data: SaveConsulta
 	return { id: rows[0]!.id };
 }
 
+/** Every consultation linked to a patient, whoever owns it — authz happens in the service. */
+async function patientConsultationRows(db: DbClient, patientId: number) {
+	return db
+		.select({
+			id: consultations.id,
+			userId: consultations.userId,
+			audioKey: consultations.audioKey,
+		})
+		.from(consultations)
+		.where(eq(consultations.patientId, patientId));
+}
+
+async function patientOwnerId(db: DbClient, patientId: number): Promise<string | null> {
+	const rows = await db
+		.select({ ownerId: patients.ownerId })
+		.from(patients)
+		.where(eq(patients.id, patientId))
+		.limit(1);
+	return rows[0]?.ownerId ?? null;
+}
+
+/** Patient + linked consultations in one D1 batch: all rows go, or none do. */
+async function deletePatientCascade(db: DbClient, patientId: number) {
+	await db.batch([
+		db.delete(consultations).where(eq(consultations.patientId, patientId)),
+		db.delete(patients).where(eq(patients.id, patientId)),
+	]);
+}
+
 async function listConsultations(
 	db: DbClient,
 	userId: string,
@@ -440,6 +469,17 @@ export class Consultations extends Context.Service<
 			userId: string,
 			excludeId?: number,
 		) => Effect.Effect<PatientHistory | null, Forbidden>;
+		/**
+		 * Delete a patient together with every consultation linked to them
+		 * (transcripts, anamneses), atomically. Owner-only on the patient and
+		 * on each consultation. Returns null when the patient does not exist,
+		 * otherwise how many consultations went and the R2 audio keys the
+		 * caller must purge (storage is outside the database).
+		 */
+		readonly deletePatient: (
+			userId: string,
+			patientId: number,
+		) => Effect.Effect<{ consultations: number; audioKeys: string[] } | null, Forbidden>;
 	}
 >()("@ktb/consultations/Consultations") {}
 
@@ -588,6 +628,30 @@ export const ConsultationsLive = Layer.effect(
 			) {
 				yield* requireCanAs("consultation.read", { userId });
 				return yield* Effect.promise(() => patientHistory(db, patientId, userId, excludeId));
+			}),
+			deletePatient: Effect.fn("Consultations.deletePatient")(function* (
+				userId: string,
+				patientId: number,
+			) {
+				yield* requirePrincipalUser(userId, "patient.delete");
+				const ownerId = yield* Effect.promise(() => patientOwnerId(db, patientId));
+				if (ownerId === null) return null;
+				yield* requireCanAs("patient.delete", { ownerId });
+				const rows = yield* Effect.promise(() => patientConsultationRows(db, patientId));
+				// Any consultation owned by someone else blocks the whole cascade.
+				for (const row of rows)
+					yield* requireCanAs("consultation.delete", { userId: row.userId ?? "" });
+				yield* Effect.annotateCurrentSpan({ userId, patientId, consultations: rows.length });
+				yield* Effect.logInfo("patient deleted with consultations", {
+					userId,
+					patientId,
+					consultations: rows.length,
+				});
+				yield* Effect.promise(() => deletePatientCascade(db, patientId));
+				return {
+					consultations: rows.length,
+					audioKeys: rows.flatMap((r) => (r.audioKey ? [r.audioKey] : [])),
+				};
 			}),
 		});
 	}),

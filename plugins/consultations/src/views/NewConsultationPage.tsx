@@ -28,7 +28,7 @@ import { anamnesisToText } from "@ktb/anamnesis";
 import { type Anamnesis, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
 import { CONFIDENCE_LABELS, type AnamnesisSectionKey } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
-import { birthDateFromAge } from "@ktb/patients/record";
+import { birthDateFromAge, errorMessage, type PatientErrors } from "@ktb/patients/record";
 import {
 	needsServerFallback,
 	type Transcriber,
@@ -86,8 +86,7 @@ export interface NewConsultationApi {
 	createPatient(input: {
 		data: { name: string; birthDate: string };
 	}): Promise<
-		| { ok: true; patient: { id: number; name: string } }
-		| { ok: false; errors: Partial<Record<string, string>> }
+		{ ok: true; patient: { id: number; name: string } } | { ok: false; errors: PatientErrors }
 	>;
 	/** Optional: refetch after audio upload to track server transcription. */
 	getConsultation?(input: { data: number }): Promise<ConsultationAudioInfo | null>;
@@ -616,9 +615,9 @@ export function NewConsultationPage({
 									data: { name: patientName, birthDate: birthDateFromAge(age) },
 								});
 								if (!res.ok) {
-									setPatientError(
-										Object.values(res.errors)[0] ?? "Could not register the patient.",
-									);
+									// Validation comes back as codes; this view is English-only (T-025).
+									const code = Object.values(res.errors)[0];
+									setPatientError(code ? errorMessage(code) : "Could not register the patient.");
 									return;
 								}
 								const p = res.patient;

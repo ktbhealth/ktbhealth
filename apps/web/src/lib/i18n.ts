@@ -32,6 +32,7 @@ export function localeName(locale: string): string {
 // the host maps known destinations to localized chrome strings here.
 const NAV_LABELS: Record<string, () => string> = {
 	"/consultations": () => m.nav_consultations(),
+	"/patients": () => m.nav_patients(),
 };
 
 /** Switch the UI locale (paraglide persists the cookie and reloads). */

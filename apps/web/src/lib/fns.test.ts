@@ -24,9 +24,12 @@ import { env } from "cloudflare:workers";
 import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/anamnesis";
 import { auth, db } from "./platform.ts";
 import { consultations } from "@ktb/db/schema";
+import { eq } from "drizzle-orm";
+import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
 	attachAnamnesisFn,
 	createPatientFn,
+	deletePatientFn,
 	extractAnamnesisFn,
 	getConsultationFn,
 	getLiveConsultationFn,
@@ -35,6 +38,7 @@ import {
 	listConsultationsFn,
 	listPatientConsultationsFn,
 	listPatientsFn,
+	patientDeletionImpactFn,
 	patientHistoryFn,
 	recordConsentFn,
 	saveConsultationFn,
@@ -299,6 +303,48 @@ describe("server fns", () => {
 		expect(res.engine).toBeTruthy();
 	});
 
+	it("deletes a patient with their consultations and recordings", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await newPatient("Para Excluir");
+		const { id: consultationId } = await saveConsultationFn({
+			data: {
+				transcript: "t",
+				anamnesis: makeAnamnesis("Excluir"),
+				engine: "e",
+				patientId: patient.id,
+			},
+		});
+		const audioKey = `audio/delete-${consultationId}.webm`;
+		await env.AUDIO_BUCKET!.put(audioKey, new Uint8Array([1, 2, 3]));
+		await db.update(consultations).set({ audioKey }).where(eq(consultations.id, consultationId));
+
+		expect(await patientDeletionImpactFn({ data: patient.id })).toEqual({ consultations: 1 });
+		expect(await patientDeletionImpactFn({ data: 999999 })).toBeNull();
+
+		expect(await deletePatientFn({ data: patient.id })).toEqual({
+			ok: true,
+			consultations: 1,
+			orphanedAudio: 0,
+		});
+		expect(await getPatientFn({ data: patient.id })).toBeNull();
+		expect(await getConsultationFn({ data: consultationId })).toBeNull();
+		expect(audioBucketStore.has(audioKey)).toBe(false);
+		expect(await deletePatientFn({ data: patient.id })).toEqual({ ok: false });
+
+		headers.current = new Headers();
+		expect(await patientDeletionImpactFn({ data: patient.id })).toBeNull();
+	});
+
+	it("never previews or deletes someone else's patient", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await newPatient("Alheio");
+		headers.current = new Headers({ cookie: await signIn("fns-intruder@x.com") });
+		expect(await patientDeletionImpactFn({ data: patient.id })).toBeNull();
+		expect(await deletePatientFn({ data: patient.id })).toEqual({ ok: false });
+		headers.current = new Headers({ cookie });
+		expect((await getPatientFn({ data: patient.id }))?.name).toBe("Alheio");
+	});
+
 	it("createPatientFn returns field errors instead of saving", async () => {
 		headers.current = new Headers({ cookie });
 		const before = (await listPatientsFn()).length;
@@ -308,9 +354,9 @@ describe("server fns", () => {
 		expect(res).toEqual({
 			ok: false,
 			errors: {
-				name: "Name is required.",
-				birthDate: "Birth date cannot be in the future.",
-				cpf: "Invalid CPF.",
+				name: "name_required",
+				birthDate: "future_date",
+				cpf: "invalid_cpf",
 			},
 		});
 		expect((await listPatientsFn()).length).toBe(before);
@@ -345,7 +391,7 @@ describe("server fns", () => {
 		});
 		expect(
 			await updatePatientFn({ data: { id: patient.id, name: "", birthDate: "1984" } }),
-		).toEqual({ ok: false, errors: { name: "Name is required." } });
+		).toEqual({ ok: false, errors: { name: "name_required" } });
 		expect(
 			await updatePatientFn({ data: { id: 999999, name: "Ghost", birthDate: "1984" } }),
 		).toEqual({ ok: false, errors: {} });

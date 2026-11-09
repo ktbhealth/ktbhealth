@@ -223,7 +223,7 @@ describe("NewConsultationPage", () => {
 		const api = makeApi({
 			createPatient: vi.fn(async () => ({
 				ok: false as const,
-				errors: { birthDate: "Enter a valid date." },
+				errors: { birthDate: "invalid_date" as const },
 			})),
 		});
 		renderPage(api);
