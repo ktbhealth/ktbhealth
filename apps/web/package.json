@@ -47,6 +47,7 @@
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
+		"@ktb/platform-sidebar": "workspace:*",
 		"@ktb/transcription": "workspace:*",
 		"@ktb/transcription-whisper": "workspace:*",
 		"@ktb/users": "workspace:*",
