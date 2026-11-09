@@ -11,7 +11,7 @@ import {
 } from "@ktbhealth/ui/components/dropdown-menu";
 import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Link, Scripts, useLocation } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { BookPlusIcon, SearchXIcon } from "lucide-react";
 import * as m from "#/paraglide/messages.js";
@@ -54,6 +54,11 @@ const NAV_ACTIVE = "bg-muted text-foreground";
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const user = Route.useLoaderData();
+	const pathname = useLocation({ select: (l) => l.pathname });
+	// /platform is a system console, not an app page — it owns the whole
+	// viewport (own chrome, dark theme) so the marketing header/footer
+	// and the max-w-6xl column don't wrap it.
+	const isConsole = pathname === "/platform" || pathname.startsWith("/platform/");
 	return (
 		<html lang={getLocale()}>
 			<head>
@@ -61,93 +66,101 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			</head>
 			<body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
 				<TooltipProvider>
-					<header className="sticky top-0 z-40 border-b border-border bg-background">
-						<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-							<Link to="/" className="flex items-center gap-2.5">
-								<span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-									<BookPlusIcon className="size-5" />
-								</span>
-								<span className="text-lg font-bold tracking-tight">KTB Health</span>
-							</Link>
-							<div className="flex items-center gap-1.5">
-								{plugins
-									.flatMap((p) => p.nav ?? [])
-									.map((item) => (
-										<Link
-											key={item.to}
-											to={item.to}
-											className={NAV_LINK}
-											activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
-										>
-											{pluginNavLabel(item.to, item.label)}
-										</Link>
-									))}
-								<Link
-									to="/consultations/new"
-									className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
-								>
-									{m.nav_new_consultation()}
-								</Link>
-								<span className="mx-1.5 h-5 w-px bg-border" />
-								<LanguageToggle
-									locales={locales}
-									value={getLocale()}
-									onValueChange={changeLocale}
-									labels={Object.fromEntries(locales.map((l) => [l, localeName(l)]))}
-									label={m.lang_menu_label()}
-								/>
-								{!user ? (
-									<Link to="/login" className={NAV_LINK}>
-										{m.nav_sign_in()}
+					{isConsole ? (
+						children
+					) : (
+						<>
+							<header className="sticky top-0 z-40 border-b border-border bg-background">
+								<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+									<Link to="/" className="flex items-center gap-2.5">
+										<span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+											<BookPlusIcon className="size-5" />
+										</span>
+										<span className="text-lg font-bold tracking-tight">KTB Health</span>
 									</Link>
-								) : (
-									<DropdownMenu>
-										<DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">
-											<Avatar size="sm">
-												<AvatarFallback className="bg-muted text-[11px] font-semibold uppercase">
-													{user?.name?.[0] ?? "?"}
-												</AvatarFallback>
-											</Avatar>
-											<span className="max-w-32 truncate">{user?.name}</span>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end" className="w-52">
-											<DropdownMenuGroup>
-												<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-													<span className="text-sm font-medium text-foreground">{user?.name}</span>
-													<span className="truncate text-xs text-muted-foreground">
-														{user?.email}
-													</span>
-												</DropdownMenuLabel>
-											</DropdownMenuGroup>
-											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												variant="destructive"
-												onClick={async () => {
-													await authClient.signOut();
-													window.location.assign("/");
-												}}
-											>
-												{m.nav_sign_out()}
-											</DropdownMenuItem>
-										</DropdownMenuContent>
-									</DropdownMenu>
-								)}
-							</div>
-						</nav>
-					</header>
-					<main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
-					<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
-						{m.footer_disclaimer()}
-					</footer>
-					<TanStackDevtools
-						config={{ position: "bottom-right" }}
-						plugins={[
-							{
-								name: "Tanstack Router",
-								render: <TanStackRouterDevtoolsPanel />,
-							},
-						]}
-					/>
+									<div className="flex items-center gap-1.5">
+										{plugins
+											.flatMap((p) => p.nav ?? [])
+											.map((item) => (
+												<Link
+													key={item.to}
+													to={item.to}
+													className={NAV_LINK}
+													activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+												>
+													{pluginNavLabel(item.to, item.label)}
+												</Link>
+											))}
+										<Link
+											to="/consultations/new"
+											className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
+										>
+											{m.nav_new_consultation()}
+										</Link>
+										<span className="mx-1.5 h-5 w-px bg-border" />
+										<LanguageToggle
+											locales={locales}
+											value={getLocale()}
+											onValueChange={changeLocale}
+											labels={Object.fromEntries(locales.map((l) => [l, localeName(l)]))}
+											label={m.lang_menu_label()}
+										/>
+										{!user ? (
+											<Link to="/login" className={NAV_LINK}>
+												{m.nav_sign_in()}
+											</Link>
+										) : (
+											<DropdownMenu>
+												<DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">
+													<Avatar size="sm">
+														<AvatarFallback className="bg-muted text-[11px] font-semibold uppercase">
+															{user?.name?.[0] ?? "?"}
+														</AvatarFallback>
+													</Avatar>
+													<span className="max-w-32 truncate">{user?.name}</span>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end" className="w-52">
+													<DropdownMenuGroup>
+														<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+															<span className="text-sm font-medium text-foreground">
+																{user?.name}
+															</span>
+															<span className="truncate text-xs text-muted-foreground">
+																{user?.email}
+															</span>
+														</DropdownMenuLabel>
+													</DropdownMenuGroup>
+													<DropdownMenuSeparator />
+													<DropdownMenuItem
+														variant="destructive"
+														onClick={async () => {
+															await authClient.signOut();
+															window.location.assign("/");
+														}}
+													>
+														{m.nav_sign_out()}
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										)}
+									</div>
+								</nav>
+							</header>
+							<main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
+							<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
+								{m.footer_disclaimer()}
+							</footer>
+							<TanStackDevtools
+								config={{ position: "bottom-right" }}
+								plugins={[
+									{
+										name: "Tanstack Router",
+										render: <TanStackRouterDevtoolsPanel />,
+									},
+								]}
+							/>
+						</>
+					)}
 				</TooltipProvider>
 				<Scripts />
 			</body>

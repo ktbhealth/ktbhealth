@@ -19,8 +19,8 @@ const fmtDate = (d: Date) => d.toLocaleString();
 export function AdminPatientsPage({ patients }: { patients: AdminPatientRow[] }) {
 	return (
 		<div>
-			<h1 className="text-2xl font-bold tracking-tight">Patients</h1>
-			<p className="mt-1 text-sm text-muted-foreground">
+			<h1 className="font-mono text-lg font-bold tracking-tight">Patients</h1>
+			<p className="mt-1 font-mono text-xs text-muted-foreground">
 				{patients.length === 0
 					? "No patients registered."
 					: `${patients.length} patient${patients.length === 1 ? "" : "s"} across all owners.`}

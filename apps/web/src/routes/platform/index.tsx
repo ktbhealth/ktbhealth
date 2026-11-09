@@ -9,8 +9,8 @@ export const Route = createFileRoute("/platform/")({
 function PlatformOverview() {
 	return (
 		<div>
-			<h1 className="text-2xl font-bold tracking-tight">Platform</h1>
-			<p className="mt-1 text-sm text-muted-foreground">
+			<h1 className="font-mono text-lg font-bold tracking-tight">platform.overview</h1>
+			<p className="mt-1 font-mono text-xs text-muted-foreground">
 				System console — admin-only. Plugin contributions appear in the sidebar as they declare
 				them.
 			</p>

@@ -23,8 +23,8 @@ export function AdminConsultationsPage({
 }) {
 	return (
 		<div>
-			<h1 className="text-2xl font-bold tracking-tight">Consultations</h1>
-			<p className="mt-1 text-sm text-muted-foreground">
+			<h1 className="font-mono text-lg font-bold tracking-tight">Consultations</h1>
+			<p className="mt-1 font-mono text-xs text-muted-foreground">
 				{consultations.length === 0
 					? "No consultations yet."
 					: `${consultations.length} consultation${consultations.length === 1 ? "" : "s"} across all owners.`}

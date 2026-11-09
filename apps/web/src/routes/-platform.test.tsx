@@ -52,6 +52,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			const loc = { pathname };
 			return opts?.select ? opts.select(loc) : loc;
 		},
+		getRouteApi: () => ({
+			useLoaderData: () => ({ id: "u1", email: "admin@ktb.test", name: "Admin" }),
+		}),
 		Link: (props: Record<string, unknown>) => {
 			const { to, children, ...rest } = props;
 			return React.createElement("a", { href: to as string, ...rest }, children as never);
@@ -116,7 +119,7 @@ describe("/platform layout", () => {
 describe("/platform index", () => {
 	it("renders the overview with registered plugins", () => {
 		render(createElement(component(PlatformIndexRoute)));
-		expect(screen.getByText("Platform")).toBeTruthy();
+		expect(screen.getByText("platform.overview")).toBeTruthy();
 		expect(screen.getByText("platform.routes")).toBeTruthy();
 		expect(screen.getByText("platform.panel")).toBeTruthy();
 	});
