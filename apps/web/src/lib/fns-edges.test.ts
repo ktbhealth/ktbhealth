@@ -37,6 +37,34 @@ vi.mock("#/lib/auth.ts", () => ({
 		return hoisted.user;
 	},
 }));
+// Plugin-owned fns (@ktb/patients/fns, @ktb/consultations/fns) reach the
+// session and the app runtime through @ktb/server-fns, not #/lib/auth.ts —
+// mirror the same hoisted user and service overrides on that boundary.
+vi.mock("@ktb/server-fns", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@ktb/server-fns")>();
+	const Effect = await import("effect/Effect");
+	const { Notifications } = await import("@ktb/notifications");
+	const { Patients } = await import("@ktb/patients");
+	const withOverrides = (effect: any) => {
+		let e = effect;
+		if (hoisted.overrides.notifications) {
+			e = e.pipe(Effect.provideService(Notifications, hoisted.overrides.notifications as never));
+		}
+		if (hoisted.overrides.patients) {
+			e = e.pipe(Effect.provideService(Patients, hoisted.overrides.patients as never));
+		}
+		return e;
+	};
+	return {
+		...actual,
+		getSessionUser: async () => hoisted.user,
+		ensureSessionUser: async () => {
+			if (!hoisted.user) throw new Error("unauthenticated");
+			return hoisted.user;
+		},
+		runAs: (user: never, effect: any) => actual.runAs(user, withOverrides(effect)),
+	};
+});
 vi.mock("#/lib/platform.ts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("#/lib/platform.ts")>();
 	const Effect = await import("effect/Effect");
