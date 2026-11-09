@@ -13,6 +13,7 @@
 		"test": "vp test",
 		"deploy": "bun run infra:deploy",
 		"cf-typegen": "wrangler types",
+		"db:migrate": "wrangler d1 migrations apply ktb --remote",
 		"db:migrate:local": "wrangler d1 migrations apply ktb --local",
 		"infra:dev": "alchemy dev",
 		"infra:deploy": "node ../../packages/db/scripts/sync-alchemy-migrations.mjs && cuora run --env prod --config ../../cuora.toml -- alchemy deploy --stage prod -y",

@@ -17,7 +17,7 @@
 		"lint": "vp lint",
 		"format": "vp fmt",
 		"test": "vp test",
-		"deploy": "vp -C apps/web deploy",
+		"deploy": "bun --cwd apps/web infra:deploy",
 		"cf-typegen": "bun --cwd apps/web cf-typegen",
 		"db:generate": "bun --cwd packages/db db:generate",
 		"db:migrate": "bun --cwd apps/web db:migrate",
