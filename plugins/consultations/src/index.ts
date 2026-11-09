@@ -12,6 +12,7 @@ import type { Anamnesis, PatientHistory, PriorVisit } from "@ktb/anamnesis";
 import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { patients } from "@ktb/patients/schema";
+import { plugin as patientsPlugin } from "@ktb/patients";
 import { consultations } from "./schema.ts";
 
 export type ConsultationRow = typeof consultations.$inferSelect;
@@ -580,7 +581,7 @@ export const ConsultationsLive = Layer.effect(
 
 export const plugin = definePlugin({
 	id: "consultations",
-	deps: ["patients"],
+	requiredDeps: [patientsPlugin.id],
 	// Route subtree composed into the host's virtualRouteConfig. File paths
 	// resolve relative to the host's routes directory (apps/web/src/routes);
 	// the route modules there wire these paths to this plugin's views and to
@@ -596,3 +597,11 @@ export const plugin = definePlugin({
 	tables: { consultations },
 	services: ConsultationsLive,
 });
+
+// Compile-time dep registry: ids declared here are referenceable in
+// requiredDeps/optionalDeps of any plugin that imports this module.
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		consultations: true;
+	}
+}

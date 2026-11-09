@@ -3,7 +3,23 @@ import { describe, expect, it } from "vitest";
 import type { Plugin } from "@ktb/kernel";
 import { discoverPlugins, orderPlugins } from "./index.ts";
 
-const p = (id: string, deps?: string[]): Plugin => ({ id, deps });
+// Dep ids are checked against PluginRegistry at compile time; the test
+// program declares the ids it uses so the fixtures typecheck.
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		a: true;
+		b: true;
+		c: true;
+		d: true;
+		ghost: true;
+	}
+}
+
+const p = (
+	id: string,
+	requiredDeps?: Plugin["requiredDeps"],
+	optionalDeps?: Plugin["optionalDeps"],
+): Plugin => ({ id, requiredDeps, optionalDeps });
 
 describe("discoverPlugins", () => {
 	it("keeps only modules exporting a plugin-shaped value", () => {
@@ -18,13 +34,29 @@ describe("discoverPlugins", () => {
 });
 
 describe("orderPlugins", () => {
-	it("topologically sorts by deps", () => {
+	it("topologically sorts by requiredDeps", () => {
 		const ordered = orderPlugins([p("c", ["b"]), p("a"), p("b", ["a"])]);
 		expect(ordered.map((x) => x.id)).toEqual(["a", "b", "c"]);
 	});
 
-	it("throws on unknown dep", () => {
-		expect(() => orderPlugins([p("a", ["ghost"])])).toThrow('unknown plugin "ghost"');
+	it("orders by optionalDeps when the dep is present", () => {
+		const ordered = orderPlugins([p("a", undefined, ["b"]), p("b")]);
+		expect(ordered.map((x) => x.id)).toEqual(["b", "a"]);
+	});
+
+	it("ignores optionalDeps that resolve to no plugin", () => {
+		const ordered = orderPlugins([p("a", undefined, ["ghost"]), p("b")]);
+		expect(ordered.map((x) => x.id)).toContain("a");
+	});
+
+	it("throws on unknown requiredDep", () => {
+		expect(() => orderPlugins([p("a", ["ghost"])])).toThrow(
+			'plugin "a" requires unknown plugin "ghost"',
+		);
+	});
+
+	it("throws on duplicate plugin id", () => {
+		expect(() => orderPlugins([p("a"), p("a")])).toThrow('duplicate plugin id "a"');
 	});
 
 	it("throws on dependency cycle", () => {

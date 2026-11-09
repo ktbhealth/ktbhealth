@@ -64,3 +64,11 @@ export const plugin = definePlugin({
 	tables: { patients },
 	services: PatientsLive,
 });
+
+// Compile-time dep registry: ids declared here are referenceable in
+// requiredDeps/optionalDeps of any plugin that imports this module.
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		patients: true;
+	}
+}
