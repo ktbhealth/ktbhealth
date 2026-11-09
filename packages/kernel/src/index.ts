@@ -38,6 +38,12 @@ export interface Plugin {
 	readonly routes?: readonly VirtualRouteNode[];
 	/** Nav links surfaced in the host shell. */
 	readonly nav?: ReadonlyArray<{ to: string; label: string }>;
+	/** System-console (panel) contribution: sidebar entries rendered by
+	 * the /platform shell, ordered by plugin topo order. Kept minimal —
+	 * `{ to, label }` matches `nav`; icons/badges are an open question. */
+	readonly panel?: {
+		readonly sidebar?: ReadonlyArray<{ to: string; label: string }>;
+	};
 	/** Drizzle table slice composed into @ktb/db/schema. */
 	readonly tables?: Record<string, SQLiteTable>;
 	/** Effect layers: services the plugin needs/provides at runtime. */
