@@ -36,7 +36,11 @@ const pluginLanding = plugins.find((p) => p.landing !== undefined)?.landing?.pag
 	| typeof Home
 	| undefined;
 
-export const Route = createFileRoute("/")({ component: pluginLanding ?? Home });
+// Resolved outside the route options — the code-splitter can't compile
+// a LogicalExpression (`??`) inside createFileRoute.
+const Landing = pluginLanding ?? Home;
+
+export const Route = createFileRoute("/")({ component: Landing });
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
 	return (
