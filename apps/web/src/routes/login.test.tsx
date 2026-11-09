@@ -55,12 +55,42 @@ describe("sign-in page", () => {
 		fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
 		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
 		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
+		fireEvent.change(screen.getByLabelText("Confirm password"), {
+			target: { value: "senha12345" },
+		});
 		await act(async () => {
 			fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 		});
 		await waitFor(() => expect(signUpEmail).toHaveBeenCalled());
 		const arg = signUpEmail.mock.calls[0]![0] as { name: string };
 		expect(arg.name).toBe("dra");
+	});
+
+	it("blocks sign-up when passwords do not match", async () => {
+		render(createElement(Page));
+		fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
+		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
+		fireEvent.change(screen.getByLabelText("Confirm password"), {
+			target: { value: "different1" },
+		});
+		await act(async () => {
+			fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+		});
+		expect(signUpEmail).not.toHaveBeenCalled();
+		await screen.findByText("Passwords do not match.");
+	});
+
+	it("clears confirm password when switching modes", async () => {
+		render(createElement(Page));
+		fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+		const confirm = screen.getByLabelText("Confirm password") as HTMLInputElement;
+		fireEvent.change(confirm, { target: { value: "senha12345" } });
+		expect(confirm.value).toBe("senha12345");
+		fireEvent.click(screen.getByRole("tab", { name: "Sign in" }));
+		expect(screen.queryByLabelText("Confirm password")).toBeNull();
+		fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+		expect((screen.getByLabelText("Confirm password") as HTMLInputElement).value).toBe("");
 	});
 
 	it("shows error on failed sign-in", async () => {

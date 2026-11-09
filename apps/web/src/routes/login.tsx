@@ -26,6 +26,7 @@ function SignInPage() {
 	const [mode, setMode] = useState<"in" | "up">("in");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
@@ -33,6 +34,10 @@ function SignInPage() {
 	const submit = async (e: FormEvent) => {
 		e.preventDefault();
 		if (!email.trim() || !password || pending) return;
+		if (mode === "up" && confirmPassword !== password) {
+			setError(m.login_error_password_mismatch());
+			return;
+		}
 		setPending(true);
 		setError(null);
 		const credentials = { email, password, captchaToken: captchaToken ?? undefined };
@@ -67,6 +72,7 @@ function SignInPage() {
 						value={mode}
 						onValueChange={(value) => {
 							setMode(value as "in" | "up");
+							setConfirmPassword("");
 							setError(null);
 						}}
 						className="mb-4"
@@ -100,6 +106,20 @@ function SignInPage() {
 								onChange={(e) => setPassword(e.target.value)}
 							/>
 						</div>
+						{mode === "up" ? (
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="confirm-password">{m.login_confirm_password()}</Label>
+								<Input
+									id="confirm-password"
+									type="password"
+									autoComplete="new-password"
+									required
+									minLength={8}
+									value={confirmPassword}
+									onChange={(e) => setConfirmPassword(e.target.value)}
+								/>
+							</div>
+						) : null}
 						<Turnstile onToken={setCaptchaToken} />
 						{error ? (
 							<Alert variant="destructive">
