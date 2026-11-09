@@ -1,15 +1,16 @@
 /**
  * AI binding resolution for local dev — precedence:
- * AI_STUB > AI_LOCAL_URL > env.AI (the Workers AI binding).
+ * AI_STUB > AI_BASE_URL > env.AI (the Workers AI binding).
  *
  * The `ai` binding has no local simulator, so wrangler dev routes it
  * through a remote session that requires Cloudflare auth. Dev uses
  * wrangler.dev.jsonc (no `ai` binding); this module supplies stand-ins:
  *
  * - AI_STUB=1: canned responses — no server needed, deterministic.
- * - AI_LOCAL_URL=http://localhost:8080: OpenAI-compatible server
- *   (whisper.cpp, llama.cpp, LM Studio…) exposing
- *   /v1/audio/transcriptions and /v1/chat/completions.
+ * - AI_BASE_URL=http://localhost:8080/v1: OpenAI-compatible server
+ *   (whisper.cpp, llama.cpp, LM Studio…) — same convention as
+ *   LLM_BASE_URL. Audio inputs POST to <base>/audio/transcriptions,
+ *   chat inputs to <base>/chat/completions.
  * - otherwise the real env.AI binding (prod, or `wrangler dev` with
  *   the full wrangler.jsonc).
  */
@@ -21,7 +22,7 @@ export interface AiBinding {
 export interface AiEnv {
 	readonly AI?: AiBinding;
 	readonly AI_STUB?: unknown;
-	readonly AI_LOCAL_URL?: unknown;
+	readonly AI_BASE_URL?: unknown;
 }
 
 const enabled = (value: unknown): boolean => value === true || value === "1" || value === "true";
@@ -57,13 +58,15 @@ const audioToBytes = (audio: unknown): Uint8Array<ArrayBuffer> => {
 export const createLocalAi = (baseUrl: string, fetchImpl: typeof fetch = fetch): AiBinding => ({
 	run: async (model, inputs) => {
 		const i = (inputs ?? {}) as Record<string, unknown>;
-		const base = baseUrl.replace(/\/+$/, "");
+		// Accept the base with or without the /v1 suffix (LLM_BASE_URL
+		// convention includes it; bare host roots are common too).
+		const base = `${baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "")}/v1`;
 		if ("audio" in i) {
 			const form = new FormData();
 			form.set("model", model);
 			form.set("file", new Blob([audioToBytes(i.audio)]), "audio.wav");
 			if (typeof i.language === "string") form.set("language", i.language);
-			const res = await fetchImpl(`${base}/v1/audio/transcriptions`, {
+			const res = await fetchImpl(`${base}/audio/transcriptions`, {
 				method: "POST",
 				body: form,
 			});
@@ -71,7 +74,7 @@ export const createLocalAi = (baseUrl: string, fetchImpl: typeof fetch = fetch):
 			return res.json();
 		}
 		if (Array.isArray(i.messages)) {
-			const res = await fetchImpl(`${base}/v1/chat/completions`, {
+			const res = await fetchImpl(`${base}/chat/completions`, {
 				method: "POST",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
@@ -96,9 +99,9 @@ export const resolveAi = (
 	fetchImpl: typeof fetch = fetch,
 ): AiBinding | undefined => {
 	if (enabled(env.AI_STUB ?? procEnv.AI_STUB)) return stubAi;
-	const localUrl = env.AI_LOCAL_URL ?? procEnv.AI_LOCAL_URL;
-	if (typeof localUrl === "string" && localUrl !== "") {
-		return createLocalAi(localUrl, fetchImpl);
+	const baseUrl = env.AI_BASE_URL ?? procEnv.AI_BASE_URL;
+	if (typeof baseUrl === "string" && baseUrl !== "") {
+		return createLocalAi(baseUrl, fetchImpl);
 	}
 	return env.AI;
 };

@@ -22,7 +22,7 @@ const LLM_ENV_KEYS = [
 // Non-LLM config passthrough — same bindings-win-then-process.env rule.
 const APP_ENV_KEYS = ["PLATFORM_ADMIN_EMAILS"] as const;
 
-// AI_STUB > AI_LOCAL_URL > env.AI — dev may run without the Workers AI
+// AI_STUB > AI_BASE_URL > env.AI — dev may run without the Workers AI
 // binding (wrangler.dev.jsonc), so resolve before composing the app.
 const aiBinding = resolveAi(env as unknown as AiEnv, process.env);
 

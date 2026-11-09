@@ -13,12 +13,12 @@
 	// @ktb/captcha-stub so credential endpoints pass without a real widget.
 	// Unlike wrangler.jsonc it has NO "ai" binding: Workers AI has no local
 	// simulator, so the binding forces a remote (authenticated) dev session.
-	// AI resolution order instead: AI_STUB > AI_LOCAL_URL > env.AI — see
+	// AI resolution order instead: AI_STUB > AI_BASE_URL > env.AI — see
 	// src/lib/ai.ts. Uncomment one to enable:
 	//   "AI_STUB": "1" — canned responses, no server needed
-	//   "AI_LOCAL_URL": "http://localhost:8080" — OpenAI-compatible server
-	//     (whisper.cpp / llama.cpp) exposing /v1/audio/transcriptions and
-	//     /v1/chat/completions
+	//   "AI_BASE_URL": "http://localhost:8080/v1" — OpenAI-compatible server
+	//     (whisper.cpp / llama.cpp) exposing /audio/transcriptions and
+	//     /chat/completions
 	"vars": { "CAPTCHA_STUB": "1" },
 	"r2_buckets": [{ "binding": "AUDIO_BUCKET", "bucket_name": "ktb-audio" }],
 	"queues": {

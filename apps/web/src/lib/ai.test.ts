@@ -24,11 +24,11 @@ describe("resolveAi", () => {
 		expect(resolveAi({})).toBeUndefined();
 	});
 
-	it("AI_STUB wins over env.AI and AI_LOCAL_URL", async () => {
+	it("AI_STUB wins over env.AI and AI_BASE_URL", async () => {
 		const ai = resolveAi({
 			AI: binding(),
 			AI_STUB: "1",
-			AI_LOCAL_URL: "http://localhost:1",
+			AI_BASE_URL: "http://localhost:1",
 		});
 		expect(await ai!.run("@cf/x", { audio: "aGk=" })).toEqual({
 			text: "[AI_STUB] stub transcription",
@@ -41,9 +41,9 @@ describe("resolveAi", () => {
 		expect(resolveAi({}, { AI_STUB: "yes" })).toBeUndefined();
 	});
 
-	it("AI_LOCAL_URL beats env.AI", () => {
+	it("AI_BASE_URL beats env.AI", () => {
 		const fetchImpl = vi.fn<typeof fetch>();
-		const ai = resolveAi({ AI: binding(), AI_LOCAL_URL: "http://localhost:8080/" }, {}, fetchImpl);
+		const ai = resolveAi({ AI: binding(), AI_BASE_URL: "http://localhost:8080/" }, {}, fetchImpl);
 		expect(ai).toBeDefined();
 		expect(ai).not.toBe(binding());
 	});
@@ -54,7 +54,7 @@ describe("createLocalAi", () => {
 		const fetchImpl = vi.fn<typeof fetch>(async () =>
 			jsonResponse({ choices: [{ message: { content: "hello" } }] }),
 		);
-		const ai = createLocalAi("http://localhost:8080", fetchImpl);
+		const ai = createLocalAi("http://localhost:8080/v1", fetchImpl);
 		const out = await ai.run("llama", {
 			messages: [{ role: "user", content: "hi" }],
 			max_tokens: 10,
