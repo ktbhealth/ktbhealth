@@ -1,12 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { Query } from "@effect-server-utils/cqrs";
+
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import { Principal } from "@ktb/authz";
+import { Forbidden, Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { UserCogIcon } from "lucide-react";
+
+import { UsersQueries } from "./api.ts";
 
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 
@@ -14,6 +18,7 @@ import {
 	listAllUsers,
 	Users,
 	UsersLive,
+	UsersQueriesLive,
 	usersPanelPlugin,
 	usersServicesPlugin,
 	plugins,
@@ -34,6 +39,19 @@ describe("users repo", () => {
 
 	beforeAll(() => {
 		db = makeDb(makeD1(DDL));
+	});
+
+	it("counts zero for a user with no patients and no consultations", async () => {
+		const empty = makeDb(
+			makeD1(`
+CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+INSERT INTO "user" VALUES ('u9', 'New', 'new@x.com', 0, NULL, 3000, 3000);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, status TEXT);
+`),
+		);
+		const [row] = await listAllUsers(empty);
+		expect(row).toMatchObject({ id: "u9", patientCount: 0, consultationCount: 0 });
 	});
 
 	it("listAllUsers returns users newest-first with aggregate counts", async () => {
@@ -115,6 +133,29 @@ describe("plugins", () => {
 		]);
 	});
 
+	describe("panel page loader", () => {
+		const loader = usersPanelPlugin.panel!.pages![0]!.loader as () => Effect.Effect<
+			unknown,
+			never,
+			Users
+		>;
+		const withUsers = (adminList: Users["Service"]["adminList"]) =>
+			Effect.runPromise(
+				loader().pipe(Effect.provideService(Users, { adminList } as unknown as Users["Service"])),
+			);
+
+		it("returns the user listing for admins", async () => {
+			const rows = [{ id: "u1" }];
+			expect(await withUsers(() => Effect.succeed(rows as never))).toEqual(rows);
+		});
+
+		it("collapses Forbidden to an empty table", async () => {
+			expect(await withUsers(() => Effect.fail(new Forbidden({ path: "platform.admin" })))).toEqual(
+				[],
+			);
+		});
+	});
+
 	it("contributes no routes, tables or top-nav", () => {
 		expect("routes" in usersServicesPlugin).toBe(false);
 		expect("tables" in usersServicesPlugin).toBe(false);
@@ -124,5 +165,33 @@ describe("plugins", () => {
 
 	it("exports the discovery plugins array", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["users.services", "users.panel"]);
+	});
+});
+
+describe("UsersQueriesLive", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<never, never>;
+
+	beforeAll(() => {
+		runtime = ManagedRuntime.make(
+			UsersQueriesLive.pipe(Layer.provideMerge(Layer.succeed(Db, makeDb(makeD1(DDL))))),
+		) as unknown as ManagedRuntime.ManagedRuntime<never, never>;
+	});
+
+	afterAll(() => runtime.dispose());
+
+	const get = (id: string) =>
+		runtime.runPromise(
+			Effect.gen(function* () {
+				const queries = yield* Query.dispatcher(UsersQueries);
+				return yield* queries["users.get"]({ id });
+			}).pipe(Effect.scoped) as never,
+		);
+
+	it("users.get returns the raw user row", async () => {
+		await expect(get("u2")).resolves.toEqual({ id: "u2", email: "doc@x.com", name: "Doc" });
+	});
+
+	it("users.get returns null for an unknown id", async () => {
+		await expect(get("nobody")).resolves.toBeNull();
 	});
 });

@@ -49,3 +49,12 @@ describe("jobFromAudioRow", () => {
 		expect(jobFromAudioRow({ ...base, audioStatus: "none" })).toBeNull();
 	});
 });
+
+describe("job meta date fallback", () => {
+	it("leaves the meta empty when the row date is not parseable", () => {
+		const [job] = jobsFromAudioRows([
+			{ id: 3, audioStatus: "done", audioError: null, createdAt: "not-a-date", patientName: null },
+		]);
+		expect(job).toMatchObject({ id: "audio-3", meta: "", description: "consultation #3" });
+	});
+});

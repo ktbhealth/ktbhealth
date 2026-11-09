@@ -6,7 +6,7 @@ import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { makeEventBus } from "@effect-server-utils/cqrs";
+import { Command, makeEventBus } from "@effect-server-utils/cqrs";
 import { UsersIcon } from "lucide-react";
 import {
 	createPatient,
@@ -14,6 +14,7 @@ import {
 	listAllPatients,
 	listPatients,
 	Patients,
+	PatientsCommandsLive,
 	PatientsLive,
 	patientsLandingNavPlugin,
 	patientsPanelPlugin,
@@ -23,6 +24,7 @@ import {
 	plugins,
 	updatePatient,
 } from "./index.ts";
+import { PatientsCommands } from "./api.ts";
 import { validatePatient, type PatientFields } from "./record.ts";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 
@@ -346,5 +348,76 @@ describe("plugins", () => {
 			"patients.landing-nav",
 			"patients.panel",
 		]);
+	});
+});
+
+describe("PatientsLive without a stored row", () => {
+	it("create returns null (and emits nothing) when the insert yields no row", async () => {
+		const stub = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as ReturnType<typeof makeDb>;
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, stub),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+			makeEventBus(),
+		);
+		const runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
+		try {
+			const row = await runtime.runPromise(
+				Effect.provideService(
+					Effect.flatMap(Patients, (p) => p.create("u1", fields("Ghost"))),
+					Principal,
+					{ userId: "u1" },
+				),
+			);
+			expect(row).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+});
+
+describe("PatientsCommandsLive", () => {
+	it("patients.delete is a no-op for a patient that does not exist", async () => {
+		const deps = Layer.mergeAll(Layer.succeed(Db, makeDb(makeD1(DDL))), makeEventBus());
+		const runtime = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
+		try {
+			await expect(
+				runtime.runPromise(
+					Effect.provideService(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(PatientsCommands);
+							return yield* commands["patients.delete"]({ id: 424242 });
+						}).pipe(Effect.scoped),
+						Principal,
+						{ userId: "u1" },
+					),
+				),
+			).resolves.toBeUndefined();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("patients.delete removes the owner's patient and emits patient.deleted", async () => {
+		const db = makeDb(makeD1(DDL));
+		const row = (await createPatient(db, "u1", fields("To Delete")))!;
+		const deps = Layer.mergeAll(Layer.succeed(Db, db), makeEventBus());
+		const runtime = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
+		try {
+			await runtime.runPromise(
+				Effect.provideService(
+					Effect.gen(function* () {
+						const commands = yield* Command.dispatcher(PatientsCommands);
+						yield* commands["patients.delete"]({ id: row.id });
+					}).pipe(Effect.scoped),
+					Principal,
+					{ userId: "u1" },
+				),
+			);
+			expect(await getPatient(db, row.id)).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
 	});
 });

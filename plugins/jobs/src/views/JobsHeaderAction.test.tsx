@@ -119,4 +119,55 @@ describe("JobsHeaderAction", () => {
 		unmount();
 		expect(source.closed).toBe(true);
 	});
+
+	it("drops a job whose live frame is no longer a job and ignores unknown ones", async () => {
+		vi.stubGlobal("EventSource", MockEventSource);
+		const user = userEvent.setup();
+		renderAction([{ id: "audio-5", title: "Audio transcription", status: "processing" }]);
+		const source = MockEventSource.instances[0]!;
+		const badge = () => screen.getByRole("button", { name: "Background jobs" }).textContent;
+		expect(badge()).toContain("1");
+
+		// Unknown id + not a job → list unchanged.
+		act(() => {
+			source.onmessage!({ data: audioRow(99, "none") });
+		});
+		expect(badge()).toContain("1");
+
+		// Known id + not a job → removed from the list.
+		act(() => {
+			source.onmessage!({ data: audioRow(5, "none") });
+		});
+		expect(badge()).not.toContain("1");
+		await user.click(screen.getByRole("button", { name: "Background jobs" }));
+		expect(await screen.findByText("No background jobs")).toBeTruthy();
+	});
+
+	it("ignores malformed live frames", () => {
+		vi.stubGlobal("EventSource", MockEventSource);
+		renderAction();
+		const source = MockEventSource.instances[0]!;
+		act(() => {
+			source.onmessage!({ data: "{not json" });
+		});
+		expect(screen.getByRole("button", { name: "Background jobs" }).textContent).toContain("1");
+	});
+
+	it("renders job progress and filters by status, with an empty state per filter", async () => {
+		const user = userEvent.setup();
+		renderAction([
+			{ id: "a", title: "Audio transcription", status: "processing", progress: 40 },
+			{ id: "b", title: "PDF export", status: "failed", error: "render timeout", meta: "2m ago" },
+		]);
+		await user.click(screen.getByRole("button", { name: "Background jobs" }));
+		expect(await screen.findByText("PDF export")).toBeTruthy();
+
+		await user.click(screen.getByRole("tab", { name: /failed/i }));
+		expect(screen.getByText("PDF export")).toBeTruthy();
+		expect(screen.queryByText("Audio transcription")).toBeNull();
+
+		await user.click(screen.getByRole("tab", { name: /done/i }));
+		expect(await screen.findByText("No jobs in this state")).toBeTruthy();
+		expect(screen.getByText("Nothing matches the selected filter.")).toBeTruthy();
+	});
 });

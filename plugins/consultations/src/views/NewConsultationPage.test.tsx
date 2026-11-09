@@ -1334,6 +1334,63 @@ describe("NewConsultationPage", () => {
 			await screen.findByText(/Audio could not be uploaded/);
 		});
 
+		it("uploads once per consultation even when saved again", async () => {
+			const user = userEvent.setup();
+			micRecFn = async () => audioBlob;
+			const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) }));
+			vi.stubGlobal("fetch", fetchMock);
+			renderPage();
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+			await waitFor(() =>
+				expect(fetchMock).toHaveBeenCalledWith("/api/consultations/42/audio", expect.anything()),
+			);
+			await user.click(screen.getByText("Confirm"));
+			await user.click(screen.getByText("Update consultation"));
+			await screen.findByText("Consultation updated");
+			await act(async () => {
+				await new Promise((r) => setTimeout(r, 0));
+			});
+			const audioCalls = fetchMock.mock.calls.filter(
+				(c) => (c as unknown[])[0] === "/api/consultations/42/audio",
+			);
+			expect(audioCalls).toHaveLength(1);
+		});
+
+		it("falls back to audio/webm when the recording has no mime type", async () => {
+			const user = userEvent.setup();
+			micRecFn = async () => new Blob(["audio"]);
+			const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) }));
+			vi.stubGlobal("fetch", fetchMock);
+			renderPage();
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+			await waitFor(() =>
+				expect(fetchMock).toHaveBeenCalledWith(
+					"/api/consultations/42/audio",
+					expect.objectContaining({ headers: { "content-type": "audio/webm" } }),
+				),
+			);
+		});
+
+		it("reports a generic reason when the upload fails with a non-Error", async () => {
+			const user = userEvent.setup();
+			micRecFn = async () => audioBlob;
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => {
+					throw "offline";
+				}),
+			);
+			renderPage();
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+			await screen.findByText(/Audio could not be uploaded \(error\)/);
+		});
+
 		it("does not call the audio endpoint without a recording", async () => {
 			const user = userEvent.setup();
 			const fetchMock = vi.fn();

@@ -74,6 +74,11 @@ describe("PlatformConsoleShell", () => {
 		expect(screen.getByText("unknown-thing")).toBeDefined();
 	});
 
+	it("falls back to 'overview' when the path has no segments and matches nothing", () => {
+		renderShell({ pathname: "/", items: [] });
+		expect(screen.getByText("overview")).toBeDefined();
+	});
+
 	it("marks the active item and calls onSignOut", async () => {
 		const onSignOut = vi.fn();
 		const { container } = renderShell({ onSignOut });

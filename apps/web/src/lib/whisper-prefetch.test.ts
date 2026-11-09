@@ -38,4 +38,12 @@ describe("prefetchWhisperModel", () => {
 		expect(idle).not.toHaveBeenCalled();
 		expect(loadWhisper).not.toHaveBeenCalled();
 	});
+
+	it("still loads when navigator does not exist (non-browser runtime)", () => {
+		const idle = vi.fn<(cb: () => void) => void>((cb) => cb());
+		vi.stubGlobal("requestIdleCallback", idle);
+		vi.stubGlobal("navigator", undefined);
+		prefetchWhisperModel();
+		expect(loadWhisper).toHaveBeenCalledOnce();
+	});
 });
