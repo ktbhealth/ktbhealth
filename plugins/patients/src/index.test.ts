@@ -14,7 +14,7 @@ import {
 	listPatients,
 	Patients,
 	PatientsLive,
-	patientsNavPlugin,
+	patientsLandingNavPlugin,
 	patientsPanelPlugin,
 	patientsRoutesPlugin,
 	patientsServicesPlugin,
@@ -322,16 +322,16 @@ describe("plugins", () => {
 
 	it("keeps routes and nav out of the tables, services and panel plugins", () => {
 		expect("routes" in patientsTablesPlugin).toBe(false);
-		expect("nav" in patientsServicesPlugin).toBe(false);
+		expect("landingNav" in patientsServicesPlugin).toBe(false);
 		expect("routes" in patientsPanelPlugin).toBe(false);
-		expect("nav" in patientsPanelPlugin).toBe(false);
+		expect("landingNav" in patientsPanelPlugin).toBe(false);
 	});
 
 	it("declares the /patients route subtree and nav entry", () => {
 		expect(patientsRoutesPlugin.id).toBe("patients.routes");
 		expect(JSON.stringify(patientsRoutesPlugin.routes)).toContain("patients/$id.edit.tsx");
-		expect(patientsNavPlugin.id).toBe("patients.nav");
-		expect(patientsNavPlugin.nav).toEqual([{ to: "/patients", label: "Patients" }]);
+		expect(patientsLandingNavPlugin.id).toBe("patients.landing-nav");
+		expect(patientsLandingNavPlugin.landingNav).toEqual([{ to: "/patients", label: "Patients" }]);
 	});
 
 	it("exports the discovery plugins array", () => {
@@ -339,7 +339,7 @@ describe("plugins", () => {
 			"patients.tables",
 			"patients.services",
 			"patients.routes",
-			"patients.nav",
+			"patients.landing-nav",
 			"patients.panel",
 		]);
 	});

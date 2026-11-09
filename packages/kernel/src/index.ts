@@ -43,7 +43,7 @@ export interface PanelSidebarItem {
  * field at all. Everything is statically imported — workerd can't do
  * dynamic module loading, and static keeps 100% type safety.
  *
- * Consumers read a contribution with optional access (`p.nav ?? []`) —
+ * Consumers read a contribution with optional access (`p.landingNav ?? []`) —
  * forbidden keys are declared `?: never`, so `"<field>" in p` does not
  * discriminate the union.
  */
@@ -60,7 +60,14 @@ interface PluginBase {
 	readonly optionalDeps?: readonly PluginId[];
 }
 
-type ContributionField = "tables" | "services" | "routes" | "nav" | "panel";
+type ContributionField =
+	| "tables"
+	| "services"
+	| "routes"
+	| "landingNav"
+	| "landing"
+	| "landingFooter"
+	| "panel";
 
 /** Marks every contribution field EXCEPT `K` as forbidden (`?: never`). */
 type ForbiddenContributions<K extends ContributionField> = {
@@ -88,9 +95,37 @@ export interface RoutesPlugin extends PluginBase, ForbiddenContributions<"routes
 	readonly routes: readonly VirtualRouteNode[];
 }
 
-/** Nav links surfaced in the host shell. */
-export interface NavPlugin extends PluginBase, ForbiddenContributions<"nav"> {
-	readonly nav: ReadonlyArray<{ to: string; label: string }>;
+/** A link contributed to the landing chrome (header nav, footer blocks). */
+export interface LandingLink {
+	readonly to: string;
+	readonly label: string;
+}
+
+/** One block in the landing footer: optional heading + link list. */
+export interface LandingFooterBlock {
+	readonly heading?: string;
+	readonly links: ReadonlyArray<LandingLink>;
+}
+
+/** Links surfaced in the host's landing/app header. */
+export interface LandingNavPlugin extends PluginBase, ForbiddenContributions<"landingNav"> {
+	readonly landingNav: ReadonlyArray<LandingLink>;
+}
+
+/** Whole-page landing slot: the host renders the first landing plugin's
+ * `page` at "/" in topo order instead of the built-in landing. At most
+ * one landing plugin should exist — additional ones are ignored. */
+export interface LandingPlugin extends PluginBase, ForbiddenContributions<"landing"> {
+	readonly landing: {
+		readonly page: ComponentType;
+	};
+}
+
+/** Footer blocks rendered by the host's landing chrome, in topo order. */
+export interface LandingFooterPlugin extends PluginBase, ForbiddenContributions<"landingFooter"> {
+	readonly landingFooter: {
+		readonly blocks: ReadonlyArray<LandingFooterBlock>;
+	};
 }
 
 /** System-console (panel) contribution: sidebar entries rendered by
@@ -106,7 +141,9 @@ export type Plugin =
 	| TablesPlugin
 	| ServicesPlugin
 	| RoutesPlugin
-	| NavPlugin
+	| LandingNavPlugin
+	| LandingPlugin
+	| LandingFooterPlugin
 	| PanelPlugin;
 
 export const definePlugin = <const P extends Plugin>(plugin: P): P => plugin;

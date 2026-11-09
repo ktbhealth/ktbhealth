@@ -119,7 +119,7 @@ describe("plugins", () => {
 		expect("routes" in usersServicesPlugin).toBe(false);
 		expect("tables" in usersServicesPlugin).toBe(false);
 		expect("routes" in usersPanelPlugin).toBe(false);
-		expect("nav" in usersPanelPlugin).toBe(false);
+		expect("landingNav" in usersPanelPlugin).toBe(false);
 	});
 
 	it("exports the discovery plugins array", () => {

@@ -729,9 +729,9 @@ export const consultationsRoutesPlugin = definePlugin({
 	],
 });
 
-export const consultationsNavPlugin = definePlugin({
-	id: "consultations.nav",
-	nav: [{ to: "/consultations", label: "Consultations" }],
+export const consultationsLandingNavPlugin = definePlugin({
+	id: "consultations.landing-nav",
+	landingNav: [{ to: "/consultations", label: "Consultations" }],
 });
 
 // Panel (system console) contribution: /platform/consultations is
@@ -759,7 +759,7 @@ export const plugins: readonly Plugin[] = [
 	consultationsTablesPlugin,
 	consultationsServicesPlugin,
 	consultationsRoutesPlugin,
-	consultationsNavPlugin,
+	consultationsLandingNavPlugin,
 	consultationsPanelPlugin,
 ];
 
@@ -770,7 +770,7 @@ declare module "@ktb/kernel" {
 		"consultations.tables": true;
 		"consultations.services": true;
 		"consultations.routes": true;
-		"consultations.nav": true;
+		"consultations.landing-nav": true;
 		"consultations.panel": true;
 	}
 }

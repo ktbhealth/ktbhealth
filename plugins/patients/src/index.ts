@@ -178,9 +178,9 @@ export const patientsRoutesPlugin = definePlugin({
 	],
 });
 
-export const patientsNavPlugin = definePlugin({
-	id: "patients.nav",
-	nav: [{ to: "/patients", label: "Patients" }],
+export const patientsLandingNavPlugin = definePlugin({
+	id: "patients.landing-nav",
+	landingNav: [{ to: "/patients", label: "Patients" }],
 });
 
 // Panel (system console) contribution: /platform/patients is mounted by
@@ -200,7 +200,7 @@ export const plugins: readonly Plugin[] = [
 	patientsTablesPlugin,
 	patientsServicesPlugin,
 	patientsRoutesPlugin,
-	patientsNavPlugin,
+	patientsLandingNavPlugin,
 	patientsPanelPlugin,
 ];
 
@@ -211,7 +211,7 @@ declare module "@ktb/kernel" {
 		"patients.tables": true;
 		"patients.services": true;
 		"patients.routes": true;
-		"patients.nav": true;
+		"patients.landing-nav": true;
 		"patients.panel": true;
 	}
 }

@@ -15,7 +15,9 @@ const fmtDate = (d: Date) => d.toLocaleString();
 const contributions = (p: Plugin) =>
 	[
 		p.routes?.length ? "routes" : null,
-		p.nav?.length ? "nav" : null,
+		p.landingNav?.length ? "landing-nav" : null,
+		p.landing ? "landing" : null,
+		p.landingFooter?.blocks.length ? "landing-footer" : null,
 		p.panel?.sidebar?.length ? "panel" : null,
 		p.tables !== undefined ? "tables" : null,
 		p.services !== undefined ? "services" : null,

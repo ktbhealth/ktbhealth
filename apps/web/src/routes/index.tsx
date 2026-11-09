@@ -28,8 +28,15 @@ import {
 	StethoscopeIcon,
 } from "lucide-react";
 import * as m from "#/paraglide/messages.js";
+import { plugins } from "#/plugins.ts";
 
-export const Route = createFileRoute("/")({ component: Home });
+// A plugin may own the whole landing page (`landing.page`); the first
+// contribution in topo order wins, otherwise the built-in Home renders.
+const pluginLanding = plugins.find((p) => p.landing !== undefined)?.landing?.page as
+	| typeof Home
+	| undefined;
+
+export const Route = createFileRoute("/")({ component: pluginLanding ?? Home });
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
 	return (

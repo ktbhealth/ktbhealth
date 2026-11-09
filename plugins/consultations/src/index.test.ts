@@ -24,7 +24,7 @@ import {
 	audioJobRecord,
 	beginAudioJob,
 	completeAudioJob,
-	consultationsNavPlugin,
+	consultationsLandingNavPlugin,
 	consultationsPanelPlugin,
 	consultationsRoutesPlugin,
 	consultationsServicesPlugin,
@@ -799,8 +799,8 @@ describe("plugins", () => {
 			patientsServicesPlugin.id,
 			platformAdminPlugin.id,
 		]);
-		expect(consultationsNavPlugin.id).toBe("consultations.nav");
-		expect(consultationsNavPlugin.nav?.[0]?.to).toBe("/consultations");
+		expect(consultationsLandingNavPlugin.id).toBe("consultations.landing-nav");
+		expect(consultationsLandingNavPlugin.landingNav?.[0]?.to).toBe("/consultations");
 		expect(consultationsPanelPlugin.id).toBe("consultations.panel");
 		expect(consultationsPanelPlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
 		expect(consultationsPanelPlugin.panel?.sidebar).toEqual([
@@ -835,7 +835,7 @@ describe("plugins", () => {
 			"consultations.tables",
 			"consultations.services",
 			"consultations.routes",
-			"consultations.nav",
+			"consultations.landing-nav",
 			"consultations.panel",
 		]);
 	});

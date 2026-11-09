@@ -254,7 +254,7 @@ describe("plugins", () => {
 	it("contributes no routes or top-nav", () => {
 		for (const p of [groupsTablesPlugin, groupsServicesPlugin, groupsPanelPlugin]) {
 			expect("routes" in p).toBe(false);
-			expect("nav" in p).toBe(false);
+			expect("landingNav" in p).toBe(false);
 		}
 	});
 

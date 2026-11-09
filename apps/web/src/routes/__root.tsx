@@ -59,6 +59,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	// viewport (own chrome) so the marketing header/footer and the
 	// max-w-6xl column don't wrap it.
 	const isConsole = pathname === "/platform" || pathname.startsWith("/platform/");
+	const footerBlocks = plugins.flatMap((p) => p.landingFooter?.blocks ?? []);
 	return (
 		<html lang={getLocale()}>
 			<head>
@@ -80,7 +81,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 									</Link>
 									<div className="flex items-center gap-1.5">
 										{plugins
-											.flatMap((p) => p.nav ?? [])
+											.flatMap((p) => p.landingNav ?? [])
 											.map((item) => (
 												<Link
 													key={item.to}
@@ -148,6 +149,26 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 							</header>
 							<main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
 							<footer className="mx-auto max-w-6xl px-6 pb-8 text-xs text-muted-foreground">
+								{footerBlocks.length > 0 ? (
+									<div className="mb-4 flex flex-wrap gap-x-10 gap-y-4">
+										{footerBlocks.map((block, i) => (
+											<div key={block.heading ?? i}>
+												{block.heading ? (
+													<div className="font-semibold text-foreground">{block.heading}</div>
+												) : null}
+												<ul className="mt-1 space-y-1">
+													{block.links.map((link) => (
+														<li key={link.to}>
+															<Link to={link.to} className="transition hover:text-foreground">
+																{link.label}
+															</Link>
+														</li>
+													))}
+												</ul>
+											</div>
+										))}
+									</div>
+								) : null}
 								{m.footer_disclaimer()}
 							</footer>
 							<TanStackDevtools
