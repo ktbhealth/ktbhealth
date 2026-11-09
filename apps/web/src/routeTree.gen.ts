@@ -21,6 +21,7 @@ import { Route as consultationsNewRouteImport } from './routes/consultations/new
 import { Route as IndexRouteImport } from './routes/platform/index'
 import { Route as ConsultationsRouteImport } from './routes/platform/consultations'
 import { Route as PatientsRouteImport } from './routes/platform/patients'
+import { Route as UsersRouteImport } from './routes/platform/users'
 import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
@@ -87,6 +88,11 @@ const PatientsRoute = PatientsRouteImport.update({
   path: '/patients',
   getParentRoute: () => platformRoute,
 } as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => platformRoute,
+} as any)
 const ApiAuthDotsplatRoute = ApiAuthDotsplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/consultations/new': typeof consultationsNewRoute
   '/platform/consultations': typeof ConsultationsRoute
   '/platform/patients': typeof PatientsRoute
+  '/platform/users': typeof UsersRoute
   '/consultations/': typeof consultationsIndexRoute
   '/platform/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/consultations/new': typeof consultationsNewRoute
   '/platform/consultations': typeof ConsultationsRoute
   '/platform/patients': typeof PatientsRoute
+  '/platform/users': typeof UsersRoute
   '/consultations': typeof consultationsIndexRoute
   '/platform': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/consultations/new': typeof consultationsNewRoute
   '/platform/consultations': typeof ConsultationsRoute
   '/platform/patients': typeof PatientsRoute
+  '/platform/users': typeof UsersRoute
   '/consultations/': typeof consultationsIndexRoute
   '/platform/': typeof IndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
@@ -185,6 +194,7 @@ export interface FileRouteTypes {
     | '/consultations/new'
     | '/platform/consultations'
     | '/platform/patients'
+    | '/platform/users'
     | '/consultations/'
     | '/platform/'
     | '/api/auth/$'
@@ -203,6 +213,7 @@ export interface FileRouteTypes {
     | '/consultations/new'
     | '/platform/consultations'
     | '/platform/patients'
+    | '/platform/users'
     | '/consultations'
     | '/platform'
     | '/api/auth/$'
@@ -222,6 +233,7 @@ export interface FileRouteTypes {
     | '/consultations/new'
     | '/platform/consultations'
     | '/platform/patients'
+    | '/platform/users'
     | '/consultations/'
     | '/platform/'
     | '/api/auth/$'
@@ -333,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PatientsRouteImport
       parentRoute: typeof platformRoute
     }
+    '/platform/users': {
+      id: '/platform/users'
+      path: '/users'
+      fullPath: '/platform/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof platformRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -374,12 +393,14 @@ declare module '@tanstack/react-router' {
 interface platformRouteChildren {
   ConsultationsRoute: typeof ConsultationsRoute
   PatientsRoute: typeof PatientsRoute
+  UsersRoute: typeof UsersRoute
   IndexRoute: typeof IndexRoute
 }
 
 const platformRouteChildren: platformRouteChildren = {
   ConsultationsRoute: ConsultationsRoute,
   PatientsRoute: PatientsRoute,
+  UsersRoute: UsersRoute,
   IndexRoute: IndexRoute,
 }
 

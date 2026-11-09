@@ -12,8 +12,7 @@
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
-		"lucide-react": "0.544.0",
-		"react": "^19.2.0"
+		"lucide-react": "0.544.0"
 	},
 	"devDependencies": {
 		"@types/react": "^19.2.0",

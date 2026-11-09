@@ -7,7 +7,7 @@ import type { Plugin } from "@ktb/kernel";
 import { dashboardPanelPlugin, plugins } from "./index.ts";
 
 describe("dashboardPanelPlugin", () => {
-	it("declares the /platform sidebar entry in the General group", () => {
+	it("declares the ungrouped /platform sidebar entry", () => {
 		expect(dashboardPanelPlugin.id).toBe("dashboard.panel");
 		expect(dashboardPanelPlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
 		expect(dashboardPanelPlugin.panel?.sidebar).toEqual([
@@ -16,7 +16,6 @@ describe("dashboardPanelPlugin", () => {
 				label: "Dashboard",
 				icon: LayoutDashboardIcon,
 				exact: true,
-				group: "General",
 			},
 		]);
 	});
@@ -24,6 +23,6 @@ describe("dashboardPanelPlugin", () => {
 	it("exports the discovery plugins array", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["dashboard.panel"]);
 		const p: Plugin = dashboardPanelPlugin;
-		expect(p.panel?.sidebar?.[0]?.group).toBe("General");
+		expect(p.panel?.sidebar?.[0]?.group).toBeUndefined();
 	});
 });

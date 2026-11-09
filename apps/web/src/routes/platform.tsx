@@ -54,7 +54,8 @@ function PlatformLayout() {
 	const user = rootApi.useLoaderData();
 	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
 	// Group sidebar items by their `group` label, preserving the
-	// flattened topo order — groups order by first appearance.
+	// flattened topo order — groups order by first appearance, with the
+	// ungrouped section pinned to the top.
 	const groups = new Map<string, PanelSidebarItem[]>();
 	for (const item of items) {
 		const key = item.group ?? "";
@@ -62,6 +63,9 @@ function PlatformLayout() {
 		list.push(item);
 		groups.set(key, list);
 	}
+	const orderedGroups = [...groups.entries()].sort(
+		([a], [b]) => Number(a !== "") - Number(b !== ""),
+	);
 	const current = items.find((i) => isItemActive(pathname, i));
 	// Breadcrumb leaf: the matched sidebar item's label (the plugin
 	// provides it via panel.sidebar), else the last path segment.
@@ -81,7 +85,7 @@ function PlatformLayout() {
 					</div>
 				</SidebarHeader>
 				<SidebarContent>
-					{[...groups.entries()].map(([name, groupItems]) => (
+					{orderedGroups.map(([name, groupItems]) => (
 						<SidebarGroup key={name || "__default__"}>
 							{name ? (
 								<SidebarGroupLabel className="font-mono text-[10px] tracking-widest uppercase">

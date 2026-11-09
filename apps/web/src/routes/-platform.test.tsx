@@ -5,6 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const platformAdminFn = vi.fn(async () => true);
 const adminListPatientsFn = vi.fn(async () => [] as unknown[]);
+const adminListUsersFn = vi.fn(async () => [] as unknown[]);
 const getSessionUserFn = vi.fn(
 	async (): Promise<{ id: string; email: string; name: string } | null> => ({
 		id: "u1",
@@ -17,6 +18,7 @@ vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
 	adminListPatientsFn: () => adminListPatientsFn(),
 	adminListConsultationsFn: () => adminListConsultationsFn(),
+	adminListUsersFn: () => adminListUsersFn(),
 	getSessionUserFn: () => getSessionUserFn(),
 }));
 
@@ -68,6 +70,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 import { Route as PlatformRoute } from "./platform.tsx";
 import { Route as PlatformIndexRoute } from "./platform/index.tsx";
 import { Route as PlatformPatientsRoute } from "./platform/patients.tsx";
+import { Route as PlatformUsersRoute } from "./platform/users.tsx";
 
 const component = (route: unknown) =>
 	(route as { options: { component: () => ReactElement } }).options.component;
@@ -80,6 +83,7 @@ afterEach(() => {
 	platformAdminFn.mockReset().mockResolvedValue(true);
 	adminListPatientsFn.mockReset().mockResolvedValue([]);
 	adminListConsultationsFn.mockReset().mockResolvedValue([]);
+	adminListUsersFn.mockReset().mockResolvedValue([]);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
 	loaderData = { patients: [], consultations: [] };
 });
@@ -177,6 +181,39 @@ describe("/platform/patients", () => {
 		).options.loader;
 		return loader().then(() => {
 			expect(adminListPatientsFn).toHaveBeenCalled();
+		});
+	});
+});
+
+describe("/platform/users", () => {
+	it("loads via adminListUsersFn and renders rows", () => {
+		loaderData = [
+			{
+				id: "u9",
+				name: "Admin",
+				email: "admin@ktb.test",
+				emailVerified: true,
+				image: null,
+				createdAt: new Date("2026-11-01T10:00:00Z"),
+				updatedAt: new Date("2026-11-01T10:00:00Z"),
+				patientCount: 2,
+				consultationCount: 5,
+				isAdmin: true,
+			},
+		];
+		render(createElement(component(PlatformUsersRoute)));
+		expect(screen.getByText("admin@ktb.test")).toBeTruthy();
+		expect(screen.getByText("admin")).toBeTruthy();
+	});
+
+	it("loader calls the admin server fn", () => {
+		const loader = (
+			PlatformUsersRoute as unknown as {
+				options: { loader: () => Promise<unknown> };
+			}
+		).options.loader;
+		return loader().then(() => {
+			expect(adminListUsersFn).toHaveBeenCalled();
 		});
 	});
 });

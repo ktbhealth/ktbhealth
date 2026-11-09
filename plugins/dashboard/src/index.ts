@@ -16,7 +16,6 @@ export const dashboardPanelPlugin = definePlugin({
 				label: "Dashboard",
 				icon: LayoutDashboardIcon,
 				exact: true,
-				group: "General",
 			},
 		],
 	},

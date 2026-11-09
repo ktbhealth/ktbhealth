@@ -26,6 +26,7 @@ import { consultations } from "@ktb/db/schema";
 import {
 	adminListConsultationsFn,
 	adminListPatientsFn,
+	adminListUsersFn,
 	attachAnamnesisFn,
 	createPatientFn,
 	extractAnamnesisFn,
@@ -316,12 +317,14 @@ describe("server fns", () => {
 		expect(await platformAdminFn()).toBe(false);
 		expect(await adminListPatientsFn()).toEqual([]);
 		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await adminListUsersFn()).toEqual([]);
 
 		// Signed-in non-admin → still not admin, empty list.
 		headers.current = new Headers({ cookie });
 		expect(await platformAdminFn()).toBe(false);
 		expect(await adminListPatientsFn()).toEqual([]);
 		expect(await adminListConsultationsFn()).toEqual([]);
+		expect(await adminListUsersFn()).toEqual([]);
 
 		// Allowlisted admin (PLATFORM_ADMIN_EMAILS test double) → full
 		// cross-owner listing.
@@ -332,9 +335,12 @@ describe("server fns", () => {
 		expect(rows.length).toBeGreaterThan(0);
 		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
 
-		// Same gate covers the consultations console listing.
+		// Same gate covers the consultations and users console listings.
 		const consultRows = await adminListConsultationsFn();
 		expect(Array.isArray(consultRows)).toBe(true);
 		expect(consultRows.every((r) => r.ownerEmail !== undefined)).toBe(true);
+		const userRows = await adminListUsersFn();
+		expect(Array.isArray(userRows)).toBe(true);
+		expect(userRows.every((r) => typeof r.isAdmin === "boolean")).toBe(true);
 	});
 });

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { Consultations, type AdminConsultationRow } from "@ktb/consultations";
 import { Patients, type AdminPatientRow } from "@ktb/patients";
+import { Users, type AdminUserRow } from "@ktb/users";
 import type { PatientHistory } from "@ktb/anamnesis";
 import { run, runAs } from "#/lib/platform.ts";
 import { PlatformAdmin } from "@ktb/platform";
@@ -179,6 +180,26 @@ export const adminListPatientsFn = createServerFn({ method: "GET" }).handler(asy
 			return yield* patients
 				.adminList()
 				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[])));
+		}),
+	);
+});
+
+/**
+ * Cross-owner user listing for the /platform console. The service
+ * re-checks the platform admin gate against the bound principal —
+ * non-admins get the same empty result as an empty table (the layout
+ * guard already 404s them before this is reachable).
+ */
+export const adminListUsersFn = createServerFn({ method: "GET" }).handler(async () => {
+	const user = await getSessionUser();
+	if (!user) return [];
+	return runAs(
+		user,
+		Effect.gen(function* () {
+			const users = yield* Users;
+			return yield* users
+				.adminList()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminUserRow[])));
 		}),
 	);
 });
