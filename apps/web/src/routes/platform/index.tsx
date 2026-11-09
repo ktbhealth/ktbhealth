@@ -9,7 +9,8 @@ const PATH = "/platform";
 
 // Console landing page (P-050): the dashboard plugin contributes a
 // `panel.pages` descriptor for "/platform"; this route is a generic
-// dispatcher — it resolves the descriptor, 404s when absent, fetches
+// dispatcher — it resolves the descriptor, 404s when absent or when
+// the page's `guard` Effect denies, fetches
 // the loader Effect's result via the platformPageDataFn server fn
 // (isomorphic: direct on SSR, RPC on client navigation), and renders
 // the contributed component with `{ data, ctx: { plugins } }`.
@@ -17,7 +18,9 @@ export const Route = createFileRoute("/platform/")({
 	loader: async () => {
 		const page = platformPages.get(PATH);
 		if (page === undefined) throw notFound();
-		return platformPageDataFn({ data: PATH });
+		const result = await platformPageDataFn({ data: PATH });
+		if (result.status === "notfound") throw notFound();
+		return result.data;
 	},
 	component: function PlatformIndexRoute() {
 		const data = Route.useLoaderData();

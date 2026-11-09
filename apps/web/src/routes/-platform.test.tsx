@@ -4,7 +4,12 @@ import { createElement, type ReactElement } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const platformAdminFn = vi.fn(async () => true);
-const platformPageDataFn = vi.fn(async (_path: string) => null as unknown);
+const platformPageDataFn = vi.fn(
+	async (_path: string): Promise<{ status: string; data?: unknown }> => ({
+		status: "ok",
+		data: null,
+	}),
+);
 const adminListAudioJobsFn = vi.fn(async () => [] as unknown[]);
 const countMyUnreadNotificationsFn = vi.fn(async () => 0);
 const markMyNotificationsReadFn = vi.fn(async (_arg?: unknown) => true);
@@ -58,7 +63,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		createFileRoute: () => (opts: Record<string, unknown>) => ({
 			options: opts,
 			useLoaderData: () => loaderData,
-			useParams: () => ({ page: pageParam }),
+			useParams: () => ({ _splat: pageParam }),
 		}),
 		useLocation: (opts?: { select?: (l: { pathname: string }) => unknown }) => {
 			const loc = { pathname };
@@ -77,7 +82,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 import { Route as PlatformRoute } from "./platform.tsx";
 import { Route as PlatformIndexRoute } from "./platform/index.tsx";
-import { Route as PlatformPageRoute } from "./platform/$page.tsx";
+import { Route as PlatformPageRoute } from "./platform/$.tsx";
+import { platformPages } from "#/lib/platform-pages.ts";
+import type { PanelPage } from "@ktb/kernel";
 
 const component = (route: unknown) =>
 	(route as { options: { component: () => ReactElement } }).options.component;
@@ -86,7 +93,7 @@ const beforeLoad = (route: unknown) =>
 const loader = (route: unknown) =>
 	(
 		route as {
-			options: { loader: (arg?: { params?: { page: string } }) => Promise<unknown> };
+			options: { loader: (arg?: { params?: { _splat: string } }) => Promise<unknown> };
 		}
 	).options.loader;
 
@@ -95,7 +102,7 @@ afterEach(() => {
 	pathname = "/platform";
 	pageParam = "patients";
 	platformAdminFn.mockReset().mockResolvedValue(true);
-	platformPageDataFn.mockReset().mockResolvedValue(null);
+	platformPageDataFn.mockReset().mockResolvedValue({ status: "ok", data: null });
 	adminListAudioJobsFn.mockReset().mockResolvedValue([]);
 	listMyNotificationsFn.mockReset().mockResolvedValue([]);
 	countMyUnreadNotificationsFn.mockReset().mockResolvedValue(0);
@@ -177,7 +184,7 @@ describe("/platform index", () => {
 	});
 });
 
-describe("/platform/$page dispatcher", () => {
+describe("/platform/$ splat dispatcher", () => {
 	it("renders the patients page contributed by the patients plugin", () => {
 		pageParam = "patients";
 		loaderData = [
@@ -237,14 +244,38 @@ describe("/platform/$page dispatcher", () => {
 	});
 
 	it("loader resolves the descriptor path and calls the data fn", async () => {
-		await loader(PlatformPageRoute)!({ params: { page: "patients" } });
+		await loader(PlatformPageRoute)!({ params: { _splat: "patients" } });
 		expect(platformPageDataFn).toHaveBeenCalledWith("/platform/patients");
 	});
 
+	it("loader resolves nested splat paths against the registry", async () => {
+		// No shipped plugin owns a nested path — register a throwaway
+		// descriptor so the splat lookup has something to find.
+		const pages = platformPages as unknown as Map<string, PanelPage>;
+		pages.set("/platform/foo/bar", {
+			id: "test.nested",
+			path: "/platform/foo/bar",
+			component: () => null,
+		});
+		try {
+			await loader(PlatformPageRoute)!({ params: { _splat: "foo/bar" } });
+			expect(platformPageDataFn).toHaveBeenCalledWith("/platform/foo/bar");
+		} finally {
+			pages.delete("/platform/foo/bar");
+		}
+	});
+
 	it("loader 404s segments no plugin owns", async () => {
-		await expect(loader(PlatformPageRoute)!({ params: { page: "nope" } })).rejects.toMatchObject({
+		await expect(loader(PlatformPageRoute)!({ params: { _splat: "nope" } })).rejects.toMatchObject({
 			isNotFound: true,
 		});
 		expect(platformPageDataFn).not.toHaveBeenCalled();
+	});
+
+	it("loader 404s when the data fn reports notfound (guard denial)", async () => {
+		platformPageDataFn.mockResolvedValue({ status: "notfound" });
+		await expect(
+			loader(PlatformPageRoute)!({ params: { _splat: "patients" } }),
+		).rejects.toMatchObject({ isNotFound: true });
 	});
 });

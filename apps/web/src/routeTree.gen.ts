@@ -23,7 +23,7 @@ import { Route as consultationsNewRouteImport } from './routes/consultations/new
 import { Route as patientsIndexRouteImport } from './routes/patients/index'
 import { Route as patientsNewRouteImport } from './routes/patients/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
-import { Route as PageRouteImport } from './routes/platform/$page'
+import { Route as SplatRouteImport } from './routes/platform/$'
 import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
@@ -103,9 +103,9 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => platformRoute,
 } as any)
-const PageRoute = PageRouteImport.update({
-  id: '/$page',
-  path: '/$page',
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => platformRoute,
 } as any)
 const ApiAuthDotsplatRoute = ApiAuthDotsplatRouteImport.update({
@@ -164,7 +164,7 @@ export interface FileRoutesByFullPath {
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
   '/patients/new': typeof patientsNewRoute
-  '/platform/$page': typeof PageRoute
+  '/platform/$': typeof SplatRoute
   '/consultations/': typeof consultationsIndexRoute
   '/patients/': typeof patientsIndexRoute
   '/platform/': typeof IndexRoute
@@ -188,7 +188,7 @@ export interface FileRoutesByTo {
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
   '/patients/new': typeof patientsNewRoute
-  '/platform/$page': typeof PageRoute
+  '/platform/$': typeof SplatRoute
   '/consultations': typeof consultationsIndexRoute
   '/patients': typeof patientsIndexRoute
   '/platform': typeof IndexRoute
@@ -214,7 +214,7 @@ export interface FileRoutesById {
   '/consultations/$id': typeof consultationsIdRoute
   '/consultations/new': typeof consultationsNewRoute
   '/patients/new': typeof patientsNewRoute
-  '/platform/$page': typeof PageRoute
+  '/platform/$': typeof SplatRoute
   '/consultations/': typeof consultationsIndexRoute
   '/patients/': typeof patientsIndexRoute
   '/platform/': typeof IndexRoute
@@ -241,7 +241,7 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/patients/new'
-    | '/platform/$page'
+    | '/platform/$'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
@@ -265,7 +265,7 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/patients/new'
-    | '/platform/$page'
+    | '/platform/$'
     | '/consultations'
     | '/patients'
     | '/platform'
@@ -290,7 +290,7 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/patients/new'
-    | '/platform/$page'
+    | '/platform/$'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
@@ -427,11 +427,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof platformRoute
     }
-    '/platform/$page': {
-      id: '/platform/$page'
-      path: '/$page'
-      fullPath: '/platform/$page'
-      preLoaderRoute: typeof PageRouteImport
+    '/platform/$': {
+      id: '/platform/$'
+      path: '/$'
+      fullPath: '/platform/$'
+      preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof platformRoute
     }
     '/api/auth/$': {
@@ -494,12 +494,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface platformRouteChildren {
-  PageRoute: typeof PageRoute
+  SplatRoute: typeof SplatRoute
   IndexRoute: typeof IndexRoute
 }
 
 const platformRouteChildren: platformRouteChildren = {
-  PageRoute: PageRoute,
+  SplatRoute: SplatRoute,
   IndexRoute: IndexRoute,
 }
 

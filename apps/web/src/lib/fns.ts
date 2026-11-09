@@ -122,24 +122,44 @@ export const platformAdminFn = createServerFn({ method: "GET" }).handler(async (
 });
 
 /**
+ * Result of `platformPageDataFn`: a discriminated union so the route
+ * loader can tell "page denied/missing" apart from a loader that
+ * legitimately returned `null`/`undefined` data. Server-fn errors do
+ * not round-trip as router `notFound()`, so denial is data, not a
+ * throw — the route maps `notfound` to `throw notFound()`.
+ */
+export type PlatformPageDataResult =
+	| { readonly status: "ok"; readonly data: any }
+	| { readonly status: "notfound" };
+
+/**
  * Loader data for /platform console pages contributed via
  * `panel.pages` (P-050): resolves the descriptor registered for `path`
  * and runs its Effect under the session principal (`runAs` binds
  * Principal + AuthzLive — authz stays inside the domain services).
- * Anonymous callers and pages without a loader get `null`; unknown
- * paths also `null` — the route dispatcher 404s before calling this.
+ * Anonymous callers, unknown paths and `guard` denials all collapse to
+ * `{ status: "notfound" }` — the route dispatcher turns that into a 404
+ * (same as a missing page). Pages without a loader get
+ * `{ status: "ok", data: null }`.
  */
 export const platformPageDataFn = createServerFn({ method: "GET" })
 	.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
 	// Loader results are plugin-defined `unknown` at the kernel
 	// boundary; the wire type is whatever each page's loader returns
 	// (serializable rows — same shape the retired per-page fns sent).
-	.handler(async ({ data: path }): Promise<any> => {
+	.handler(async ({ data: path }): Promise<PlatformPageDataResult> => {
 		const user = await getSessionUser();
-		if (!user) return null;
+		if (!user) return { status: "notfound" };
 		const page = platformPages.get(path);
-		if (page?.loader === undefined) return null;
-		return runAs(user, page.loader());
+		if (page === undefined) return { status: "notfound" };
+		// Page-level guard (feature flags / entitlements) runs before the
+		// loader; `false` hides the page exactly like an unknown path.
+		if (page.guard !== undefined) {
+			const allowed = await runAs(user, page.guard());
+			if (!allowed) return { status: "notfound" };
+		}
+		if (page.loader === undefined) return { status: "ok", data: null };
+		return { status: "ok", data: await runAs(user, page.loader()) };
 	});
 
 // LLM helpers touch no owned data but still require a session: they proxy

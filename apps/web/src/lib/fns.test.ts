@@ -21,6 +21,9 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 import { env } from "cloudflare:workers";
+import * as Effect from "effect/Effect";
+import type { PanelPage } from "@ktb/kernel";
+import { platformPages } from "./platform-pages.ts";
 import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/anamnesis";
 import { auth, db } from "./platform.ts";
 import { consultations } from "@ktb/db/schema";
@@ -475,47 +478,68 @@ describe("server fns", () => {
 		// redirects/404s before any page loader runs).
 		headers.current = new Headers();
 		expect(await platformAdminFn()).toBe(false);
-		expect(await platformPageDataFn({ data: "/platform/patients" })).toBeNull();
-		expect(await platformPageDataFn({ data: "/platform/consultations" })).toBeNull();
+		expect(await platformPageDataFn({ data: "/platform/patients" })).toEqual({
+			status: "notfound",
+		});
+		expect(await platformPageDataFn({ data: "/platform/consultations" })).toEqual({
+			status: "notfound",
+		});
 		expect(await adminListAudioJobsFn()).toEqual([]);
-		expect(await platformPageDataFn({ data: "/platform/users" })).toBeNull();
-		expect(await platformPageDataFn({ data: "/platform/groups" })).toBeNull();
-		// Unknown console paths have no descriptor → null.
-		expect(await platformPageDataFn({ data: "/platform/nope" })).toBeNull();
+		expect(await platformPageDataFn({ data: "/platform/users" })).toEqual({ status: "notfound" });
+		expect(await platformPageDataFn({ data: "/platform/groups" })).toEqual({ status: "notfound" });
+		// Unknown console paths have no descriptor → notfound.
+		expect(await platformPageDataFn({ data: "/platform/nope" })).toEqual({ status: "notfound" });
 
 		// Signed-in non-admin → still not admin; page loaders collapse
 		// Forbidden to the same empty tables the old fns returned.
 		headers.current = new Headers({ cookie });
 		expect(await platformAdminFn()).toBe(false);
-		expect(await platformPageDataFn({ data: "/platform/patients" })).toEqual([]);
-		expect(await platformPageDataFn({ data: "/platform/consultations" })).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/patients" })).toEqual({
+			status: "ok",
+			data: [],
+		});
+		expect(await platformPageDataFn({ data: "/platform/consultations" })).toEqual({
+			status: "ok",
+			data: [],
+		});
 		expect(await adminListAudioJobsFn()).toEqual([]);
-		expect(await platformPageDataFn({ data: "/platform/users" })).toEqual([]);
-		expect(await platformPageDataFn({ data: "/platform/groups" })).toEqual([]);
+		expect(await platformPageDataFn({ data: "/platform/users" })).toEqual({
+			status: "ok",
+			data: [],
+		});
+		expect(await platformPageDataFn({ data: "/platform/groups" })).toEqual({
+			status: "ok",
+			data: [],
+		});
 
 		// Allowlisted admin (PLATFORM_ADMIN_EMAILS test double) → full
 		// cross-owner listing.
 		const adminCookie = await signIn("platform-admin@ktb.test");
 		headers.current = new Headers({ cookie: adminCookie });
 		expect(await platformAdminFn()).toBe(true);
-		const rows = (await platformPageDataFn({ data: "/platform/patients" })) as {
+		const pageData = async (path: string) => {
+			const res = await platformPageDataFn({ data: path });
+			if (res.status !== "ok") throw new Error(`expected ok, got ${res.status}`);
+			return res.data;
+		};
+		const rows = (await pageData("/platform/patients")) as {
 			ownerEmail: string | null;
 		}[];
 		expect(rows.length).toBeGreaterThan(0);
 		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
 
 		// Same gate covers the consultations and users console listings.
-		const consultRows = (await platformPageDataFn({
-			data: "/platform/consultations",
-		})) as { ownerEmail?: string }[];
+		const consultRows = (await pageData("/platform/consultations")) as {
+			ownerEmail?: string;
+		}[];
 		expect(Array.isArray(consultRows)).toBe(true);
 		expect(consultRows.every((r) => r.ownerEmail !== undefined)).toBe(true);
-		const userRows = (await platformPageDataFn({ data: "/platform/users" })) as {
+		const userRows = (await pageData("/platform/users")) as {
 			isAdmin: boolean;
 		}[];
 		expect(Array.isArray(userRows)).toBe(true);
 		expect(userRows.every((r) => typeof r.isAdmin === "boolean")).toBe(true);
-		const groupRows = (await platformPageDataFn({ data: "/platform/groups" })) as {
+		const groupRows = (await pageData("/platform/groups")) as {
 			memberCount: number;
 		}[];
 		expect(Array.isArray(groupRows)).toBe(true);
@@ -524,7 +548,7 @@ describe("server fns", () => {
 		const audioJobs = await adminListAudioJobsFn();
 		expect(Array.isArray(audioJobs)).toBe(true);
 		// The dashboard index aggregates listings + notification activity.
-		const dashboard = (await platformPageDataFn({ data: "/platform" })) as {
+		const dashboard = (await pageData("/platform")) as {
 			patients: unknown[];
 			consultations: unknown[];
 			notifications?: unknown[];
@@ -534,6 +558,48 @@ describe("server fns", () => {
 		expect(Array.isArray(dashboard.consultations)).toBe(true);
 		expect(Array.isArray(dashboard.notifications)).toBe(true);
 		expect(typeof dashboard.unreadCount).toBe("number");
+	});
+
+	it("platform page guard: false reports notfound and skips the loader", async () => {
+		headers.current = new Headers({ cookie });
+		let loaderRan = false;
+		const base = {
+			component: () => null,
+			loader: () =>
+				Effect.sync(() => {
+					loaderRan = true;
+					return "loaded";
+				}),
+		};
+		const denied: PanelPage = {
+			...base,
+			id: "test.denied",
+			path: "/platform/test-denied",
+			guard: () => Effect.succeed(false),
+		};
+		const allowed: PanelPage = {
+			...base,
+			id: "test.allowed",
+			path: "/platform/test-allowed",
+			guard: () => Effect.succeed(true),
+		};
+		// No shipped plugin uses `guard` yet — register throwaway
+		// descriptors directly on the (mutable) registry map.
+		const pages = platformPages as unknown as Map<string, PanelPage>;
+		pages.set(denied.path, denied);
+		pages.set(allowed.path, allowed);
+		try {
+			expect(await platformPageDataFn({ data: denied.path })).toEqual({ status: "notfound" });
+			expect(loaderRan).toBe(false);
+			expect(await platformPageDataFn({ data: allowed.path })).toEqual({
+				status: "ok",
+				data: "loaded",
+			});
+			expect(loaderRan).toBe(true);
+		} finally {
+			pages.delete(denied.path);
+			pages.delete(allowed.path);
+		}
 	});
 
 	it("notifications fns list, count and mark read for the session user", async () => {

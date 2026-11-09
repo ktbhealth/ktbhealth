@@ -56,13 +56,19 @@ export interface PanelPageContext {
  * AuthzLive — authz stays inside the domain services), and renders
  * `component` with the result as `data`. `loader` runs on every
  * navigation, like a route loader; pages without one get `data: null`.
- * `path` must be a single segment under /platform ("/platform" itself
- * or "/platform/<name>") — the host's param route only matches one. */
+ * `path` is the full route path — "/platform" itself or any nested
+ * "/platform/<segment>[/<segment>…]"; the host's splat route matches
+ * all of them and looks the descriptor up by exact path.
+ * `guard` (optional) is an Effect run server-side under the same
+ * principal BEFORE `loader`; a `false` result makes the host treat the
+ * page as not found — use it for feature flags / entitlement checks.
+ * Hard authorization stays inside the loader/service layer. */
 export interface PanelPage {
 	readonly id: string;
 	readonly path: string;
 	readonly component: ComponentType<{ data: unknown; ctx: PanelPageContext }>;
 	readonly loader?: () => Effect.Effect<unknown, unknown, unknown>;
+	readonly guard?: () => Effect.Effect<boolean, unknown, unknown>;
 }
 
 /**

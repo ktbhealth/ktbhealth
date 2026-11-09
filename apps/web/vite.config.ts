@@ -1,6 +1,16 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath } from "node:url";
 
+// @tanstack/router-generator evaluates the virtual route config
+// (src/routes.ts) through jiti, which only enables babel's JSX/TSX
+// plugins when its `jsx` option is set — the generator never passes it,
+// so any .tsx reachable from routes.ts (plugin entries statically import
+// their panel-page components) fails with "ParseError: Unexpected
+// token" and routeTree.gen.ts is never regenerated. JITI_JSX flips
+// jiti's jsx default on; it is read when jiti is created inside the
+// vite process, i.e. after this module evaluates.
+process.env.JITI_JSX ??= "1";
+
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
