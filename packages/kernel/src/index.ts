@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import type { VirtualRouteNode } from "@tanstack/virtual-file-routes";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type * as Layer from "effect/Layer";
@@ -16,6 +17,17 @@ import type * as Layer from "effect/Layer";
 export interface PluginRegistry {}
 
 export type PluginId = Extract<keyof PluginRegistry, string>;
+
+/** One entry in a plugin's system-console sidebar. `icon` is any
+ * component accepting `className` (lucide icons qualify); the host
+ * shell sizes it via `[&_svg]` rules. `exact` marks index-style items
+ * that must not stay active on descendant routes. */
+export interface PanelSidebarItem {
+	readonly to: string;
+	readonly label: string;
+	readonly icon?: ComponentType<{ className?: string }>;
+	readonly exact?: boolean;
+}
 
 /**
  * Feature plugin contract. The host (apps/web) registers plugins in a
@@ -39,10 +51,9 @@ export interface Plugin {
 	/** Nav links surfaced in the host shell. */
 	readonly nav?: ReadonlyArray<{ to: string; label: string }>;
 	/** System-console (panel) contribution: sidebar entries rendered by
-	 * the /platform shell, ordered by plugin topo order. Kept minimal —
-	 * `{ to, label }` matches `nav`; icons/badges are an open question. */
+	 * the /platform shell, ordered by plugin topo order. */
 	readonly panel?: {
-		readonly sidebar?: ReadonlyArray<{ to: string; label: string }>;
+		readonly sidebar?: ReadonlyArray<PanelSidebarItem>;
 	};
 	/** Drizzle table slice composed into @ktb/db/schema. */
 	readonly tables?: Record<string, SQLiteTable>;

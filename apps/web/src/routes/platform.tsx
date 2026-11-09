@@ -1,10 +1,24 @@
-import { createFileRoute, Link, notFound, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, Outlet, useLocation } from "@tanstack/react-router";
+
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarProvider,
+} from "@ktbhealth/ui/components/sidebar";
+import type { PanelSidebarItem } from "@ktb/kernel";
 
 import { platformAdminFn } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
 import { plugins } from "#/plugins.ts";
 
-// /platform console shell (P-031): dense sidebar aggregating every
+// /platform console shell (P-031): shadcn sidebar aggregating every
 // plugin's `panel.sidebar` contribution in topo order. The admin gate
 // is server-side — non-admins get a hard 404, never just hidden nav.
 export const Route = createFileRoute("/platform")({
@@ -15,35 +29,44 @@ export const Route = createFileRoute("/platform")({
 	component: PlatformLayout,
 });
 
-const NAV_LINK =
-	"block rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground";
-const NAV_ACTIVE = "bg-muted font-medium text-foreground";
+const isItemActive = (pathname: string, item: PanelSidebarItem) =>
+	item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`);
 
 function PlatformLayout() {
+	const pathname = useLocation({ select: (l) => l.pathname });
 	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
 	return (
-		<div className="flex gap-8">
-			<aside className="w-44 shrink-0">
-				<div className="px-2.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-					Platform
-				</div>
-				<nav className="mt-2 space-y-0.5" aria-label="Platform">
-					{items.map((item) => (
-						<Link
-							key={item.to}
-							to={item.to}
-							className={NAV_LINK}
-							activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
-							activeOptions={{ exact: item.to === "/platform" }}
-						>
-							{item.label}
-						</Link>
-					))}
-				</nav>
-			</aside>
-			<div className="min-w-0 flex-1">
+		<SidebarProvider>
+			<Sidebar collapsible="none">
+				<SidebarHeader>
+					<div className="px-2 pt-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+						Platform
+					</div>
+				</SidebarHeader>
+				<SidebarContent>
+					<SidebarGroup>
+						<SidebarGroupLabel>Console</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{items.map((item) => (
+									<SidebarMenuItem key={item.to}>
+										<SidebarMenuButton
+											render={<Link to={item.to} />}
+											isActive={isItemActive(pathname, item)}
+										>
+											{item.icon ? <item.icon /> : null}
+											<span>{item.label}</span>
+										</SidebarMenuButton>
+									</SidebarMenuItem>
+								))}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				</SidebarContent>
+			</Sidebar>
+			<div className="min-w-0 flex-1 p-2">
 				<Outlet />
 			</div>
-		</div>
+		</SidebarProvider>
 	);
 }

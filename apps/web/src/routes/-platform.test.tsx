@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
 import { createElement, type ReactElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const platformAdminFn = vi.fn(async () => true);
 const adminListPatientsFn = vi.fn(async () => [] as unknown[]);
@@ -20,6 +20,24 @@ vi.mock("#/lib/fns.ts", () => ({
 }));
 
 let loaderData: unknown = [];
+let pathname = "/platform";
+
+beforeAll(() => {
+	// jsdom has no matchMedia; the ui sidebar's useIsMobile needs it.
+	window.matchMedia =
+		window.matchMedia ??
+		((query: string) =>
+			({
+				matches: false,
+				media: query,
+				onchange: null,
+				addListener: () => {},
+				removeListener: () => {},
+				addEventListener: () => {},
+				removeEventListener: () => {},
+				dispatchEvent: () => false,
+			}) as MediaQueryList);
+});
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -30,8 +48,14 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			options: opts,
 			useLoaderData: () => loaderData,
 		}),
-		Link: (props: Record<string, unknown>) =>
-			React.createElement("a", { href: props.to as string }, props.children as never),
+		useLocation: (opts?: { select?: (l: { pathname: string }) => unknown }) => {
+			const loc = { pathname };
+			return opts?.select ? opts.select(loc) : loc;
+		},
+		Link: (props: Record<string, unknown>) => {
+			const { to, children, ...rest } = props;
+			return React.createElement("a", { href: to as string, ...rest }, children as never);
+		},
 		Outlet: () => React.createElement("div", { "data-testid": "platform-outlet" }),
 	};
 });
@@ -47,6 +71,7 @@ const beforeLoad = (route: unknown) =>
 
 afterEach(() => {
 	cleanup();
+	pathname = "/platform";
 	platformAdminFn.mockReset().mockResolvedValue(true);
 	adminListPatientsFn.mockReset().mockResolvedValue([]);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
@@ -60,7 +85,16 @@ describe("/platform layout", () => {
 		const patients = screen.getByRole("link", { name: "Patients" });
 		expect(platform.getAttribute("href")).toBe("/platform");
 		expect(patients.getAttribute("href")).toBe("/platform/patients");
+		expect(platform.hasAttribute("data-active")).toBe(true);
+		expect(patients.hasAttribute("data-active")).toBe(false);
 		expect(screen.getByTestId("platform-outlet")).toBeTruthy();
+	});
+
+	it("marks descendant routes active unless the item is exact", () => {
+		pathname = "/platform/patients";
+		render(createElement(component(PlatformRoute)));
+		expect(screen.getByRole("link", { name: "Platform" }).hasAttribute("data-active")).toBe(false);
+		expect(screen.getByRole("link", { name: "Patients" }).hasAttribute("data-active")).toBe(true);
 	});
 
 	it("beforeLoad redirects anonymous users to /login", async () => {

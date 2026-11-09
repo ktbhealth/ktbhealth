@@ -1,6 +1,7 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { physical, route } from "@tanstack/virtual-file-routes";
+import { ShieldCheckIcon } from "lucide-react";
 
 import { Forbidden, Principal } from "@ktb/authz";
 import { definePlugin, type Plugin } from "@ktb/kernel";
@@ -77,7 +78,9 @@ export const platformRoutesPlugin = definePlugin({
 export const platformPanelPlugin = definePlugin({
 	id: "platform.panel",
 	requiredDeps: [platformRoutesPlugin.id],
-	panel: { sidebar: [{ to: "/platform", label: "Platform" }] },
+	panel: {
+		sidebar: [{ to: "/platform", label: "Platform", icon: ShieldCheckIcon, exact: true }],
+	},
 });
 
 /** Single-concern plugins contributed by this module — the host

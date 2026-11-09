@@ -7,6 +7,7 @@ import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import { UsersIcon } from "lucide-react";
 import {
 	createPatient,
 	listAllPatients,
@@ -202,7 +203,7 @@ describe("plugins", () => {
 		expect(patientsPanelPlugin.id).toBe("patients.panel");
 		expect(patientsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
 		expect(patientsPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/patients", label: "Patients" },
+			{ to: "/platform/patients", label: "Patients", icon: UsersIcon },
 		]);
 	});
 

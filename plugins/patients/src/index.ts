@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { desc, eq } from "drizzle-orm";
+import { UsersIcon } from "lucide-react";
 
 import { user as users } from "@ktb/auth/schema";
 import { Db, type DbClient } from "@ktb/db";
@@ -116,7 +117,9 @@ export const patientsServicesPlugin = definePlugin({
 export const patientsPanelPlugin = definePlugin({
 	id: "patients.panel",
 	requiredDeps: [platformPanelPlugin.id],
-	panel: { sidebar: [{ to: "/platform/patients", label: "Patients" }] },
+	panel: {
+		sidebar: [{ to: "/platform/patients", label: "Patients", icon: UsersIcon }],
+	},
 });
 
 /** Single-concern plugins contributed by this module — the host

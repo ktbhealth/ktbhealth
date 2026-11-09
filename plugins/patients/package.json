@@ -16,7 +16,8 @@
 		"@ktb/platform": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.1.1@react",
 		"drizzle-orm": "^0.45.1",
-		"effect": "4.1.2"
+		"effect": "4.1.2",
+		"lucide-react": "0.544.0"
 	},
 	"devDependencies": {
 		"@types/better-sqlite3": "^9.6.0",
