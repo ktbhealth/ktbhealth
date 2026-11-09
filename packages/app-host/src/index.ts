@@ -18,7 +18,18 @@ import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
 import { correctTranscript as correctTranscriptEffect } from "@ktb/anamnesis-llm";
-import { makeEventBus } from "@effect-server-utils/cqrs";
+import {
+	Command,
+	CommandBus,
+	makeCommandBus,
+	makeEventBus,
+	makeQueryBus,
+	mergeDispatchTables,
+	Middleware,
+	Query,
+	QueryBus,
+	type DispatchTable,
+} from "@effect-server-utils/cqrs";
 
 /**
  * Plugin registry discovered from the filesystem: every module under
@@ -30,6 +41,20 @@ import { makeEventBus } from "@effect-server-utils/cqrs";
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins(import.meta.glob("../../../plugins/*/src/index.ts", { eager: true })),
 );
+
+/**
+ * CQRS groups are enumerated by convention, not by plugin objects: every
+ * plugin api module (`plugins/<name>/src/api.ts`) may export query/command
+ * group values, and the `isGroup` guards (provided by the library exactly for
+ * host reflection) filter them out of each module's export surface.
+ * Events need no enumeration — `EventBus` is already app-wide.
+ */
+const apiModules = import.meta.glob("../../../plugins/*/src/api.ts", { eager: true });
+const moduleExports = Object.values(apiModules).flatMap((m) =>
+	Object.values(m as Record<string, unknown>),
+);
+const queryGroups = moduleExports.filter(Query.isGroup);
+const commandGroups = moduleExports.filter(Command.isGroup);
 
 /** Minimal binding surface the host needs. Any platform (workerd, bun,
  * future adapters) supplies these; the host never touches cloudflare:*. */
@@ -153,7 +178,61 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		// inside their service layers (CQRS event surface).
 		makeEventBus(),
 	);
-	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core))).pipe(
+	// App-wide CQRS buses (P-049): each group's dispatcher is built once,
+	// wrapped in shared middleware, folded into an erased DispatchTable,
+	// and served as QueryBus/CommandBus for dynamic dispatch
+	// (`bus.execute(Def, payload)`). Typed `dispatcher(Group)` remains
+	// the preferred path — buses exist for callers that can't name a
+	// group statically. `declaredIn` makes a group whose handlers were
+	// never registered fail at boot instead of on first dispatch.
+	//
+	// Middleware cannot widen the error channel, so authz cannot live
+	// here — handlers keep their own `requireCanAs` checks. What the bus
+	// boundary CAN own uniformly is observability: commands log at info,
+	// queries at debug, failures at warning.
+	const busMiddleware: ReadonlyArray<Middleware.Middleware> = [
+		(dispatch, { tag, side }) =>
+			(payload) =>
+				dispatch(payload).pipe(
+					Effect.tap(() =>
+						side === "command"
+							? Effect.logInfo("cqrs command", { tag })
+							: Effect.logDebug("cqrs query", { tag }),
+					),
+					Effect.tapError((error) =>
+						Effect.logWarning("cqrs dispatch failed", {
+							tag,
+							side,
+							error: String(error),
+						}),
+					),
+				),
+	];
+	const busesLive = Layer.unwrap(
+		Effect.gen(function* () {
+			const queryTables = yield* Effect.forEach(queryGroups, (group) =>
+				Query.dispatcher(group, { middleware: busMiddleware }),
+			);
+			const commandTables = yield* Effect.forEach(commandGroups, (group) =>
+				Command.dispatcher(group, { middleware: busMiddleware }),
+			);
+			return Layer.mergeAll(
+				Layer.succeed(
+					QueryBus,
+					makeQueryBus(mergeDispatchTables(...queryTables) as DispatchTable, {
+						declaredIn: queryGroups,
+					}),
+				),
+				Layer.succeed(
+					CommandBus,
+					makeCommandBus(mergeDispatchTables(...commandTables) as DispatchTable, {
+						declaredIn: commandGroups,
+					}),
+				),
+			);
+		}),
+	).pipe(Layer.provide(pluginLayer.pipe(Layer.provide(core))));
+	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core)), busesLive).pipe(
 		Layer.provideMerge(BindingLive),
 		// Single-line JSON logs → workerd console / wrangler observability.
 		Layer.provideMerge(Logger.layer([Logger.consoleJson])),
