@@ -11,7 +11,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-const config = defineConfig({
+export default defineConfig(({ command, isPreview }) => ({
 	resolve: {
 		tsconfigPaths: true,
 		dedupe: ["react", "react-dom"],
@@ -41,7 +41,22 @@ const config = defineConfig({
 	},
 	plugins: [
 		// workerd everywhere except vitest (unit tests stay on plain Node).
-		...(process.env.VITEST ? [] : [cloudflare({ viteEnvironment: { name: "ssr" } })]),
+		// Dev uses wrangler.dev.jsonc — it drops the Workers AI binding,
+		// which has no local simulator and would force an authenticated
+		// remote session. Build/preview keep wrangler.jsonc.
+		...(process.env.VITEST
+			? []
+			: [
+					cloudflare({
+						configPath: fileURLToPath(
+							new URL(
+								command === "serve" && !isPreview ? "./wrangler.dev.jsonc" : "./wrangler.jsonc",
+								import.meta.url,
+							),
+						),
+						viteEnvironment: { name: "ssr" },
+					}),
+				]),
 		devtools(),
 		tailwindcss(),
 		paraglideVitePlugin({
@@ -56,6 +71,4 @@ const config = defineConfig({
 		...tanstackStart({ server: { entry: "server.ts" } }),
 		viteReact(),
 	],
-});
-
-export default config;
+}));

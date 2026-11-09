@@ -7,7 +7,7 @@ describe("platform", () => {
 		expect(db).toBeDefined();
 		expect(auth).toBeDefined();
 		expect(typeof auth.api.getSession).toBe("function");
-		expect(ai.run).toBeDefined();
+		expect(ai?.run).toBeDefined();
 		expect(BindingLive).toBeDefined();
 	});
 });

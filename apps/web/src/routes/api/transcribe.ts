@@ -17,10 +17,13 @@ export const Route = createFileRoute("/api/transcribe")({
 				if (!(file instanceof File)) {
 					return Response.json({ error: "missing audio file" }, { status: 400 });
 				}
-				const result = await ai.run("@cf/openai/whisper", {
+				if (!ai) {
+					return Response.json({ error: "transcription not configured" }, { status: 503 });
+				}
+				const result = (await ai.run("@cf/openai/whisper", {
 					audio: [...new Uint8Array(await file.arrayBuffer())],
-				});
-				return Response.json({ text: result.text });
+				})) as { text?: string };
+				return Response.json({ text: result.text ?? "" });
 			},
 		},
 	},

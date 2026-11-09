@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 
+import { resolveAi, type AiEnv } from "./ai.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
 import { fhirR4Exporter } from "@ktb/interop-fhir";
@@ -21,7 +22,11 @@ const LLM_ENV_KEYS = [
 // Non-LLM config passthrough — same bindings-win-then-process.env rule.
 const APP_ENV_KEYS = ["PLATFORM_ADMIN_EMAILS"] as const;
 
-const appEnv = { ...env } as Record<string, unknown>;
+// AI_STUB > AI_LOCAL_URL > env.AI — dev may run without the Workers AI
+// binding (wrangler.dev.jsonc), so resolve before composing the app.
+const aiBinding = resolveAi(env as unknown as AiEnv, process.env);
+
+const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
 for (const key of [...LLM_ENV_KEYS, ...APP_ENV_KEYS]) {
 	appEnv[key] ??= process.env[key];
 }
@@ -42,7 +47,7 @@ export const {
 } = app;
 
 // Raw platform binding passthrough — not composed, just exposed.
-export const ai = env.AI;
+export const ai = aiBinding;
 export const audioBucket = env.AUDIO_BUCKET;
 export const audioQueue = env.AUDIO_QUEUE;
 
