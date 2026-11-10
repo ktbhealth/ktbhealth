@@ -122,8 +122,14 @@ export const createApp = <E extends AppEnv>(env: E) => {
 	// tie-break). Ordering encodes precedence — e.g. the captcha stub
 	// before Turnstile before the disabled verifier; LLM drivers carry
 	// their own when predicates mirroring the old factory branches.
-	// Auth and Db stay manual: they wrap the live auth/db instances
-	// built above, not env-selected impls.
+	// Auth and Db stay manual on purpose: they are single-impl ports
+	// wrapping live instances built above (the better-auth object the
+	// routes call directly; the drizzle client over the SqlDatabase
+	// binding), not env-selectable adapters. Engine variance already
+	// lives at the edges — SqlDatabase at `Binding`, better-auth config
+	// in makeAuth — and tests stub these ports via Layer.succeed, which
+	// needs no driver descriptor. Putting them in the registry would add
+	// indirection with no second impl to select between.
 	const drivers: readonly Driver<unknown>[] = [
 		recallDriver,
 		stubBotDriver,

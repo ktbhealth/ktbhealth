@@ -110,6 +110,14 @@ export interface ResolvedTranscriptionBackend {
  * Resolve the transcription backend: the first supported candidate in
  * registration order. Returns undefined when no candidate is eligible —
  * callers pick their own last-resort backend.
+ *
+ * This is currently the ONLY client-side selectable port — the server
+ * registry (@ktb/driver-framework) is Layer-shaped and cannot run in the
+ * browser bundle, so each client-selectable port keeps its own tiny
+ * first-supported-wins resolver. Do NOT extract a shared
+ * `@ktb/client-drivers` package for this one consumer; if a second
+ * client-side selectable port appears, factor the ~10-line resolver out
+ * then.
  */
 export function resolveTranscriptionBackend(
 	candidates: readonly TranscriptionDriver[],
