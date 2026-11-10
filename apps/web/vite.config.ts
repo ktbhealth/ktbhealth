@@ -63,6 +63,20 @@ export default defineConfig(({ command, isPreview }) => {
 		// Whisper worker imports this lazily; pre-bundle it at startup so the
 		// dev server doesn't re-optimize (and 504) while the worker is loading.
 		optimizeDeps: { include: ["@huggingface/transformers"] },
+		environments: {
+			ssr: {
+				optimizeDeps: {
+					// pdfkit is only reachable through lazily-mounted server route
+					// modules, so the SSR dep crawler misses it on cold start.
+					// Discovering it mid-request forces a second optimizer pass +
+					// program reload, during which react-router's raw-transformed
+					// source resolves `react` to the raw CJS build while
+					// react-dom/server uses the bundled one (invalid hook call).
+					// Pre-bundling keeps the first pass complete — no reload.
+					include: ["pdfkit"],
+				},
+			},
+		},
 		worker: { format: "es" },
 		test: {
 			include: ["src/**/*.test.*"],
