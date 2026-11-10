@@ -246,10 +246,18 @@ describe("/api/transcribe edge cases", () => {
 
 	it("treats a file without a media type as opaque octet-stream", async () => {
 		ai.current = { run: async () => ({ text: "ok" }) };
-		const form = new FormData();
-		form.set("audio", new File([new Uint8Array([1, 2])], "rec", { type: "" }));
+		// FormData cannot serialize an empty part content-type, so build the
+		// multipart body by hand: an explicit `Content-Type:` header with no
+		// value round-trips as file.type === "".
+		const body =
+			'--b\r\nContent-Disposition: form-data; name="audio"; filename="rec"\r\n' +
+			"Content-Type: \r\n\r\n\x01\x02\r\n--b--\r\n";
 		const res = await handlersOf(TranscribeRoute).POST!({
-			request: new Request("http://x/api/transcribe", { method: "POST", body: form }),
+			request: new Request("http://x/api/transcribe", {
+				method: "POST",
+				headers: { "content-type": "multipart/form-data; boundary=b" },
+				body,
+			}),
 		} as never);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ text: "ok" });
