@@ -5,6 +5,7 @@ import { baseLocale, cookieName, setLocale, toLocale, type Locale } from "#/para
 const LOCALE_NAMES: Record<string, () => string> = {
 	en: m.locale_en,
 	"pt-BR": m.locale_pt_BR,
+	es: m.locale_es,
 };
 
 /**

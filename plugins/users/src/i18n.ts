@@ -6,7 +6,7 @@
  * full — a missing key is a type error, not an English fallback.
  */
 
-export const USER_LOCALES = ["en", "pt-BR"] as const;
+export const USER_LOCALES = ["en", "pt-BR", "es"] as const;
 export type UserLocale = (typeof USER_LOCALES)[number];
 export const BASE_LOCALE: UserLocale = "en";
 
@@ -70,7 +70,27 @@ const ptBR: UserMessages = {
 	roleUser: "usuário",
 };
 
-const CATALOGS: Record<UserLocale, UserMessages> = { en, "pt-BR": ptBR };
+const es: UserMessages = {
+	title: "Usuarios",
+	none: "Ningún usuario registrado.",
+	count: (n) => `${n} usuario${n === 1 ? "" : "s"} en toda la plataforma.`,
+	emptyTitle: "Ningún usuario",
+	emptyDescription: "Los usuarios aparecen aquí una vez que se registran.",
+	colId: "Id",
+	colName: "Nombre",
+	colEmail: "Correo electrónico",
+	colVerified: "Verificado",
+	colPatients: "Pacientes",
+	colConsultations: "Consultas",
+	colRole: "Rol",
+	colCreated: "Creado",
+	yes: "sí",
+	no: "no",
+	roleAdmin: "admin",
+	roleUser: "usuario",
+};
+
+const CATALOGS: Record<UserLocale, UserMessages> = { en, "pt-BR": ptBR, es };
 
 export const isUserLocale = (locale: string): locale is UserLocale =>
 	(USER_LOCALES as readonly string[]).includes(locale);

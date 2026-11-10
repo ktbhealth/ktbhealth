@@ -6,7 +6,7 @@
  * in full — a missing key is a type error, not an English fallback.
  */
 
-export const DASHBOARD_LOCALES = ["en", "pt-BR"] as const;
+export const DASHBOARD_LOCALES = ["en", "pt-BR", "es"] as const;
 export type DashboardLocale = (typeof DASHBOARD_LOCALES)[number];
 export const BASE_LOCALE: DashboardLocale = "en";
 
@@ -79,7 +79,30 @@ const ptBR: DashboardMessages = {
 	noNotifications: "Nenhuma notificação ainda.",
 };
 
-const CATALOGS: Record<DashboardLocale, DashboardMessages> = { en, "pt-BR": ptBR };
+const es: DashboardMessages = {
+	title: "panel",
+	subtitle: "Resumen del sistema — consolidado entre los plugins.",
+	stats: {
+		patients: "Pacientes",
+		consultations: "Consultas",
+		plugins: "Plugins",
+		sidebarItems: "Elementos de la barra lateral",
+	},
+	recentConsultations: "Consultas recientes",
+	noConsultations: "Ninguna consulta aún.",
+	registeredPlugins: "Plugins registrados",
+	colId: "Id",
+	colStatus: "Estado",
+	colSource: "Origen",
+	colOwner: "Propietario",
+	colCreated: "Creada",
+	colContributions: "Contribuciones",
+	consoleActivity: "Actividad de la consola",
+	unreadNotifications: "Notificaciones no leídas",
+	noNotifications: "Ninguna notificación aún.",
+};
+
+const CATALOGS: Record<DashboardLocale, DashboardMessages> = { en, "pt-BR": ptBR, es };
 
 export const isDashboardLocale = (locale: string): locale is DashboardLocale =>
 	(DASHBOARD_LOCALES as readonly string[]).includes(locale);

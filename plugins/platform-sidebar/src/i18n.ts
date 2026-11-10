@@ -7,7 +7,7 @@
  * English fallback at runtime.
  */
 
-export const CONSOLE_LOCALES = ["en", "pt-BR"] as const;
+export const CONSOLE_LOCALES = ["en", "pt-BR", "es"] as const;
 export type ConsoleLocale = (typeof CONSOLE_LOCALES)[number];
 export const BASE_LOCALE: ConsoleLocale = "en";
 
@@ -38,7 +38,16 @@ const ptBR: ConsoleMessages = {
 	adminFallback: "admin",
 };
 
-const CATALOGS: Record<ConsoleLocale, ConsoleMessages> = { en, "pt-BR": ptBR };
+const es: ConsoleMessages = {
+	badge: "PLATAFORMA",
+	breadcrumbRoot: "plataforma",
+	overview: "visión general",
+	backToApp: "volver a la app",
+	signOut: "Cerrar sesión",
+	adminFallback: "admin",
+};
+
+const CATALOGS: Record<ConsoleLocale, ConsoleMessages> = { en, "pt-BR": ptBR, es };
 
 export const isConsoleLocale = (locale: string): locale is ConsoleLocale =>
 	(CONSOLE_LOCALES as readonly string[]).includes(locale);

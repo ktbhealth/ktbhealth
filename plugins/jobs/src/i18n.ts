@@ -7,7 +7,7 @@
  * not an English fallback at runtime.
  */
 
-export const JOB_LOCALES = ["en", "pt-BR"] as const;
+export const JOB_LOCALES = ["en", "pt-BR", "es"] as const;
 export type JobLocale = (typeof JOB_LOCALES)[number];
 export const BASE_LOCALE: JobLocale = "en";
 
@@ -48,7 +48,19 @@ const ptBR: JobMessages = {
 	consultationRef: (id) => `consulta #${id}`,
 };
 
-const CATALOGS: Record<JobLocale, JobMessages> = { en, "pt-BR": ptBR };
+const es: JobMessages = {
+	label: "Tareas en segundo plano",
+	activeCount: (n) => `${n} activas`,
+	emptyFilteredTitle: "Ninguna tarea en este estado",
+	emptyFilteredDescription: "Nada coincide con el filtro seleccionado.",
+	emptyAllTitle: "Ninguna tarea en segundo plano",
+	emptyAllDescription: "Las tareas de transcripción, exportación y sincronización aparecerán aquí.",
+	openConsultations: "Abrir consultas",
+	jobTitle: "Transcripción de audio",
+	consultationRef: (id) => `consulta #${id}`,
+};
+
+const CATALOGS: Record<JobLocale, JobMessages> = { en, "pt-BR": ptBR, es };
 
 export const isJobLocale = (locale: string): locale is JobLocale =>
 	(JOB_LOCALES as readonly string[]).includes(locale);

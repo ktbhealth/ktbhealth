@@ -7,7 +7,7 @@
  * an English fallback at runtime.
  */
 
-export const NOTIFICATION_LOCALES = ["en", "pt-BR"] as const;
+export const NOTIFICATION_LOCALES = ["en", "pt-BR", "es"] as const;
 export type NotificationLocale = (typeof NOTIFICATION_LOCALES)[number];
 export const BASE_LOCALE: NotificationLocale = "en";
 
@@ -51,7 +51,20 @@ const ptBR: NotificationMessages = {
 	},
 };
 
-const CATALOGS: Record<NotificationLocale, NotificationMessages> = { en, "pt-BR": ptBR };
+const es: NotificationMessages = {
+	label: "Notificaciones",
+	unreadCount: (n) => `${n} sin leer`,
+	markAllRead: "Marcar todas como leídas",
+	empty: "Ninguna notificación",
+	markAsRead: (title) => `Marcar "${title}" como leída`,
+	titles: {
+		patientCreated: "Paciente creado",
+		patientDeleted: "Paciente eliminado",
+		consultationCreated: "Consulta iniciada",
+	},
+};
+
+const CATALOGS: Record<NotificationLocale, NotificationMessages> = { en, "pt-BR": ptBR, es };
 
 export const isNotificationLocale = (locale: string): locale is NotificationLocale =>
 	(NOTIFICATION_LOCALES as readonly string[]).includes(locale);

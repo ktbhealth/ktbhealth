@@ -6,7 +6,7 @@
  * full — a missing key is a type error, not an English fallback.
  */
 
-export const GROUP_LOCALES = ["en", "pt-BR"] as const;
+export const GROUP_LOCALES = ["en", "pt-BR", "es"] as const;
 export type GroupLocale = (typeof GROUP_LOCALES)[number];
 export const BASE_LOCALE: GroupLocale = "en";
 
@@ -52,7 +52,21 @@ const ptBR: GroupMessages = {
 	colCreated: "Criado em",
 };
 
-const CATALOGS: Record<GroupLocale, GroupMessages> = { en, "pt-BR": ptBR };
+const es: GroupMessages = {
+	title: "Grupos",
+	none: "Ningún grupo registrado.",
+	count: (n) => `${n} grupo${n === 1 ? "" : "s"} en toda la plataforma.`,
+	emptyTitle: "Ningún grupo",
+	emptyDescription: "Los grupos aparecen aquí una vez que se crean.",
+	colId: "Id",
+	colName: "Nombre",
+	colSlug: "Slug",
+	colKind: "Tipo",
+	colMembers: "Miembros",
+	colCreated: "Creado",
+};
+
+const CATALOGS: Record<GroupLocale, GroupMessages> = { en, "pt-BR": ptBR, es };
 
 export const isGroupLocale = (locale: string): locale is GroupLocale =>
 	(GROUP_LOCALES as readonly string[]).includes(locale);

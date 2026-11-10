@@ -50,6 +50,7 @@ describe("localeName", () => {
 	it("returns the endonym for known locales", () => {
 		expect(localeName("en")).toBe("English");
 		expect(localeName("pt-BR")).toBe("Português (Brasil)");
+		expect(localeName("es")).toBe("Español");
 	});
 
 	it("falls back to the raw tag for unknown locales", () => {

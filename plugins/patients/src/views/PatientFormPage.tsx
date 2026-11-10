@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type FormEvent, type HTMLAttributes, type ReactNode } from "react";
 import { AsteriskIcon, CalendarIcon } from "lucide-react";
 import type { Locale as CalendarLocale } from "react-day-picker";
-import { enUS, ptBR } from "react-day-picker/locale";
+import { enUS, es, ptBR } from "react-day-picker/locale";
 
 import { Alert } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
@@ -442,6 +442,7 @@ const FIRST_MONTH = new Date(1900, 0);
 const CALENDAR_LOCALES: Partial<Record<PatientLocale, CalendarLocale>> = {
 	en: enUS,
 	"pt-BR": ptBR,
+	es,
 };
 
 /** Exact-date picker: design-system Calendar in a Popover; value is a FHIR date or "". */
