@@ -38,6 +38,10 @@ export default defineConfig({
 			"**/.alchemy/**",
 			"**/drizzle/meta/**",
 			"**/coverage/**",
+			// Agent/tool-managed skill installs — not repo source.
+			".agents/**",
+			".claude/**",
+			"skills-lock.json",
 		],
 	},
 
