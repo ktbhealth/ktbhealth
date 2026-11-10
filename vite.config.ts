@@ -1,4 +1,11 @@
 import { defineConfig } from "vite-plus";
+import {
+	IMPL_IMPORT_PATTERNS,
+	PLATFORM_GLOBALS,
+	PLATFORM_IMPORT_PATTERNS,
+	PORT_GLOBS,
+	PORT_TEST_GLOBS,
+} from "./tools/arch-policy.mjs";
 
 export default defineConfig({
 	defaultPackage: "./apps/web",
@@ -53,72 +60,60 @@ export default defineConfig({
 				},
 			},
 			{
-				// Port/domain packages may never reach into adapter implementations
-				// or platform APIs. Composition roots (apps/*, @ktb/db schema
-				// aggregation) are the only places allowed to wire impls.
-				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,export-pdf,interop,ui,db,driver-framework}/**/*.{ts,tsx}",
-					"plugins/**/*.{ts,tsx}",
-				],
+				// Port/domain boundary (tools/arch-policy.mjs is the source of
+				// truth): ports, domain packages and plugins may never reach
+				// into adapter implementations, the deploy target, the
+				// composition root, or runtime/cloud platform APIs
+				// (node:*, bun:*, deno:*, cloudflare:*, workerd:*, process,
+				// Bun, Deno). Provider-named literals (@cf/* model ids,
+				// provider endpoints) are banned by ktb-arch/provider-lockin.
+				// Composition roots (apps/*, infra/*, @ktb/app-host) and
+				// adapters are the edge and exempt by construction.
+				files: PORT_GLOBS,
 				rules: {
 					"no-restricted-imports": [
 						"error",
-						{
-							patterns: [
-								"**/apps/**",
-								"@ktb/web",
-								"@ktb/app-host",
-								"@ktb/app-host/**",
-								"@ktb/auth-better",
-								"@ktb/auth-better/**",
-								"@ktb/bot-recall",
-								"@ktb/bot-recall/**",
-								"@ktb/captcha-stub",
-								"@ktb/captcha-stub/**",
-								"@ktb/captcha-turnstile",
-								"@ktb/captcha-turnstile/**",
-								"@ktb/transcription-whisper",
-								"@ktb/transcription-whisper/**",
-								"@ktb/transcription-webspeech",
-								"@ktb/transcription-webspeech/**",
-								"@ktb/anamnesis-llm",
-								"@ktb/anamnesis-llm/**",
-								"@ktb/interop-fhir",
-								"@ktb/interop-fhir/**",
-								"@ktb/interop-openehr",
-								"@ktb/interop-openehr/**",
-								"@ktb/infra-cloudflare",
-								"@ktb/infra-cloudflare/**",
-								"cloudflare:*",
-							],
-						},
+						{ patterns: [...IMPL_IMPORT_PATTERNS, ...PLATFORM_IMPORT_PATTERNS] },
 					],
+					"no-restricted-globals": [
+						"error",
+						...PLATFORM_GLOBALS.map((name) => ({
+							name,
+							message: `${name} is runtime-specific; inject config via ports/layers`,
+						})),
+					],
+					"ktb-arch/provider-lockin": "error",
 				},
 			},
 			{
-				// Env access is adapter-only: domain code receives config
-				// through ports/layers, never process.env.
-				files: [
-					"packages/{kernel,auth,authz,bot,captcha,transcription,anamnesis,interop,driver-framework}/src/**/*.ts",
-					"plugins/*/src/**/*.ts",
-				],
+				// Tests run on Node and may mock/wire impls freely: they keep
+				// the adapter-import bans but are exempt from platform-API
+				// and provider-literal rules.
+				files: PORT_TEST_GLOBS,
 				rules: {
-					"no-restricted-globals": [
-						"error",
-						{
-							name: "process",
-							message: "process is adapter-only; inject config via ports/layers",
-						},
-					],
+					"no-restricted-imports": ["error", { patterns: IMPL_IMPORT_PATTERNS }],
+					"no-restricted-globals": "off",
+					"ktb-arch/provider-lockin": "off",
 				},
 			},
 			{
 				// Plugin entry contract: every plugin must export
 				// `plugins` — an array of `definePlugin({...})` entries —
-				// for host discovery.
-				files: ["plugins/*/src/index.ts"],
+				// for host discovery (server index.ts and client.ts alike).
+				files: ["plugins/*/src/index.ts", "plugins/*/src/client.ts"],
 				rules: {
 					"ktb-arch/plugin-contract": "error",
+				},
+			},
+			{
+				// Client manifests ship to the browser bundle: value
+				// imports are allowlisted (kernel, UI kit, React/lucide/
+				// router primitives, relative .tsx components) so server
+				// modules (index.ts entries, api/fns/schema, db, cqrs,
+				// server-fns, effect) can never leak into the client graph.
+				files: ["plugins/*/src/client.ts"],
+				rules: {
+					"ktb-arch/client-contract": "error",
 				},
 			},
 			{
@@ -159,6 +154,8 @@ export default defineConfig({
 								"@ktb/interop-fhir/**",
 								"@ktb/interop-openehr",
 								"@ktb/interop-openehr/**",
+								"@ktb/db-sqlite",
+								"@ktb/db-sqlite/**",
 								"@ktb/infra-cloudflare",
 								"@ktb/infra-cloudflare/**",
 								"@ktb/app-host",
@@ -173,6 +170,9 @@ export default defineConfig({
 				// - platform.ts / plugins.ts are the composition root wiring
 				//   @ktb/app-host (and the @ktb/interop-* exporters) into the
 				//   deploy target.
+				// - node-cloudflare-workers.ts is the KTB_DEV_NODE env shim —
+				//   it is the composition root for the plain-Node dev target
+				//   and wires @ktb/db-sqlite as AppEnv.DB.
 				// - consultations plugin modules inject the transcription
 				//   backend client-side (backend.ts resolves the driver;
 				//   routes/new.tsx + routes/index.tsx consume it) and warm
@@ -184,6 +184,7 @@ export default defineConfig({
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
+					"apps/web/src/lib/node-cloudflare-workers.ts",
 					"apps/web/src/plugins.ts",
 					"apps/web/src/routes/login.tsx",
 					"apps/web/src/routes/__root.tsx",

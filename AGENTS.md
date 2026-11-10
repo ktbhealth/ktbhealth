@@ -44,7 +44,14 @@ old URLs redirect).
   (see ADR-0001 in project repo — transcription sources, and the
   calendar/notification ports in P-008/P-009).
 - Arch lint: plugins must not import from apps — inject via route
-  composition (`api` objects in `apps/web/src/routes/`).
+  composition (`api` objects in `apps/web/src/routes/`). Boundary
+  policy lives in `tools/arch-policy.mjs` (single source for the oxlint
+  overrides + `ktb-arch/*` rules): ports/plugins may not import adapters,
+  use `node:*`/`bun:*`/`deno:*`/`cloudflare:*`/`workerd:*`, touch
+  `process`/`Bun`/`Deno`, or hardcode provider literals (`@cf/*`
+  model ids, provider endpoints). Adapters, apps/_, infra/_ and
+  @ktb/app-host are the exempt edge; tests keep adapter-import bans but
+  are exempt from platform/provider rules.
 - Positioning: documentation-only — the physician decides, KTB
   records. No diagnosis/treatment/recommendation copy (T-021).
 - Server fns validate wire input with effect/Schema — tolerate

@@ -21,6 +21,7 @@ const stubRuntime = (overrides: Partial<ServerRuntime> = {}): ServerRuntime => (
 	run: runPromise,
 	runAs: (_user, effect) => runPromise(effect),
 	getLocale: () => "en",
+	audioTranscribeModel: "test-model",
 	...overrides,
 });
 

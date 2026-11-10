@@ -1,5 +1,4 @@
 export {
-	DEFAULT_AUDIO_MODEL,
 	type AiRunner,
 	type AudioDeleter,
 	type AudioJobMessage,

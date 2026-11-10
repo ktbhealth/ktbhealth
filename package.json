@@ -10,6 +10,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun --cwd apps/web dev",
+		"dev:node": "bun --cwd apps/web dev:node",
 		"dev:secrets": "bun --cwd apps/web dev:secrets",
 		"build": "vp build",
 		"preview": "vp preview",

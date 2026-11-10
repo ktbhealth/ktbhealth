@@ -4,19 +4,54 @@
  * Registered via `lint.jsPlugins` in vite.config.ts; each rule is enabled
  * only for the file globs that can violate it (see `lint.overrides`):
  *
- * - `ktb-arch/plugin-contract` — each plugin's `src/index.ts` must export
- *   `plugins`, an array of single-concern plugins each initialized with
+ * - `ktb-arch/plugin-contract` — each plugin's `src/index.ts` (server
+ *   entry) and `src/client.ts` (client manifest) must export `plugins`,
+ *   an array of single-concern plugins each initialized with
  *   `definePlugin({...})` (imported from `@ktb/kernel`), so the host's
  *   filesystem plugin discovery keeps working.
+ * - `ktb-arch/client-contract` — `src/client.ts` manifests ship to the
+ *   browser bundle: their value imports are restricted to an allowlist
+ *   (kernel, UI kit, React/lucide/router primitives and relative .tsx
+ *   components). Type-only imports are exempt — they are erased at
+ *   build time and never reach the bundle.
  * - `ktb-arch/driver-contract` — any file exporting a `*Driver`/`*Drivers`
  *   descriptor (object or array literal) must import `Driver` from
  *   `@ktb/driver-framework`, keeping port→impl selection typed.
+ * - `ktb-arch/provider-lockin` — string literals in port/domain files may
+ *   not name a provider (model ids, endpoints); they belong in adapters
+ *   or deploy config. Patterns come from tools/arch-policy.mjs.
  */
 
-const PLUGIN_ENTRY_RE = /(?:^|[/\\])plugins[/\\][^/\\]+[/\\]src[/\\]index\.ts$/;
+import { PROVIDER_LITERAL_PATTERNS } from "./arch-policy.mjs";
+
+const PLUGIN_ENTRY_RE = /(?:^|[/\\])plugins[/\\][^/\\]+[/\\]src[/\\](?:index|client)\.ts$/;
+const CLIENT_ENTRY_RE = /(?:^|[/\\])plugins[/\\][^/\\]+[/\\]src[/\\]client\.ts$/;
 const DRIVER_NAME_RE = /Drivers?$/;
 const DRIVER_FRAMEWORK = "@ktb/driver-framework";
 const KERNEL = "@ktb/kernel";
+
+/**
+ * Modules a client manifest may value-import: the kernel contract, the
+ * UI kit, and component files (relative .tsx — platform-page wrappers and
+ * views). Everything else (plugin index.ts entries, api/fns/schema
+ * modules, db/cqrs/server-fns, effect, app-host) is server-side and
+ * would drag the server graph into the browser bundle.
+ */
+const CLIENT_IMPORT_ALLOWLIST = [
+	KERNEL,
+	"@ktbhealth/",
+	"lucide-react",
+	"react",
+	"react-dom",
+	"@tanstack/react-router",
+	"@tanstack/virtual-file-routes",
+];
+const CLIENT_RELATIVE_RE = /^\.\.?\/.*\.tsx$/;
+
+const clientImportAllowed = (source) =>
+	CLIENT_IMPORT_ALLOWLIST.some((allowed) =>
+		allowed.endsWith("/") ? source.startsWith(allowed) : source === allowed,
+	) || CLIENT_RELATIVE_RE.test(source);
 
 const importedName = (spec) => spec.imported?.name ?? spec.imported?.value;
 
@@ -185,10 +220,47 @@ const driverContract = {
 	},
 };
 
+const clientContract = {
+	create(context) {
+		return {
+			ImportDeclaration(node) {
+				if (!CLIENT_ENTRY_RE.test(context.filename)) return;
+				// `import type` is erased at build time — it never reaches
+				// the browser bundle, so only value imports are gated.
+				if (node.importKind === "type") return;
+				const source = node.source?.value;
+				if (typeof source !== "string" || clientImportAllowed(source)) return;
+				context.report({
+					node,
+					message: `client manifest may not value-import "${source}" — src/client.ts ships to the browser bundle; keep server code in src/index.ts`,
+				});
+			},
+		};
+	},
+};
+
+const providerLockin = {
+	create(context) {
+		return {
+			Literal(node) {
+				if (typeof node.value !== "string") return;
+				if (!PROVIDER_LITERAL_PATTERNS.some((re) => re.test(node.value))) return;
+				context.report({
+					node,
+					message:
+						"provider-named literal in port/domain code — move it to an adapter or deploy config (tools/arch-policy.mjs PROVIDER_LITERAL_PATTERNS)",
+				});
+			},
+		};
+	},
+};
+
 export default {
 	meta: { name: "ktb-arch" },
 	rules: {
 		"plugin-contract": pluginContract,
+		"client-contract": clientContract,
 		"driver-contract": driverContract,
+		"provider-lockin": providerLockin,
 	},
 };

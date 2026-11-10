@@ -62,16 +62,24 @@ CLI.
 ```bash
 bun install
 
-# No env file needed: dev boots workerd via wrangler.dev.jsonc with a
-# local D1 (SQLite under the hood) — same SqlDatabase port as prod.
+# Default: dev boots workerd via wrangler.dev.jsonc with a local D1
+# (SQLite under the hood) — same SqlDatabase port as prod.
 
 bun run dev      # http://localhost:3000 (stub auth/captcha — no secrets needed)
+bun run dev:node # same app on plain Node/Bun — DB is a real SQLite file
+                 # (DATABASE_URL, default ./data/app.db) via @ktb/db-sqlite,
+                 # drizzle migrations applied at boot. No workerd/D1.
 bun run dev:secrets   # same, but injects real secrets via cuora (needs vault access)
 bun run check    # fmt + lint + typecheck
 bun run test     # vitest, per-package projects
 bun run build    # production build (worker bundle)
 bun run deploy   # alchemy deploy to Cloudflare (needs cuora vault access)
 ```
+
+`DATABASE_URL` accepts a path, `:memory:`, or `sqlite:`/`file:` URLs
+(see `@ktb/db-sqlite`). Audio bucket/queue bindings have no Node
+equivalent — audio features are unavailable under `dev:node`; AI still
+resolves via `AI_STUB`/`AI_BASE_URL`.
 
 ## Related repos
 

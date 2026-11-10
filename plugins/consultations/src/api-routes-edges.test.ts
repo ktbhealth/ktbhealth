@@ -160,6 +160,7 @@ beforeAll(() => {
 			return ai.current;
 		},
 		getLocale: () => "en",
+		audioTranscribeModel: "test-model",
 	});
 	useSession("owner");
 });
@@ -195,9 +196,9 @@ describe("/api/transcribe edge cases", () => {
 		const res = await transcribePost();
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ text: "" });
-		// Base64 payload to the large-v3-turbo model — same shape the
+		// Base64 payload to the runtime-configured model — same shape the
 		// queued pipeline uses (a number[] would serialize huge).
-		expect(ai.current.run).toHaveBeenCalledWith("@cf/openai/whisper-large-v3-turbo", {
+		expect(ai.current.run).toHaveBeenCalledWith("test-model", {
 			audio: "AQID",
 			language: "pt",
 		});

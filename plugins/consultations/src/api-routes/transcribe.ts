@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { DEFAULT_AUDIO_MODEL, getSessionUser, getServerRuntime } from "@ktb/server-fns";
+import { getSessionUser, getServerRuntime } from "@ktb/server-fns";
 
 /**
  * POST /api/transcribe — server-side transcription of an uploaded
@@ -70,7 +70,7 @@ export const Route = createFileRoute("/api/transcribe")({
 					return Response.json({ error: "transcription not configured" }, { status: 503 });
 				}
 				const bytes = new Uint8Array(await file.arrayBuffer());
-				const model = getServerRuntime().audioTranscribeModel ?? DEFAULT_AUDIO_MODEL;
+				const model = getServerRuntime().audioTranscribeModel;
 				const result = (await ai.run(model, {
 					audio: bytesToBase64(bytes),
 					language: "pt",

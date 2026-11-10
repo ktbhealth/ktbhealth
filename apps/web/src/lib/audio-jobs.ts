@@ -12,7 +12,7 @@ import {
 	type AudioJobRecord,
 } from "@ktb/consultations";
 import type { DbClient } from "@ktb/db";
-import { DEFAULT_AUDIO_MODEL, type AudioJobMessage } from "@ktb/server-fns";
+import type { AudioJobMessage } from "@ktb/server-fns";
 
 import {
 	ai,
@@ -69,7 +69,7 @@ export interface AudioJobDeps {
 	readonly bucket: AudioBucketLike | undefined;
 	readonly ai: AudioTranscriber | undefined;
 	/** Transcription model id — host-resolved deploy config
-	 * (AUDIO_TRANSCRIBE_MODEL); defaults to DEFAULT_AUDIO_MODEL. */
+	 * (AUDIO_TRANSCRIBE_MODEL); defaults to the platform fallback. */
 	readonly model?: string;
 	readonly correctTranscript: (transcript: string) => Promise<CorrectedTranscript | null>;
 	/**
@@ -115,7 +115,7 @@ export function extractWhisperText(raw: unknown): string {
 export async function transcribeAudio(
 	transcriber: AudioTranscriber,
 	audio: Uint8Array,
-	model: string = DEFAULT_AUDIO_MODEL,
+	model: string = audioTranscribeModel,
 ): Promise<string> {
 	const raw = await transcriber.run(model, whisperInputs(bytesToBase64(audio)));
 	return extractWhisperText(raw);

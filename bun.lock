@@ -31,6 +31,7 @@
         "@ktb/consultations": "workspace:*",
         "@ktb/dashboard": "workspace:*",
         "@ktb/db": "workspace:*",
+        "@ktb/db-sqlite": "workspace:*",
         "@ktb/groups": "workspace:*",
         "@ktb/infra-cloudflare": "workspace:*",
         "@ktb/interop": "workspace:*",
@@ -220,6 +221,19 @@
         "@types/node": "^22.10.2",
         "better-sqlite3": "^13.0.3",
         "drizzle-kit": "^0.31.7",
+      },
+    },
+    "packages/db-sqlite": {
+      "name": "@ktb/db-sqlite",
+      "dependencies": {
+        "@ktb/db": "workspace:*",
+        "better-sqlite3": "^13.0.3",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^9.6.0",
+        "@types/node": "^22.10.2",
+        "drizzle-orm": "^0.45.1",
+        "vitest": "5.1.0",
       },
     },
     "packages/driver-framework": {
@@ -921,6 +935,8 @@
     "@ktb/dashboard": ["@ktb/dashboard@workspace:plugins/dashboard"],
 
     "@ktb/db": ["@ktb/db@workspace:packages/db"],
+
+    "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
 

@@ -72,6 +72,7 @@ beforeAll(() => {
 				effect.pipe(Effect.provideService(Principal, { userId: user.id, email: user.email })),
 			),
 		getLocale: () => "en",
+		audioTranscribeModel: "test-model",
 	});
 });
 

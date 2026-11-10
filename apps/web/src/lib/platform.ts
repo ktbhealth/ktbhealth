@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-import { setServerRuntime, DEFAULT_AUDIO_MODEL } from "@ktb/server-fns";
+import { setServerRuntime } from "@ktb/server-fns";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
@@ -23,7 +23,24 @@ const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
 
 const app = createApp(appEnv as unknown as typeof env);
 
-export const { BindingLive, CaptchaLive, run, runAs, correctTranscript, db, auth } = app;
+export const {
+	BindingLive,
+	CaptchaLive,
+	run,
+	runAs,
+	correctTranscript,
+	db,
+	auth,
+	// Full server registry (tables/services/panel page loaders) — the
+	// counterpart of the client-safe `plugins` in #/plugins.ts. Server
+	// fns that dispatch `panel.pages` handlers read this; it must never
+	// be imported by client-reachable module scope.
+	plugins: serverPlugins,
+} = app;
+
+/** Fallback transcription model when AUDIO_TRANSCRIBE_MODEL is unset —
+ * deploy glue owns provider defaults; ports carry no provider literals. */
+const DEFAULT_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
 
 /** Model id for the server-side audio transcription job — bound per
  * deploy (Workers AI model on Cloudflare, ignored by OpenAI-compatible

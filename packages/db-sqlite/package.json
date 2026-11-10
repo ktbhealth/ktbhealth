@@ -1,0 +1,19 @@
+{
+	"name": "@ktb/db-sqlite",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./migrate": "./src/migrate.ts"
+	},
+	"dependencies": {
+		"@ktb/db": "workspace:*",
+		"better-sqlite3": "^13.0.3"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "^9.6.0",
+		"@types/node": "^22.10.2",
+		"drizzle-orm": "^0.45.1",
+		"vitest": "5.1.0"
+	}
+}

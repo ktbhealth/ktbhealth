@@ -40,10 +40,6 @@ export interface AudioQueueSender {
 	send(message: AudioJobMessage): Promise<unknown>;
 }
 
-/** Recommended server-side transcription model — deployments override
- * via config; stand-in AI bindings ignore it. */
-export const DEFAULT_AUDIO_MODEL = "@cf/openai/whisper-large-v3-turbo";
-
 /** The slice of the Workers AI binding the transcribe route needs. */
 export interface AiRunner {
 	run(model: string, inputs: unknown): Promise<unknown>;
@@ -71,9 +67,10 @@ export interface ServerRuntime {
 	/** Workers AI binding (or host-resolved stand-in) for transcription;
 	 * undefined when unbound. */
 	readonly ai?: AiRunner;
-	/** Model id for audio transcription jobs/routes; host-resolved
-	 * (deploy config), defaults to DEFAULT_AUDIO_MODEL when unset. */
-	readonly audioTranscribeModel?: string;
+	/** Model id for audio transcription jobs/routes; resolved by the
+	 * composition root from deploy config — the port never names a
+	 * provider model itself. */
+	readonly audioTranscribeModel: string;
 	/** Interop record exporters behind the @ktb/interop port — the host
 	 * wires the standard-specific adapters, plugins only see the port. */
 	readonly recordExporters?: Record<ExportFormat, RecordExporter>;
