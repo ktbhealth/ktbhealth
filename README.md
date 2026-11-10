@@ -77,9 +77,15 @@ bun run deploy   # alchemy deploy to Cloudflare (needs cuora vault access)
 ```
 
 `DATABASE_URL` accepts a path, `:memory:`, or `sqlite:`/`file:` URLs
-(see `@ktb/db-sqlite`). Audio bucket/queue bindings have no Node
-equivalent — audio features are unavailable under `dev:node`; AI still
-resolves via `AI_STUB`/`AI_BASE_URL`.
+(see `@ktb/db-sqlite`). Under `dev:node` the Cloudflare bindings get
+local equivalents (`apps/web/src/lib/node-audio.ts`): `AUDIO_BUCKET`
+is a filesystem object store under `apps/web/data/audio`
+(gitignored; override with `AUDIO_BUCKET_DIR`), and `AUDIO_QUEUE`
+dispatches in-process to the same transcription consumer workerd
+would invoke (bounded retries, no dead-letter queue). AI resolves via
+`AI_STUB`/`AI_BASE_URL` exactly as under `wrangler dev` — Workers AI
+itself has no Node equivalent, so `env.AI` stays unset unless a
+stand-in is configured.
 
 ## Related repos
 
