@@ -17,13 +17,16 @@ screen, not the patient.
 
 ## Solution
 
-Ambient scribe for telemedicine: the app captures the consultation
-audio → transcribes → structures a clinical anamnesis → the doctor
-reviews and approves → export to the medical record.
+Ambient scribe for medicine documentation: KTB captures the
+consultation audio, stores it, transcribes it, and processes it into
+a structured clinical anamnesis. The physician accesses it as a tool —
+reviewing evidence, editing, approving — with total decision over
+what enters the record.
 
-The AI drafts; the physician decides. It supports clinical
-documentation; it does not diagnose, prescribe, or suggest clinical
-decisions.
+We start with telemedicine because remote audio capture is simpler,
+but in-person consultations are a core part of the vision. The AI
+drafts; the physician decides. It supports clinical documentation; it
+does not diagnose, prescribe, or suggest clinical decisions.
 
 ## The name
 
@@ -36,7 +39,9 @@ accessible over time.
 
 A documentation platform connecting consultations, records, and patient
 history into a continuous clinical workflow — the consultation context
-compounds over time instead of disappearing into the next form.
+compounds over time instead of disappearing into the next form. KTB is
+a tool and a platform, never a decision-maker: the physician holds
+total decision.
 
 ## Layout
 
