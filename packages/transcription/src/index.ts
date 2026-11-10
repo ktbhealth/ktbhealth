@@ -2,9 +2,10 @@
  * Transcriber port — client-side speech-to-text.
  *
  * The domain (record page) talks to this interface; adapters decide
- * where recognition happens. First impl: Web Speech API (browser-
- * native, pt-BR, interim results). Future: Whisper API, Deepgram,
- * on-device models — none change the page code.
+ * where recognition happens. Impls live in sibling packages
+ * (@ktb/transcription-whisper, @ktb/transcription-webspeech) and are
+ * selected through the client-side driver registry below — the port
+ * itself stays impl-free.
  */
 
 export type TranscriptEvent =
@@ -52,107 +53,6 @@ export function needsServerFallback(stats: SessionStats): boolean {
 	);
 }
 
-/** Minimal shape of the browser SpeechRecognition we rely on. */
-interface SpeechRecognitionLike {
-	lang: string;
-	continuous: boolean;
-	interimResults: boolean;
-	start(): void;
-	stop(): void;
-	abort(): void;
-	onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-	onerror: ((event: { error?: string }) => void) | null;
-	onend: (() => void) | null;
-}
-
-interface SpeechRecognitionResultLike {
-	readonly isFinal: boolean;
-	readonly 0: { transcript: string; confidence?: number };
-	readonly length: number;
-}
-
-interface SpeechRecognitionEventLike {
-	resultIndex: number;
-	results: {
-		length: number;
-		[index: number]: SpeechRecognitionResultLike;
-	};
-}
-
-declare global {
-	interface Window {
-		SpeechRecognition?: new () => SpeechRecognitionLike;
-		webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-	}
-}
-
-export class WebSpeechTranscriber implements Transcriber {
-	private rec: SpeechRecognitionLike | null = null;
-
-	static isSupported(): boolean {
-		return (
-			typeof window !== "undefined" &&
-			Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition)
-		);
-	}
-
-	get supported(): boolean {
-		return WebSpeechTranscriber.isSupported();
-	}
-
-	start(onEvent: (event: TranscriptEvent) => void): void {
-		const Ctor =
-			typeof window !== "undefined"
-				? (window.SpeechRecognition ?? window.webkitSpeechRecognition)
-				: undefined;
-		if (!Ctor) {
-			onEvent({
-				type: "error",
-				message: "SpeechRecognition is not supported in this browser",
-			});
-			return;
-		}
-		const rec = new Ctor();
-		this.rec = rec;
-		rec.lang = "pt-BR";
-		rec.continuous = true;
-		rec.interimResults = true;
-
-		rec.onresult = (event: SpeechRecognitionEventLike) => {
-			for (let i = event.resultIndex; i < event.results.length; i++) {
-				const result = event.results[i];
-				const text = result[0]?.transcript ?? "";
-				if (!text) continue;
-				if (result.isFinal) {
-					onEvent({
-						type: "final",
-						text: text.trim(),
-						confidence: result[0]?.confidence,
-					});
-				} else {
-					onEvent({ type: "partial", text });
-				}
-			}
-		};
-		rec.onerror = (e) =>
-			onEvent({
-				type: "error",
-				message: e.error ?? "speech recognition error",
-			});
-		rec.onend = () => onEvent({ type: "end" });
-
-		rec.start();
-	}
-
-	stop(): void {
-		this.rec?.stop();
-	}
-}
-
-export function createTranscriber(): Transcriber {
-	return new WebSpeechTranscriber();
-}
-
 // ---------- engine backend port ----------
 
 export interface TranscriptionEngineMessage {
@@ -180,4 +80,40 @@ export interface TranscriptionBackend {
 	status(): TranscriptionStatus;
 	subscribe(fn: (m: TranscriptionEngineMessage) => void): () => void;
 	load(): void;
+}
+
+// ---------- client-side backend registry ----------
+
+/**
+ * Client-side counterpart of a `@ktb/driver-framework` `Driver`: a
+ * candidate transcription backend. Registration order is the
+ * deterministic tie-break — {@link resolveTranscriptionBackend} picks
+ * the first `supported()` candidate, mirroring `resolveDriver` on the
+ * server (first enabled wins).
+ */
+export interface TranscriptionDriver {
+	/** Unique driver name, e.g. "whisper". */
+	readonly id: string;
+	/** Eligibility predicate — runs in the current browser environment. */
+	supported(): boolean;
+	/** Build the backend this driver provides. */
+	create(): TranscriptionBackend;
+}
+
+export interface ResolvedTranscriptionBackend {
+	/** `id` of the driver that won resolution. */
+	readonly driverId: string;
+	readonly backend: TranscriptionBackend;
+}
+
+/**
+ * Resolve the transcription backend: the first supported candidate in
+ * registration order. Returns undefined when no candidate is eligible —
+ * callers pick their own last-resort backend.
+ */
+export function resolveTranscriptionBackend(
+	candidates: readonly TranscriptionDriver[],
+): ResolvedTranscriptionBackend | undefined {
+	const driver = candidates.find((c) => c.supported());
+	return driver === undefined ? undefined : { driverId: driver.id, backend: driver.create() };
 }

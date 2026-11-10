@@ -2,7 +2,6 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "ktb",
 	"compatibility_date": "2026-11-06",
-	"compatibility_flags": ["nodejs_compat"],
 	// Custom worker entry: TanStack fetch pipeline + Cloudflare Queue
 	// consumer for async audio transcription (see src/server.ts).
 	"main": "./src/server.ts",

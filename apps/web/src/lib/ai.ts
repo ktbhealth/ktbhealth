@@ -93,13 +93,9 @@ export const createLocalAi = (baseUrl: string, fetchImpl: typeof fetch = fetch):
 	},
 });
 
-export const resolveAi = (
-	env: AiEnv,
-	procEnv: Record<string, string | undefined> = {},
-	fetchImpl: typeof fetch = fetch,
-): AiBinding | undefined => {
-	if (enabled(env.AI_STUB ?? procEnv.AI_STUB)) return stubAi;
-	const baseUrl = env.AI_BASE_URL ?? procEnv.AI_BASE_URL;
+export const resolveAi = (env: AiEnv, fetchImpl: typeof fetch = fetch): AiBinding | undefined => {
+	if (enabled(env.AI_STUB)) return stubAi;
+	const baseUrl = env.AI_BASE_URL;
 	if (typeof baseUrl === "string" && baseUrl !== "") {
 		return createLocalAi(baseUrl, fetchImpl);
 	}

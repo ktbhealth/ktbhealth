@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { NewConsultationPage } from "../views/index.ts";
-import { whisperBackend } from "@ktb/transcription-whisper";
+import { prefersWhisper, transcriptionBackend } from "../backend.ts";
 import {
 	newConsultationApi,
 	newConsultationLoader,
@@ -22,13 +22,17 @@ export const Route = createFileRoute("/consultations/new")({
 	component: function NewRoute() {
 		const { initialPatients, locale } = Route.useLoaderData();
 		const { patientId } = Route.useSearch();
-		useEffect(() => prefetchWhisperModel(), []);
+		// Only warm the Whisper model when Whisper actually won resolution —
+		// on the Web Speech fallback there is no model to prefetch.
+		useEffect(() => {
+			if (prefersWhisper) prefetchWhisperModel();
+		}, []);
 		return (
 			<NewConsultationPage
 				initialPatients={initialPatients}
 				initialPatientId={patientId}
 				api={newConsultationApi}
-				backend={whisperBackend}
+				backend={transcriptionBackend}
 				locale={locale}
 			/>
 		);

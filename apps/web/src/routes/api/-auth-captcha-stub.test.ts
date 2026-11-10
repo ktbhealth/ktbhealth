@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.hoisted(() => {
-	process.env.CAPTCHA_STUB = "1";
-});
+import { env } from "cloudflare:workers";
+
 vi.mock("@tanstack/react-start/server", () => ({
 	getRequestHeaders: () => new Headers(),
 }));
 
-import { Route } from "./auth.$.ts";
+// CAPTCHA_STUB must be bound before platform.ts composes the app — the
+// captcha driver is selected once, at layer build time.
+env.CAPTCHA_STUB = "1";
+
+const { Route } = await import("./auth.$.ts");
 
 const handlersOf = (r: unknown) =>
 	(r as { options: { server: { handlers: Record<string, (a: never) => Promise<Response>> } } })

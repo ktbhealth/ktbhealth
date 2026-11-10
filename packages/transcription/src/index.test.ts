@@ -1,170 +1,67 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { createTranscriber, needsServerFallback, WebSpeechTranscriber } from "./index.ts";
+import {
+	needsServerFallback,
+	resolveTranscriptionBackend,
+	type Transcriber,
+	type TranscriptionBackend,
+	type TranscriptionDriver,
+} from "./index.ts";
 
-describe("WebSpeechTranscriber in node environment", () => {
-	it("reports not supported in node environment", () => {
-		expect(WebSpeechTranscriber.isSupported()).toBe(false);
-		const t = new WebSpeechTranscriber();
-		expect(t.supported).toBe(false);
-	});
+const stubTranscriber: Transcriber = {
+	supported: true,
+	start: () => {},
+	stop: () => {},
+};
 
-	it("emits error event when starting without browser support", () => {
-		const t = new WebSpeechTranscriber();
-		const events: unknown[] = [];
-		t.start((ev) => events.push(ev));
-		expect(events).toEqual([
-			{
-				type: "error",
-				message: "SpeechRecognition is not supported in this browser",
-			},
-		]);
-	});
-
-	it("stop is a no-op when recognition was not started", () => {
-		const t = new WebSpeechTranscriber();
-		expect(() => t.stop()).not.toThrow();
-	});
+const stubBackend = (): TranscriptionBackend => ({
+	mic: () => stubTranscriber,
+	tab: () => stubTranscriber,
+	status: () => ({ state: "idle", device: null }),
+	subscribe: () => () => {},
+	load: () => {},
 });
 
-describe("WebSpeechTranscriber with mocked browser SpeechRecognition", () => {
-	class MockSpeechRecognition {
-		lang = "";
-		continuous = false;
-		interimResults = false;
-		start = vi.fn();
-		stop = vi.fn();
-		abort = vi.fn();
-		onresult: ((event: unknown) => void) | null = null;
-		onerror: ((event: { error?: string }) => void) | null = null;
-		onend: (() => void) | null = null;
-	}
-
-	afterEach(() => {
-		// @ts-expect-error test cleanup
-		delete globalThis.window;
+describe("resolveTranscriptionBackend", () => {
+	it("returns undefined for an empty candidate list", () => {
+		expect(resolveTranscriptionBackend([])).toBeUndefined();
 	});
 
-	it("reports supported when window.SpeechRecognition exists", () => {
-		// @ts-expect-error test mock
-		globalThis.window = { SpeechRecognition: MockSpeechRecognition };
-		expect(WebSpeechTranscriber.isSupported()).toBe(true);
-		const t = new WebSpeechTranscriber();
-		expect(t.supported).toBe(true);
+	it("returns undefined when no candidate is supported", () => {
+		const create = vi.fn(stubBackend);
+		const candidates: TranscriptionDriver[] = [
+			{ id: "a", supported: () => false, create },
+			{ id: "b", supported: () => false, create },
+		];
+		expect(resolveTranscriptionBackend(candidates)).toBeUndefined();
+		expect(create).not.toHaveBeenCalled();
 	});
 
-	it("supports webkitSpeechRecognition fallback", () => {
-		// @ts-expect-error test mock
-		globalThis.window = { webkitSpeechRecognition: MockSpeechRecognition };
-		expect(WebSpeechTranscriber.isSupported()).toBe(true);
-		const t = new WebSpeechTranscriber();
-		const events: Array<{ type: string; text?: string }> = [];
-		t.start((ev) => events.push(ev));
-		expect(events).toEqual([]);
-		t.stop();
+	it("picks the first supported candidate in registration order", () => {
+		const backendA = stubBackend();
+		const backendB = stubBackend();
+		const createA = vi.fn(() => backendA);
+		const createB = vi.fn(() => backendB);
+		const candidates: TranscriptionDriver[] = [
+			{ id: "first", supported: () => true, create: createA },
+			{ id: "second", supported: () => true, create: createB },
+		];
+		const resolved = resolveTranscriptionBackend(candidates);
+		expect(resolved).toEqual({ driverId: "first", backend: backendA });
+		expect(createA).toHaveBeenCalledOnce();
+		expect(createB).not.toHaveBeenCalled();
 	});
 
-	it("ignores results with no transcript alternative", () => {
-		let currentInstance: MockSpeechRecognition | null = null;
-		class MockCtor extends MockSpeechRecognition {
-			constructor() {
-				super();
-				currentInstance = this;
-			}
-		}
-		// @ts-expect-error test mock
-		globalThis.window = { SpeechRecognition: MockCtor };
-		const t = new WebSpeechTranscriber();
-		const events: unknown[] = [];
-		t.start((ev) => events.push(ev));
-		currentInstance!.onresult!({
-			resultIndex: 0,
-			results: [{ isFinal: true, length: 0 }],
+	it("skips unsupported candidates ahead of a supported one", () => {
+		const backend = stubBackend();
+		const candidates: TranscriptionDriver[] = [
+			{ id: "off", supported: () => false, create: stubBackend },
+			{ id: "on", supported: () => true, create: () => backend },
+		];
+		expect(resolveTranscriptionBackend(candidates)).toEqual({
+			driverId: "on",
+			backend,
 		});
-		expect(events).toEqual([]);
-	});
-
-	it("handles transcription lifecycle, results and errors", () => {
-		let currentInstance: MockSpeechRecognition | null = null;
-		class MockCtor extends MockSpeechRecognition {
-			constructor() {
-				super();
-				currentInstance = this;
-			}
-		}
-
-		// @ts-expect-error test mock
-		globalThis.window = { webkitSpeechRecognition: MockCtor };
-
-		const t = new WebSpeechTranscriber();
-		const events: unknown[] = [];
-		t.start((ev) => events.push(ev));
-
-		expect(currentInstance).not.toBeNull();
-		expect(currentInstance!.start).toHaveBeenCalled();
-		expect(currentInstance!.lang).toBe("pt-BR");
-
-		// Partial event
-		currentInstance!.onresult!({
-			resultIndex: 0,
-			results: [
-				{
-					0: { transcript: "olá doutor" },
-					isFinal: false,
-					length: 1,
-				},
-			],
-		});
-
-		// Final event
-		currentInstance!.onresult!({
-			resultIndex: 0,
-			results: [
-				{
-					0: { transcript: " dor de cabeça ", confidence: 0.95 },
-					isFinal: true,
-					length: 1,
-				},
-			],
-		});
-
-		// Empty text ignored
-		currentInstance!.onresult!({
-			resultIndex: 0,
-			results: [
-				{
-					0: { transcript: "" },
-					isFinal: true,
-					length: 1,
-				},
-			],
-		});
-
-		// Error event with message
-		currentInstance!.onerror!({ error: "network" });
-		// Error event without message fallback
-		currentInstance!.onerror!({});
-
-		// End event
-		currentInstance!.onend!();
-
-		t.stop();
-		expect(currentInstance!.stop).toHaveBeenCalled();
-
-		expect(events).toEqual([
-			{ type: "partial", text: "olá doutor" },
-			{ type: "final", text: "dor de cabeça", confidence: 0.95 },
-			{ type: "error", message: "network" },
-			{ type: "error", message: "speech recognition error" },
-			{ type: "end" },
-		]);
-	});
-});
-
-describe("createTranscriber factory", () => {
-	it("returns a WebSpeechTranscriber instance", () => {
-		const t = createTranscriber();
-		expect(t).toBeInstanceOf(WebSpeechTranscriber);
 	});
 });
 

@@ -36,14 +36,9 @@ describe("resolveAi", () => {
 		expect(await ai!.run("m", { messages: [] })).toEqual({ response: "{}" });
 	});
 
-	it("reads flags from process.env when absent on env", () => {
-		expect(resolveAi({}, { AI_STUB: "true" })).toBeDefined();
-		expect(resolveAi({}, { AI_STUB: "yes" })).toBeUndefined();
-	});
-
 	it("AI_BASE_URL beats env.AI", () => {
 		const fetchImpl = vi.fn<typeof fetch>();
-		const ai = resolveAi({ AI: binding(), AI_BASE_URL: "http://localhost:8080/" }, {}, fetchImpl);
+		const ai = resolveAi({ AI: binding(), AI_BASE_URL: "http://localhost:8080/" }, fetchImpl);
 		expect(ai).toBeDefined();
 		expect(ai).not.toBe(binding());
 	});

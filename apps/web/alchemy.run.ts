@@ -66,7 +66,8 @@ export default Alchemy.Stack(
 					? { AUDIO_TRANSCRIBE_MODEL: process.env.AUDIO_TRANSCRIBE_MODEL }
 					: {}),
 			},
-			compatibilityFlags: ["nodejs_compat"],
+			// No nodejs_compat: worker-runtime code reads secrets only via
+			// bindings (.dev.vars in dev, these bindings in prod).
 		});
 
 		// Queue consumer → this worker's `queue` handler (src/server.ts).

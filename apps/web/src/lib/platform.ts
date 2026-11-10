@@ -11,37 +11,15 @@ import { openEhrExporter } from "@ktb/interop-openehr";
 
 // Deploy-target glue: the only place cloudflare:workers env is read.
 // All composition (plugin registry, layers, runtime) lives in @ktb/app-host.
-// LLM keys may come from wrangler vars/secrets (env) or the dev shell
-// (process.env via nodejs_compat) — bindings win.
-const LLM_ENV_KEYS = [
-	"ANTHROPIC_API_KEY",
-	"LLM_API_KEY",
-	"OPENAI_API_KEY",
-	"LLM_BASE_URL",
-	"LLM_MODEL",
-	"WORKERS_AI_MODEL",
-] as const;
-
-// Non-LLM config passthrough — same bindings-win-then-process.env rule.
-// BETTER_AUTH_* mirror the worker bindings bound by alchemy.run.ts; the
-// process.env fallback covers `cuora run` dev shells where the vars are
-// injected into the process but not into workerd bindings.
-const APP_ENV_KEYS = [
-	"BETTER_AUTH_SECRET",
-	"BETTER_AUTH_URL",
-	"PLATFORM_ADMIN_EMAILS",
-	"RECALL_API_KEY",
-	"AUDIO_TRANSCRIBE_MODEL",
-] as const;
+// Secrets/config reach the worker as bindings only — dev via .dev.vars
+// (scripts/dev-secrets.mjs), prod via the Alchemy stack (alchemy.run.ts).
+// No process.env reads: the worker stays portable across runtimes.
 
 // AI_STUB > AI_BASE_URL > env.AI — dev may run without the Workers AI
 // binding (wrangler.dev.jsonc), so resolve before composing the app.
-const aiBinding = resolveAi(env as unknown as AiEnv, process.env);
+const aiBinding = resolveAi(env as unknown as AiEnv);
 
 const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
-for (const key of [...LLM_ENV_KEYS, ...APP_ENV_KEYS]) {
-	appEnv[key] ??= process.env[key];
-}
 
 const app = createApp(appEnv as unknown as typeof env);
 

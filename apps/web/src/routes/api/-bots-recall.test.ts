@@ -1,10 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-// RECALL_API_KEY must be set before platform.ts composes the app runtime —
-// the Bot driver selects its provider once, at layer build time.
-vi.hoisted(() => {
-	process.env.RECALL_API_KEY = "recall-key";
-});
+import { env } from "cloudflare:workers";
 
 const headers = vi.hoisted(() => ({ current: new Headers() }));
 
@@ -12,8 +8,13 @@ vi.mock("@tanstack/react-start/server", () => ({
 	getRequestHeaders: () => headers.current,
 }));
 
-import { auth } from "#/lib/platform.ts";
-import { Route as BotsRoute } from "./bots.ts";
+// RECALL_API_KEY must be bound before platform.ts composes the app runtime —
+// the Bot driver selects its provider once, at layer build time. Dynamic
+// imports keep the binding assignment ahead of module evaluation.
+env.RECALL_API_KEY = "recall-key";
+
+const { auth } = await import("#/lib/platform.ts");
+const { Route: BotsRoute } = await import("./bots.ts");
 
 const handlersOf = (r: unknown) =>
 	(r as { options: { server: { handlers: Record<string, (a: never) => Promise<Response>> } } })

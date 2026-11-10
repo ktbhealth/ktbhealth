@@ -70,16 +70,15 @@ export const env = {
 	},
 	AUDIO_BUCKET: fakeBucket,
 	AUDIO_QUEUE: fakeQueue,
+	// Worker-runtime config arrives as bindings only (mirrors .dev.vars in
+	// dev / Alchemy bindings in prod). Tests that need a non-default value
+	// assign it here BEFORE importing platform.ts — driver selection happens
+	// once, at app composition.
 	BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!!",
 	BETTER_AUTH_URL: "http://localhost:3000",
-	TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
-	CAPTCHA_STUB: process.env.CAPTCHA_STUB,
-	ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-	LLM_API_KEY: process.env.LLM_API_KEY,
-	OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-	LLM_BASE_URL: process.env.LLM_BASE_URL,
-	LLM_MODEL: process.env.LLM_MODEL,
-	// Test double: fixed admin allowlist so platform-gate tests are
-	// deterministic regardless of the developer's shell env.
-	PLATFORM_ADMIN_EMAILS: process.env.PLATFORM_ADMIN_EMAILS ?? "platform-admin@ktb.test",
+	TURNSTILE_SECRET_KEY: undefined as string | undefined,
+	CAPTCHA_STUB: undefined as string | undefined,
+	RECALL_API_KEY: undefined as string | undefined,
+	// Fixed admin allowlist so platform-gate tests are deterministic.
+	PLATFORM_ADMIN_EMAILS: "platform-admin@ktb.test",
 };

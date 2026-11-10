@@ -79,6 +79,8 @@ export default defineConfig({
 								"@ktb/captcha-turnstile/**",
 								"@ktb/transcription-whisper",
 								"@ktb/transcription-whisper/**",
+								"@ktb/transcription-webspeech",
+								"@ktb/transcription-webspeech/**",
 								"@ktb/anamnesis-llm",
 								"@ktb/anamnesis-llm/**",
 								"@ktb/interop-fhir",
@@ -149,6 +151,8 @@ export default defineConfig({
 								"@ktb/captcha-turnstile/**",
 								"@ktb/transcription-whisper",
 								"@ktb/transcription-whisper/**",
+								"@ktb/transcription-webspeech",
+								"@ktb/transcription-webspeech/**",
 								"@ktb/anamnesis-llm",
 								"@ktb/anamnesis-llm/**",
 								"@ktb/interop-fhir",
@@ -169,11 +173,12 @@ export default defineConfig({
 				// - platform.ts / plugins.ts are the composition root wiring
 				//   @ktb/app-host (and the @ktb/interop-* exporters) into the
 				//   deploy target.
-				// - consultations plugin route modules inject the whisper
-				//   backend client-side (routes/new.tsx) and warm the model
-				//   on consultations pages (whisper-prefetch.ts) — the same
-				//   documented injection points the host route files had
-				//   before the P-033 route migration.
+				// - consultations plugin modules inject the transcription
+				//   backend client-side (backend.ts resolves the driver;
+				//   routes/new.tsx + routes/index.tsx consume it) and warm
+				//   the model on consultations pages (whisper-prefetch.ts)
+				//   — the same documented injection points the host route
+				//   files had before the P-033 route migration.
 				// - login.tsx / __root.tsx / platform.tsx use the better-auth
 				//   client SDK, which is inherently impl-bound.
 				// - *.test.* may mock impl packages.
@@ -185,6 +190,7 @@ export default defineConfig({
 					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
 					"plugins/consultations/src/routes/new.tsx",
+					"plugins/consultations/src/backend.ts",
 					"plugins/consultations/src/whisper-prefetch.ts",
 					"plugins/consultations/src/whisper-prefetch.test.ts",
 					// api-routes.test.ts wires the real @ktb/interop-* exporters
