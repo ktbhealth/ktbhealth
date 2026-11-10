@@ -12,13 +12,6 @@ export const CONF_BAR: Record<Confidence, string> = {
 	baixa: "border-l-border",
 };
 
-export const SOURCE_LABEL: Record<string, string> = {
-	browser: "Browser voice",
-	bot: "Teleconsult (bot)",
-	dictation: "Dictation",
-	upload: "Upload",
-};
-
 export const SPEAKER_STYLE: Record<string, string> = {
 	Doctor: "bg-sky-50 text-sky-800 ring-sky-200",
 	Patient: "bg-primary/10 text-primary ring-primary/20",

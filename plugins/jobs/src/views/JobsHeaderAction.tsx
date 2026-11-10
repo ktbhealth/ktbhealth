@@ -27,6 +27,7 @@ import {
 } from "@ktbhealth/ui/components/tooltip";
 
 import { jobFromAudioRow, type AudioJobRow } from "../jobs.ts";
+import { jobMessages } from "../i18n.ts";
 import { JobsDataContext, type ConsoleJob } from "../context.ts";
 
 const GROUP_ORDER = ["processing", "queued", "failed", "done"] as const;
@@ -69,7 +70,8 @@ const upsertJob = (
  * renders meanwhile; without EventSource, e.g. jsdom tests, the seed is
  * authoritative). Empty state when none.
  */
-export function JobsHeaderAction() {
+export function JobsHeaderAction({ locale = "en" }: { locale?: string }) {
+	const t = jobMessages(locale);
 	const seeded = React.useContext(JobsDataContext);
 	// null → context seed is authoritative (no live connection yet/ever).
 	const [live, setLive] = React.useState<readonly ConsoleJob[] | null>(null);
@@ -84,14 +86,14 @@ export function JobsHeaderAction() {
 		source.onmessage = (event) => {
 			try {
 				const row = JSON.parse(event.data) as AudioJobRow;
-				const job = jobFromAudioRow(row);
+				const job = jobFromAudioRow(row, locale);
 				setLive((prev) => upsertJob(prev ?? seeded, `audio-${row.id}`, job));
 			} catch {
 				// Malformed frame — ignore.
 			}
 		};
 		return () => source.close();
-	}, [seeded]);
+	}, [seeded, locale]);
 
 	const active = jobs.filter((j) => j.status === "queued" || j.status === "processing");
 
@@ -116,12 +118,7 @@ export function JobsHeaderAction() {
 						render={
 							<PopoverTrigger
 								render={
-									<Button
-										variant="ghost"
-										size="icon"
-										className="relative"
-										aria-label="Background jobs"
-									/>
+									<Button variant="ghost" size="icon" className="relative" aria-label={t.label} />
 								}
 							/>
 						}
@@ -133,14 +130,14 @@ export function JobsHeaderAction() {
 							</span>
 						) : null}
 					</TooltipTrigger>
-					<TooltipContent>Background jobs</TooltipContent>
+					<TooltipContent>{t.label}</TooltipContent>
 				</Tooltip>
 				<PopoverContent align="end" className="w-96 p-0">
 					<PopoverHeader className="border-b border-border px-3 py-2">
 						<PopoverTitle className="flex items-center justify-between text-sm">
-							<span>Background jobs</span>
+							<span>{t.label}</span>
 							<span className="text-xs font-normal text-muted-foreground">
-								{active.length} active
+								{t.activeCount(active.length)}
 							</span>
 						</PopoverTitle>
 					</PopoverHeader>
@@ -153,23 +150,20 @@ export function JobsHeaderAction() {
 									<JobQueue groups={groups} />
 								) : (
 									<JobEmptyState
-										title="No jobs in this state"
-										description="Nothing matches the selected filter."
+										title={t.emptyFilteredTitle}
+										description={t.emptyFilteredDescription}
 									/>
 								)}
 							</>
 						) : (
-							<JobEmptyState
-								title="No background jobs"
-								description="Transcription, export and sync jobs will appear here."
-							/>
+							<JobEmptyState title={t.emptyAllTitle} description={t.emptyAllDescription} />
 						)}
 						<div className="border-t border-border pt-2 text-right">
 							<Link
 								to="/platform/consultations"
 								className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
 							>
-								Open consultations
+								{t.openConsultations}
 							</Link>
 						</div>
 					</div>

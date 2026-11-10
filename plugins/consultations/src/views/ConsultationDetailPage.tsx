@@ -3,7 +3,6 @@ import { useState } from "react";
 import { ArrowLeftIcon, ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { anamnesisToText } from "@ktb/anamnesis";
-import { CONFIDENCE_LABELS, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
 import type { Anamnesis, AnamnesisSectionKey, PatientHistory } from "@ktb/anamnesis";
 import { Toast, type ToastData } from "@ktbhealth/ui/components/app-toast";
 import { Badge } from "@ktbhealth/ui/components/badge";
@@ -16,7 +15,8 @@ import {
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
 
-import { BADGE_TONES, CONF_BAR, CONF_STYLE, SOURCE_LABEL } from "./-ui.ts";
+import { BADGE_TONES, CONF_BAR, CONF_STYLE } from "./-ui.ts";
+import { consultationMessages, sourceLabel } from "../i18n.ts";
 import {
 	AudioTranscriptPanel,
 	useConsultationAudio,
@@ -73,11 +73,15 @@ export function ConsultationDetailPage({
 	c,
 	history,
 	api,
+	locale = "en",
 }: {
 	c: ConsultationDetail;
 	history: PatientHistory | null;
 	api?: ConsultationDetailApi;
+	/** Active UI locale, injected by the host (route loader / panel ctx). */
+	locale?: string;
 }) {
+	const t = consultationMessages(locale);
 	const [toast, setToast] = useState<ToastData | null>(null);
 	// Poll only when the loader data says the pipeline may still be
 	// running (or the LLM cleanup is pending); the hook stops itself
@@ -87,7 +91,7 @@ export function ConsultationDetailPage({
 		(c.audioStatus === "done" && Boolean(c.serverTranscript) && !c.correctedTranscript);
 	const live = useConsultationAudio(api && pipelineActive ? api.getConsultation : undefined, c.id);
 	const v = live ?? c;
-	const when = new Date(c.createdAt).toLocaleString("en-US", {
+	const when = new Date(c.createdAt).toLocaleString(locale, {
 		dateStyle: "long",
 		timeStyle: "short",
 	});
@@ -97,14 +101,14 @@ export function ConsultationDetailPage({
 		if (!c.anamnesis) return;
 		void navigator.clipboard
 			.writeText(anamnesisToText(c.anamnesis))
-			.then(() => setToast({ id: Date.now(), text: "Anamnesis copied" }));
+			.then(() => setToast({ id: Date.now(), text: t.detail.anamnesisCopied }));
 	}
 
 	return (
 		<div>
 			<Button variant="ghost" size="sm" className="-ml-2" render={<Link to="/consultations" />}>
 				<ArrowLeftIcon />
-				Consultations
+				{t.detail.back}
 			</Button>
 
 			{/* ---------- header ---------- */}
@@ -116,43 +120,41 @@ export function ConsultationDetailPage({
 								to="/patients/$id"
 								params={{ id: String(c.patientId) }}
 								className="hover:underline"
-								title="Open patient record"
+								title={t.detail.openPatientRecord}
 							>
 								{c.patientName}
 							</Link>
 						) : (
-							(c.patientName ?? `Consultation #${c.id}`)
+							(c.patientName ?? t.common.consultationId(c.id))
 						)}
 					</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Consultation #{c.id} · {when}
+						{t.common.consultationId(c.id)} · {when}
 					</p>
 					<div className="mt-3 flex flex-wrap gap-1.5">
-						<Chip>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</Chip>
-						{c.engine ? <Chip>engine: {c.engine}</Chip> : null}
+						<Chip>{sourceLabel(t, c.source)}</Chip>
+						{c.engine ? <Chip>{t.common.engine(c.engine)}</Chip> : null}
 						{c.consentAt ? (
 							<Chip tone="green">
-								Consent ✓ {new Date(c.consentAt).toLocaleDateString("en-US")}
+								{t.detail.consentRecorded(new Date(c.consentAt).toLocaleDateString(locale))}
 							</Chip>
 						) : (
-							<Chip tone="amber">Consent not recorded</Chip>
+							<Chip tone="amber">{t.detail.consentNotRecorded}</Chip>
 						)}
-						{c.status === "live" ? <Chip tone="amber">in progress</Chip> : null}
+						{c.status === "live" ? <Chip tone="amber">{t.detail.inProgress}</Chip> : null}
 						{history && history.count > 0 ? (
-							<Chip>
-								{history.count} previous consultation{history.count === 1 ? "" : "s"}
-							</Chip>
+							<Chip>{t.detail.previousConsultations(history.count)}</Chip>
 						) : null}
 					</div>
 				</div>
 				{c.anamnesis ? (
 					<div className="flex gap-2">
 						<Button type="button" variant="outline" onClick={copy}>
-							Copy
+							{t.common.copy}
 						</Button>
 						<a href={`/api/consultations/${c.id}/pdf`} download className={buttonVariants()}>
 							<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
-							Download PDF
+							{t.common.downloadPdf}
 						</a>
 					</div>
 				) : null}
@@ -161,24 +163,21 @@ export function ConsultationDetailPage({
 			{history && history.count > 0 ? (
 				<details className="mt-4 rounded-2xl border border-border bg-card shadow-sm">
 					<summary className="cursor-pointer px-5 py-3 text-sm font-semibold">
-						{HISTORY_SECTION_LABEL} · {history.count} previous consultation
-						{history.count === 1 ? "" : "s"}
+						{t.sections.historico} · {t.detail.previousConsultations(history.count)}
 					</summary>
 					<ul className="space-y-2 border-t border-border px-5 py-3 text-sm">
 						{history.visits.map((v) => (
 							<li key={v.id}>
 								<span className="text-muted-foreground">
-									{new Date(v.date).toLocaleDateString("en-US", { dateStyle: "medium" })} ·
-									consultation #{v.id}
+									{new Date(v.date).toLocaleDateString(locale, { dateStyle: "medium" })} ·{" "}
+									{t.common.consultationId(v.id).toLowerCase()}
 								</span>
-								{v.chiefComplaint ? <div>Complaint: {v.chiefComplaint}</div> : null}
-								{v.plan ? <div>Plan: {v.plan}</div> : null}
+								{v.chiefComplaint ? <div>{t.detail.complaint(v.chiefComplaint)}</div> : null}
+								{v.plan ? <div>{t.detail.plan(v.plan)}</div> : null}
 							</li>
 						))}
 					</ul>
-					<p className="px-5 pb-3 text-[11px] text-muted-foreground">
-						Factual record of prior consultations — context only, not clinical suggestions.
-					</p>
+					<p className="px-5 pb-3 text-[11px] text-muted-foreground">{t.detail.historyNote}</p>
 				</details>
 			) : null}
 
@@ -186,11 +185,13 @@ export function ConsultationDetailPage({
 				{/* ---------- anamnesis ---------- */}
 				<section>
 					<h2 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-						Anamnesis
+						{t.common.anamnesis}
 					</h2>
 					{c.anamnesis ? (
 						<div className="grid gap-3 sm:grid-cols-2">
-							{(Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]).map((key) => {
+							{(
+								Object.keys(t.sections).filter((k) => k !== "historico") as AnamnesisSectionKey[]
+							).map((key) => {
 								const sec = c.anamnesis?.[key];
 								if (!sec) return null;
 								const pending = sec.content.startsWith("A preencher pelo médico");
@@ -202,11 +203,11 @@ export function ConsultationDetailPage({
 										}`}
 									>
 										<div className="flex items-center justify-between gap-2">
-											<h3 className="text-sm font-semibold">{SECTION_LABELS[key]}</h3>
+											<h3 className="text-sm font-semibold">{t.sections[key]}</h3>
 											<span
 												className={`rounded-full px-2 py-0.5 text-[10px] ring-1 ${CONF_STYLE[sec.confidence]}`}
 											>
-												{CONFIDENCE_LABELS[sec.confidence]}
+												{t.confidence[sec.confidence]}
 											</span>
 										</div>
 										<p
@@ -214,12 +215,12 @@ export function ConsultationDetailPage({
 												pending ? "text-amber-700 italic" : "text-foreground"
 											}`}
 										>
-											{sec.content || "Not reported"}
+											{sec.content || t.detail.notReported}
 										</p>
 										{sec.evidence.length ? (
 											<details className="mt-2">
 												<summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground">
-													evidence ({sec.evidence.length})
+													{t.detail.evidence(sec.evidence.length)}
 												</summary>
 												<ul className="mt-1 list-inside list-disc text-[11px] text-muted-foreground">
 													{sec.evidence.map((ev) => (
@@ -238,10 +239,8 @@ export function ConsultationDetailPage({
 								<EmptyMedia variant="icon">
 									<ClipboardListIcon />
 								</EmptyMedia>
-								<EmptyTitle>No anamnesis saved</EmptyTitle>
-								<EmptyDescription>
-									This consultation does not have a saved anamnesis yet.
-								</EmptyDescription>
+								<EmptyTitle>{t.detail.noAnamnesisTitle}</EmptyTitle>
+								<EmptyDescription>{t.detail.noAnamnesisDescription}</EmptyDescription>
 							</EmptyHeader>
 						</Empty>
 					)}
@@ -250,10 +249,11 @@ export function ConsultationDetailPage({
 				{/* ---------- side: transcript ---------- */}
 				<aside className="rounded-2xl border border-border bg-card shadow-sm lg:sticky lg:top-20">
 					<div className="border-b border-border px-5 py-3">
-						<h2 className="text-sm font-semibold">Transcript</h2>
+						<h2 className="text-sm font-semibold">{t.common.transcript}</h2>
 					</div>
 					<div className="max-h-[70vh] overflow-y-auto p-5">
 						<AudioTranscriptPanel
+							locale={locale}
 							consultationId={c.id}
 							audioStatus={v.audioStatus}
 							hasAudio={Boolean(v.audioKey)}

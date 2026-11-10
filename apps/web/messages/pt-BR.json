@@ -109,5 +109,10 @@
 	"capture_status_requesting": "solicitando aba…",
 	"capture_error_no_audio": "a aba compartilhada não tem áudio. Ative 'compartilhar áudio'",
 	"capture_status_capturing": "capturando · faixa: {track} | {state}",
-	"capture_level": "nível: {level}%"
+	"capture_level": "nível: {level}%",
+	"panel_nav_dashboard": "Painel",
+	"panel_nav_users": "Usuários",
+	"panel_nav_groups": "Grupos",
+	"panel_group_access": "Acesso",
+	"panel_group_domains": "Domínios"
 }

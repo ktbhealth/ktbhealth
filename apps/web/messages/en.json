@@ -109,5 +109,10 @@
 	"capture_status_requesting": "requesting tab…",
 	"capture_error_no_audio": "shared tab has no audio. Enable 'share audio'",
 	"capture_status_capturing": "capturing · track: {track} | {state}",
-	"capture_level": "level: {level}%"
+	"capture_level": "level: {level}%",
+	"panel_nav_dashboard": "Dashboard",
+	"panel_nav_users": "Users",
+	"panel_nav_groups": "Groups",
+	"panel_group_access": "Access",
+	"panel_group_domains": "Domains"
 }

@@ -4,6 +4,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { platformPageDataFn } from "#/lib/fns.ts";
 import { platformPages } from "#/lib/platform-pages.ts";
 import { plugins } from "#/plugins.ts";
+import { getLocale } from "#/paraglide/runtime.js";
 
 const PATH = "/platform";
 
@@ -26,6 +27,6 @@ export const Route = createFileRoute("/platform/")({
 		const data = Route.useLoaderData();
 		const page = platformPages.get(PATH);
 		if (page === undefined) return null;
-		return createElement(page.component, { data, ctx: { plugins } });
+		return createElement(page.component, { data, ctx: { plugins, locale: getLocale() } });
 	},
 });

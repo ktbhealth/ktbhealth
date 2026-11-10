@@ -2,6 +2,8 @@ import type { AdminConsultationRow } from "@ktb/consultations";
 import type { Plugin } from "@ktb/kernel";
 import type { ConsoleNotification } from "@ktb/notifications/context";
 import type { AdminPatientRow } from "@ktb/patients";
+
+import { dashboardMessages } from "../i18n.ts";
 import {
 	Table,
 	TableBody,
@@ -10,8 +12,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ktbhealth/ui/components/table";
-
-const fmtDate = (d: Date) => d.toLocaleString();
 
 const contributions = (p: Plugin) =>
 	[
@@ -48,48 +48,51 @@ export function DashboardPage({
 	plugins,
 	notifications,
 	unreadCount = 0,
+	locale = "en",
 }: {
 	patients: AdminPatientRow[];
 	consultations: AdminConsultationRow[];
 	plugins: readonly Plugin[];
+	/** Active UI locale, injected by the host via the panel page ctx. */
+	locale?: string;
 	/** Session user's recent notifications — `undefined` hides the
 	 * console-activity card entirely (backend plugin not registered). */
 	notifications?: readonly ConsoleNotification[];
 	unreadCount?: number;
 }) {
+	const t = dashboardMessages(locale);
+	const fmtDate = (d: Date) => d.toLocaleString(locale);
 	const recent = consultations.slice(0, 8);
 	const sidebarItems = plugins.reduce((n, p) => n + (p.panel?.sidebar?.length ?? 0), 0);
 	return (
 		<div>
-			<h1 className="text-lg font-bold tracking-tight">dashboard</h1>
-			<p className="mt-1 text-xs text-muted-foreground">
-				System overview — aggregated across plugins.
-			</p>
+			<h1 className="text-lg font-bold tracking-tight">{t.title}</h1>
+			<p className="mt-1 text-xs text-muted-foreground">{t.subtitle}</p>
 
 			<div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-				<Stat label="Patients" value={patients.length} />
-				<Stat label="Consultations" value={consultations.length} />
-				<Stat label="Plugins" value={plugins.length} />
-				<Stat label="Sidebar items" value={sidebarItems} />
+				<Stat label={t.stats.patients} value={patients.length} />
+				<Stat label={t.stats.consultations} value={consultations.length} />
+				<Stat label={t.stats.plugins} value={plugins.length} />
+				<Stat label={t.stats.sidebarItems} value={sidebarItems} />
 			</div>
 
 			<div className="mt-6 grid gap-6 lg:grid-cols-2">
 				<section>
 					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-						Recent consultations
+						{t.recentConsultations}
 					</h2>
 					{recent.length === 0 ? (
-						<p className="mt-2 text-xs text-muted-foreground">No consultations yet.</p>
+						<p className="mt-2 text-xs text-muted-foreground">{t.noConsultations}</p>
 					) : (
 						<div className="mt-2 overflow-hidden rounded-lg border border-border">
 							<Table>
 								<TableHeader>
 									<TableRow>
-										<TableHead className="w-12">Id</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead>Source</TableHead>
-										<TableHead>Owner</TableHead>
-										<TableHead className="text-right">Created</TableHead>
+										<TableHead className="w-12">{t.colId}</TableHead>
+										<TableHead>{t.colStatus}</TableHead>
+										<TableHead>{t.colSource}</TableHead>
+										<TableHead>{t.colOwner}</TableHead>
+										<TableHead className="text-right">{t.colCreated}</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -112,14 +115,14 @@ export function DashboardPage({
 
 				<section>
 					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-						Registered plugins
+						{t.registeredPlugins}
 					</h2>
 					<div className="mt-2 overflow-hidden rounded-lg border border-border">
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead>Id</TableHead>
-									<TableHead>Contributions</TableHead>
+									<TableHead>{t.colId}</TableHead>
+									<TableHead>{t.colContributions}</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -138,17 +141,17 @@ export function DashboardPage({
 			{notifications !== undefined ? (
 				<section className="mt-6">
 					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-						Console activity
+						{t.consoleActivity}
 					</h2>
 					<div className="mt-2 max-w-md rounded-lg border border-border px-3 py-2.5">
 						<div className="flex items-baseline justify-between">
 							<span className="text-[10px] tracking-widest text-muted-foreground uppercase">
-								Unread notifications
+								{t.unreadNotifications}
 							</span>
 							<span className="text-lg font-bold">{unreadCount}</span>
 						</div>
 						{notifications.length === 0 ? (
-							<p className="mt-2 text-xs text-muted-foreground">No notifications yet.</p>
+							<p className="mt-2 text-xs text-muted-foreground">{t.noNotifications}</p>
 						) : (
 							<ul className="mt-1 divide-y divide-border">
 								{notifications.slice(0, 5).map((n) => (

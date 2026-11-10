@@ -9,8 +9,7 @@ import {
 } from "@ktbhealth/ui/components/table";
 
 import type { AdminConsultationRow } from "../index.ts";
-
-const fmtDate = (d: Date) => d.toLocaleString();
+import { consultationMessages } from "../i18n.ts";
 
 /**
  * /platform/consultations console view — cross-owner consultation
@@ -18,22 +17,25 @@ const fmtDate = (d: Date) => d.toLocaleString();
  */
 export function AdminConsultationsPage({
 	consultations,
+	locale = "en",
 }: {
 	consultations: AdminConsultationRow[];
+	/** Active UI locale, injected by the host via the panel page ctx. */
+	locale?: string;
 }) {
+	const t = consultationMessages(locale);
+	const fmtDate = (d: Date) => d.toLocaleString(locale);
 	return (
 		<div>
-			<h1 className="text-lg font-bold tracking-tight">Consultations</h1>
+			<h1 className="text-lg font-bold tracking-tight">{t.admin.title}</h1>
 			<p className="mt-1 text-xs text-muted-foreground">
-				{consultations.length === 0
-					? "No consultations yet."
-					: `${consultations.length} consultation${consultations.length === 1 ? "" : "s"} across all owners.`}
+				{consultations.length === 0 ? t.admin.none : t.admin.count(consultations.length)}
 			</p>
 			{consultations.length === 0 ? (
 				<Empty className="mt-6 border">
 					<EmptyHeader>
-						<EmptyTitle>No consultations</EmptyTitle>
-						<EmptyDescription>Consultations appear here once created.</EmptyDescription>
+						<EmptyTitle>{t.admin.emptyTitle}</EmptyTitle>
+						<EmptyDescription>{t.admin.emptyDescription}</EmptyDescription>
 					</EmptyHeader>
 				</Empty>
 			) : (
@@ -41,13 +43,13 @@ export function AdminConsultationsPage({
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead className="w-14">Id</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead>Source</TableHead>
-								<TableHead>Patient</TableHead>
-								<TableHead>Owner</TableHead>
-								<TableHead>Audio</TableHead>
-								<TableHead className="text-right">Created</TableHead>
+								<TableHead className="w-14">{t.admin.colId}</TableHead>
+								<TableHead>{t.admin.colStatus}</TableHead>
+								<TableHead>{t.admin.colSource}</TableHead>
+								<TableHead>{t.admin.colPatient}</TableHead>
+								<TableHead>{t.admin.colOwner}</TableHead>
+								<TableHead>{t.admin.colAudio}</TableHead>
+								<TableHead className="text-right">{t.admin.colCreated}</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>

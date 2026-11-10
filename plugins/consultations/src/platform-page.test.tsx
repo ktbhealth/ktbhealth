@@ -2,10 +2,14 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { PanelPageContext } from "@ktb/kernel";
+
 import type { AdminConsultationRow } from "./index.ts";
 import { ConsultationsPlatformPage } from "./platform-page.tsx";
 
 afterEach(cleanup);
+
+const ctx: PanelPageContext = { plugins: [], locale: "en" };
 
 const row = {
 	id: 7,
@@ -19,12 +23,12 @@ const row = {
 
 describe("ConsultationsPlatformPage", () => {
 	it("renders the empty state when the loader returns no rows", () => {
-		render(<ConsultationsPlatformPage data={[]} />);
+		render(<ConsultationsPlatformPage data={[]} ctx={ctx} />);
 		expect(screen.getByText("No consultations")).toBeTruthy();
 	});
 
 	it("narrows the loader data into the admin listing rows", () => {
-		render(<ConsultationsPlatformPage data={[row]} />);
+		render(<ConsultationsPlatformPage data={[row]} ctx={ctx} />);
 		expect(screen.getByText("1 consultation across all owners.")).toBeTruthy();
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.getByText("Dr. Bia")).toBeTruthy();

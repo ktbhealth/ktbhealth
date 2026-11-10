@@ -15,13 +15,8 @@ import {
 import { Input } from "@ktbhealth/ui/components/input";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 
-import { BADGE_TONES, SOURCE_LABEL } from "./-ui.ts";
-
-const FILTERS = [
-	["all", "All"],
-	["anamnesis", "With anamnesis"],
-	["pending", "Pending"],
-] as const;
+import { BADGE_TONES } from "./-ui.ts";
+import { consultationMessages, sourceLabel } from "../i18n.ts";
 
 function initials(name: string | null) {
 	if (!name) return "?";
@@ -58,7 +53,20 @@ export interface ConsultationListItem {
 	hasAnamnesis: boolean;
 }
 
-export function ConsultationsPage({ consultations }: { consultations: ConsultationListItem[] }) {
+export function ConsultationsPage({
+	consultations,
+	locale = "en",
+}: {
+	consultations: ConsultationListItem[];
+	/** Active UI locale, injected by the host (route loader / panel ctx). */
+	locale?: string;
+}) {
+	const t = consultationMessages(locale);
+	const FILTERS = [
+		["all", t.list.filters.all],
+		["anamnesis", t.list.filters.anamnesis],
+		["pending", t.list.filters.pending],
+	] as const;
 	const [q, setQ] = useState("");
 	const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
 
@@ -78,15 +86,13 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 		<div>
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Consultations</h1>
+					<h1 className="text-3xl font-bold tracking-tight">{t.list.title}</h1>
 					<p className="mt-1 text-sm text-muted-foreground">
-						{consultations.length === 0
-							? "No consultations yet."
-							: `${consultations.length} consultation${consultations.length > 1 ? "s" : ""} recorded.`}
+						{consultations.length === 0 ? t.list.none : t.list.count(consultations.length)}
 					</p>
 				</div>
 				<Link to="/consultations/new" className={buttonVariants()}>
-					+ New consultation
+					{t.list.newConsultation}
 				</Link>
 			</div>
 
@@ -98,8 +104,8 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 							type="search"
 							value={q}
 							onChange={(e) => setQ(e.target.value)}
-							placeholder="Search by patient, complaint, or text…"
-							aria-label="Search consultations"
+							placeholder={t.list.searchPlaceholder}
+							aria-label={t.list.searchLabel}
 							className="pl-8"
 						/>
 					</div>
@@ -108,7 +114,7 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 						onValueChange={(v) => setFilter(v as (typeof FILTERS)[number][0])}
 						className="w-fit"
 					>
-						<TabsList aria-label="Filter consultations">
+						<TabsList aria-label={t.list.filterLabel}>
 							{FILTERS.map(([key, label]) => (
 								<TabsTrigger key={key} value={key}>
 									{label}
@@ -135,7 +141,7 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 									params={{ id: String(c.id) }}
 									className="font-semibold after:absolute after:inset-0 after:content-['']"
 								>
-									{c.patientName ?? "Unlinked patient"}
+									{c.patientName ?? t.list.unlinkedPatient}
 								</Link>
 								<span className="text-xs text-muted-foreground">
 									#{c.id} · {new Date(c.createdAt).toLocaleString()}
@@ -146,31 +152,31 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 										params={{ id: String(c.patientId) }}
 										className="relative z-10 text-xs text-primary hover:underline"
 									>
-										Patient record
+										{t.list.patientRecord}
 									</Link>
 								) : null}
 							</div>
 							<p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
 								{c.chiefComplaint && !c.chiefComplaint.startsWith("A preencher")
 									? c.chiefComplaint
-									: c.transcript || "No transcript."}
+									: c.transcript || t.common.noTranscript}
 							</p>
 							<div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-								{c.status === "live" ? <ToneBadge tone="red">● live</ToneBadge> : null}
+								{c.status === "live" ? <ToneBadge tone="red">● {t.list.live}</ToneBadge> : null}
 								{c.hasAnamnesis ? (
-									<ToneBadge tone="green">Anamnesis</ToneBadge>
+									<ToneBadge tone="green">{t.common.anamnesis}</ToneBadge>
 								) : (
-									<ToneBadge tone="amber">No anamnesis</ToneBadge>
+									<ToneBadge tone="amber">{t.list.noAnamnesis}</ToneBadge>
 								)}
-								{c.consentAt ? <ToneBadge tone="green">Consent ✓</ToneBadge> : null}
-								<ToneBadge>{SOURCE_LABEL[c.source ?? ""] ?? c.source}</ToneBadge>
+								{c.consentAt ? <ToneBadge tone="green">{t.list.consent}</ToneBadge> : null}
+								<ToneBadge>{sourceLabel(t, c.source)}</ToneBadge>
 							</div>
 						</div>
 						{c.hasAnamnesis ? (
 							<a
 								href={`/api/consultations/${c.id}/pdf`}
 								download
-								title="Download anamnesis PDF"
+								title={t.list.downloadPdfTitle}
 								className={`${buttonVariants({ variant: "outline", size: "sm" })} relative z-10 shrink-0`}
 							>
 								<DownloadIcon className="mr-1 inline size-3.5 -translate-y-px" />
@@ -182,7 +188,7 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 
 				{consultations.length > 0 && shown.length === 0 ? (
 					<Empty className="border">
-						<EmptyDescription>No consultations match the search.</EmptyDescription>
+						<EmptyDescription>{t.list.noMatch}</EmptyDescription>
 					</Empty>
 				) : null}
 
@@ -192,14 +198,12 @@ export function ConsultationsPage({ consultations }: { consultations: Consultati
 							<EmptyMedia variant="icon">
 								<ClipboardListIcon />
 							</EmptyMedia>
-							<EmptyTitle>No consultations yet</EmptyTitle>
-							<EmptyDescription>
-								Start a consultation to record the conversation and generate the anamnesis.
-							</EmptyDescription>
+							<EmptyTitle>{t.list.emptyTitle}</EmptyTitle>
+							<EmptyDescription>{t.list.emptyDescription}</EmptyDescription>
 						</EmptyHeader>
 						<EmptyContent>
 							<Link to="/consultations/new" className={buttonVariants()}>
-								Start consultation
+								{t.list.startConsultation}
 							</Link>
 						</EmptyContent>
 					</Empty>

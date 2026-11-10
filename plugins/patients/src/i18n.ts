@@ -130,6 +130,18 @@ export interface PatientMessages {
 		readonly cancel: string;
 		readonly failed: string;
 	};
+	readonly admin: {
+		readonly title: string;
+		readonly none: string;
+		readonly count: (n: number) => string;
+		readonly emptyTitle: string;
+		readonly emptyDescription: string;
+		readonly colId: string;
+		readonly colName: string;
+		readonly colOwner: string;
+		readonly colOwnerId: string;
+		readonly colCreated: string;
+	};
 	readonly form: {
 		readonly editTitle: string;
 		readonly intro: string;
@@ -280,6 +292,18 @@ const en: PatientMessages = {
 		confirm: "Delete permanently",
 		cancel: "Cancel",
 		failed: "Could not delete the patient. Try again.",
+	},
+	admin: {
+		title: "Patients",
+		none: "No patients registered.",
+		count: (n) => `${n} patient${n === 1 ? "" : "s"} across all owners.`,
+		emptyTitle: "No patients",
+		emptyDescription: "Patients appear here once created.",
+		colId: "Id",
+		colName: "Name",
+		colOwner: "Owner",
+		colOwnerId: "Owner id",
+		colCreated: "Created",
 	},
 	form: {
 		editTitle: "Edit patient",
@@ -432,6 +456,18 @@ const ptBR: PatientMessages = {
 		confirm: "Excluir permanentemente",
 		cancel: "Cancelar",
 		failed: "Não foi possível excluir o paciente. Tente novamente.",
+	},
+	admin: {
+		title: "Pacientes",
+		none: "Nenhum paciente cadastrado.",
+		count: (n) => `${n} paciente${n === 1 ? "" : "s"} em toda a plataforma.`,
+		emptyTitle: "Nenhum paciente",
+		emptyDescription: "Os pacientes aparecem aqui após serem cadastrados.",
+		colId: "Id",
+		colName: "Nome",
+		colOwner: "Proprietário",
+		colOwnerId: "Id do proprietário",
+		colCreated: "Cadastrado em",
 	},
 	form: {
 		editTitle: "Editar paciente",

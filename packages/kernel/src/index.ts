@@ -40,14 +40,19 @@ export interface PanelSidebarItem {
  * injects — plugins cannot import apps or server fns. */
 export interface PanelHeaderAction {
 	readonly id: string;
-	readonly component: ComponentType;
+	/** The host injects the active UI locale — header actions are
+	 * self-contained components that cannot import the host's i18n
+	 * runtime, so they resolve their own copy from it. */
+	readonly component: ComponentType<{ readonly locale?: string }>;
 }
 
 /** Host-injected context handed to every panel page component — the
  * discovered plugin registry, so console pages can render
- * plugin-aware views without importing the app host. */
+ * plugin-aware views without importing the app host, plus the active
+ * UI locale so views resolve their own localized copy. */
 export interface PanelPageContext {
 	readonly plugins: readonly Plugin[];
+	readonly locale: string;
 }
 
 /** A console page contributed via `panel.pages` (P-050): the host

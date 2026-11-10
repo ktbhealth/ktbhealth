@@ -22,6 +22,7 @@ import {
 	type ConsoleNotification,
 	type NotificationsActions,
 } from "../context.ts";
+import { notificationMessages } from "../i18n.ts";
 
 const NotificationBody = ({ notification }: { notification: ConsoleNotification }) => (
 	<>
@@ -45,10 +46,12 @@ const NotificationBody = ({ notification }: { notification: ConsoleNotification 
 const NotificationRow = ({
 	notification,
 	onMarkRead,
+	markAsReadLabel,
 }: {
 	notification: ConsoleNotification;
 	/** Present only for unread rows when the host wired mark-read actions. */
 	onMarkRead?: () => void;
+	markAsReadLabel: string;
 }) =>
 	onMarkRead ? (
 		<li>
@@ -56,7 +59,7 @@ const NotificationRow = ({
 				type="button"
 				onClick={onMarkRead}
 				className="flex w-full gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/60"
-				aria-label={`Mark "${notification.title}" as read`}
+				aria-label={markAsReadLabel}
 			>
 				<NotificationBody notification={notification} />
 			</button>
@@ -105,7 +108,8 @@ const markIdsRead = (
  * click-to-mark-read and the header offers "mark all read". Renders only
  * when the `platform.header` extension point is present.
  */
-export function NotificationsHeaderAction() {
+export function NotificationsHeaderAction({ locale = "en" }: { locale?: string }) {
+	const t = notificationMessages(locale);
 	const seeded = React.useContext(NotificationsDataContext);
 	const actions = React.useContext(NotificationsActionsContext);
 	// null → context seed is authoritative (no live connection yet/ever).
@@ -157,12 +161,7 @@ export function NotificationsHeaderAction() {
 						render={
 							<PopoverTrigger
 								render={
-									<Button
-										variant="ghost"
-										size="icon"
-										className="relative"
-										aria-label="Notifications"
-									/>
+									<Button variant="ghost" size="icon" className="relative" aria-label={t.label} />
 								}
 							/>
 						}
@@ -174,17 +173,17 @@ export function NotificationsHeaderAction() {
 							</span>
 						) : null}
 					</TooltipTrigger>
-					<TooltipContent>Notifications</TooltipContent>
+					<TooltipContent>{t.label}</TooltipContent>
 				</Tooltip>
 				<PopoverContent align="end" className="w-80 p-0">
 					<PopoverHeader className="border-b border-border px-3 py-2">
 						<PopoverTitle className="flex items-center justify-between text-sm">
-							<span>Notifications</span>
+							<span>{t.label}</span>
 							{unread > 0 ? (
 								actions ? (
 									<span className="flex items-center gap-2">
 										<span className="text-xs font-normal text-muted-foreground">
-											{unread} unread
+											{t.unreadCount(unread)}
 										</span>
 										<Button
 											variant="ghost"
@@ -192,11 +191,13 @@ export function NotificationsHeaderAction() {
 											className="h-6 px-2 text-xs"
 											onClick={() => markAllRead(actions)}
 										>
-											Mark all read
+											{t.markAllRead}
 										</Button>
 									</span>
 								) : (
-									<span className="text-xs font-normal text-muted-foreground">{unread} unread</span>
+									<span className="text-xs font-normal text-muted-foreground">
+										{t.unreadCount(unread)}
+									</span>
 								)
 							) : null}
 						</PopoverTitle>
@@ -208,11 +209,12 @@ export function NotificationsHeaderAction() {
 									key={n.id}
 									notification={n}
 									onMarkRead={actions && !n.read ? () => markRead(actions, n) : undefined}
+									markAsReadLabel={t.markAsRead(n.title)}
 								/>
 							))}
 						</ul>
 					) : (
-						<p className="px-3 py-8 text-center text-sm text-muted-foreground">No notifications</p>
+						<p className="px-3 py-8 text-center text-sm text-muted-foreground">{t.empty}</p>
 					)}
 				</PopoverContent>
 			</Popover>
