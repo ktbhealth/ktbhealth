@@ -107,6 +107,11 @@ describe("patient routes", () => {
 	});
 
 	describe("/patients/new", () => {
+		it("loads the active locale for the form", async () => {
+			await expect(opts(NewRoute).loader!()).resolves.toBe("pt-BR");
+			expect(mocks.localeFn).toHaveBeenCalledOnce();
+		});
+
 		it("navigates to the created patient after saving", () => {
 			mocks.loaderData.current = "pt-BR";
 			render(createElement(opts(NewRoute).component));
