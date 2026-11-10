@@ -27,6 +27,11 @@ export default defineConfig({
 				command: "bun run gen:route-types && git add -N plugins && git diff --exit-code -- plugins",
 				dependsOn: ["ci:build"],
 			},
+			// Unused-code/dependency gate (knip.json is the config).
+			"ci:knip": { command: "bun run knip" },
+			// Fast smoke test proving the ktb-arch rules still fire
+			// (tools/check-arch.mjs) — no build or lint run needed.
+			"ci:arch": { command: "bun run check:arch" },
 		},
 	},
 

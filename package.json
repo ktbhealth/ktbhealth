@@ -25,7 +25,8 @@
 		"db:migrate:local": "bun --cwd apps/web db:migrate:local",
 		"db:studio": "bun --cwd packages/db db:studio",
 		"knip": "knip",
-		"gen:route-types": "bun tools/gen-plugin-route-types.mjs"
+		"gen:route-types": "bun tools/gen-plugin-route-types.mjs",
+		"check:arch": "bun tools/check-arch.mjs"
 	},
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.2",
