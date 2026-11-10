@@ -26,7 +26,7 @@ export interface PluginBase {
 	readonly optionalDeps?: readonly PluginId[];
 }
 
-export type ContributionField =
+type ContributionField =
 	| "tables"
 	| "services"
 	| "routes"

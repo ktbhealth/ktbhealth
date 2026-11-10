@@ -9,7 +9,11 @@
 				"wrangler.dev.jsonc",
 				"src/routes.ts",
 				"src/routes/**/*.{ts,tsx}",
-				"src/test/**/*.{ts,tsx}"
+				"src/test/**/*.{ts,tsx}",
+				// Referenced from package.json scripts (dev:secrets runs
+				// `cuora run -- node scripts/dev-secrets.mjs`, which knip's
+				// script parser cannot see through the cuora wrapper).
+				"scripts/**/*.{ts,mjs}"
 			],
 			// Resolved by @tailwindcss/vite through @ktbhealth/ui's globals.css.
 			"ignoreDependencies": ["tailwindcss"]
@@ -20,6 +24,13 @@
 		"packages/app-host": {
 			// Ambient globals via /// <reference types> in src/env.d.ts.
 			"ignoreDependencies": ["@cloudflare/workers-types"]
+		},
+		"plugins/notifications": {
+			// Only referenced by generated src/route-types.d.ts
+			// (`import type {} from "@tanstack/react-start"`) and a
+			// vi.mock("@tanstack/react-start/server") factory — no static
+			// import for knip to count.
+			"ignoreDependencies": ["@tanstack/react-start"]
 		}
 	}
 }

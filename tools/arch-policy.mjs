@@ -18,7 +18,7 @@
  */
 
 /** Port/domain packages — the same set banned from importing adapters. */
-export const PORT_PACKAGE_NAMES = [
+const PORT_PACKAGE_NAMES = [
 	"kernel",
 	"auth",
 	"authz",
@@ -67,7 +67,7 @@ export const PROVIDER_LITERAL_PATTERNS = [
  * and provider literals by definition. Banned from *importing* each
  * other and from being imported by ports/plugins (IMPL_IMPORT_PATTERNS
  * below). Listed here so the boundary is explicit. */
-export const ADAPTER_PACKAGE_NAMES = [
+const ADAPTER_PACKAGE_NAMES = [
 	"auth-better",
 	"bot-recall",
 	"captcha-stub",

@@ -122,7 +122,7 @@ export interface TranscriptView {
 	source: string;
 }
 
-export interface TranscriptSourceLabels {
+interface TranscriptSourceLabels {
 	readonly server: string;
 	readonly browser: string;
 	readonly corrected: string;
