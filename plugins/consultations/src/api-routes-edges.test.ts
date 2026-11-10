@@ -33,6 +33,7 @@ import { setServerRuntime, type AudioJobMessage } from "@ktb/server-fns";
 import { consultations as consultationsTable } from "./schema.ts";
 import { ConsultationsLive, createConsultation } from "./index.ts";
 import { Route as AudioRoute } from "./api-routes/consultations.$id.audio.ts";
+import { Route as ExportRoute } from "./api-routes/patients.$id.export.ts";
 import { Route as PdfRoute } from "./api-routes/consultations.$id.pdf.ts";
 import { Route as TranscribeRoute } from "./api-routes/transcribe.ts";
 
@@ -241,6 +242,33 @@ describe("/api/transcribe edge cases", () => {
 		} as never);
 		expect(res.status).toBe(415);
 		expect(await res.json()).toEqual({ error: "unsupported content type" });
+	});
+
+	it("treats a file without a media type as opaque octet-stream", async () => {
+		ai.current = { run: async () => ({ text: "ok" }) };
+		const form = new FormData();
+		form.set("audio", new File([new Uint8Array([1, 2])], "rec", { type: "" }));
+		const res = await handlersOf(TranscribeRoute).POST!({
+			request: new Request("http://x/api/transcribe", { method: "POST", body: form }),
+		} as never);
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ text: "ok" });
+	});
+});
+
+// ---------- /api/patients/:id/export edge cases ----------
+
+describe("/api/patients/:id/export without host exporters", () => {
+	it("answers 503 when the record exporters are not registered", async () => {
+		// This harness publishes no `recordExporters` — the host wires them
+		// in platform.ts; without them the route must fail loudly.
+		const pid = await patientFor("u-owner");
+		const res = await handlersOf(ExportRoute).GET!({
+			params: { id: String(pid) },
+			request: new Request(`http://x/api/patients/${pid}/export?format=fhir-r4`),
+		} as never);
+		expect(res.status).toBe(503);
+		expect(await res.json()).toEqual({ error: "export not configured" });
 	});
 });
 

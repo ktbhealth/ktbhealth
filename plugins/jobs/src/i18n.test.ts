@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	BASE_LOCALE,
-	JOB_LOCALES,
-	jobMessages,
-	isJobLocale,
-	type JobMessages,
-} from "./i18n.ts";
+import { BASE_LOCALE, JOB_LOCALES, jobMessages, isJobLocale, type JobMessages } from "./i18n.ts";
 
 /** Every string leaf of a catalog (functions are exercised separately). */
 const leaves = (node: unknown): string[] =>

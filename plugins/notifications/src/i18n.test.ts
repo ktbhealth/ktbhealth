@@ -48,9 +48,7 @@ describe("notification catalogs", () => {
 		expect(m("pt-BR").unreadCount(1)).toBe("1 não lida");
 		expect(m("pt-BR").unreadCount(3)).toBe("3 não lidas");
 		expect(m("es").unreadCount(2)).toBe("2 sin leer");
-		expect(m("pt-BR").markAsRead("Paciente criado")).toBe(
-			'Marcar "Paciente criado" como lida',
-		);
+		expect(m("pt-BR").markAsRead("Paciente criado")).toBe('Marcar "Paciente criado" como lida');
 		expect(m("es").markAsRead("Aviso")).toBe('Marcar "Aviso" como leída');
 	});
 

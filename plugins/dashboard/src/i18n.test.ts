@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	BASE_LOCALE,
-	DASHBOARD_LOCALES,
-	dashboardMessages,
-	isDashboardLocale,
-} from "./i18n.ts";
+import { BASE_LOCALE, DASHBOARD_LOCALES, dashboardMessages, isDashboardLocale } from "./i18n.ts";
 
 describe("dashboard catalogs", () => {
 	it("resolves known locales and falls back to the base locale", () => {

@@ -21,8 +21,6 @@ describe("requireSession", () => {
 		const caught = await requireSession().catch((e: unknown) => e);
 		expect(isRedirect(caught)).toBe(true);
 		// redirect() returns a Response carrying the navigation options.
-		expect(
-			(caught as Response & { options: { to: string } }).options.to,
-		).toBe("/login");
+		expect((caught as Response & { options: { to: string } }).options.to).toBe("/login");
 	});
 });

@@ -854,8 +854,8 @@ export const PatientRecordConsultationsLive = Query.handlersOf(PatientRecordCons
 			return rows.map((r) => ({
 				id: r.id,
 				// Rows are filtered by patientId — the column is nullable
-				// in the schema but never null here.
-				patientId: r.patientId ?? patientId,
+				// in the schema but the query param is the link here.
+				patientId,
 				createdAt: r.createdAt,
 				status: r.status,
 				hasAnamnesis: r.hasAnamnesis,

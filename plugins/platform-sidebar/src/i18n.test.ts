@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	BASE_LOCALE,
-	CONSOLE_LOCALES,
-	consoleMessages,
-	isConsoleLocale,
-} from "./i18n.ts";
+import { BASE_LOCALE, CONSOLE_LOCALES, consoleMessages, isConsoleLocale } from "./i18n.ts";
 
 describe("console catalogs", () => {
 	it("resolves known locales and falls back to the base locale", () => {

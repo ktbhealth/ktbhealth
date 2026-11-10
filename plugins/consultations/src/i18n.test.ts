@@ -61,12 +61,8 @@ describe("consultation catalogs", () => {
 	it("dialogSavedBody covers named/unnamed, saved/updated and consent variants", () => {
 		for (const locale of CONSULTATION_LOCALES) {
 			const body = consultationMessages(locale).newConsultation.dialogSavedBody;
-			expect(
-				body({ id: 1, patientName: "Ana", updated: true, consented: true }),
-			).toContain("1");
-			expect(
-				body({ id: 2, patientName: null, updated: false, consented: false }),
-			).toContain("2");
+			expect(body({ id: 1, patientName: "Ana", updated: true, consented: true })).toContain("1");
+			expect(body({ id: 2, patientName: null, updated: false, consented: false })).toContain("2");
 		}
 	});
 
