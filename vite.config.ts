@@ -13,6 +13,13 @@ export default defineConfig({
 			"ci:build": { command: "vp build" },
 			"ci:check": { command: "vp check", dependsOn: ["ci:build"] },
 			"ci:test": { command: "vp test", dependsOn: ["ci:build"] },
+			// Regenerate plugins/*/src/route-types.d.ts from the freshly
+			// generated routeTree.gen.ts (ci:build) and fail on drift.
+			// `git add -N` surfaces newly created files in `git diff`.
+			"ci:route-types": {
+				command: "bun run gen:route-types && git add -N plugins && git diff --exit-code -- plugins",
+				dependsOn: ["ci:build"],
+			},
 		},
 	},
 

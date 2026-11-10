@@ -32,6 +32,8 @@ old URLs redirect).
 - `bun run check` — fmt + lint + typecheck (run before committing)
 - `bun run test` — vitest per-package
 - `bun run build` — production build (root builds apps/web)
+- `bun run gen:route-types` — regenerate `plugins/*/src/route-types.d.ts`
+  (generated; never hand-edit) after route changes
 - `cd apps/web && bun run infra:deploy` — deploy to Cloudflare prod
   (needs cuora vault access)
 
