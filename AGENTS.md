@@ -26,6 +26,8 @@ old URLs redirect).
   `project/` files — myco verbs are the write path.
 - **`presentation-draft`**, **`website-draft`**, **`slidev-theme-ktb`** —
   pitch/site/theme repos; not part of this build.
+- **`docs`** — documentation site (Fumadocs + TanStack Start on
+  Cloudflare Workers); product/architecture docs live there, not here.
 
 ## Commands
 

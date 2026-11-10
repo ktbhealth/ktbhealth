@@ -104,6 +104,8 @@ stand-in is configured.
   catalog for the design system
 - [`project`](https://github.com/ktbhealth/project) — task board, ADRs,
   and proposals (myco)
+- [`docs`](https://github.com/ktbhealth/docs) — documentation site
+  (Fumadocs, audience tabs: doctors/patients/developers/business)
 
 ## Status
 
