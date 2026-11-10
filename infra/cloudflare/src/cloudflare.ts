@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import type { Providers } from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
-import type { DeployD1, DeployStaticSite, DeployWorker } from "@ktb/infra-ports";
+import type { DeploySqlDatabase, DeployStaticSite, DeployWorker } from "@ktb/infra-ports";
 
 /** Repo workflow: bun is the package manager; override per spec if needed. */
 const BUILD_COMMAND = "bun run build";
@@ -30,9 +30,11 @@ export const cloudflareWorker: DeployWorker<Providers> = Effect.fnUntraced(funct
 	return { url: site.url, scriptName: site.workerName };
 });
 
-export const cloudflareD1: DeployD1<Providers> = Effect.fnUntraced(function* (spec) {
-	const db = yield* Cloudflare.D1.Database(spec.name, {
-		migrations: spec.migrationsDir,
-	});
-	return { db };
-});
+export const cloudflareSqlDatabase: DeploySqlDatabase<Providers> = Effect.fnUntraced(
+	function* (spec) {
+		const db = yield* Cloudflare.D1.Database(spec.name, {
+			migrations: spec.migrationsDir,
+		});
+		return { db };
+	},
+);

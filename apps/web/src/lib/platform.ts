@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 
-import { setServerRuntime } from "@ktb/server-fns";
+import { setServerRuntime, DEFAULT_AUDIO_MODEL } from "@ktb/server-fns";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
@@ -26,7 +26,13 @@ const LLM_ENV_KEYS = [
 // BETTER_AUTH_* mirror the worker bindings bound by alchemy.run.ts; the
 // process.env fallback covers `cuora run` dev shells where the vars are
 // injected into the process but not into workerd bindings.
-const APP_ENV_KEYS = ["BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "PLATFORM_ADMIN_EMAILS"] as const;
+const APP_ENV_KEYS = [
+	"BETTER_AUTH_SECRET",
+	"BETTER_AUTH_URL",
+	"PLATFORM_ADMIN_EMAILS",
+	"RECALL_API_KEY",
+	"AUDIO_TRANSCRIBE_MODEL",
+] as const;
 
 // AI_STUB > AI_BASE_URL > env.AI — dev may run without the Workers AI
 // binding (wrangler.dev.jsonc), so resolve before composing the app.
@@ -40,6 +46,12 @@ for (const key of [...LLM_ENV_KEYS, ...APP_ENV_KEYS]) {
 const app = createApp(appEnv as unknown as typeof env);
 
 export const { BindingLive, CaptchaLive, run, runAs, correctTranscript, db, auth } = app;
+
+/** Model id for the server-side audio transcription job — bound per
+ * deploy (Workers AI model on Cloudflare, ignored by OpenAI-compatible
+ * stand-ins). Defaults to the recommended Workers AI Whisper model. */
+export const audioTranscribeModel =
+	appEnv.AUDIO_TRANSCRIBE_MODEL?.toString() ?? DEFAULT_AUDIO_MODEL;
 
 /** Interop adapters behind the @ktb/interop port, one per supported standard. */
 const recordExporters: Record<ExportFormat, RecordExporter> = {
@@ -57,6 +69,7 @@ setServerRuntime({
 	audio: env.AUDIO_BUCKET,
 	audioQueue: env.AUDIO_QUEUE,
 	ai: aiBinding,
+	audioTranscribeModel,
 	recordExporters,
 	getLocale,
 });

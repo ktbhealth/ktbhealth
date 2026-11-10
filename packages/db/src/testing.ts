@@ -1,7 +1,9 @@
 import Database from "better-sqlite3";
 
-/** In-memory D1Database shim over better-sqlite3 — real SQL for tests. */
-export function makeD1(sql?: string): D1Database {
+import type { SqlDatabase } from "./index.ts";
+
+/** In-memory SqlDatabase shim over better-sqlite3 — real SQL for tests. */
+export function makeD1(sql?: string): SqlDatabase {
 	const sqlite = new Database(":memory:");
 	if (sql) sqlite.exec(sql);
 
@@ -12,12 +14,14 @@ export function makeD1(sql?: string): D1Database {
 			const r = stmt.run();
 			return {
 				success: true,
+				results: [],
 				meta: { changes: r.changes, last_row_id: Number(r.lastInsertRowid) },
 			};
 		},
 		all: async <T = Record<string, unknown>>() => ({
 			success: true,
 			results: stmt.all() as T[],
+			meta: {},
 		}),
 		first: async <T = Record<string, unknown>>() => (stmt.get() as T) ?? null,
 		raw: async <T = unknown[]>() => stmt.raw().all() as T[],
@@ -45,5 +49,5 @@ export function makeD1(sql?: string): D1Database {
 			sqlite.exec(q);
 			return { count: 0, duration: 0 };
 		},
-	} as unknown as D1Database;
+	} as unknown as SqlDatabase;
 }

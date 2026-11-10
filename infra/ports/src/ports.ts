@@ -24,7 +24,7 @@ export interface WorkerSpec extends StaticSiteSpec {
 	readonly compatibilityFlags?: readonly string[];
 }
 
-export interface D1Spec {
+export interface SqlDatabaseSpec {
 	readonly name: string;
 	readonly migrationsDir?: string;
 }
@@ -45,7 +45,7 @@ export interface DeployedWorker {
 	readonly scriptName?: unknown;
 }
 
-export interface DeployedD1 {
+export interface DeployedSqlDatabase {
 	readonly db: unknown;
 }
 
@@ -56,4 +56,6 @@ export type DeployStaticSite<R = never> = (
 
 export type DeployWorker<R = never> = (spec: WorkerSpec) => Effect.Effect<DeployedWorker, never, R>;
 
-export type DeployD1<R = never> = (spec: D1Spec) => Effect.Effect<DeployedD1, never, R>;
+export type DeploySqlDatabase<R = never> = (
+	spec: SqlDatabaseSpec,
+) => Effect.Effect<DeployedSqlDatabase, never, R>;

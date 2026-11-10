@@ -12,8 +12,18 @@ import {
 	type AudioJobRecord,
 } from "@ktb/consultations";
 import type { DbClient } from "@ktb/db";
+import { DEFAULT_AUDIO_MODEL, type AudioJobMessage } from "@ktb/server-fns";
 
-import { ai, audioBucket, correctTranscript, db, run } from "#/lib/platform.ts";
+import {
+	ai,
+	audioBucket,
+	audioTranscribeModel,
+	correctTranscript,
+	db,
+	run,
+} from "#/lib/platform.ts";
+
+export type { AudioJobMessage };
 
 /**
  * Async transcription pipeline (P-016/P-017): queue consumer that runs
@@ -25,20 +35,12 @@ import { ai, audioBucket, correctTranscript, db, run } from "#/lib/platform.ts";
  * the D1 row (owner match) before any work happens.
  */
 
-const WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo";
-
 /**
  * Workers AI rejects oversized audio and chunked transcription is not
  * supported — recordings above this are marked failed, not split.
  * (~25MB is the documented ceiling for a single Whisper call.)
  */
 export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-
-export interface AudioJobMessage {
-	readonly consultationId: number;
-	readonly audioKey: string;
-	readonly userId: string;
-}
 
 const AudioJobMessageSchema = Schema.Struct({
 	consultationId: Schema.Number,
@@ -66,6 +68,9 @@ export interface AudioJobDeps {
 	readonly db: DbClient;
 	readonly bucket: AudioBucketLike | undefined;
 	readonly ai: AudioTranscriber | undefined;
+	/** Transcription model id — host-resolved deploy config
+	 * (AUDIO_TRANSCRIBE_MODEL); defaults to DEFAULT_AUDIO_MODEL. */
+	readonly model?: string;
 	readonly correctTranscript: (transcript: string) => Promise<CorrectedTranscript | null>;
 	/**
 	 * Live fan-out for the /platform jobs feed: the consumer is a system
@@ -110,8 +115,9 @@ export function extractWhisperText(raw: unknown): string {
 export async function transcribeAudio(
 	transcriber: AudioTranscriber,
 	audio: Uint8Array,
+	model: string = DEFAULT_AUDIO_MODEL,
 ): Promise<string> {
-	const raw = await transcriber.run(WHISPER_MODEL, whisperInputs(bytesToBase64(audio)));
+	const raw = await transcriber.run(model, whisperInputs(bytesToBase64(audio)));
 	return extractWhisperText(raw);
 }
 
@@ -178,7 +184,7 @@ export async function processAudioJob(job: AudioJobMessage, deps: AudioJobDeps):
 	const bytes = new Uint8Array(await object.arrayBuffer());
 	let transcript: string;
 	try {
-		transcript = await transcribeAudio(deps.ai, bytes);
+		transcript = await transcribeAudio(deps.ai, bytes, deps.model);
 	} catch (error) {
 		await fail(deps, job.consultationId, `transcription failed: ${String(error)}`);
 		return;
@@ -220,6 +226,7 @@ const platformDeps = (): AudioJobDeps => ({
 	db,
 	bucket: audioBucket,
 	ai: ai as unknown as AudioTranscriber | undefined,
+	model: audioTranscribeModel,
 	correctTranscript: (transcript) => correctTranscript(transcript).catch(() => null),
 	// System path — `run` binds no Principal; EventBus.dispatch needs
 	// none (subscribers re-check authz on their own read paths).

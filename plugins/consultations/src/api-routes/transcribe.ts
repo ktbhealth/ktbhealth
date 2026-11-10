@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { getSessionUser, getServerRuntime } from "@ktb/server-fns";
+import { DEFAULT_AUDIO_MODEL, getSessionUser, getServerRuntime } from "@ktb/server-fns";
 
 /**
  * POST /api/transcribe — server-side transcription of an uploaded
@@ -21,10 +21,10 @@ import { getSessionUser, getServerRuntime } from "@ktb/server-fns";
  */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
-/** Model + payload shape shared with the queue pipeline (audio-jobs.ts):
- * whisper-large-v3-turbo takes base64 audio, not a number[] byte array —
- * a 25MB number[] would serialize to a ~100MB JSON body. */
-const WHISPER_MODEL = "@cf/openai/whisper-large-v3-turbo";
+/** Payload shape shared with the queue pipeline (audio-jobs.ts):
+ * whisper-class models take base64 audio, not a number[] byte array —
+ * a 25MB number[] would serialize to a ~100MB JSON body. The model id
+ * is host-resolved deploy config (AUDIO_TRANSCRIBE_MODEL). */
 
 /** btoa without stack overflow on large buffers (chunked fromCharCode). */
 const bytesToBase64 = (bytes: Uint8Array): string => {
@@ -70,7 +70,8 @@ export const Route = createFileRoute("/api/transcribe")({
 					return Response.json({ error: "transcription not configured" }, { status: 503 });
 				}
 				const bytes = new Uint8Array(await file.arrayBuffer());
-				const result = (await ai.run(WHISPER_MODEL, {
+				const model = getServerRuntime().audioTranscribeModel ?? DEFAULT_AUDIO_MODEL;
+				const result = (await ai.run(model, {
 					audio: bytesToBase64(bytes),
 					language: "pt",
 				})) as { text?: string };

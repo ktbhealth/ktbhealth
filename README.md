@@ -62,8 +62,8 @@ CLI.
 ```bash
 bun install
 
-# apps/web/.env.local
-#   DATABASE_URL=data/app.db   (SQLite for local dev)
+# No env file needed: dev boots workerd via wrangler.dev.jsonc with a
+# local D1 (SQLite under the hood) — same SqlDatabase port as prod.
 
 bun run dev      # http://localhost:3000 (stub auth/captcha — no secrets needed)
 bun run dev:secrets   # same, but injects real secrets via cuora (needs vault access)

@@ -1,13 +1,13 @@
 import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
-import { Bot } from "@ktb/bot";
+import { Bot, stubBotDriver } from "@ktb/bot";
 import { recallDriver } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { Binding, Db, DbLive, makeDb, type DbClient } from "@ktb/db";
+import { Binding, Db, DbLive, makeDb, type DbClient, type SqlDatabase } from "@ktb/db";
 import { makeAuth } from "@ktb/auth-better";
 import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
@@ -59,7 +59,8 @@ const commandGroups = moduleExports.filter(Command.isGroup);
 /** Minimal binding surface the host needs. Any platform (workerd, bun,
  * future adapters) supplies these; the host never touches cloudflare:*. */
 export interface AppEnv {
-	readonly DB: D1Database;
+	readonly DB: SqlDatabase;
+	readonly RECALL_API_KEY?: string;
 	readonly BETTER_AUTH_SECRET?: string;
 	readonly BETTER_AUTH_URL?: string;
 	readonly CAPTCHA_STUB?: unknown;
@@ -125,6 +126,7 @@ export const createApp = <E extends AppEnv>(env: E) => {
 	// built above, not env-selected impls.
 	const drivers: readonly Driver<unknown>[] = [
 		recallDriver,
+		stubBotDriver,
 		stubCaptchaDriver,
 		turnstileCaptchaDriver,
 		nullCaptchaDriver,
