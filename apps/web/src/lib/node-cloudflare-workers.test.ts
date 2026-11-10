@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const ENV_KEYS = [
 	"DATABASE_URL",
 	"AUDIO_BUCKET_DIR",
+	"KTB_DEV_QUEUE_DB",
 	"AI_STUB",
 	"AI_BASE_URL",
 	"BETTER_AUTH_SECRET",
@@ -47,6 +48,7 @@ afterEach(() => {
 describe("node-cloudflare-workers env", () => {
 	it("exposes DB, AUDIO_BUCKET and AUDIO_QUEUE; AI stays unset unconfigured", async () => {
 		process.env.DATABASE_URL = ":memory:";
+		process.env.KTB_DEV_QUEUE_DB = ":memory:";
 		audioDir = mkdtempSync(join(tmpdir(), "ktb-node-env-"));
 		process.env.AUDIO_BUCKET_DIR = audioDir;
 		delete process.env.AI_STUB;
@@ -68,6 +70,7 @@ describe("node-cloudflare-workers env", () => {
 
 	it("forwards plain config keys and resolves AI_STUB into env.AI", async () => {
 		process.env.DATABASE_URL = ":memory:";
+		process.env.KTB_DEV_QUEUE_DB = ":memory:";
 		process.env.AI_STUB = "1";
 		process.env.BETTER_AUTH_SECRET = "s3cret";
 
@@ -84,6 +87,7 @@ describe("node-cloudflare-workers env", () => {
 		// default (the same file `dev:node` opens; migrations are
 		// idempotent). env.DB itself is unused by this test.
 		vi.stubEnv("DATABASE_URL", undefined);
+		vi.stubEnv("KTB_DEV_QUEUE_DB", ":memory:");
 		audioDir = mkdtempSync(join(tmpdir(), "ktb-node-env-"));
 		process.env.AUDIO_BUCKET_DIR = audioDir;
 
@@ -94,7 +98,11 @@ describe("node-cloudflare-workers env", () => {
 		const info = vi.spyOn(console, "info").mockImplementation(() => {});
 		await env.AUDIO_QUEUE.send({ consultationId: 999999, audioKey: "k", userId: "u" });
 		await vi.waitFor(
-			() => expect(info).toHaveBeenCalledWith("[dev:node] audio job processed", expect.anything()),
+			() =>
+				expect(info).toHaveBeenCalledWith("[dev:node] queue batch processed", {
+					done: 1,
+					total: 1,
+				}),
 			{ timeout: 10000 },
 		);
 	});

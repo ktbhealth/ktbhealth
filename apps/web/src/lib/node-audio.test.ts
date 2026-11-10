@@ -1,10 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import { makeLocalAudioBucket, makeLocalAudioQueue } from "./node-audio.ts";
+import { makeLocalAudioBucket } from "./node-audio.ts";
 
 let dir: string | undefined;
 const bucketDir = () => {
@@ -17,7 +17,6 @@ afterEach(() => {
 		rmSync(dir, { recursive: true, force: true });
 		dir = undefined;
 	}
-	vi.restoreAllMocks();
 });
 
 describe("makeLocalAudioBucket", () => {
@@ -105,87 +104,5 @@ describe("makeLocalAudioBucket", () => {
 		writeFileSync(join(bucketDir(), "meta.bin.ktb-meta.json"), '{"contentType":123}');
 		const object = await bucket.get("meta.bin");
 		expect(object!.httpMetadata?.contentType).toBeUndefined();
-	});
-});
-
-describe("makeLocalAudioQueue", () => {
-	it("send() resolves immediately and delivers the body to the handler", async () => {
-		const seen: unknown[] = [];
-		const queue = makeLocalAudioQueue(async () => async (messages) => {
-			for (const m of messages) {
-				seen.push(m.body);
-				m.ack();
-			}
-		});
-		const result = await queue.send({ consultationId: 1, audioKey: "k", userId: "u" });
-		expect(result).toEqual({});
-		await vi.waitFor(() => expect(seen).toHaveLength(1));
-		expect(seen[0]).toEqual({ consultationId: 1, audioKey: "k", userId: "u" });
-	});
-
-	it("re-delivers on retry() up to the attempt cap, then drops", async () => {
-		vi.useFakeTimers();
-		try {
-			let calls = 0;
-			const queue = makeLocalAudioQueue(async () => async (messages) => {
-				calls++;
-				for (const m of messages) m.retry();
-			});
-			const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-			await queue.send({ n: 1 });
-			// Drive the retry loop: each failed attempt waits RETRY_DELAY_MS*attempt.
-			for (let i = 0; i < 10; i++) await vi.advanceTimersByTimeAsync(1000);
-			expect(calls).toBe(3);
-			expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("dropping audio job"), {
-				n: 1,
-			});
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("writes exhausted messages to deadLetterDir as JSON", async () => {
-		vi.useFakeTimers();
-		try {
-			const dlq = join(bucketDir(), "dlq");
-			const queue = makeLocalAudioQueue(
-				async () => async (messages) => {
-					for (const m of messages) m.retry();
-				},
-				dlq,
-			);
-			vi.spyOn(console, "error").mockImplementation(() => {});
-			vi.spyOn(console, "info").mockImplementation(() => {});
-			await queue.send({ n: 42 });
-			for (let i = 0; i < 10; i++) await vi.advanceTimersByTimeAsync(1000);
-			// The retry loop is timer-driven; the dead-letter write is real
-			// fs I/O — switch back to real timers so it can complete.
-			vi.useRealTimers();
-			await vi.waitFor(() => expect(readdirSync(dlq)).toHaveLength(1));
-			const files = readdirSync(dlq);
-			expect(JSON.parse(readFileSync(join(dlq, files[0]!), "utf8"))).toEqual({
-				body: { n: 42 },
-				attempts: 3,
-			});
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("handler load failures are retried like delivery failures", async () => {
-		vi.useFakeTimers();
-		try {
-			let loads = 0;
-			const queue = makeLocalAudioQueue(async () => {
-				loads++;
-				throw new Error("boom");
-			});
-			vi.spyOn(console, "error").mockImplementation(() => {});
-			await queue.send({ n: 2 });
-			for (let i = 0; i < 10; i++) await vi.advanceTimersByTimeAsync(1000);
-			expect(loads).toBe(3);
-		} finally {
-			vi.useRealTimers();
-		}
 	});
 });

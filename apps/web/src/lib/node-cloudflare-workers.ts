@@ -6,7 +6,8 @@ import { makeSqliteDatabase } from "@ktb/db-sqlite";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { loadDevVars } from "./dev-vars.ts";
-import { makeLocalAudioBucket, makeLocalAudioQueue } from "./node-audio.ts";
+import { makeLocalAudioBucket } from "./node-audio.ts";
+import { makeLocalQueue } from "./node-queue.ts";
 
 /**
  * Node/Bun stand-in for the `cloudflare:workers` module — aliased in
@@ -22,8 +23,10 @@ import { makeLocalAudioBucket, makeLocalAudioQueue } from "./node-audio.ts";
  * Bindings without a workerd runtime get local equivalents (see
  * node-audio.ts): AUDIO_BUCKET is a filesystem object store under
  * ./data/audio (gitignored; override with AUDIO_BUCKET_DIR), and
- * AUDIO_QUEUE dispatches in-process to the same consumer handler
- * server.ts exports as `queue`. AI still resolves through
+ * AUDIO_QUEUE is a SQLite-backed queue (node-queue.ts) dispatching to
+ * the same consumer handler server.ts exports as `queue` — jobs
+ * survive restarts and exhausted deliveries sit as `failed` rows (the
+ * DLQ) in the queue db. AI still resolves through
  * AI_STUB/AI_BASE_URL in lib/ai.ts — Workers AI itself has no Node
  * equivalent, so env.AI stays unset unless a stand-in resolves
  * (mirroring wrangler.dev.jsonc, which drops the binding).
@@ -87,19 +90,25 @@ const AUDIO_DIR =
 	resolve(dirname(fileURLToPath(import.meta.url)), "../../data/audio");
 env.AUDIO_BUCKET = makeLocalAudioBucket(AUDIO_DIR);
 
-// Queue stand-in: send() resolves immediately and delivers to the same
-// consumer handler server.ts wires as the workerd `queue` export.
-// Messages that exhaust retries are dead-lettered as JSON under
-// <AUDIO_DIR>/../audio-queue (i.e. ./data/audio-queue by default).
+// Queue stand-in: send() resolves immediately; a poller delivers due
+// rows to the same consumer handler server.ts wires as the workerd
+// `queue` export. Jobs persist in a dedicated SQLite file —
+// apps/web/data/queue.db (gitignored via the root `data/` rule;
+// override with KTB_DEV_QUEUE_DB, same convention as DATABASE_URL /
+// AUDIO_BUCKET_DIR). Rows that exhaust retries stay as status='failed'
+// — the dead-letter queue; inspect/replay via the sqlite3 CLI.
 // audio-jobs.ts imports platform.ts (which imports this module), so the
-// import is deferred to send-time — a static import would be a cycle.
-env.AUDIO_QUEUE = makeLocalAudioQueue(
-	async () => {
+// import is deferred to delivery time — a static import would be a
+// cycle.
+env.AUDIO_QUEUE = makeLocalQueue({
+	dbPath:
+		process.env.KTB_DEV_QUEUE_DB ??
+		resolve(dirname(fileURLToPath(import.meta.url)), "../../data/queue.db"),
+	loadHandler: async () => {
 		const { handleAudioQueueBatch } = await import("./audio-jobs.ts");
 		return handleAudioQueueBatch;
 	},
-	resolve(AUDIO_DIR, "../audio-queue"),
-);
+});
 
 // AI: platform.ts runs resolveAi(env) itself (AI_STUB > AI_BASE_URL >
 // env.AI). Resolve the stand-in here too so env.AI carries it for any

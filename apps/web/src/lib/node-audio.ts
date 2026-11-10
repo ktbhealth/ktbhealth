@@ -1,21 +1,17 @@
-import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
 /**
- * Node/Bun stand-ins for the Cloudflare bindings that have no workerd
+ * Node/Bun stand-in for the Cloudflare bindings that have no workerd
  * equivalent under `KTB_DEV_NODE=1` (see node-cloudflare-workers.ts):
  *
  * - {@link makeLocalAudioBucket}: filesystem-backed R2Bucket slice —
  *   objects land as plain files under a gitignored data dir, with a
  *   `.ktb-meta.json` sidecar carrying `httpMetadata.contentType`.
- * - {@link makeLocalAudioQueue}: in-process Queue producer — `send()`
- *   returns immediately (like the real binding) and dispatches the
- *   message to the consumer handler in the background, with bounded
- *   retries standing in for Cloudflare's retry/DLQ — exhausted messages
- *   go to a dead-letter dir as JSON files when one is configured.
  *
- * Both are plain deploy glue for apps/web — no ports/adapters involved.
+ * The Queue producer stand-in lives in node-queue.ts (SQLite-backed,
+ * restart-persistent). Both are plain deploy glue for apps/web — no
+ * ports/adapters involved.
  */
 
 /** Sidecar suffix storing `{ contentType }` next to each object file. */
@@ -109,77 +105,3 @@ export const makeLocalAudioBucket = (dir: string) => {
 		},
 	};
 };
-
-/** Shape the queue consumer expects (handleAudioQueueBatch input). */
-interface LocalQueueMessage {
-	readonly body: unknown;
-	ack(): void;
-	retry(): void;
-}
-
-export type LocalQueueHandler = (messages: readonly LocalQueueMessage[]) => Promise<void>;
-
-/** Stand-in for Cloudflare's retry budget before a message is dropped. */
-const MAX_DELIVERY_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 250;
-
-/**
- * Filesystem-free Queue producer stand-in. `send()` resolves as soon as
- * the message is accepted (the real binding's contract) and delivers it
- * to the consumer handler asynchronously — one message per batch, which
- * is all the audio pipeline produces. `retry()` re-delivers the same
- * body up to {@link MAX_DELIVERY_ATTEMPTS} times (Cloudflare would
- * retry then dead-letter; dev:node logs and drops instead — or writes
- * the body to `deadLetterDir` as a JSON file when that dir is set).
- */
-export const makeLocalAudioQueue = (
-	loadHandler: () => Promise<LocalQueueHandler>,
-	deadLetterDir?: string,
-) => ({
-	send: (body: unknown): Promise<unknown> => {
-		const deliver = async (): Promise<boolean> => {
-			const handler = await loadHandler();
-			let acked = false;
-			await handler([
-				{
-					body,
-					ack: () => {
-						acked = true;
-					},
-					retry: () => {},
-				},
-			]);
-			return acked;
-		};
-		void (async () => {
-			for (let attempt = 1; attempt <= MAX_DELIVERY_ATTEMPTS; attempt++) {
-				try {
-					if (await deliver()) {
-						console.info("[dev:node] audio job processed", body);
-						return;
-					}
-				} catch (error) {
-					console.error("[dev:node] audio job dispatch failed", { attempt, error });
-				}
-				if (attempt < MAX_DELIVERY_ATTEMPTS) {
-					await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
-				}
-			}
-			console.error(
-				"[dev:node] dropping audio job after retries (Cloudflare Queue would dead-letter)",
-				body,
-			);
-			if (deadLetterDir !== undefined) {
-				try {
-					await mkdir(deadLetterDir, { recursive: true });
-					const file = resolve(deadLetterDir, `${Date.now()}-${randomUUID()}.json`);
-					await writeFile(file, JSON.stringify({ body, attempts: MAX_DELIVERY_ATTEMPTS }));
-					console.info("[dev:node] audio job dead-lettered to", file);
-				} catch (error) {
-					console.error("[dev:node] failed to write audio job dead-letter", error);
-				}
-			}
-		})();
-		return Promise.resolve({});
-	},
-});
