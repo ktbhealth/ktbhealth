@@ -5,6 +5,7 @@ import process from "node:process";
 import { makeSqliteDatabase } from "@ktb/db-sqlite";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
+import { loadDevVars } from "./dev-vars.ts";
 import { makeLocalAudioBucket, makeLocalAudioQueue } from "./node-audio.ts";
 
 /**
@@ -34,6 +35,15 @@ const MIGRATIONS_DIR = resolve(
 	dirname(fileURLToPath(import.meta.url)),
 	"../../../../packages/db/drizzle",
 );
+
+// apps/web/.dev.vars is what `dev:secrets` writes for workerd/miniflare;
+// under dev:node nothing loads it, so merge it here — real env vars win
+// (see dev-vars.ts). Key names only; values are never logged.
+const devVarsFile = resolve(dirname(fileURLToPath(import.meta.url)), "../../.dev.vars");
+const devVarsKeys = loadDevVars(devVarsFile);
+if (devVarsKeys.length > 0) {
+	console.info(`[dev:node] loaded .dev.vars (${devVarsKeys.length} keys)`);
+}
 
 // Plain config/secrets process.env → worker-binding shape. Only keys
 // the app actually reads are forwarded.
@@ -79,12 +89,17 @@ env.AUDIO_BUCKET = makeLocalAudioBucket(AUDIO_DIR);
 
 // Queue stand-in: send() resolves immediately and delivers to the same
 // consumer handler server.ts wires as the workerd `queue` export.
+// Messages that exhaust retries are dead-lettered as JSON under
+// <AUDIO_DIR>/../audio-queue (i.e. ./data/audio-queue by default).
 // audio-jobs.ts imports platform.ts (which imports this module), so the
 // import is deferred to send-time — a static import would be a cycle.
-env.AUDIO_QUEUE = makeLocalAudioQueue(async () => {
-	const { handleAudioQueueBatch } = await import("./audio-jobs.ts");
-	return handleAudioQueueBatch;
-});
+env.AUDIO_QUEUE = makeLocalAudioQueue(
+	async () => {
+		const { handleAudioQueueBatch } = await import("./audio-jobs.ts");
+		return handleAudioQueueBatch;
+	},
+	resolve(AUDIO_DIR, "../audio-queue"),
+);
 
 // AI: platform.ts runs resolveAi(env) itself (AI_STUB > AI_BASE_URL >
 // env.AI). Resolve the stand-in here too so env.AI carries it for any

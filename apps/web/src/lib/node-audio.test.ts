@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -138,6 +138,34 @@ describe("makeLocalAudioQueue", () => {
 			expect(calls).toBe(3);
 			expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("dropping audio job"), {
 				n: 1,
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("writes exhausted messages to deadLetterDir as JSON", async () => {
+		vi.useFakeTimers();
+		try {
+			const dlq = join(bucketDir(), "dlq");
+			const queue = makeLocalAudioQueue(
+				async () => async (messages) => {
+					for (const m of messages) m.retry();
+				},
+				dlq,
+			);
+			vi.spyOn(console, "error").mockImplementation(() => {});
+			vi.spyOn(console, "info").mockImplementation(() => {});
+			await queue.send({ n: 42 });
+			for (let i = 0; i < 10; i++) await vi.advanceTimersByTimeAsync(1000);
+			// The retry loop is timer-driven; the dead-letter write is real
+			// fs I/O — switch back to real timers so it can complete.
+			vi.useRealTimers();
+			await vi.waitFor(() => expect(readdirSync(dlq)).toHaveLength(1));
+			const files = readdirSync(dlq);
+			expect(JSON.parse(readFileSync(join(dlq, files[0]!), "utf8"))).toEqual({
+				body: { n: 42 },
+				attempts: 3,
 			});
 		} finally {
 			vi.useRealTimers();

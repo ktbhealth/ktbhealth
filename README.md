@@ -69,6 +69,9 @@ bun run dev      # http://localhost:3000 (stub auth/captcha — no secrets neede
 bun run dev:node # same app on plain Node/Bun — DB is a real SQLite file
                  # (DATABASE_URL, default ./data/app.db) via @ktb/db-sqlite,
                  # drizzle migrations applied at boot. No workerd/D1.
+                 # Loads apps/web/.dev.vars when present (real env vars win),
+                 # so secrets written by dev:secrets carry over. For real
+                 # secrets under dev:node: `KTB_DEV_NODE=1 bun run dev:secrets`.
 bun run dev:secrets   # same, but injects real secrets via cuora (needs vault access)
 bun run check    # fmt + lint + typecheck
 bun run test     # vitest, per-package projects
@@ -82,7 +85,9 @@ local equivalents (`apps/web/src/lib/node-audio.ts`): `AUDIO_BUCKET`
 is a filesystem object store under `apps/web/data/audio`
 (gitignored; override with `AUDIO_BUCKET_DIR`), and `AUDIO_QUEUE`
 dispatches in-process to the same transcription consumer workerd
-would invoke (bounded retries, no dead-letter queue). AI resolves via
+would invoke (bounded retries; messages that exhaust them are
+dead-lettered as JSON files under `./data/audio-queue` for
+inspection/replay). AI resolves via
 `AI_STUB`/`AI_BASE_URL` exactly as under `wrangler dev` — Workers AI
 itself has no Node equivalent, so `env.AI` stays unset unless a
 stand-in is configured.

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
@@ -11,7 +12,8 @@ import { dirname, resolve, sep } from "node:path";
  * - {@link makeLocalAudioQueue}: in-process Queue producer — `send()`
  *   returns immediately (like the real binding) and dispatches the
  *   message to the consumer handler in the background, with bounded
- *   retries standing in for Cloudflare's retry/DLQ.
+ *   retries standing in for Cloudflare's retry/DLQ — exhausted messages
+ *   go to a dead-letter dir as JSON files when one is configured.
  *
  * Both are plain deploy glue for apps/web — no ports/adapters involved.
  */
@@ -127,9 +129,13 @@ const RETRY_DELAY_MS = 250;
  * to the consumer handler asynchronously — one message per batch, which
  * is all the audio pipeline produces. `retry()` re-delivers the same
  * body up to {@link MAX_DELIVERY_ATTEMPTS} times (Cloudflare would
- * retry then dead-letter; dev:node logs and drops instead).
+ * retry then dead-letter; dev:node logs and drops instead — or writes
+ * the body to `deadLetterDir` as a JSON file when that dir is set).
  */
-export const makeLocalAudioQueue = (loadHandler: () => Promise<LocalQueueHandler>) => ({
+export const makeLocalAudioQueue = (
+	loadHandler: () => Promise<LocalQueueHandler>,
+	deadLetterDir?: string,
+) => ({
 	send: (body: unknown): Promise<unknown> => {
 		const deliver = async (): Promise<boolean> => {
 			const handler = await loadHandler();
@@ -163,6 +169,16 @@ export const makeLocalAudioQueue = (loadHandler: () => Promise<LocalQueueHandler
 				"[dev:node] dropping audio job after retries (Cloudflare Queue would dead-letter)",
 				body,
 			);
+			if (deadLetterDir !== undefined) {
+				try {
+					await mkdir(deadLetterDir, { recursive: true });
+					const file = resolve(deadLetterDir, `${Date.now()}-${randomUUID()}.json`);
+					await writeFile(file, JSON.stringify({ body, attempts: MAX_DELIVERY_ATTEMPTS }));
+					console.info("[dev:node] audio job dead-lettered to", file);
+				} catch (error) {
+					console.error("[dev:node] failed to write audio job dead-letter", error);
+				}
+			}
 		})();
 		return Promise.resolve({});
 	},
