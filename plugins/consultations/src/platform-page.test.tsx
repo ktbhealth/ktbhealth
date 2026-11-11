@@ -14,6 +14,7 @@ vi.mock("@tanstack/react-router", async () => {
 				},
 				props.children as never,
 			),
+		useRouter: () => ({ invalidate: vi.fn() }),
 	};
 });
 
@@ -38,12 +39,22 @@ const row = {
 
 describe("ConsultationsPlatformPage", () => {
 	it("renders the empty state when the loader returns no rows", () => {
-		render(<ConsultationsPlatformPage data={[]} ctx={ctx} />);
+		render(
+			<ConsultationsPlatformPage
+				data={{ consultations: [], owners: [], patients: [] }}
+				ctx={ctx}
+			/>,
+		);
 		expect(screen.getByText("No consultations")).toBeTruthy();
 	});
 
 	it("narrows the loader data into the admin listing rows", () => {
-		render(<ConsultationsPlatformPage data={[row]} ctx={ctx} />);
+		render(
+			<ConsultationsPlatformPage
+				data={{ consultations: [row], owners: [], patients: [] }}
+				ctx={ctx}
+			/>,
+		);
 		expect(screen.getByText("1 consultation across all owners.")).toBeTruthy();
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.getByText("Dr. Bia")).toBeTruthy();

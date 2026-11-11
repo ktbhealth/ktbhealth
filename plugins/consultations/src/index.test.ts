@@ -6,7 +6,12 @@ import { user as userTable } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { patients as patientsTable } from "@ktb/patients/schema";
-import { patientsServicesPlugin, PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
+import {
+	Patients,
+	patientsServicesPlugin,
+	PatientsCommandsLive,
+	PatientsQueriesLive,
+} from "@ktb/patients";
 import { makeEventBus, Query } from "@effect-server-utils/cqrs";
 import {
 	makePlatformAdminGate,
@@ -360,6 +365,158 @@ describe("ConsultationsLive", () => {
 				call((c) => c.adminList()),
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminCreate inserts a consultation for another owner", async () => {
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+		const id = await asUser(
+			"u1",
+			call((c) => c.adminCreate({ userId: "u2", transcript: "admin note", source: "manual" })),
+			"admin@x.com",
+		);
+		expect(id).not.toBeNull();
+		const rows = await testDb
+			.select()
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id!));
+		expect(rows[0]).toMatchObject({ userId: "u2", transcript: "admin note", source: "manual" });
+	});
+
+	it("adminCreate links an existing patient and rejects unknown ones", async () => {
+		const [patient] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Pat", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		const id = await asUser(
+			"u1",
+			call((c) => c.adminCreate({ userId: "u2", patientId: patient!.id, source: "manual" })),
+			"admin@x.com",
+		);
+		const rows = await testDb
+			.select({ patientId: consultationsTable.patientId })
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id!));
+		expect(rows[0]?.patientId).toBe(patient!.id);
+
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminCreate({ userId: "u2", patientId: 999999, source: "manual" })),
+				"admin@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patientId" });
+	});
+
+	it("adminCreate fails Forbidden for non-admin and null principal", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminCreate({ userId: "u2", source: "manual" })),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+		await expect(
+			asUser(
+				null,
+				call((c) => c.adminCreate({ userId: "u2", source: "manual" })),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminDelete removes the row and returns its audio key", async () => {
+		const id = await createConsultation(testDb, {
+			userId: "u1",
+			source: "mic",
+			patientId: undefined,
+		});
+		await testDb
+			.update(consultationsTable)
+			.set({ audioKey: "audios/x.webm" })
+			.where(eq(consultationsTable.id, id!));
+		const result = await asUser(
+			"u1",
+			call((c) => c.adminDelete(id!)),
+			"admin@x.com",
+		);
+		expect(result).toEqual({ audioKey: "audios/x.webm" });
+		const rows = await testDb
+			.select({ id: consultationsTable.id })
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id!));
+		expect(rows).toEqual([]);
+	});
+
+	it("adminCreate returns null when the insert yields no row", async () => {
+		const stub = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as ReturnType<typeof makeDb>;
+		const runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(stub))));
+		try {
+			const id = await runtime.runPromise(
+				Effect.provideService(
+					Effect.flatMap(Consultations, (c) => c.adminCreate({ userId: "u2", source: "manual" })),
+					Principal,
+					{ userId: "u1", email: "admin@x.com" },
+				),
+			);
+			expect(id).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("adminDelete reports null for a missing row and denies non-admins", async () => {
+		expect(
+			await asUser(
+				"u1",
+				call((c) => c.adminDelete(424242)),
+				"admin@x.com",
+			),
+		).toBeNull();
+		const id = await createConsultation(testDb, { userId: "u1", source: "mic" });
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminDelete(id!)),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("get and getLive let an admin read another owner's consultation", async () => {
+		const id = await createConsultation(testDb, {
+			userId: "u1",
+			transcript: "secret",
+			source: "mic",
+		});
+		const detail = await asUser(
+			"u2",
+			call((c) => c.get(id!, "u2")),
+			"admin@x.com",
+		);
+		expect(detail?.transcript).toBe("secret");
+		const live = await asUser(
+			"u2",
+			call((c) => c.getLive(id!, "u2")),
+			"admin@x.com",
+		);
+		expect(live).toEqual({ transcript: "secret", status: "done" });
+		// Non-admin still Forbidden.
+		await expect(
+			asUser(
+				"u2",
+				call((c) => c.get(id!, "u2")),
+			),
+		).rejects.toMatchObject({
+			_tag: "Forbidden",
+		});
 	});
 
 	it("denies reads on ownerless rows (null userId)", async () => {
@@ -963,6 +1120,30 @@ describe("plugins", () => {
 		expect(JSON.stringify(consultationsRoutesPlugin.routes)).toContain(
 			"plugins/consultations/src/routes",
 		);
+	});
+
+	it("platform loader maps blank owner fields to an empty label", async () => {
+		const loader = consultationsPanelPlugin.panel?.pages?.[0]?.loader;
+		expect(loader).toBeDefined();
+		const result = await Effect.runPromise(
+			loader!().pipe(
+				Effect.provideService(Consultations, {
+					adminList: () => Effect.succeed([]),
+				} as never),
+				Effect.provideService(Patients, {
+					adminOwners: () => Effect.succeed([]),
+					adminList: () =>
+						Effect.succeed([
+							{ id: 1, name: "Pat", ownerId: "u9", ownerName: null, ownerEmail: null },
+						] as never),
+				} as never),
+			),
+		);
+		expect(result).toEqual({
+			consultations: [],
+			owners: [],
+			patients: [{ id: 1, name: "Pat", ownerId: "u9", ownerName: "" }],
+		});
 	});
 
 	it("exports the discovery plugins array", () => {

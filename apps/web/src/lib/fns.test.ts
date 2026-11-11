@@ -30,6 +30,9 @@ import { consultations } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
+	adminCreateConsultationFn,
+	adminCreatePatientFn,
+	adminDeleteConsultationFn,
 	adminListAudioJobsFn,
 	attachAnamnesisFn,
 	countMyUnreadNotificationsFn,
@@ -83,9 +86,13 @@ const makeAnamnesis = (chiefComplaint: string): Anamnesis => ({
 let cookie = "";
 
 async function signIn(email: string) {
-	await auth.api.signUpEmail({
-		body: { email, password: "senha-forte-123", name: "Dra" },
-	});
+	// Repeat sign-ins (e.g. the platform-admin user across tests) skip
+	// the signup — the account already exists.
+	await auth.api
+		.signUpEmail({
+			body: { email, password: "senha-forte-123", name: "Dra" },
+		})
+		.catch(() => {});
 	const res = await auth.handler(
 		new Request("http://localhost:3000/api/auth/sign-in/email", {
 			method: "POST",
@@ -525,11 +532,11 @@ describe("server fns", () => {
 		expect(await platformAdminFn()).toBe(false);
 		expect(await platformPageDataFn({ data: "/platform/patients" })).toEqual({
 			status: "ok",
-			data: [],
+			data: { patients: [], owners: [] },
 		});
 		expect(await platformPageDataFn({ data: "/platform/consultations" })).toEqual({
 			status: "ok",
-			data: [],
+			data: { consultations: [], owners: [], patients: [] },
 		});
 		expect(await adminListAudioJobsFn()).toEqual([]);
 		expect(await platformPageDataFn({ data: "/platform/users" })).toEqual({
@@ -551,18 +558,18 @@ describe("server fns", () => {
 			if (res.status !== "ok") throw new Error(`expected ok, got ${res.status}`);
 			return res.data;
 		};
-		const rows = (await pageData("/platform/patients")) as {
-			ownerEmail: string | null;
-		}[];
-		expect(rows.length).toBeGreaterThan(0);
-		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
+		const patientsData = (await pageData("/platform/patients")) as {
+			patients: { ownerEmail: string | null }[];
+		};
+		expect(patientsData.patients.length).toBeGreaterThan(0);
+		expect(patientsData.patients.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
 
 		// Same gate covers the consultations and users console listings.
-		const consultRows = (await pageData("/platform/consultations")) as {
-			ownerEmail?: string;
-		}[];
-		expect(Array.isArray(consultRows)).toBe(true);
-		expect(consultRows.every((r) => r.ownerEmail !== undefined)).toBe(true);
+		const consultData = (await pageData("/platform/consultations")) as {
+			consultations: { ownerEmail?: string }[];
+		};
+		expect(Array.isArray(consultData.consultations)).toBe(true);
+		expect(consultData.consultations.every((r) => r.ownerEmail !== undefined)).toBe(true);
 		const userRows = (await pageData("/platform/users")) as {
 			isAdmin: boolean;
 		}[];
@@ -587,6 +594,59 @@ describe("server fns", () => {
 		expect(Array.isArray(dashboard.consultations)).toBe(true);
 		expect(Array.isArray(dashboard.notifications)).toBe(true);
 		expect(typeof dashboard.unreadCount).toBe("number");
+	});
+
+	it("platform admin CRUD fns mutate cross-owner records; non-admins get ok:false", async () => {
+		const adminCookie = await signIn("platform-admin@ktb.test");
+		headers.current = new Headers({ cookie: adminCookie });
+		const admin = await getSessionUserFn();
+		expect(admin).not.toBeNull();
+
+		const created = await adminCreatePatientFn({
+			data: { ownerId: admin!.id, name: "Admin Pat", birthDate: "1990-01-01" },
+		});
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+
+		const consult = await adminCreateConsultationFn({
+			data: { userId: admin!.id, patientId: created.patient.id, transcript: "note" },
+		});
+		expect(consult).toEqual({ ok: true, id: expect.any(Number) });
+		if (!consult.ok) return;
+		expect(await adminDeleteConsultationFn({ data: consult.id })).toEqual({
+			ok: true,
+			orphanedAudio: 0,
+		});
+		// Missing row → ok:false.
+		expect(await adminDeleteConsultationFn({ data: consult.id })).toEqual({ ok: false });
+
+		// A stored recording is purged from R2 on delete.
+		const withAudio = await adminCreateConsultationFn({
+			data: { userId: admin!.id, transcript: "audio note" },
+		});
+		if (!withAudio.ok) throw new Error("expected ok");
+		await db
+			.update(consultations)
+			.set({ audioKey: "audios/admin.webm" })
+			.where(eq(consultations.id, withAudio.id));
+		expect((await adminDeleteConsultationFn({ data: withAudio.id })).ok).toBe(true);
+
+		headers.current = new Headers({ cookie });
+		expect(
+			await adminCreatePatientFn({
+				data: { ownerId: "u1", name: "Nope", birthDate: "1990-01-01" },
+			}),
+		).toEqual({ ok: false, errors: {} });
+		expect(await adminCreateConsultationFn({ data: { userId: "u1" } })).toEqual({
+			ok: false,
+		});
+		expect(await adminDeleteConsultationFn({ data: 1 })).toEqual({ ok: false });
+
+		// Invalid drafts surface field errors, not a generic failure.
+		expect(await adminCreatePatientFn({ data: { ownerId: admin!.id, name: "" } })).toMatchObject({
+			ok: false,
+			errors: expect.any(Object),
+		});
 	});
 
 	it("platform page guard: false reports notfound and skips the loader", async () => {

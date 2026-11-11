@@ -194,6 +194,23 @@ export interface ConsultationMessages {
 		readonly searchLabel: string;
 		readonly noMatch: string;
 		readonly filteredCount: (shown: number, total: number) => string;
+		readonly colActions: string;
+		readonly newConsultation: string;
+		readonly createTitle: string;
+		readonly createDescription: string;
+		readonly createFailed: string;
+		readonly ownerLabel: string;
+		readonly ownerPlaceholder: string;
+		readonly patientLabel: string;
+		readonly patientPlaceholder: string;
+		readonly patientNone: string;
+		readonly transcriptLabel: string;
+		readonly transcriptPlaceholder: string;
+		readonly deleteFor: (label: string) => string;
+		readonly deleteTitle: string;
+		readonly deleteDescription: (label: string) => string;
+		readonly deleteConfirm: string;
+		readonly cancel: string;
 	};
 }
 
@@ -383,6 +400,23 @@ const en: ConsultationMessages = {
 		searchLabel: "Search consultations",
 		noMatch: "No consultations match the search.",
 		filteredCount: (shown, total) => `Showing ${shown} of ${total}`,
+		colActions: "Actions",
+		newConsultation: "New consultation",
+		createTitle: "New consultation",
+		createDescription: "Create a consultation record on behalf of an owner.",
+		createFailed: "Could not create the consultation. Try again.",
+		ownerLabel: "Owner",
+		ownerPlaceholder: "Select an owner",
+		patientLabel: "Patient",
+		patientPlaceholder: "Select a patient",
+		patientNone: "No patient",
+		transcriptLabel: "Transcript",
+		transcriptPlaceholder: "Optional transcript text…",
+		deleteFor: (label) => `Delete ${label}`,
+		deleteTitle: "Delete consultation?",
+		deleteDescription: (label) => `This permanently deletes ${label} and its recording.`,
+		deleteConfirm: "Delete permanently",
+		cancel: "Cancel",
 	},
 };
 
@@ -573,6 +607,23 @@ const ptBR: ConsultationMessages = {
 		searchLabel: "Buscar consultas",
 		noMatch: "Nenhuma consulta corresponde à busca.",
 		filteredCount: (shown, total) => `Exibindo ${shown} de ${total}`,
+		colActions: "Ações",
+		newConsultation: "Nova consulta",
+		createTitle: "Nova consulta",
+		createDescription: "Crie um registro de consulta em nome de um proprietário.",
+		createFailed: "Não foi possível criar a consulta. Tente novamente.",
+		ownerLabel: "Proprietário",
+		ownerPlaceholder: "Selecione um proprietário",
+		patientLabel: "Paciente",
+		patientPlaceholder: "Selecione um paciente",
+		patientNone: "Sem paciente",
+		transcriptLabel: "Transcrição",
+		transcriptPlaceholder: "Texto da transcrição (opcional)…",
+		deleteFor: (label) => `Excluir ${label}`,
+		deleteTitle: "Excluir consulta?",
+		deleteDescription: (label) => `Isso exclui permanentemente ${label} e sua gravação.`,
+		deleteConfirm: "Excluir permanentemente",
+		cancel: "Cancelar",
 	},
 };
 
@@ -766,6 +817,23 @@ const es: ConsultationMessages = {
 		searchLabel: "Buscar consultas",
 		noMatch: "Ninguna consulta coincide con la búsqueda.",
 		filteredCount: (shown, total) => `Mostrando ${shown} de ${total}`,
+		colActions: "Acciones",
+		newConsultation: "Nueva consulta",
+		createTitle: "Nueva consulta",
+		createDescription: "Cree un registro de consulta en nombre de un propietario.",
+		createFailed: "No se pudo crear la consulta. Inténtelo de nuevo.",
+		ownerLabel: "Propietario",
+		ownerPlaceholder: "Seleccione un propietario",
+		patientLabel: "Paciente",
+		patientPlaceholder: "Seleccione un paciente",
+		patientNone: "Sin paciente",
+		transcriptLabel: "Transcripción",
+		transcriptPlaceholder: "Texto de la transcripción (opcional)…",
+		deleteFor: (label) => `Eliminar ${label}`,
+		deleteTitle: "¿Eliminar consulta?",
+		deleteDescription: (label) => `Esto elimina permanentemente ${label} y su grabación.`,
+		deleteConfirm: "Eliminar permanentemente",
+		cancel: "Cancelar",
 	},
 };
 

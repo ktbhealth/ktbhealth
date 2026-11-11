@@ -147,6 +147,13 @@ export interface PatientMessages {
 		readonly searchLabel: string;
 		readonly noMatch: string;
 		readonly filteredCount: (shown: number, total: number) => string;
+		readonly colActions: string;
+		readonly newPatient: string;
+		readonly createTitle: string;
+		readonly createDescription: string;
+		readonly ownerLabel: string;
+		readonly ownerPlaceholder: string;
+		readonly createFailed: string;
 	};
 	readonly form: {
 		readonly editTitle: string;
@@ -316,6 +323,13 @@ const en: PatientMessages = {
 		searchLabel: "Search patients",
 		noMatch: "No patients match the search.",
 		filteredCount: (shown, total) => `Showing ${shown} of ${total}`,
+		colActions: "Actions",
+		newPatient: "New patient",
+		createTitle: "New patient",
+		createDescription: "Create a patient record on behalf of an owner.",
+		ownerLabel: "Owner",
+		ownerPlaceholder: "Select an owner",
+		createFailed: "Could not create the patient. Try again.",
 	},
 	form: {
 		editTitle: "Edit patient",
@@ -486,6 +500,13 @@ const ptBR: PatientMessages = {
 		searchLabel: "Buscar pacientes",
 		noMatch: "Nenhum paciente corresponde à busca.",
 		filteredCount: (shown, total) => `Exibindo ${shown} de ${total}`,
+		colActions: "Ações",
+		newPatient: "Novo paciente",
+		createTitle: "Novo paciente",
+		createDescription: "Cadastre um paciente em nome de um proprietário.",
+		ownerLabel: "Proprietário",
+		ownerPlaceholder: "Selecione um proprietário",
+		createFailed: "Não foi possível cadastrar o paciente. Tente novamente.",
 	},
 	form: {
 		editTitle: "Editar paciente",
@@ -658,6 +679,13 @@ const es: PatientMessages = {
 		searchLabel: "Buscar pacientes",
 		noMatch: "Ningún paciente coincide con la búsqueda.",
 		filteredCount: (shown, total) => `Mostrando ${shown} de ${total}`,
+		colActions: "Acciones",
+		newPatient: "Nuevo paciente",
+		createTitle: "Nuevo paciente",
+		createDescription: "Cree un registro de paciente en nombre de un propietario.",
+		ownerLabel: "Propietario",
+		ownerPlaceholder: "Seleccione un propietario",
+		createFailed: "No se pudo crear el paciente. Inténtelo de nuevo.",
 	},
 	form: {
 		editTitle: "Editar paciente",

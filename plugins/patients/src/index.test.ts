@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
+import { user as userTable } from "@ktb/auth/schema";
 import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -109,9 +110,10 @@ describe("patients repo", () => {
 
 describe("PatientsLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Patients, never>;
+	let db: ReturnType<typeof makeDb>;
 
 	beforeAll(() => {
-		const db = makeDb(makeD1(DDL));
+		db = makeDb(makeD1(DDL));
 		const deps = Layer.mergeAll(
 			Layer.succeed(Db, db),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
@@ -308,6 +310,100 @@ describe("PatientsLive", () => {
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
+
+	it("adminCreate inserts a patient for another owner", async () => {
+		const row = await asUser(
+			"u1",
+			call((p) => p.adminCreate("u2", fields("Admin Made"))),
+			"admin@x.com",
+		);
+		expect(row?.ownerId).toBe("u2");
+		expect(row?.name).toBe("Admin Made");
+	});
+
+	it("adminCreate fails Forbidden for non-admin and null principal", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.adminCreate("u2", fields("Nope"))),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+		await expect(
+			asUser(
+				null,
+				call((p) => p.adminCreate("u2", fields("Nope"))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminOwners lists user accounts for allowlisted admins only", async () => {
+		// Blank names fall back to email, then to the id — the picker
+		// label must never render empty.
+		await db.insert(userTable).values([
+			{
+				id: "u3",
+				name: "",
+				email: "noname@x.com",
+				emailVerified: false,
+				createdAt: new Date(0),
+				updatedAt: new Date(0),
+			},
+			{
+				id: "u4",
+				name: "",
+				email: "",
+				emailVerified: false,
+				createdAt: new Date(0),
+				updatedAt: new Date(0),
+			},
+		]);
+		const owners = await asUser(
+			"u1",
+			call((p) => p.adminOwners()),
+			"admin@x.com",
+		);
+		expect(owners.map((o) => o.id).sort()).toEqual(["u1", "u2", "u3", "u4"]);
+		expect(owners.find((o) => o.id === "u3")?.label).toBe("noname@x.com");
+		expect(owners.find((o) => o.id === "u4")?.label).toBe("u4");
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.adminOwners()),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("get and update let an admin cross the owner boundary", async () => {
+		const foreign = await asUser(
+			"u2",
+			call((p) => p.create("u2", fields("Foreign Read"))),
+		);
+		const id = foreign!.id;
+		// Admin reads and updates u2's row through the owner-scoped API.
+		const read = await asUser(
+			"u1",
+			call((p) => p.get("u1", id)),
+			"admin@x.com",
+		);
+		expect(read?.name).toBe("Foreign Read");
+		const updated = await asUser(
+			"u1",
+			call((p) => p.update("u1", id, fields("Foreign Edited"))),
+			"admin@x.com",
+		);
+		expect(updated?.name).toBe("Foreign Edited");
+		// A non-admin still gets Forbidden on the same row.
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.get("u1", id)),
+			),
+		).rejects.toMatchObject({
+			_tag: "Forbidden",
+		});
+	});
 });
 
 describe("plugins", () => {
@@ -375,11 +471,42 @@ describe("PatientsLive without a stored row", () => {
 			await runtime.dispose();
 		}
 	});
+
+	it("adminCreate returns null when the insert yields no row", async () => {
+		const stub = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as ReturnType<typeof makeDb>;
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, stub),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+			makeEventBus(),
+		);
+		const runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
+		try {
+			const row = await runtime.runPromise(
+				Effect.provideService(
+					Effect.flatMap(Patients, (p) => p.adminCreate("u2", fields("Ghost Admin"))),
+					Principal,
+					{ userId: "u1", email: "admin@x.com" },
+				),
+			);
+			expect(row).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
 });
 
 describe("PatientsCommandsLive", () => {
+	const adminGate = () =>
+		Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com")));
+
 	it("patients.delete is a no-op for a patient that does not exist", async () => {
-		const deps = Layer.mergeAll(Layer.succeed(Db, makeDb(makeD1(DDL))), makeEventBus());
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, makeDb(makeD1(DDL))),
+			makeEventBus(),
+			adminGate(),
+		);
 		const runtime = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
 		try {
 			await expect(
@@ -402,7 +529,7 @@ describe("PatientsCommandsLive", () => {
 	it("patients.delete removes the owner's patient and emits patient.deleted", async () => {
 		const db = makeDb(makeD1(DDL));
 		const row = (await createPatient(db, "u1", fields("To Delete")))!;
-		const deps = Layer.mergeAll(Layer.succeed(Db, db), makeEventBus());
+		const deps = Layer.mergeAll(Layer.succeed(Db, db), makeEventBus(), adminGate());
 		const runtime = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
 		try {
 			await runtime.runPromise(
@@ -416,6 +543,52 @@ describe("PatientsCommandsLive", () => {
 				),
 			);
 			expect(await getPatient(db, row.id)).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("patients.delete lets a platform admin remove another owner's patient", async () => {
+		const db = makeDb(makeD1(DDL));
+		const row = (await createPatient(db, "u2", fields("Foreign")))!;
+		const deps = Layer.mergeAll(Layer.succeed(Db, db), makeEventBus(), adminGate());
+		const runtime = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
+		try {
+			await runtime.runPromise(
+				Effect.provideService(
+					Effect.gen(function* () {
+						const commands = yield* Command.dispatcher(PatientsCommands);
+						yield* commands["patients.delete"]({ id: row.id });
+					}).pipe(Effect.scoped),
+					Principal,
+					{ userId: "u1", email: "admin@x.com" },
+				),
+			);
+			expect(await getPatient(db, row.id)).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("patients.delete still fails Forbidden for a non-admin non-owner", async () => {
+		const db = makeDb(makeD1(DDL));
+		const row = (await createPatient(db, "u2", fields("Foreign 2")))!;
+		const deps = Layer.mergeAll(Layer.succeed(Db, db), makeEventBus(), adminGate());
+		const runtime = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
+		try {
+			await expect(
+				runtime.runPromise(
+					Effect.provideService(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(PatientsCommands);
+							yield* commands["patients.delete"]({ id: row.id });
+						}).pipe(Effect.scoped),
+						Principal,
+						{ userId: "u1", email: "other@x.com" },
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+			expect(await getPatient(db, row.id)).not.toBeNull();
 		} finally {
 			await runtime.dispose();
 		}

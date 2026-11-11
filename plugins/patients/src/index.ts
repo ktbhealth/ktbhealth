@@ -11,7 +11,12 @@ import { definePlugin, type Plugin } from "@ktb/kernel";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { PatientCreated, PatientDeleted, PatientsCommands, PatientsQueries } from "./api.ts";
 import { PatientsPlatformPage } from "./platform-page.tsx";
-import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
+import {
+	PlatformAdmin,
+	platformAdminPlugin,
+	platformPanelPlugin,
+	type PlatformAdminShape,
+} from "@ktb/platform";
 import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import type { PatientFields } from "./record.ts";
 import { patients } from "./schema.ts";
@@ -56,6 +61,25 @@ export async function listAllPatients(db: DbClient): Promise<AdminPatientRow[]> 
 	}));
 }
 
+/** Owner-picker options for admin create forms — id + display label. */
+export interface OwnerOption {
+	readonly id: string;
+	readonly label: string;
+}
+
+/**
+ * User accounts eligible as patient owners. Unauthenticated repo
+ * helper — callers MUST pass the `PlatformAdmin` gate first (the
+ * `Patients.adminOwners` service method does).
+ */
+export async function listOwnerOptions(db: DbClient): Promise<OwnerOption[]> {
+	const rows = await db
+		.select({ id: users.id, email: users.email, name: users.name })
+		.from(users)
+		.orderBy(asc(users.name));
+	return rows.map((r) => ({ id: r.id, label: r.name || r.email || r.id }));
+}
+
 /** Owner lookup exposed to other plugins via the `patients.ownerOf` query. */
 export async function getPatientOwnerId(db: DbClient, id: number) {
 	const rows = await db
@@ -90,6 +114,24 @@ export async function updatePatient(db: DbClient, id: number, fields: PatientFie
 }
 
 /**
+ * Owner-scoped authz that a platform admin may override: regular
+ * principals must own the row, allowlisted admins pass either way.
+ * Used on read/update/delete so the /platform console can manage
+ * cross-owner records through the same code paths as owners.
+ */
+const orPlatformAdmin = (
+	platformAdmin: PlatformAdminShape,
+	check: Effect.Effect<void, Forbidden>,
+) =>
+	check.pipe(
+		Effect.catchTag("Forbidden", (err) =>
+			// Admin override passes silently; when it also fails, re-raise
+			// the original owner-violation error (path stays accurate).
+			platformAdmin.requireAdmin().pipe(Effect.catchTag("Forbidden", () => Effect.fail(err))),
+		),
+	);
+
+/**
  * Patients domain port — Effect service, swappable in tests.
  *
  * Every method enforces authorization against the request `Principal`
@@ -116,6 +158,16 @@ export class Patients extends Context.Service<
 		) => Effect.Effect<Patient | null, Forbidden>;
 		/** Cross-owner listing for the /platform console — platform admins only. */
 		readonly adminList: () => Effect.Effect<AdminPatientRow[], Forbidden>;
+		/**
+		 * Create a patient on behalf of `ownerId` — platform admins only.
+		 * Owner picker options come from `adminOwners`.
+		 */
+		readonly adminCreate: (
+			ownerId: string,
+			fields: PatientFields,
+		) => Effect.Effect<Patient | null, Forbidden>;
+		/** User accounts for the admin create-form owner picker — platform admins only. */
+		readonly adminOwners: () => Effect.Effect<OwnerOption[], Forbidden>;
 	}
 >()("@ktb/patients/Patients") {}
 
@@ -134,8 +186,12 @@ export const PatientsLive = Layer.effect(
 				yield* requirePrincipalUser(ownerId, "patient.read");
 				const row = yield* Effect.promise(() => getPatient(db, id));
 				if (row === null) return null;
-				// Someone else's row is Forbidden, not silently null.
-				yield* requireCanAs("patient.read", { ownerId: row.ownerId });
+				// Someone else's row is Forbidden for regular principals;
+				// platform admins read cross-owner (admin detail/edit pages).
+				yield* orPlatformAdmin(
+					platformAdmin,
+					requireCanAs("patient.read", { ownerId: row.ownerId }),
+				);
 				return row;
 			}),
 			create: Effect.fn("Patients.create")(function* (ownerId: string, fields: PatientFields) {
@@ -157,7 +213,10 @@ export const PatientsLive = Layer.effect(
 				yield* requirePrincipalUser(ownerId, "patient.update");
 				const row = yield* Effect.promise(() => getPatient(db, id));
 				if (row === null) return null;
-				yield* requireCanAs("patient.update", { ownerId: row.ownerId });
+				yield* orPlatformAdmin(
+					platformAdmin,
+					requireCanAs("patient.update", { ownerId: row.ownerId }),
+				);
 				yield* Effect.annotateCurrentSpan({ ownerId, patientId: id });
 				yield* Effect.logInfo("patient update", { ownerId, patientId: id });
 				return yield* Effect.promise(() => updatePatient(db, id, fields));
@@ -169,6 +228,23 @@ export const PatientsLive = Layer.effect(
 				yield* Effect.annotateCurrentSpan({ adminList: true });
 				yield* Effect.logInfo("patients admin list");
 				return yield* Effect.promise(() => listAllPatients(db));
+			}),
+			adminCreate: Effect.fn("Patients.adminCreate")(function* (
+				ownerId: string,
+				fields: PatientFields,
+			) {
+				yield* platformAdmin.requireAdmin();
+				yield* Effect.annotateCurrentSpan({ ownerId });
+				yield* Effect.logInfo("patient admin create", { ownerId });
+				const row = yield* Effect.promise(() => createPatient(db, ownerId, fields));
+				if (row !== null) {
+					yield* events.dispatch([PatientCreated.make({ id: row.id, ownerId, name: row.name })]);
+				}
+				return row;
+			}),
+			adminOwners: Effect.fn("Patients.adminOwners")(function* () {
+				yield* platformAdmin.requireAdmin();
+				return yield* Effect.promise(() => listOwnerOptions(db));
 			}),
 		});
 	}),
@@ -198,9 +274,13 @@ export const PatientsCommandsLive = Command.handlersOf(PatientsCommands, {
 		Effect.gen(function* () {
 			const db = yield* Db;
 			const events = yield* EventBus;
+			const platformAdmin = yield* PlatformAdmin;
 			const row = yield* Effect.promise(() => getPatient(db, id));
 			if (row === null) return;
-			yield* requireCanAs("patient.delete", { ownerId: row.ownerId });
+			yield* orPlatformAdmin(
+				platformAdmin,
+				requireCanAs("patient.delete", { ownerId: row.ownerId }),
+			);
 			yield* Effect.promise(() => deletePatientRow(db, id));
 			yield* events.dispatch([PatientDeleted.make({ id, ownerId: row.ownerId })]);
 		}),
@@ -250,9 +330,15 @@ export const patientsPanelPlugin = definePlugin({
 				loader: () =>
 					Effect.gen(function* () {
 						const patients = yield* Patients;
-						return yield* patients
-							.adminList()
-							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[])));
+						const [rows, owners] = yield* Effect.all([
+							patients
+								.adminList()
+								.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[]))),
+							patients
+								.adminOwners()
+								.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as OwnerOption[]))),
+						]);
+						return { patients: rows, owners };
 					}),
 			},
 		],

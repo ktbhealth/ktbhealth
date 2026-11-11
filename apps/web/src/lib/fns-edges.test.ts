@@ -43,14 +43,16 @@ vi.mock("#/lib/auth.ts", () => ({
 vi.mock("@ktb/server-fns", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@ktb/server-fns")>();
 	const Effect = await import("effect/Effect");
-	const { Notifications } = await import("@ktb/notifications");
-	const { Patients } = await import("@ktb/patients");
-	const withOverrides = (effect: any) => {
+	// Plugin tags resolve lazily: importing @ktb/patients here would
+	// re-enter this mock mid-factory (plugin fns import @ktb/server-fns).
+	const withOverrides = async (effect: any) => {
 		let e = effect;
 		if (hoisted.overrides.notifications) {
+			const { Notifications } = await import("@ktb/notifications");
 			e = e.pipe(Effect.provideService(Notifications, hoisted.overrides.notifications as never));
 		}
 		if (hoisted.overrides.patients) {
+			const { Patients } = await import("@ktb/patients");
 			e = e.pipe(Effect.provideService(Patients, hoisted.overrides.patients as never));
 		}
 		return e;
@@ -62,23 +64,23 @@ vi.mock("@ktb/server-fns", async (importOriginal) => {
 			if (!hoisted.user) throw new Error("unauthenticated");
 			return hoisted.user;
 		},
-		runAs: (user: never, effect: any) => actual.runAs(user, withOverrides(effect)),
+		runAs: async (user: never, effect: any) => actual.runAs(user, await withOverrides(effect)),
 	};
 });
 vi.mock("#/lib/platform.ts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("#/lib/platform.ts")>();
 	const Effect = await import("effect/Effect");
-	const { Notifications } = await import("@ktb/notifications");
-	const { Patients } = await import("@ktb/patients");
 	return {
 		...actual,
 		// Same principal binding as production, plus optional service fakes.
-		runAs: (user: never, effect: any) => {
+		runAs: async (user: never, effect: any) => {
 			let e = effect;
 			if (hoisted.overrides.notifications) {
+				const { Notifications } = await import("@ktb/notifications");
 				e = e.pipe(Effect.provideService(Notifications, hoisted.overrides.notifications as never));
 			}
 			if (hoisted.overrides.patients) {
+				const { Patients } = await import("@ktb/patients");
 				e = e.pipe(Effect.provideService(Patients, hoisted.overrides.patients as never));
 			}
 			return actual.runAs(user, e);

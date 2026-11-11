@@ -43,6 +43,9 @@ describe("patient record query and delete cascade", () => {
 	const asUser = <A, E, R>(effect: Effect.Effect<A, E, R>, userId?: string) =>
 		userId === undefined ? effect : Effect.provideService(effect, Principal, { userId });
 
+	const asAdmin = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+		Effect.provideService(effect, Principal, { userId: "u2", email: "admin@x.com" });
+
 	const recordConsultations = (patientId: number, userId?: string) =>
 		runtime.runPromise(
 			asUser(
@@ -130,6 +133,21 @@ describe("patient record query and delete cascade", () => {
 		it("fails Forbidden without a bound principal", async () => {
 			await expect(recordConsultations(ana)).rejects.toMatchObject({ _tag: "Forbidden" });
 		});
+
+		it("lets a platform admin read another owner's patient consultations", async () => {
+			const rows = (await runtime.runPromise(
+				asAdmin(
+					Effect.scoped(
+						Effect.gen(function* () {
+							const queries = yield* Query.dispatcher(PatientRecordConsultationsQueries);
+							return yield* queries["patients.recordConsultations"]({ patientId: ana });
+						}),
+					) as Effect.Effect<unknown, unknown, Registered>,
+				),
+			)) as { patientId: number; chiefComplaint: string | null }[];
+			expect(rows).toHaveLength(2);
+			expect(rows.every((r) => r.patientId === ana)).toBe(true);
+		});
 	});
 
 	describe("patients.deleteCascade", () => {
@@ -147,6 +165,25 @@ describe("patient record query and delete cascade", () => {
 				audioKeys: ["audio/u1/a.webm"],
 			});
 			await expect(recordConsultations(ana, "u1")).resolves.toEqual([]);
+		});
+
+		it("lets a platform admin cascade over ownerless and cross-owner rows", async () => {
+			// bia's only linked consultation has userId NULL — an owner
+			// principal is refused, an admin removes it.
+			await runtime
+				.runPromise(
+					asAdmin(
+						Effect.scoped(
+							Effect.gen(function* () {
+								const commands = yield* Command.dispatcher(PatientCascadeCommands);
+								return yield* commands["patients.deleteCascade"]({ patientId: bia });
+							}),
+						) as Effect.Effect<unknown, unknown, Registered>,
+					),
+				)
+				.then((res) => {
+					expect(res).toEqual({ consultations: 1, audioKeys: [] });
+				});
 		});
 	});
 });

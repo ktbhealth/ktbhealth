@@ -98,6 +98,7 @@ export const platformPageDataFn = createServerFn({ method: "GET" })
 // through @ktb/patients/fns. Re-exported here so existing host callers
 // (tests) keep their import path.
 export {
+	adminCreatePatientFn,
 	createPatientFn,
 	deletePatientFn,
 	getPatientFn,
@@ -114,6 +115,8 @@ export {
 // Re-exported here so existing host callers (tests, /platform routes)
 // keep their import path.
 export {
+	adminCreateConsultationFn,
+	adminDeleteConsultationFn,
 	adminListAudioJobsFn,
 	attachAnamnesisFn,
 	extractAnamnesisFn,

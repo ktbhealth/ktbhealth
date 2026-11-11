@@ -230,16 +230,19 @@ describe("/platform index", () => {
 describe("/platform/$ splat dispatcher", () => {
 	it("renders the patients page contributed by the patients plugin", () => {
 		pageParam = "patients";
-		loaderData = [
-			{
-				id: 7,
-				ownerId: "u1",
-				name: "Ana",
-				createdAt: new Date("2026-11-01T10:00:00Z"),
-				ownerEmail: "d@x.com",
-				ownerName: "Dra",
-			},
-		];
+		loaderData = {
+			patients: [
+				{
+					id: 7,
+					ownerId: "u1",
+					name: "Ana",
+					createdAt: new Date("2026-11-01T10:00:00Z"),
+					ownerEmail: "d@x.com",
+					ownerName: "Dra",
+				},
+			],
+			owners: [],
+		};
 		render(createElement(component(PlatformPageRoute)));
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.getByText("Dra")).toBeTruthy();

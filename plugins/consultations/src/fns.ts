@@ -4,7 +4,14 @@ import { Query } from "@effect-server-utils/cqrs";
 import * as Effect from "effect/Effect";
 import { Schema } from "effect";
 
-import { ensureSessionUser, getLocale, getSessionUser, runAs } from "@ktb/server-fns";
+import {
+	ensureSessionUser,
+	getLocale,
+	getServerRuntime,
+	getSessionUser,
+	purgeAudio,
+	runAs,
+} from "@ktb/server-fns";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
@@ -247,6 +254,60 @@ export const adminListAudioJobsFn = createServerFn({ method: "GET" }).handler(as
 		),
 	);
 });
+
+const AdminCreateInput = Schema.Struct({
+	userId: Schema.String,
+	patientId: Schema.optionalKey(Schema.Number),
+	transcript: Schema.optionalKey(Schema.String),
+	source: Schema.optionalKey(Schema.String),
+	status: Schema.optionalKey(Schema.String),
+});
+const decodeAdminCreateInput = Schema.decodeUnknownSync(AdminCreateInput);
+
+/**
+ * Platform-admin create on behalf of another user — the service
+ * re-checks the PlatformAdmin gate; non-admins get `{ ok: false }`.
+ */
+export const adminCreateConsultationFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => decodeAdminCreateInput(input))
+	.handler(async ({ data }) => {
+		const user = await ensureSessionUser();
+		return runAs(
+			user,
+			Effect.gen(function* () {
+				const consultations = yield* Consultations;
+				const id = yield* consultations
+					.adminCreate({ ...data, source: data.source ?? "manual" })
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
+				return id === null ? { ok: false as const } : { ok: true as const, id };
+			}),
+		);
+	});
+
+/**
+ * Platform-admin delete — removes the row and purges the stored
+ * recording. Missing row or non-admin → `{ ok: false }`.
+ */
+export const adminDeleteConsultationFn = createServerFn({ method: "POST" })
+	.validator((id: number) => decodeNumber(id))
+	.handler(async ({ data: id }) => {
+		const user = await ensureSessionUser();
+		const result = await runAs(
+			user,
+			Effect.gen(function* () {
+				const consultations = yield* Consultations;
+				return yield* consultations
+					.adminDelete(id)
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
+			}),
+		);
+		if (result === null) return { ok: false as const };
+		const leftover = await purgeAudio(
+			getServerRuntime().audio,
+			result.audioKey === null ? [] : [result.audioKey],
+		);
+		return { ok: true as const, orphanedAudio: leftover.length };
+	});
 
 /** Record the doctor's consent declaration (LGPD trail). */
 export const recordConsentFn = createServerFn({ method: "POST" })
