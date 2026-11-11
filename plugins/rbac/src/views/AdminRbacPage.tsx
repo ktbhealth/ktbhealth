@@ -6,6 +6,13 @@ import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button } from "@ktbhealth/ui/components/button";
 import { Input } from "@ktbhealth/ui/components/input";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ktbhealth/ui/components/select";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -30,6 +37,11 @@ const inputCls =
 
 const permKey = (resource: string, action: string) => `${resource}.${action}`;
 
+const KIND_ITEMS = [
+	{ value: "user", label: "user" },
+	{ value: "group", label: "group" },
+] as const;
+
 /**
  * /platform/roles console (P-054): role list + create/delete, a
  * permission-matrix editor per role (cycle none → allow → deny → none),
@@ -52,10 +64,16 @@ export function AdminRbacPage({
 	const [error, setError] = useState(false);
 	const [newName, setNewName] = useState("");
 	const [newDesc, setNewDesc] = useState("");
-	const [assign, setAssign] = useState({
-		subjectKind: "user" as "user" | "group",
+	const [assign, setAssign] = useState<{
+		subjectKind: "user" | "group";
+		subjectId: string;
+		roleId: string | null;
+		tenantId: string;
+		expiresAt: string;
+	}>({
+		subjectKind: "user",
 		subjectId: "",
-		roleId: "",
+		roleId: null,
 		tenantId: "",
 		expiresAt: "",
 	});
@@ -69,6 +87,14 @@ export function AdminRbacPage({
 		for (const p of detail?.permissions ?? []) m.set(permKey(p.resource, p.action), p.effect);
 		return m;
 	}, [detail]);
+	// Base UI models "nothing selected" as null — the form state keeps "".
+	const roleItems = useMemo(
+		() => [
+			{ value: null, label: t.selectRole },
+			...data.roles.map((r) => ({ value: String(r.id), label: r.name })),
+		],
+		[data.roles, t.selectRole],
+	);
 
 	const run = async (fn: () => Promise<{ ok: boolean }>) => {
 		setBusy(true);
@@ -252,7 +278,7 @@ export function AdminRbacPage({
 					className="mt-2 flex flex-wrap items-center gap-2"
 					onSubmit={(e) => {
 						e.preventDefault();
-						if (assign.subjectId.trim() === "" || assign.roleId === "") return;
+						if (assign.subjectId.trim() === "" || assign.roleId === null) return;
 						void run(() =>
 							assignSubjectFn({
 								data: {
@@ -267,36 +293,44 @@ export function AdminRbacPage({
 						);
 					}}
 				>
-					<select
-						className={inputCls}
+					<Select
+						items={KIND_ITEMS}
 						value={assign.subjectKind}
-						onChange={(e) =>
-							setAssign({ ...assign, subjectKind: e.target.value as "user" | "group" })
-						}
-						aria-label={t.subjectKind}
+						onValueChange={(v) => setAssign({ ...assign, subjectKind: v as "user" | "group" })}
 					>
-						<option value="user">user</option>
-						<option value="group">group</option>
-					</select>
+						<SelectTrigger aria-label={t.subjectKind} className="h-8 text-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{KIND_ITEMS.map((item) => (
+								<SelectItem key={item.value} value={item.value}>
+									{item.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Input
 						className={inputCls}
 						placeholder={t.subjectId}
 						value={assign.subjectId}
 						onChange={(e) => setAssign({ ...assign, subjectId: e.target.value })}
 					/>
-					<select
-						className={inputCls}
+					<Select
+						items={roleItems}
 						value={assign.roleId}
-						onChange={(e) => setAssign({ ...assign, roleId: e.target.value })}
-						aria-label={t.colRole}
+						onValueChange={(v) => setAssign({ ...assign, roleId: v })}
 					>
-						<option value="">{t.selectRole}</option>
-						{data.roles.map((r) => (
-							<option key={r.id} value={r.id}>
-								{r.name}
-							</option>
-						))}
-					</select>
+						<SelectTrigger aria-label={t.colRole} className="h-8 max-w-56 text-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{roleItems.map((item) => (
+								<SelectItem key={item.value ?? ""} value={item.value}>
+									{item.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Input
 						className={inputCls}
 						placeholder={t.tenantId}

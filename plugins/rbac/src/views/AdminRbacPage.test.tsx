@@ -91,6 +91,12 @@ const full: AdminRbacPageData = {
 afterEach(cleanup);
 beforeEach(() => vi.clearAllMocks());
 
+/** Picks an option from a design-system Select (trigger is aria-labelled). */
+const choose = async (user: ReturnType<typeof userEvent.setup>, label: string, option: string) => {
+	await user.click(screen.getByLabelText(label));
+	await user.click(await screen.findByRole("option", { name: option }));
+};
+
 describe("AdminRbacPage", () => {
 	it("renders the empty state", () => {
 		render(<AdminRbacPage data={empty} />);
@@ -116,8 +122,8 @@ describe("AdminRbacPage", () => {
 		expect(screen.getByText("clinic-1")).toBeTruthy();
 		expect(screen.getByText("admin@x.com")).toBeTruthy();
 		expect(screen.getByText("never")).toBeTruthy();
-		// The kind badge plus the "group" option in the assign select.
-		expect(screen.getAllByText("group").length).toBeGreaterThan(1);
+		// The "group" subject-kind badge on the second assignment row.
+		expect(screen.getAllByText("group").length).toBeGreaterThan(0);
 	});
 
 	it("shows the select-role hint when details are missing", () => {
@@ -207,7 +213,7 @@ describe("AdminRbacPage", () => {
 
 		// Required fields only → tenant/expires collapse to null.
 		await user.type(screen.getByPlaceholderText("Subject id"), "u2");
-		await user.selectOptions(screen.getByLabelText("Role"), "2");
+		await choose(user, "Role", "billing");
 		fireEvent.submit(assignForm);
 		expect(fns.assignSubjectFn).toHaveBeenLastCalledWith({
 			data: {
@@ -220,7 +226,7 @@ describe("AdminRbacPage", () => {
 		});
 
 		// Full form: group kind + tenant + expiry.
-		await user.selectOptions(screen.getByLabelText("Kind"), "group");
+		await choose(user, "Kind", "group");
 		await user.type(screen.getByPlaceholderText("Tenant id (optional)"), "t-9");
 		fireEvent.change(screen.getByLabelText("Expires at (optional)"), {
 			target: { value: "2030-06-01T10:00" },

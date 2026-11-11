@@ -132,7 +132,10 @@ export function JobsHeaderAction({ locale = "en" }: { locale?: string }) {
 					</TooltipTrigger>
 					<TooltipContent>{t.label}</TooltipContent>
 				</Tooltip>
-				<PopoverContent align="end" className="w-96 p-0">
+				<PopoverContent
+					align="end"
+					className="flex max-h-[min(36rem,calc(100dvh-2rem))] w-96 max-w-[calc(100dvw-2rem)] flex-col p-0"
+				>
 					<PopoverHeader className="border-b border-border px-3 py-2">
 						<PopoverTitle className="flex items-center justify-between text-sm">
 							<span>{t.label}</span>
@@ -141,13 +144,13 @@ export function JobsHeaderAction({ locale = "en" }: { locale?: string }) {
 							</span>
 						</PopoverTitle>
 					</PopoverHeader>
-					<div className="space-y-3 p-3">
+					<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
 						{jobs.length > 0 ? (
 							<>
 								<JobBatchProgress jobs={jobs.map((j) => j.status)} />
 								<JobStatusTabs value={filter} onValueChange={setFilter} counts={counts} />
 								{groups.length > 0 ? (
-									<JobQueue groups={groups} />
+									<JobQueue groups={groups} className="shrink-0" />
 								) : (
 									<JobEmptyState
 										title={t.emptyFilteredTitle}
@@ -158,7 +161,7 @@ export function JobsHeaderAction({ locale = "en" }: { locale?: string }) {
 						) : (
 							<JobEmptyState title={t.emptyAllTitle} description={t.emptyAllDescription} />
 						)}
-						<div className="border-t border-border pt-2 text-right">
+						<div className="mt-auto border-t border-border pt-2 text-right">
 							<Link
 								to="/platform/consultations"
 								className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
