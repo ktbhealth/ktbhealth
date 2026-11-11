@@ -7,7 +7,7 @@ import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { Command, makeEventBus } from "@effect-server-utils/cqrs";
+import { Command, EventBus, type EventBusShape, makeEventBus } from "@effect-server-utils/cqrs";
 import { UsersIcon } from "lucide-react";
 import {
 	createPatient,
@@ -25,7 +25,7 @@ import {
 	plugins,
 	updatePatient,
 } from "./index.ts";
-import { PatientsCommands } from "./api.ts";
+import { PatientCreated, PatientDeleted, PatientsCommands } from "./api.ts";
 import { validatePatient, type PatientFields } from "./record.ts";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 import { Tenant, type Tenant as TenantScope } from "@ktb/tenant";
@@ -598,22 +598,31 @@ describe("PatientsCommandsLive", () => {
 
 describe("PatientsLive tenant scope (P-053)", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Patients, never>;
+	let busRuntime: ManagedRuntime.ManagedRuntime<EventBus, never>;
 	let db: ReturnType<typeof makeDb>;
+	let bus: EventBusShape;
 
 	const TENANT_A: TenantScope = { id: 7, kind: "clinic", slug: "clinica-a", role: "member" };
 	const TENANT_B: TenantScope = { id: 8, kind: "clinic", slug: "clinica-b", role: "member" };
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		db = makeDb(makeD1(DDL));
+		// Build the bus explicitly so tests can subscribe to the same
+		// instance the service layer dispatches on.
+		busRuntime = ManagedRuntime.make(makeEventBus());
+		bus = await busRuntime.runPromise(EventBus);
 		const deps = Layer.mergeAll(
 			Layer.succeed(Db, db),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
-			makeEventBus(),
+			Layer.succeed(EventBus, bus),
 		);
 		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
 	});
 
-	afterAll(() => runtime.dispose());
+	afterAll(async () => {
+		await runtime.dispose();
+		await busRuntime.dispose();
+	});
 
 	const asUser = <A, E>(
 		userId: string | null,
@@ -664,6 +673,33 @@ describe("PatientsLive tenant scope (P-053)", () => {
 			call((p) => p.create("u1", fields("Strange Tenant"))),
 		);
 		expect(row?.tenantId).toBeNull();
+	});
+
+	it("create/adminCreate events carry the stamped tenant_id", async () => {
+		const seen: (number | null | undefined)[] = [];
+		await Effect.runPromise(
+			bus.subscribe(PatientCreated, (e) =>
+				Effect.sync(() => {
+					seen.push(e.tenantId);
+				}),
+			),
+		);
+		await asTenant(
+			"u1",
+			TENANT_A,
+			call((p) => p.create("u1", fields("Evt Pat"))),
+		);
+		await asTenant(
+			"u1",
+			TENANT_A,
+			call((p) => p.adminCreate("u2", fields("Evt Admin"))),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) => p.create("u1", fields("Evt Personal"))),
+		);
+		expect(seen).toEqual([7, 7, null]);
 	});
 
 	it("adminCreate stamps the bound tenant", async () => {
@@ -760,12 +796,24 @@ describe("PatientsLive tenant scope (P-053)", () => {
 	it("patients.delete lets a tenant member remove a tenant row; non-members are Forbidden", async () => {
 		const db2 = makeDb(makeD1(DDL));
 		const shared = (await createPatient(db2, "u1", fields("Shared Del"), 7))!;
+		// Same explicit-bus trick as the tenant describe: subscribe on
+		// the instance the command layer dispatches to.
+		const busRuntime = ManagedRuntime.make(makeEventBus());
+		const bus = await busRuntime.runPromise(EventBus);
 		const deps = Layer.mergeAll(
 			Layer.succeed(Db, db2),
-			makeEventBus(),
+			Layer.succeed(EventBus, bus),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
 		);
 		const rt = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
+		const seen: (number | null | undefined)[] = [];
+		await Effect.runPromise(
+			bus.subscribe(PatientDeleted, (e) =>
+				Effect.sync(() => {
+					seen.push(e.tenantId);
+				}),
+			),
+		);
 		const del = (tenant: TenantScope) =>
 			rt.runPromise(
 				Effect.provideService(
@@ -786,8 +834,11 @@ describe("PatientsLive tenant scope (P-053)", () => {
 			expect(await getPatient(db2, shared.id)).not.toBeNull();
 			await del(TENANT_A);
 			expect(await getPatient(db2, shared.id)).toBeNull();
+			// patient.deleted carries the deleted row's tenant_id.
+			expect(seen).toEqual([7]);
 		} finally {
 			await rt.dispose();
+			await busRuntime.dispose();
 		}
 	});
 });

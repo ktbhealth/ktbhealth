@@ -18,7 +18,7 @@ import {
 	type PlatformAdminShape,
 } from "@ktb/platform";
 import { Forbidden, requireCanAs, requirePrincipalUser } from "@ktb/authz";
-import { accessibleTenantIds, Tenant, tenantScopeCondition } from "@ktb/tenant";
+import { accessibleTenantIds, Tenant, tenantScopeCondition, tenantScopeId } from "@ktb/tenant";
 import type { PatientFields } from "./record.ts";
 import { patients } from "./schema.ts";
 
@@ -153,16 +153,6 @@ const orPlatformAdmin = (
 		),
 	);
 
-/** `tenant_id` is an integer FK to `groups.id` — `Tenant.id` is
- * string|number by contract, so normalize. Non-numeric ids cannot be
- * stamped (this plugin's directory emits numeric group ids); the row
- * then stays personal rather than pointing at a bogus tenant. */
-const tenantIdOf = (tenant: Tenant | null): number | null => {
-	if (tenant === null) return null;
-	const id = Number(tenant.id);
-	return Number.isFinite(id) ? id : null;
-};
-
 /** True when `tenantId` is in the caller's accessible tenant set
  * (`Tenant`/`TenantAccess` — empty in personal scope). Ids compare
  * numerically so string|number directory ids both match. */
@@ -263,10 +253,17 @@ export const PatientsLive = Layer.effect(
 				yield* Effect.annotateCurrentSpan({ ownerId });
 				yield* Effect.logInfo("patient create", { ownerId });
 				const row = yield* Effect.promise(() =>
-					createPatient(db, ownerId, fields, tenantIdOf(tenant)),
+					createPatient(db, ownerId, fields, tenantScopeId(tenant)),
 				);
 				if (row !== null) {
-					yield* events.dispatch([PatientCreated.make({ id: row.id, ownerId, name: row.name })]);
+					yield* events.dispatch([
+						PatientCreated.make({
+							id: row.id,
+							ownerId,
+							name: row.name,
+							tenantId: tenantScopeId(tenant),
+						}),
+					]);
 				}
 				return row;
 			}),
@@ -300,10 +297,17 @@ export const PatientsLive = Layer.effect(
 				yield* Effect.annotateCurrentSpan({ ownerId });
 				yield* Effect.logInfo("patient admin create", { ownerId });
 				const row = yield* Effect.promise(() =>
-					createPatient(db, ownerId, fields, tenantIdOf(tenant)),
+					createPatient(db, ownerId, fields, tenantScopeId(tenant)),
 				);
 				if (row !== null) {
-					yield* events.dispatch([PatientCreated.make({ id: row.id, ownerId, name: row.name })]);
+					yield* events.dispatch([
+						PatientCreated.make({
+							id: row.id,
+							ownerId,
+							name: row.name,
+							tenantId: tenantScopeId(tenant),
+						}),
+					]);
 				}
 				return row;
 			}),
@@ -344,7 +348,11 @@ export const PatientsCommandsLive = Command.handlersOf(PatientsCommands, {
 			if (row === null) return;
 			yield* authorizePatientRow(platformAdmin, row, "patient.delete");
 			yield* Effect.promise(() => deletePatientRow(db, id));
-			yield* events.dispatch([PatientDeleted.make({ id, ownerId: row.ownerId })]);
+			yield* events.dispatch([
+				// The row's tenant_id is authoritative — ambient Tenant may
+				// differ from the deleted row's owner scope.
+				PatientDeleted.make({ id, ownerId: row.ownerId, tenantId: row.tenantId }),
+			]);
 		}),
 });
 

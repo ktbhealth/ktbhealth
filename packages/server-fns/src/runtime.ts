@@ -29,11 +29,15 @@ export interface AudioStore extends AudioDeleter {
 	): Promise<unknown>;
 }
 
-/** Message enqueued for async transcription (P-016). */
+/** Message enqueued for async transcription (P-016). `tenantId` is the
+ * owning tenant (`groups.id`) or null/absent for personal scope — the
+ * consumer re-binds tenant scope from it (P-053 phase D); messages
+ * enqueued before tenancy carry no field and stay personal. */
 export interface AudioJobMessage {
 	readonly consultationId: number;
 	readonly audioKey: string;
 	readonly userId: string;
+	readonly tenantId?: number | null;
 }
 
 /** The slice of the workerd Queue producer the upload route needs. */

@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
-import { Consultations } from "@ktb/consultations";
+import { Consultations, consultationTenantId } from "@ktb/consultations";
+import { Db } from "@ktb/db";
+import { runAsTenantId } from "@ktb/tenant";
 import { run } from "#/lib/platform.ts";
 
 /**
@@ -30,14 +32,20 @@ export const Route = createFileRoute("/api/bots/webhook")({
 				return run(
 					Effect.gen(function* () {
 						const consultations = yield* Consultations;
+						const db = yield* Db;
 						if (!(yield* consultations.ownedByBot(consultationId, botId))) {
 							return Response.json({ error: "forbidden" }, { status: 403 });
 						}
+						// System path: re-bind tenant scope from the row's
+						// tenant_id (P-053 phase D) — the webhook payload
+						// carries no tenant and ambient context is never
+						// inherited. null = personal scope.
+						const tenantId = yield* Effect.promise(() => consultationTenantId(db, consultationId));
 						if (body.end) {
-							yield* consultations.finish(consultationId);
+							yield* runAsTenantId(tenantId, consultations.finish(consultationId));
 						} else if (body.text) {
 							const line = body.speaker ? `${body.speaker}: ${body.text}` : body.text;
-							yield* consultations.appendTranscript(consultationId, line);
+							yield* runAsTenantId(tenantId, consultations.appendTranscript(consultationId, line));
 						}
 						return Response.json({ ok: true });
 					}),

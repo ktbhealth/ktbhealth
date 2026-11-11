@@ -7,12 +7,14 @@ import {
 	makeTenantResolver,
 	requireTenant,
 	runAsTenant,
+	runAsTenantId,
 	Tenant,
 	TenantDirectory,
 	TenantNotFound,
 	TenantRequired,
 	TenantResolver,
 	TenantResolverLive,
+	tenantScopeId,
 	tenantSelectorFromHeaders,
 	withTenantAccess,
 	type TenantDirectoryShape,
@@ -72,6 +74,50 @@ describe("runAsTenant / requireTenant", () => {
 		await expect(Effect.runPromise(requireTenant("notes.list"))).rejects.toMatchObject({
 			reason: "tenant scope required (notes.list)",
 		});
+	});
+});
+
+describe("runAsTenantId", () => {
+	it("binds the accessible set to the bare id without binding Tenant", async () => {
+		const program = Effect.gen(function* () {
+			return yield* runAsTenantId(7, Effect.all({ ids: accessibleTenantIds, tenant: Tenant }));
+		});
+		const result = await Effect.runPromise(Effect.provideService(program, Tenant, tenantA));
+		expect(result.ids).toEqual([7]);
+		// Ambient Tenant is shadowed by the access set only — Tenant
+		// itself stays whatever the outer scope bound (here tenantA);
+		// system callers run with no outer Tenant at all.
+		expect(result.tenant).toEqual(tenantA);
+	});
+
+	it("leaves personal scope untouched for null/undefined ids", async () => {
+		const program = Effect.gen(function* () {
+			const ids = yield* runAsTenantId(null, accessibleTenantIds);
+			const ids2 = yield* runAsTenantId(undefined, accessibleTenantIds);
+			return { ids, ids2 };
+		});
+		const result = await Effect.runPromise(program);
+		expect(result.ids).toEqual([]);
+		expect(result.ids2).toEqual([]);
+	});
+
+	it("normalizes numeric string ids", async () => {
+		const ids = await Effect.runPromise(runAsTenantId("42", accessibleTenantIds));
+		expect(ids).toEqual([42]);
+	});
+
+	it("keeps non-numeric string ids as strings", async () => {
+		const ids = await Effect.runPromise(runAsTenantId("clinic-9", accessibleTenantIds));
+		expect(ids).toEqual(["clinic-9"]);
+	});
+});
+
+describe("tenantScopeId", () => {
+	it("maps bound tenants to their numeric tenant_id", () => {
+		expect(tenantScopeId(null)).toBeNull();
+		expect(tenantScopeId(tenantA)).toBe(1);
+		expect(tenantScopeId({ ...tenantA, id: "42" })).toBe(42);
+		expect(tenantScopeId({ ...tenantA, id: "clinic-x" })).toBeNull();
 	});
 });
 

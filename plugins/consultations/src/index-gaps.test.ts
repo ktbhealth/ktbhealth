@@ -18,6 +18,7 @@ import {
 	attachAudioRecord,
 	audioJobRecord,
 	audioJobRow,
+	consultationTenantId,
 	createConsultation,
 } from "./index.ts";
 
@@ -69,6 +70,14 @@ describe("audio record helpers", () => {
 
 	it("audioJobRow is null for an unknown consultation", async () => {
 		await expect(audioJobRow(db, 987654)).resolves.toBeNull();
+	});
+
+	it("consultationTenantId reports the row's tenant scope for system paths", async () => {
+		const personal = (await createConsultation(db, { userId: "u1", source: "browser" }))!;
+		const shared = (await createConsultation(db, { userId: "u1", source: "browser" }, 7))!;
+		await expect(consultationTenantId(db, personal)).resolves.toBeNull();
+		await expect(consultationTenantId(db, shared)).resolves.toBe(7);
+		await expect(consultationTenantId(db, 424244)).resolves.toBeNull();
 	});
 });
 

@@ -34,11 +34,13 @@ import type { TenantSelector } from "./selector.ts";
 
 export {
 	runAsTenant,
+	runAsTenantId,
 	requireTenant,
 	Tenant,
 	TenantAccess,
 	TenantNotFound,
 	TenantRequired,
+	tenantScopeId,
 	withTenantAccess,
 	type TenantDescriptor,
 	type TenantRole,

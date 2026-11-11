@@ -14,6 +14,8 @@ import {
 import type { DbClient } from "@ktb/db";
 import type { AudioJobMessage } from "@ktb/server-fns";
 
+import { runAsTenantId } from "@ktb/tenant";
+
 import {
 	ai,
 	audioBucket,
@@ -46,6 +48,9 @@ const AudioJobMessageSchema = Schema.Struct({
 	consultationId: Schema.Number,
 	audioKey: Schema.String,
 	userId: Schema.String,
+	// Optional + nullable: pre-tenancy messages carry no tenant_id and
+	// decode as personal scope (P-053 phase D backward compat).
+	tenantId: Schema.optionalKey(Schema.NullOr(Schema.Number)),
 });
 
 const decodeAudioJob = Schema.decodeUnknownSync(AudioJobMessageSchema);
@@ -83,6 +88,9 @@ export interface AudioJobDeps {
 		readonly consultationId: number;
 		readonly audioStatus: string;
 		readonly audioError: string | null;
+		/** Row's tenant_id (null = personal) — forwarded onto the
+		 * `consultation.audioUpdated` event and the rebound tenant scope. */
+		readonly tenantId: number | null;
 	}) => Promise<void>;
 }
 
@@ -127,12 +135,19 @@ const notify = (
 	deps: AudioJobDeps,
 	consultationId: number,
 	audioStatus: string,
-	audioError: string | null = null,
-) => deps.publishAudioUpdate?.({ consultationId, audioStatus, audioError }).catch(() => {});
+	audioError: string | null,
+	tenantId: number | null,
+) =>
+	deps.publishAudioUpdate?.({ consultationId, audioStatus, audioError, tenantId }).catch(() => {});
 
-const fail = async (deps: AudioJobDeps, consultationId: number, reason: string) => {
+const fail = async (
+	deps: AudioJobDeps,
+	consultationId: number,
+	reason: string,
+	tenantId: number | null,
+) => {
 	await failAudioJob(deps.db, consultationId, reason);
-	await notify(deps, consultationId, "failed", reason);
+	await notify(deps, consultationId, "failed", reason, tenantId);
 };
 
 /**
@@ -144,32 +159,36 @@ const fail = async (deps: AudioJobDeps, consultationId: number, reason: string) 
  */
 export async function processAudioJob(job: AudioJobMessage, deps: AudioJobDeps): Promise<void> {
 	const row: AudioJobRecord | null = await audioJobRecord(deps.db, job.consultationId);
+	// Tenant scope for this job (P-053 phase D): the row's tenant_id is
+	// authoritative; the payload's tenantId is only a hint for the
+	// missing-row path. Missing/absent → null = personal scope.
+	const tenantId = row === null ? (job.tenantId ?? null) : row.tenantId;
 	if (row === null) {
-		await fail(deps, job.consultationId, "consultation not found");
+		await fail(deps, job.consultationId, "consultation not found", tenantId);
 		return;
 	}
 	if (row.audioStatus === "done") return; // idempotent skip
 	const audioKey = row.audioKey ?? job.audioKey;
 	if (!audioKey) {
-		await fail(deps, job.consultationId, "no audio key recorded");
+		await fail(deps, job.consultationId, "no audio key recorded", tenantId);
 		return;
 	}
 	// The payload is untrusted queue data: the D1 row is the source of
 	// truth for ownership and linkage.
 	if (row.userId !== null && job.userId !== row.userId) {
-		await fail(deps, job.consultationId, "audio job owner mismatch");
+		await fail(deps, job.consultationId, "audio job owner mismatch", tenantId);
 		return;
 	}
 	if (!deps.bucket || !deps.ai) {
-		await fail(deps, job.consultationId, "audio pipeline not configured");
+		await fail(deps, job.consultationId, "audio pipeline not configured", tenantId);
 		return;
 	}
 
 	await beginAudioJob(deps.db, job.consultationId);
-	await notify(deps, job.consultationId, "processing");
+	await notify(deps, job.consultationId, "processing", null, tenantId);
 	const object = await deps.bucket.get(audioKey);
 	if (object === null) {
-		await fail(deps, job.consultationId, "audio object missing from storage");
+		await fail(deps, job.consultationId, "audio object missing from storage", tenantId);
 		return;
 	}
 	if (object.size > MAX_AUDIO_BYTES) {
@@ -177,6 +196,7 @@ export async function processAudioJob(job: AudioJobMessage, deps: AudioJobDeps):
 			deps,
 			job.consultationId,
 			`audio too large for server transcription (${object.size} bytes > ${MAX_AUDIO_BYTES})`,
+			tenantId,
 		);
 		return;
 	}
@@ -186,15 +206,15 @@ export async function processAudioJob(job: AudioJobMessage, deps: AudioJobDeps):
 	try {
 		transcript = await transcribeAudio(deps.ai, bytes, deps.model);
 	} catch (error) {
-		await fail(deps, job.consultationId, `transcription failed: ${String(error)}`);
+		await fail(deps, job.consultationId, `transcription failed: ${String(error)}`, tenantId);
 		return;
 	}
 	if (!transcript.trim()) {
-		await fail(deps, job.consultationId, "transcription returned empty text");
+		await fail(deps, job.consultationId, "transcription returned empty text", tenantId);
 		return;
 	}
 	await completeAudioJob(deps.db, job.consultationId, transcript);
-	await notify(deps, job.consultationId, "done");
+	await notify(deps, job.consultationId, "done", null, tenantId);
 
 	// P-017: LLM cleanup chained in the same job. Failure leaves
 	// correctedTranscript null; audioStatus stays "done".
@@ -232,16 +252,23 @@ const platformDeps = (): AudioJobDeps => ({
 	// none (subscribers re-check authz on their own read paths).
 	publishAudioUpdate: (update) =>
 		run(
-			Effect.gen(function* () {
-				const events = yield* EventBus;
-				yield* events.dispatch([
-					ConsultationAudioUpdated.make({
-						consultationId: update.consultationId,
-						audioStatus: update.audioStatus,
-						audioError: update.audioError,
-					}),
-				]);
-			}),
+			// System path — `run` binds no Principal; the tenant scope is
+			// rebound explicitly from the job's tenant_id (P-053 phase D)
+			// so subscribers see the same fence a request would.
+			runAsTenantId(
+				update.tenantId,
+				Effect.gen(function* () {
+					const events = yield* EventBus;
+					yield* events.dispatch([
+						ConsultationAudioUpdated.make({
+							consultationId: update.consultationId,
+							audioStatus: update.audioStatus,
+							audioError: update.audioError,
+							tenantId: update.tenantId,
+						}),
+					]);
+				}),
+			),
 		),
 });
 
@@ -263,7 +290,18 @@ export async function handleAudioQueueBatch(
 			continue;
 		}
 		try {
-			await processAudioJob(job, deps);
+			// Re-bind tenant scope from the message payload before running
+			// the job's domain effects (P-053 phase D) — ambient tenant is
+			// never inherited into the queue consumer. The audio repo
+			// helpers stay unfenced by primary key (system path); the
+			// scope matters for anything Effect-level the job triggers
+			// (event dispatch, future service calls).
+			await run(
+				runAsTenantId(
+					job.tenantId,
+					Effect.promise(() => processAudioJob(job, deps)),
+				),
+			);
 			message.ack();
 		} catch {
 			message.retry();

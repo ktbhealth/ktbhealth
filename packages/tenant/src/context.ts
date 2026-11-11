@@ -67,6 +67,44 @@ export const withTenantAccess = <A, E, R>(
 export const runAsTenant = <A, E, R>(tenant: Tenant, effect: Effect.Effect<A, E, R>) =>
 	Effect.provideService(effect, Tenant, tenant);
 
+/** Numeric-looking string ids normalize to numbers — `tenant_id`
+ * columns are integers and `accessibleTenantIds` consumers compare
+ * numerically either way, but `inArray` fences stay exact. */
+const normalizeTenantId = (id: string | number): string | number =>
+	typeof id === "string" && /^-?\d+$/.test(id) ? Number(id) : id;
+
+/**
+ * Re-bind tenant scope in system flows from a bare tenant id — the
+ * shape queue messages, webhook row lookups and event payloads carry
+ * (P-053 phase D). Binds {@link TenantAccess} to `[id]` so scoped
+ * reads/writes fence to that tenant plus personal rows; `Tenant`
+ * itself stays `null` because a system flow has no acting member or
+ * role — `tenantAuthz` denies tenant-gated actions either way, and
+ * create-path stamping (`tenantIdOf`) is only meaningful where a full
+ * `Tenant` was resolved. A `null`/`undefined` id is personal scope —
+ * pre-tenancy messages keep working unchanged.
+ */
+export const runAsTenantId = <A, E, R>(
+	tenantId: string | number | null | undefined,
+	effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> =>
+	tenantId === null || tenantId === undefined
+		? effect
+		: Effect.provideService(effect, TenantAccess, [normalizeTenantId(tenantId)]);
+
+/**
+ * The `tenant_id` value a bound {@link Tenant} stamps and scopes by.
+ * `Tenant.id` is `string | number` by contract but `tenant_id` columns
+ * are integers (FK to `groups.id`): non-numeric ids cannot be stamped —
+ * they resolve to `null` (personal scope) rather than pointing at a
+ * bogus tenant. `null` tenant (personal/system scope) → `null`.
+ */
+export const tenantScopeId = (tenant: Tenant | null): number | null => {
+	if (tenant === null) return null;
+	const id = Number(tenant.id);
+	return Number.isFinite(id) ? id : null;
+};
+
 /** Selector did not resolve to an accessible tenant (unknown slug,
  * foreign tenant, unauthenticated caller). */
 export class TenantNotFound extends Data.TaggedError("TenantNotFound")<{

@@ -12,7 +12,7 @@ import {
 	PatientsCommandsLive,
 	PatientsQueriesLive,
 } from "@ktb/patients";
-import { makeEventBus, Query } from "@effect-server-utils/cqrs";
+import { EventBus, type EventBusShape, makeEventBus, Query } from "@effect-server-utils/cqrs";
 import { Tenant, type Tenant as TenantScope } from "@ktb/tenant";
 import {
 	makePlatformAdminGate,
@@ -23,7 +23,7 @@ import {
 } from "@ktb/platform";
 import { ClipboardListIcon } from "lucide-react";
 import { consultations as consultationsTable } from "./schema.ts";
-import { ConsultationsQueries } from "./api.ts";
+import { ConsultationAudioUpdated, ConsultationsQueries } from "./api.ts";
 import {
 	Consultations,
 	ConsultationsLive,
@@ -62,11 +62,14 @@ CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT R
 
 // ConsultationsLive requires PlatformAdmin (adminList) — every runtime
 // below provides the same allowlisted gate.
-const liveDeps = (db: ReturnType<typeof makeDb>) => {
+const liveDeps = (
+	db: ReturnType<typeof makeDb>,
+	eventBus: Layer.Layer<EventBus> = makeEventBus(),
+) => {
 	const infra = Layer.mergeAll(
 		Layer.succeed(Db, db),
 		Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
-		makeEventBus(),
+		eventBus,
 	);
 	return Layer.mergeAll(
 		infra,
@@ -639,6 +642,7 @@ describe("audio pipeline", () => {
 			audioKey: "audio/u1/1/x.webm",
 			audioStatus: "stored",
 			userId: "u1",
+			tenantId: null,
 		});
 		await markAudioQueued(testDb, id);
 		await beginAudioJob(testDb, id);
@@ -1160,7 +1164,9 @@ describe("plugins", () => {
 
 describe("ConsultationsLive tenant scope (P-053)", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let busRuntime: ManagedRuntime.ManagedRuntime<EventBus, never>;
 	let testDb: ReturnType<typeof makeDb>;
+	let bus: EventBusShape;
 
 	const TENANT_A: TenantScope = { id: 7, kind: "clinic", slug: "clinica-a", role: "member" };
 	const TENANT_B: TenantScope = { id: 8, kind: "clinic", slug: "clinica-b", role: "member" };
@@ -1218,10 +1224,19 @@ describe("ConsultationsLive tenant scope (P-053)", () => {
 			createdAt: new Date(0),
 			updatedAt: new Date(0),
 		});
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		// Build the bus explicitly so tests can subscribe to the same
+		// instance the service layer dispatches on.
+		busRuntime = ManagedRuntime.make(makeEventBus());
+		bus = await busRuntime.runPromise(EventBus);
+		runtime = ManagedRuntime.make(
+			ConsultationsLive.pipe(Layer.provide(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
+		);
 	});
 
-	afterAll(() => runtime.dispose());
+	afterAll(async () => {
+		await runtime.dispose();
+		await busRuntime.dispose();
+	});
 
 	it("create/save/adminCreate stamp tenant_id from the bound tenant", async () => {
 		const id = await asTenant(
@@ -1367,6 +1382,30 @@ describe("ConsultationsLive tenant scope (P-053)", () => {
 				call((c) => c.recordConsent(t7!, "u2")),
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("attachAudio/updateAudioStatus stamp the row's tenant_id on audio events", async () => {
+		const t7 = await createConsultation(testDb, { userId: "u1", source: "mic" }, 7);
+		const seen: (number | null | undefined)[] = [];
+		await Effect.runPromise(
+			bus.subscribe(ConsultationAudioUpdated, (e) =>
+				Effect.sync(() => {
+					seen.push(e.tenantId);
+				}),
+			),
+		);
+		// Tenant member operates the shared row — both events carry tenant 7.
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.attachAudio("u2", { consultationId: t7!, audioKey: "k-t", size: 1 })),
+		);
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.updateAudioStatus("u2", t7!, "queued")),
+		);
+		expect(seen).toEqual([7, 7]);
 	});
 
 	it("save links tenant patients for members and rejects non-members", async () => {

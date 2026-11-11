@@ -37,9 +37,10 @@ import {
 import { ConsultationAudioUpdated, ConsultationCreated, ConsultationsQueries } from "./api.ts";
 import {
 	accessibleTenantIds,
+	runAsTenantId,
 	Tenant,
 	tenantScopeCondition,
-	type Tenant as TenantScope,
+	tenantScopeId,
 } from "@ktb/tenant";
 import { ConsultationsPlatformPage } from "./platform-page.tsx";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
@@ -202,9 +203,12 @@ export interface AudioJobRecord {
 	readonly audioKey: string | null;
 	readonly audioStatus: string;
 	readonly userId: string | null;
+	readonly tenantId: number | null;
 }
 
-/** Consumer lookup: fetch the audio linkage regardless of caller. */
+/** Consumer lookup: fetch the audio linkage regardless of caller. The
+ * row's `tenant_id` is the authoritative tenant scope for the job —
+ * queue payloads only hint at it (P-053 phase D). */
 export async function audioJobRecord(
 	db: DbClient,
 	consultationId: number,
@@ -214,6 +218,7 @@ export async function audioJobRecord(
 			audioKey: consultations.audioKey,
 			audioStatus: consultations.audioStatus,
 			userId: consultations.userId,
+			tenantId: consultations.tenantId,
 		})
 		.from(consultations)
 		.where(eq(consultations.id, consultationId))
@@ -258,6 +263,19 @@ export async function saveCorrectedTranscript(
 		.update(consultations)
 		.set({ correctedTranscript: corrected, enhancementEngine: engine })
 		.where(eq(consultations.id, consultationId));
+}
+
+/** Tenant scope for system paths (bot webhook, P-053 phase D): the
+ * row's `tenant_id` regardless of caller — null for personal rows AND
+ * for missing rows (callers authorize existence separately, e.g. via
+ * `ownedByBot` before any mutation). */
+export async function consultationTenantId(db: DbClient, id: number) {
+	const rows = await db
+		.select({ tenantId: consultations.tenantId })
+		.from(consultations)
+		.where(eq(consultations.id, id))
+		.limit(1);
+	return rows[0]?.tenantId ?? null;
 }
 
 /** Bot-webhook ownership check: the botId binds consultation ↔ provider session. */
@@ -601,16 +619,6 @@ export const consultationScope = (userId: string) =>
 			and(fence, or(eq(consultations.userId, userId), isNotNull(consultations.tenantId))) as SQL,
 	);
 
-/** `tenant_id` is an integer FK to `groups.id` — `Tenant.id` is
- * string|number by contract, so normalize. Non-numeric ids cannot be
- * stamped (this plugin's directory emits numeric group ids); the row
- * then stays personal rather than pointing at a bogus tenant. */
-const tenantIdOf = (tenant: TenantScope | null): number | null => {
-	if (tenant === null) return null;
-	const id = Number(tenant.id);
-	return Number.isFinite(id) ? id : null;
-};
-
 /** True when `tenantId` is in the caller's accessible tenant set
  * (`Tenant`/`TenantAccess` — empty in personal scope). Ids compare
  * numerically so string|number directory ids both match. */
@@ -768,12 +776,18 @@ export const ConsultationsLive = Layer.effect(
 				yield* requireCanAs("patient.read", { ownerId: owner.ownerId });
 			});
 		yield* events.subscribeAfterCommit(ConsultationAudioUpdated, (event) =>
-			Effect.gen(function* () {
-				const row = yield* Effect.promise(() => audioJobRow(db, event.consultationId));
-				// Missing row (deleted consultation) → nothing to emit; the
-				// client's seeded copy survives until the next loader pass.
-				if (row !== null) yield* PubSub.publish(liveAudioJobs, row);
-			}),
+			// After-commit handlers must not inherit the publisher's
+			// ambient tenant — re-bind from the event payload (P-053 D).
+			// null/absent = personal scope, same as old events.
+			runAsTenantId(
+				event.tenantId ?? null,
+				Effect.gen(function* () {
+					const row = yield* Effect.promise(() => audioJobRow(db, event.consultationId));
+					// Missing row (deleted consultation) → nothing to emit; the
+					// client's seeded copy survives until the next loader pass.
+					if (row !== null) yield* PubSub.publish(liveAudioJobs, row);
+				}),
+			),
 		);
 		return Consultations.of({
 			create: Effect.fn("Consultations.create")(function* (fields: {
@@ -786,18 +800,20 @@ export const ConsultationsLive = Layer.effect(
 				yield* requirePrincipalUser(fields.userId, "consultation.create");
 				yield* requireCanAs("consultation.create");
 				const tenant = yield* Tenant;
+				const tenantId = tenantScopeId(tenant);
 				yield* Effect.annotateCurrentSpan({ userId: fields.userId, source: fields.source });
 				yield* Effect.logInfo("consultation create", {
 					userId: fields.userId,
 					source: fields.source,
 				});
-				const id = yield* Effect.promise(() => createConsultation(db, fields, tenantIdOf(tenant)));
+				const id = yield* Effect.promise(() => createConsultation(db, fields, tenantId));
 				if (id !== null) {
 					yield* events.dispatch([
 						ConsultationCreated.make({
 							id,
 							userId: fields.userId,
 							source: fields.source,
+							tenantId,
 						}),
 					]);
 				}
@@ -834,7 +850,9 @@ export const ConsultationsLive = Layer.effect(
 				const tenant = yield* Tenant;
 				yield* Effect.annotateCurrentSpan({ userId, engine: input.engine });
 				yield* Effect.logInfo("consultation save", { userId, engine: input.engine });
-				return yield* Effect.promise(() => saveConsultation(db, userId, input, tenantIdOf(tenant)));
+				return yield* Effect.promise(() =>
+					saveConsultation(db, userId, input, tenantScopeId(tenant)),
+				);
 			}),
 			list: Effect.fn("Consultations.list")(function* (userId: string, patientId?: number) {
 				yield* requireCanAs("consultation.read", { userId });
@@ -871,6 +889,7 @@ export const ConsultationsLive = Layer.effect(
 			}) {
 				yield* platformAdmin.requireAdmin();
 				const tenant = yield* Tenant;
+				const tenantId = tenantScopeId(tenant);
 				if (fields.patientId !== undefined) {
 					const owner = yield* patientQueries["patients.ownerOf"]({
 						id: fields.patientId,
@@ -886,13 +905,14 @@ export const ConsultationsLive = Layer.effect(
 					userId: fields.userId,
 					source: fields.source,
 				});
-				const id = yield* Effect.promise(() => createConsultation(db, fields, tenantIdOf(tenant)));
+				const id = yield* Effect.promise(() => createConsultation(db, fields, tenantId));
 				if (id !== null) {
 					yield* events.dispatch([
 						ConsultationCreated.make({
 							id,
 							userId: fields.userId,
 							source: fields.source,
+							tenantId,
 						}),
 					]);
 				}
@@ -991,6 +1011,9 @@ export const ConsultationsLive = Layer.effect(
 						consultationId: input.consultationId,
 						audioStatus: "stored",
 						audioError: null,
+						// The row's tenant_id is authoritative — ambient
+						// Tenant may not match the row's owner scope.
+						tenantId: owner?.tenantId ?? null,
 					}),
 				]);
 			}),
@@ -1011,6 +1034,7 @@ export const ConsultationsLive = Layer.effect(
 						consultationId,
 						audioStatus: "queued",
 						audioError: null,
+						tenantId: owner?.tenantId ?? null,
 					}),
 				]);
 			}),

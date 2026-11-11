@@ -294,6 +294,8 @@ describe("POST/GET /api/consultations/:id/audio", () => {
 			consultationId: id,
 			audioKey: row.audioKey,
 			userId: "u-owner",
+			// Personal-scope row → explicit null tenant on the message.
+			tenantId: null,
 		});
 	});
 

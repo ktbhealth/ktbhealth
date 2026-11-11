@@ -122,7 +122,16 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 				);
 
 				try {
-					await audioQueue.send({ consultationId: id, audioKey, userId: user.id });
+					// tenantId travels on the message so the queue consumer
+					// can re-bind tenant scope (P-053 phase D). The fetched
+					// row's tenant_id is authoritative — it matches what
+					// attachAudio stamped under the bound Tenant.
+					await audioQueue.send({
+						consultationId: id,
+						audioKey,
+						userId: user.id,
+						tenantId: detail.tenantId,
+					});
 				} catch {
 					return Response.json(
 						{ error: "audio stored but transcription queue unavailable" },
