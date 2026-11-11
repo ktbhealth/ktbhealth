@@ -52,6 +52,7 @@ export interface ConsultationMessages {
 		readonly noAnamnesis: string;
 		readonly consent: string;
 		readonly downloadPdfTitle: string;
+		readonly open: string;
 		readonly noMatch: string;
 		readonly emptyTitle: string;
 		readonly emptyDescription: string;
@@ -241,6 +242,7 @@ const en: ConsultationMessages = {
 		noAnamnesis: "No anamnesis",
 		consent: "Consent ✓",
 		downloadPdfTitle: "Download anamnesis PDF",
+		open: "Open",
 		noMatch: "No consultations match the search.",
 		emptyTitle: "No consultations yet",
 		emptyDescription: "Start a consultation to record the conversation and generate the anamnesis.",
@@ -429,6 +431,7 @@ const ptBR: ConsultationMessages = {
 		noAnamnesis: "Sem anamnese",
 		consent: "Consentimento ✓",
 		downloadPdfTitle: "Baixar anamnese em PDF",
+		open: "Abrir",
 		noMatch: "Nenhuma consulta corresponde à busca.",
 		emptyTitle: "Nenhuma consulta ainda",
 		emptyDescription: "Inicie uma consulta para gravar a conversa e gerar a anamnese.",
@@ -618,6 +621,7 @@ const es: ConsultationMessages = {
 		noAnamnesis: "Sin anamnesis",
 		consent: "Consentimiento ✓",
 		downloadPdfTitle: "Descargar anamnesis en PDF",
+		open: "Abrir",
 		noMatch: "Ninguna consulta coincide con la búsqueda.",
 		emptyTitle: "Ninguna consulta aún",
 		emptyDescription: "Inicie una consulta para grabar la conversación y generar la anamnesis.",

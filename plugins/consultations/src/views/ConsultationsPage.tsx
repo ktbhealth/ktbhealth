@@ -168,17 +168,26 @@ export function ConsultationsPage({
 								<ToneBadge>{sourceLabel(t, c.source)}</ToneBadge>
 							</div>
 						</div>
-						{c.hasAnamnesis ? (
-							<a
-								href={`/api/consultations/${c.id}/pdf`}
-								download
-								title={t.list.downloadPdfTitle}
-								className={`${buttonVariants({ variant: "outline", size: "sm" })} relative z-10 shrink-0`}
+						<div className="relative z-10 flex shrink-0 items-center gap-1.5">
+							<Link
+								to="/consultations/$id"
+								params={{ id: String(c.id) }}
+								className={buttonVariants({ variant: "outline", size: "sm" })}
 							>
-								<DownloadIcon className="mr-1 inline size-3.5 -translate-y-px" />
-								PDF
-							</a>
-						) : null}
+								{t.list.open}
+							</Link>
+							{c.hasAnamnesis ? (
+								<a
+									href={`/api/consultations/${c.id}/pdf`}
+									download
+									title={t.list.downloadPdfTitle}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
+								>
+									<DownloadIcon className="mr-1 inline size-3.5 -translate-y-px" />
+									PDF
+								</a>
+							) : null}
+						</div>
 					</article>
 				))}
 

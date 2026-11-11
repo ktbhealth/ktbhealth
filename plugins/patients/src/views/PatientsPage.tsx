@@ -17,7 +17,6 @@ import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@ktbhealth/ui/components/dropdown-menu";
 import {
@@ -126,8 +125,24 @@ export function PatientsPage({
 							{!p.active ? <Badge variant="outline">{t.common.inactive}</Badge> : null}
 							{!p.birthDate ? <Badge variant="outline">{t.list.incomplete}</Badge> : null}
 						</div>
-						{/* Above the card's stretched link so the menu stays clickable. */}
-						<div className="relative z-10 shrink-0">
+						{/* Above the card's stretched link so the actions stay clickable. */}
+						<div className="relative z-10 flex shrink-0 items-center gap-1">
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={t.actions.editFor(displayName(p))}
+								render={<Link to="/patients/$id/edit" params={{ id: String(p.id) }} />}
+							>
+								<PencilIcon />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={t.actions.deleteFor(displayName(p))}
+								onClick={() => setToDelete({ id: p.id, name: displayName(p) })}
+							>
+								<Trash2Icon />
+							</Button>
 							<DropdownMenu>
 								<DropdownMenuTrigger
 									render={
@@ -141,13 +156,6 @@ export function PatientsPage({
 									<EllipsisVerticalIcon />
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end" className="w-56">
-									<DropdownMenuItem
-										render={<Link to="/patients/$id/edit" params={{ id: String(p.id) }} />}
-									>
-										<PencilIcon />
-										{t.actions.edit}
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
 									<DropdownMenuGroup>
 										<DropdownMenuLabel>{t.detail.exportRecord}</DropdownMenuLabel>
 										{exportLinks(t, p.id).map(({ format, label, href }) => (
@@ -157,14 +165,6 @@ export function PatientsPage({
 											</DropdownMenuItem>
 										))}
 									</DropdownMenuGroup>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										variant="destructive"
-										onClick={() => setToDelete({ id: p.id, name: displayName(p) })}
-									>
-										<Trash2Icon />
-										{t.actions.delete}
-									</DropdownMenuItem>
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>

@@ -117,6 +117,8 @@ export interface PatientMessages {
 		readonly menu: (name: string) => string;
 		readonly edit: string;
 		readonly delete: string;
+		readonly editFor: (name: string) => string;
+		readonly deleteFor: (name: string) => string;
 	};
 	readonly remove: {
 		readonly title: string;
@@ -283,6 +285,8 @@ const en: PatientMessages = {
 		menu: (name) => `Actions for ${name}`,
 		edit: "Edit record",
 		delete: "Delete patient",
+		editFor: (name) => `Edit ${name}`,
+		deleteFor: (name) => `Delete ${name}`,
 	},
 	remove: {
 		title: "Delete patient?",
@@ -451,6 +455,8 @@ const ptBR: PatientMessages = {
 		menu: (name) => `Ações para ${name}`,
 		edit: "Editar cadastro",
 		delete: "Excluir paciente",
+		editFor: (name) => `Editar ${name}`,
+		deleteFor: (name) => `Excluir ${name}`,
 	},
 	remove: {
 		title: "Excluir paciente?",
@@ -621,6 +627,8 @@ const es: PatientMessages = {
 		menu: (name) => `Acciones para ${name}`,
 		edit: "Editar registro",
 		delete: "Eliminar paciente",
+		editFor: (name) => `Editar ${name}`,
+		deleteFor: (name) => `Eliminar ${name}`,
 	},
 	remove: {
 		title: "¿Eliminar paciente?",
