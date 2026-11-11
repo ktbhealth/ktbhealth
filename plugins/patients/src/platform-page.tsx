@@ -2,7 +2,7 @@ import type { PanelPageContext } from "@ktb/kernel";
 import type { AdminPatientRow, OwnerOption } from "./index.ts";
 import { AdminPatientsPage } from "./views/AdminPatientsPage.tsx";
 
-export interface AdminPatientsData {
+interface AdminPatientsData {
 	patients: AdminPatientRow[];
 	owners: OwnerOption[];
 }

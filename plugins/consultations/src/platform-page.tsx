@@ -11,7 +11,7 @@ export interface ConsultationPatientOption {
 	readonly ownerName: string;
 }
 
-export interface AdminConsultationsData {
+interface AdminConsultationsData {
 	consultations: AdminConsultationRow[];
 	owners: OwnerOption[];
 	patients: ConsultationPatientOption[];
