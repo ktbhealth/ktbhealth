@@ -9,27 +9,33 @@ import {
 } from "@ktbhealth/ui/components/table";
 
 import type { AdminPatientRow } from "../index.ts";
-
-const fmtDate = (d: Date) => d.toLocaleString();
+import { patientMessages } from "../i18n.ts";
 
 /**
  * /platform/patients console view — cross-owner patient listing for
  * platform admins. Dense/utilitarian by design (system console).
  */
-export function AdminPatientsPage({ patients }: { patients: AdminPatientRow[] }) {
+export function AdminPatientsPage({
+	patients,
+	locale = "en",
+}: {
+	patients: AdminPatientRow[];
+	/** Active UI locale, injected by the host via the panel page ctx. */
+	locale?: string;
+}) {
+	const t = patientMessages(locale);
+	const fmtDate = (d: Date) => d.toLocaleString(locale);
 	return (
 		<div>
-			<h1 className="text-lg font-bold tracking-tight">Patients</h1>
+			<h1 className="text-lg font-bold tracking-tight">{t.admin.title}</h1>
 			<p className="mt-1 text-xs text-muted-foreground">
-				{patients.length === 0
-					? "No patients registered."
-					: `${patients.length} patient${patients.length === 1 ? "" : "s"} across all owners.`}
+				{patients.length === 0 ? t.admin.none : t.admin.count(patients.length)}
 			</p>
 			{patients.length === 0 ? (
 				<Empty className="mt-6 border">
 					<EmptyHeader>
-						<EmptyTitle>No patients</EmptyTitle>
-						<EmptyDescription>Patients appear here once created.</EmptyDescription>
+						<EmptyTitle>{t.admin.emptyTitle}</EmptyTitle>
+						<EmptyDescription>{t.admin.emptyDescription}</EmptyDescription>
 					</EmptyHeader>
 				</Empty>
 			) : (
@@ -37,11 +43,11 @@ export function AdminPatientsPage({ patients }: { patients: AdminPatientRow[] })
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead className="w-14">Id</TableHead>
-								<TableHead>Name</TableHead>
-								<TableHead>Owner</TableHead>
-								<TableHead>Owner id</TableHead>
-								<TableHead className="text-right">Created</TableHead>
+								<TableHead className="w-14">{t.admin.colId}</TableHead>
+								<TableHead>{t.admin.colName}</TableHead>
+								<TableHead>{t.admin.colOwner}</TableHead>
+								<TableHead>{t.admin.colOwnerId}</TableHead>
+								<TableHead className="text-right">{t.admin.colCreated}</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>

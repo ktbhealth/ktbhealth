@@ -10,6 +10,9 @@ export const Route = createFileRoute("/patients/$id/")({
 	beforeLoad: () => requireSession(),
 	loader: async ({ params }) => {
 		const id = Number(params.id);
+		// Non-numeric params (e.g. /patients/abc) would reach the fns as
+		// NaN and surface as a 500 — treat them as a missing page instead.
+		if (!Number.isInteger(id) || id <= 0) throw notFound();
 		const [patient, consultations, locale] = await Promise.all([
 			getPatientFn({ data: id }),
 			patientConsultationsFn({ data: id }),

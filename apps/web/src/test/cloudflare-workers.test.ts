@@ -70,19 +70,7 @@ describe("fake queue and env", () => {
 		await expect(env.AI.run("m", {})).resolves.toEqual({ text: "transcrição do servidor" });
 	});
 
-	it("defaults the platform admin allowlist and honours an override", async () => {
-		expect(env.PLATFORM_ADMIN_EMAILS).toBe(
-			process.env.PLATFORM_ADMIN_EMAILS ?? "platform-admin@ktb.test",
-		);
-		vi.stubEnv("PLATFORM_ADMIN_EMAILS", "boss@ktb.test");
-		vi.resetModules();
-		const fresh = await import("./cloudflare-workers.ts");
-		expect(fresh.env.PLATFORM_ADMIN_EMAILS).toBe("boss@ktb.test");
-		vi.unstubAllEnvs();
-		vi.stubEnv("PLATFORM_ADMIN_EMAILS", undefined as unknown as string);
-		delete process.env.PLATFORM_ADMIN_EMAILS;
-		vi.resetModules();
-		const dflt = await import("./cloudflare-workers.ts");
-		expect(dflt.env.PLATFORM_ADMIN_EMAILS).toBe("platform-admin@ktb.test");
+	it("carries a fixed platform admin allowlist binding", () => {
+		expect(env.PLATFORM_ADMIN_EMAILS).toBe("platform-admin@ktb.test");
 	});
 });

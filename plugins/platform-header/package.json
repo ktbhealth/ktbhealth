@@ -8,8 +8,5 @@
 	"dependencies": {
 		"@ktb/kernel": "workspace:*",
 		"@ktb/platform": "workspace:*"
-	},
-	"devDependencies": {
-		"@types/react": "^19.2.0"
 	}
 }

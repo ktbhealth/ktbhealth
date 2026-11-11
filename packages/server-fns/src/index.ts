@@ -14,4 +14,9 @@ export {
 	setServerRuntime,
 	type ServerRuntime,
 } from "./runtime.ts";
-export { ensureSessionUser, getSessionUser, type SessionUser } from "./session.ts";
+export {
+	UnauthenticatedError,
+	ensureSessionUser,
+	getSessionUser,
+	type SessionUser,
+} from "./session.ts";

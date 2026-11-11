@@ -67,6 +67,10 @@ export interface ServerRuntime {
 	/** Workers AI binding (or host-resolved stand-in) for transcription;
 	 * undefined when unbound. */
 	readonly ai?: AiRunner;
+	/** Model id for audio transcription jobs/routes; resolved by the
+	 * composition root from deploy config — the port never names a
+	 * provider model itself. */
+	readonly audioTranscribeModel: string;
 	/** Interop record exporters behind the @ktb/interop port — the host
 	 * wires the standard-specific adapters, plugins only see the port. */
 	readonly recordExporters?: Record<ExportFormat, RecordExporter>;

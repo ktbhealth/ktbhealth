@@ -1,8 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import * as m from "#/paraglide/messages.js";
 
 export const Route = createFileRoute("/capture-test")({
+	// Dev-only spike (T-012): the Playwright e2e boots `vp dev`, so the
+	// guard passes locally and compiles to a hard 404 in production
+	// builds. The route stays registered so routeTree.gen.ts is stable.
+	beforeLoad: () => {
+		if (!import.meta.env.DEV) throw notFound();
+	},
 	component: CaptureTest,
 });
 

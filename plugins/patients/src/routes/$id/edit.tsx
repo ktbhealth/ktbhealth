@@ -8,10 +8,10 @@ import { requireSession } from "../../guard.ts";
 export const Route = createFileRoute("/patients/$id/edit")({
 	beforeLoad: () => requireSession(),
 	loader: async ({ params }) => {
-		const [patient, locale] = await Promise.all([
-			getPatientFn({ data: Number(params.id) }),
-			localeFn(),
-		]);
+		const id = Number(params.id);
+		// Same NaN guard as the detail route — bad ids are a 404, not a 500.
+		if (!Number.isInteger(id) || id <= 0) throw notFound();
+		const [patient, locale] = await Promise.all([getPatientFn({ data: id }), localeFn()]);
 		if (!patient) throw notFound();
 		return { patient, locale };
 	},

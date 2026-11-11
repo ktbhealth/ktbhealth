@@ -25,7 +25,9 @@ import {
 	platformAdminFn,
 } from "#/lib/fns.ts";
 import { requireSession } from "#/lib/guard.ts";
+import { pluginPanelGroup, pluginPanelLabel } from "#/lib/i18n.ts";
 import { plugins } from "#/plugins.ts";
+import { getLocale } from "#/paraglide/runtime.js";
 
 // /platform console shell (P-031): a system console, not an app page —
 // the root route drops its marketing chrome on /platform* and this
@@ -67,11 +69,21 @@ function PlatformLayout() {
 	const pathname = useLocation({ select: (l) => l.pathname });
 	const user = rootApi.useLoaderData();
 	const { audioJobs, notifications } = Route.useLoaderData();
-	const items = plugins.flatMap((p) => p.panel?.sidebar ?? []);
+	const locale = getLocale();
+	// Sidebar labels/groups are plugin-declared English strings; the host
+	// maps the known destinations/groups to localized chrome (same
+	// mechanism as the landing nav's pluginNavLabel).
+	const items = plugins
+		.flatMap((p) => p.panel?.sidebar ?? [])
+		.map((item) => ({
+			...item,
+			label: pluginPanelLabel(item.to, item.label),
+			...(item.group !== undefined ? { group: pluginPanelGroup(item.group) } : {}),
+		}));
 	const headerActions = headerEnabled
 		? plugins
 				.flatMap((p) => p.panel?.headerActions ?? [])
-				.map(({ id, component }) => createElement(component, { key: id }))
+				.map(({ id, component }) => createElement(component, { key: id, locale }))
 		: undefined;
 	// Host-injected write path for the notifications popover — plugins
 	// never import server fns; the context stays null when the
@@ -84,12 +96,13 @@ function PlatformLayout() {
 			}
 		: null;
 	return (
-		<JobsDataContext.Provider value={jobsFromAudioRows(audioJobs)}>
+		<JobsDataContext.Provider value={jobsFromAudioRows(audioJobs, locale)}>
 			<NotificationsDataContext.Provider value={notifications}>
 				<NotificationsActionsContext.Provider value={notificationActions}>
 					<PlatformConsoleShell
 						items={items}
 						pathname={pathname}
+						locale={locale}
 						userEmail={user?.email}
 						headerActions={headerActions}
 						onSignOut={async () => {

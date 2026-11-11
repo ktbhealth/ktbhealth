@@ -10,7 +10,7 @@
 import type { Gender, Language, MaritalStatus, RaceColor } from "./record.ts";
 
 /** Locales with a catalog; the host asserts it covers every app locale. */
-export const PATIENT_LOCALES = ["en", "pt-BR"] as const;
+export const PATIENT_LOCALES = ["en", "pt-BR", "es"] as const;
 export type PatientLocale = (typeof PATIENT_LOCALES)[number];
 export const BASE_LOCALE: PatientLocale = "en";
 
@@ -129,6 +129,18 @@ export interface PatientMessages {
 		readonly confirm: string;
 		readonly cancel: string;
 		readonly failed: string;
+	};
+	readonly admin: {
+		readonly title: string;
+		readonly none: string;
+		readonly count: (n: number) => string;
+		readonly emptyTitle: string;
+		readonly emptyDescription: string;
+		readonly colId: string;
+		readonly colName: string;
+		readonly colOwner: string;
+		readonly colOwnerId: string;
+		readonly colCreated: string;
 	};
 	readonly form: {
 		readonly editTitle: string;
@@ -280,6 +292,18 @@ const en: PatientMessages = {
 		confirm: "Delete permanently",
 		cancel: "Cancel",
 		failed: "Could not delete the patient. Try again.",
+	},
+	admin: {
+		title: "Patients",
+		none: "No patients registered.",
+		count: (n) => `${n} patient${n === 1 ? "" : "s"} across all owners.`,
+		emptyTitle: "No patients",
+		emptyDescription: "Patients appear here once created.",
+		colId: "Id",
+		colName: "Name",
+		colOwner: "Owner",
+		colOwnerId: "Owner id",
+		colCreated: "Created",
 	},
 	form: {
 		editTitle: "Edit patient",
@@ -433,6 +457,18 @@ const ptBR: PatientMessages = {
 		cancel: "Cancelar",
 		failed: "Não foi possível excluir o paciente. Tente novamente.",
 	},
+	admin: {
+		title: "Pacientes",
+		none: "Nenhum paciente cadastrado.",
+		count: (n) => `${n} paciente${n === 1 ? "" : "s"} em toda a plataforma.`,
+		emptyTitle: "Nenhum paciente",
+		emptyDescription: "Os pacientes aparecem aqui após serem cadastrados.",
+		colId: "Id",
+		colName: "Nome",
+		colOwner: "Proprietário",
+		colOwnerId: "Id do proprietário",
+		colCreated: "Cadastrado em",
+	},
 	form: {
 		editTitle: "Editar paciente",
 		intro:
@@ -451,7 +487,174 @@ const ptBR: PatientMessages = {
 	},
 };
 
-const CATALOGS: Record<PatientLocale, PatientMessages> = { en, "pt-BR": ptBR };
+const es: PatientMessages = {
+	gender: { female: "Femenino", male: "Masculino", other: "Otro", unknown: "Desconocido" },
+	maritalStatus: {
+		S: "Soltero(a)",
+		M: "Casado(a)",
+		T: "Unión estable",
+		L: "Separado(a) legalmente",
+		D: "Divorciado(a)",
+		W: "Viudo(a)",
+		UNK: "Desconocido",
+	},
+	raceColor: {
+		"01": "Blanca",
+		"02": "Negra",
+		"03": "Parda (mixta)",
+		"04": "Amarilla (asiática oriental)",
+		"05": "Indígena",
+		"99": "No informado",
+	},
+	language: {
+		"pt-BR": "Portugués (Brasil)",
+		en: "Inglés",
+		es: "Español",
+		fr: "Francés",
+		it: "Italiano",
+		de: "Alemán",
+	},
+	age: (years, approx) => `${approx ? "~" : ""}${years} año${years === 1 ? "" : "s"}`,
+	errors: {
+		too_long: (max) => `Use como máximo ${max} caracteres.`,
+		name_required: "El nombre es obligatorio.",
+		birth_date_required: "La fecha de nacimiento (o edad) es obligatoria.",
+		invalid_date: "Ingrese una fecha válida.",
+		future_date: "La fecha de nacimiento no puede estar en el futuro.",
+		invalid_option: "Elija una opción válida.",
+		invalid_country: "Elija un país válido.",
+		invalid_cpf: "CPF inválido.",
+		invalid_cns: "CNS inválido.",
+		invalid_email: "Correo electrónico inválido.",
+		invalid_phone: "Ingrese de 8 a 15 dígitos.",
+		invalid_state: "Elija un estado válido.",
+		invalid_cep: "El CEP debe tener 8 dígitos.",
+	},
+	sections: {
+		identification: "Identificación",
+		identifiers: "Documentos",
+		contact: "Contacto",
+		address: "Dirección",
+		family: "Familia y datos demográficos",
+		emergency: "Contacto de emergencia",
+	},
+	fields: {
+		name: "Nombre completo",
+		socialName: "Nombre social",
+		socialNameHint:
+			"Nombre por el que se conoce a la persona; aparece primero cuando está informado.",
+		gender: "Sexo (administrativo)",
+		birthDate: "Fecha de nacimiento",
+		cpf: "CPF",
+		cns: "CNS (Cartão SUS)",
+		cnsShort: "CNS",
+		cnsPlaceholder: "15 dígitos",
+		passport: "Pasaporte / documento extranjero",
+		phone: "Teléfono",
+		email: "Correo electrónico",
+		preferredLanguage: "Idioma preferido",
+		country: "País",
+		cep: "CEP",
+		postalCode: "Código postal",
+		street: "Calle",
+		number: "Número",
+		complement: "Complemento",
+		district: "Barrio",
+		city: "Ciudad",
+		state: "Estado",
+		stateProvince: "Estado / provincia",
+		motherName: "Nombre de la madre",
+		maritalStatus: "Estado civil",
+		raceColor: "Raza / color (IBGE)",
+		raceColorShort: "Raza / color",
+		nationality: "Nacionalidad",
+		contactName: "Nombre",
+		relationship: "Parentesco",
+		relationshipPlaceholder: "ej.: hija",
+	},
+	common: {
+		patients: "Pacientes",
+		inactive: "Inactivo",
+		noDemographics: "Sin datos demográficos registrados",
+		registerPatient: "Registrar paciente",
+		newPatient: "Nuevo paciente",
+	},
+	list: {
+		none: "Ningún paciente aún.",
+		count: (n) => `${n} paciente${n === 1 ? "" : "s"} registrado${n === 1 ? "" : "s"}.`,
+		searchPlaceholder: "Buscar por nombre, CPF o CNS…",
+		searchLabel: "Buscar pacientes",
+		incomplete: "Registro incompleto",
+		noMatch: "Ningún paciente coincide con la búsqueda.",
+		emptyTitle: "Ningún paciente aún",
+		emptyDescription:
+			"Registre un paciente para vincular consultas y mantener el historial reunido.",
+	},
+	detail: {
+		editRecord: "Editar registro",
+		newConsultation: "Nueva consulta",
+		incomplete: "Este registro está incompleto: falta la fecha de nacimiento.",
+		completeRecord: "Completar el registro",
+		consultations: "Consultas",
+		live: "en vivo",
+		noAnamnesis: "sin anamnesis",
+		noChiefComplaint: "Ningún motivo de consulta registrado.",
+		noConsultations: "Ninguna consulta para este paciente aún.",
+		exportRecord: "Exportar",
+		exportHeading: "Registro y consultas",
+		exportFhir: "HL7 FHIR R4 (JSON)",
+		exportOpenEhr: "openEHR (JSON)",
+	},
+	actions: {
+		menu: (name) => `Acciones para ${name}`,
+		edit: "Editar registro",
+		delete: "Eliminar paciente",
+	},
+	remove: {
+		title: "¿Eliminar paciente?",
+		body: (name) => `Esto elimina permanentemente el registro de ${name}.`,
+		checking: "Verificando consultas vinculadas…",
+		noConsultations: "Este paciente no tiene consultas. Esta acción no se puede deshacer.",
+		withConsultations: (n) =>
+			`${n === 1 ? "1 consulta" : `${n} consultas`} de este paciente también ${n === 1 ? "será eliminada" : "serán eliminadas"} permanentemente, incluidas las transcripciones, anamnesis y grabaciones de audio. Esta acción no se puede deshacer.`,
+		acknowledge: (n) =>
+			`Entiendo que ${n === 1 ? "1 consulta será eliminada" : `${n} consultas serán eliminadas`}`,
+		confirm: "Eliminar permanentemente",
+		cancel: "Cancelar",
+		failed: "No se pudo eliminar el paciente. Inténtelo de nuevo.",
+	},
+	admin: {
+		title: "Pacientes",
+		none: "Ningún paciente registrado.",
+		count: (n) => `${n} paciente${n === 1 ? "" : "s"} en toda la plataforma.`,
+		emptyTitle: "Ningún paciente",
+		emptyDescription: "Los pacientes aparecen aquí una vez creados.",
+		colId: "Id",
+		colName: "Nombre",
+		colOwner: "Propietario",
+		colOwnerId: "Id del propietario",
+		colCreated: "Creado",
+	},
+	form: {
+		editTitle: "Editar paciente",
+		intro:
+			"Registro basado en el recurso Patient de HL7 FHIR R4 con las extensiones brasileñas de la RNDS. Solo el nombre y la fecha de nacimiento (o edad) son obligatorios.",
+		or: "o",
+		ageLabel: "Edad en años",
+		agePlaceholder: "edad",
+		approximate: (date) =>
+			`Registrado como ${date} (aproximado). Ingrese la fecha exacta, si la conoce.`,
+		pickDate: "Seleccione una fecha",
+		activeRecord: "Registro activo",
+		fixFields: "Corrija los campos resaltados.",
+		saveFailed: "No se pudo guardar el paciente.",
+		saveFailedRetry: "No se pudo guardar el paciente. Inténtelo de nuevo.",
+		cancel: "Cancelar",
+		saveChanges: "Guardar cambios",
+	},
+};
+
+const CATALOGS: Record<PatientLocale, PatientMessages> = { en, "pt-BR": ptBR, es };
 
 export const isPatientLocale = (locale: string): locale is PatientLocale =>
 	(PATIENT_LOCALES as readonly string[]).includes(locale);

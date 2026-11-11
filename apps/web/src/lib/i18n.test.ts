@@ -8,6 +8,8 @@ import {
 	localeFromCookieHeader,
 	localeName,
 	pluginNavLabel,
+	pluginPanelGroup,
+	pluginPanelLabel,
 	requestLocale,
 } from "./i18n.ts";
 
@@ -50,6 +52,7 @@ describe("localeName", () => {
 	it("returns the endonym for known locales", () => {
 		expect(localeName("en")).toBe("English");
 		expect(localeName("pt-BR")).toBe("Português (Brasil)");
+		expect(localeName("es")).toBe("Español");
 	});
 
 	it("falls back to the raw tag for unknown locales", () => {
@@ -75,6 +78,36 @@ describe("pluginNavLabel", () => {
 
 	it("falls back to the plugin-provided label", () => {
 		expect(pluginNavLabel("/other", "Other")).toBe("Other");
+	});
+});
+
+describe("pluginPanelLabel", () => {
+	it("localizes known /platform sidebar destinations", () => {
+		for (const to of [
+			"/platform",
+			"/platform/consultations",
+			"/platform/patients",
+			"/platform/users",
+			"/platform/groups",
+		]) {
+			expect(pluginPanelLabel(to, "fallback")).not.toBe("fallback");
+		}
+	});
+
+	it("falls back to the plugin-provided label for unknown paths", () => {
+		expect(pluginPanelLabel("/platform/unknown", "Custom")).toBe("Custom");
+	});
+});
+
+describe("pluginPanelGroup", () => {
+	it("localizes known sidebar groups", () => {
+		// en catalog endonyms equal the group keys; pt-BR proves the lookup.
+		expect(pluginPanelGroup("Access")).toBe("Access");
+		expect(pluginPanelGroup("Domains")).toBe("Domains");
+	});
+
+	it("passes unknown groups through unchanged", () => {
+		expect(pluginPanelGroup("Other")).toBe("Other");
 	});
 });
 

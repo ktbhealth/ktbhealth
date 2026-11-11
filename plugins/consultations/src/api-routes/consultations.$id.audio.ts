@@ -22,8 +22,13 @@ import { getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
  * registry, so no host imports or env reads are needed (P-033).
  */
 
-/** Bound worker memory: the body is buffered fully before the R2 put. */
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+/**
+ * Bound worker memory: the body is buffered fully before the R2 put.
+ * Capped at the Whisper transcription ceiling (25MB — same as
+ * MAX_AUDIO_BYTES in apps/web/src/lib/audio-jobs.ts) so nothing stored
+ * here can end up untranscribable in the queue pipeline.
+ */
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 const EXT_BY_TYPE: Record<string, string> = {
 	"audio/webm": "webm",
@@ -81,7 +86,10 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 					}
 				}
 				if (bytes.byteLength > MAX_UPLOAD_BYTES) {
-					return Response.json({ error: "audio too large" }, { status: 413 });
+					return Response.json(
+						{ error: "audio too large for transcription (max 25MB)" },
+						{ status: 413 },
+					);
 				}
 				const mediaType = contentType.split(";")[0]!.trim().toLowerCase();
 				if (

@@ -17,6 +17,7 @@ interface DashboardData {
  * hands the loader Effect's result as `data` and the discovered plugin
  * registry as `ctx.plugins` — the dashboard's plugin-cards section
  * needs it and plugins cannot import the app host themselves.
+ * `ctx.locale` feeds the view's catalog.
  */
 export function DashboardPlatformPage({ data, ctx }: { data: unknown; ctx: PanelPageContext }) {
 	const d = data as DashboardData;
@@ -27,6 +28,7 @@ export function DashboardPlatformPage({ data, ctx }: { data: unknown; ctx: Panel
 			plugins={ctx.plugins}
 			notifications={d.notifications}
 			unreadCount={d.unreadCount}
+			locale={ctx.locale}
 		/>
 	);
 }

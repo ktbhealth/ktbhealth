@@ -138,6 +138,22 @@ describe("api routes", () => {
 		);
 	});
 
+	it("bots POST refuses the stub provider outside dev", async () => {
+		// No RECALL_API_KEY in this suite → the runtime resolves the stub
+		// provider; outside dev that must fail loudly instead of simulating.
+		vi.stubEnv("DEV", false);
+		try {
+			const h = handlersOf(BotsRoute);
+			const res = await h.POST!({
+				request: post("http://x/api/bots", { meetUrl: "https://meet.google.com/prod-1234" }),
+			} as never);
+			expect(res.status).toBe(503);
+			expect(await res.json()).toEqual({ error: "meeting bot is not configured" });
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
 	it("bots POST requires auth", async () => {
 		headers.current = new Headers();
 		const h = handlersOf(BotsRoute);

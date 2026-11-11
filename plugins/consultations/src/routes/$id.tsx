@@ -1,7 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { ConsultationDetailPage } from "../views/index.ts";
-import { getConsultationFn, patientHistoryFn } from "../fns.ts";
+import { getConsultationFn, localeFn, patientHistoryFn } from "../fns.ts";
 import { requireSession } from "../guard.ts";
 import { consultationDetailApi } from "../apis.ts";
 
@@ -16,10 +16,13 @@ export const Route = createFileRoute("/consultations/$id")({
 		const history = c.patientId
 			? await patientHistoryFn({ data: { patientId: c.patientId, excludeId: c.id } })
 			: null;
-		return { c, history };
+		const locale = await localeFn();
+		return { c, history, locale };
 	},
 	component: function ConsultationRoute() {
-		const { c, history } = Route.useLoaderData();
-		return <ConsultationDetailPage c={c} history={history} api={consultationDetailApi} />;
+		const { c, history, locale } = Route.useLoaderData();
+		return (
+			<ConsultationDetailPage c={c} history={history} api={consultationDetailApi} locale={locale} />
+		);
 	},
 });

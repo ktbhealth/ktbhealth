@@ -5,6 +5,7 @@ import { baseLocale, cookieName, setLocale, toLocale, type Locale } from "#/para
 const LOCALE_NAMES: Record<string, () => string> = {
 	en: m.locale_en,
 	"pt-BR": m.locale_pt_BR,
+	es: m.locale_es,
 };
 
 /**
@@ -35,6 +36,21 @@ const NAV_LABELS: Record<string, () => string> = {
 	"/patients": () => m.nav_patients(),
 };
 
+// Same deal for /platform console chrome: sidebar item labels are keyed
+// by route path, group headers by their manifest group name.
+const PANEL_LABELS: Record<string, () => string> = {
+	"/platform": () => m.panel_nav_dashboard(),
+	"/platform/consultations": () => m.nav_consultations(),
+	"/platform/patients": () => m.nav_patients(),
+	"/platform/users": () => m.panel_nav_users(),
+	"/platform/groups": () => m.panel_nav_groups(),
+};
+
+const PANEL_GROUPS: Record<string, () => string> = {
+	Access: () => m.panel_group_access(),
+	Domains: () => m.panel_group_domains(),
+};
+
 /** Switch the UI locale (paraglide persists the cookie and reloads). */
 export function changeLocale(locale: string): void {
 	const resolved = toLocale(locale);
@@ -44,4 +60,14 @@ export function changeLocale(locale: string): void {
 /** Localized label for a plugin-declared nav item, or its raw label. */
 export function pluginNavLabel(to: string, fallback: string): string {
 	return NAV_LABELS[to]?.() ?? fallback;
+}
+
+/** Localized label for a plugin-declared /platform sidebar item. */
+export function pluginPanelLabel(to: string, fallback: string): string {
+	return PANEL_LABELS[to]?.() ?? fallback;
+}
+
+/** Localized label for a plugin-declared sidebar group, or its raw label. */
+export function pluginPanelGroup(group: string): string {
+	return PANEL_GROUPS[group]?.() ?? group;
 }

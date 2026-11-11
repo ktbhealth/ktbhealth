@@ -1,14 +1,16 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.hoisted(() => {
-	process.env.TURNSTILE_SECRET_KEY = "test-turnstile-secret";
-});
+import { env } from "cloudflare:workers";
 
 vi.mock("@tanstack/react-start/server", () => ({
 	getRequestHeaders: () => new Headers(),
 }));
 
-import { Route } from "./auth.$.ts";
+// TURNSTILE_SECRET_KEY must be bound before platform.ts composes the app —
+// the captcha driver is selected once, at layer build time.
+env.TURNSTILE_SECRET_KEY = "test-turnstile-secret";
+
+const { Route } = await import("./auth.$.ts");
 
 const handlersOf = (r: unknown) =>
 	(r as { options: { server: { handlers: Record<string, (a: never) => Promise<Response>> } } })

@@ -27,7 +27,9 @@ async function gotoLogin(page: Page) {
 
 async function fillCredentials(page: Page, email: string) {
 	await page.getByLabel("Email").fill(email);
-	await page.getByLabel("Password").fill(PASSWORD);
+	await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+	const confirm = page.getByLabel("Confirm password");
+	if (await confirm.count()) await confirm.fill(PASSWORD);
 }
 
 // Deployed environments bind real Turnstile keys — automation can't solve

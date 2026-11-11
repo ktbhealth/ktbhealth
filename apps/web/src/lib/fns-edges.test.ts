@@ -90,6 +90,10 @@ import * as Effect from "effect/Effect";
 import type { PanelPage } from "@ktb/kernel";
 import { platformPages } from "./platform-pages.ts";
 import {
+	localeFn as patientsLocaleFn,
+	sessionUserFn as patientsSessionUserFn,
+} from "@ktb/patients/fns";
+import {
 	createPatientFn,
 	extractAnamnesisFn,
 	markAllMyNotificationsReadFn,
@@ -106,6 +110,18 @@ afterEach(() => {
 // Structurally a @ktb/authz Forbidden (catchTag matches on `_tag`); the
 // package is not a dependency of apps/web.
 const forbidden = (path: string) => ({ _tag: "Forbidden" as const, path });
+
+describe("plugin session/locale fns", () => {
+	it("patients sessionUserFn mirrors the bound session", async () => {
+		expect(await patientsSessionUserFn()).toEqual(hoisted.user);
+		hoisted.user = null;
+		expect(await patientsSessionUserFn()).toBeNull();
+	});
+
+	it("patients localeFn returns the active locale", async () => {
+		expect(typeof (await patientsLocaleFn())).toBe("string");
+	});
+});
 
 describe("notification mutations map Forbidden to false", () => {
 	it("markMyNotificationsReadFn", async () => {

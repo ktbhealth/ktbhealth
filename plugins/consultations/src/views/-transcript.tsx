@@ -4,11 +4,12 @@ import { Badge } from "@ktbhealth/ui/components/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 
 import { BADGE_TONES, SPEAKER_STYLE } from "./-ui.ts";
+import { consultationMessages } from "../i18n.ts";
 
 /** "Doctor: text" lines become chat-style bubbles. */
-function Transcript({ text }: { text: string }) {
+function Transcript({ text, emptyLabel }: { text: string; emptyLabel: string }) {
 	const lines = text.split("\n").filter((l) => l.trim());
-	if (!lines.length) return <p className="text-sm text-muted-foreground">No transcript.</p>;
+	if (!lines.length) return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
 	return (
 		<div className="space-y-2.5">
 			{lines.map((line, i) => {
@@ -121,30 +122,37 @@ export interface TranscriptView {
 	source: string;
 }
 
-const SERVER_SRC = "server · whisper large-v3-turbo";
-const BROWSER_SRC = "browser";
-const CORRECTED_SRC = "llm corrected";
+interface TranscriptSourceLabels {
+	readonly server: string;
+	readonly browser: string;
+	readonly corrected: string;
+}
 
 /**
  * Raw ASR outputs, server first. The browser transcript joins as a
  * second labeled block when it differs — both are unedited evidence.
+ * Captions come localized from the caller's catalog.
  */
-function originalBlocks(browser: string | null, server: string | null): TranscriptView[] {
+function originalBlocks(
+	browser: string | null,
+	server: string | null,
+	labels: TranscriptSourceLabels,
+): TranscriptView[] {
 	const blocks: TranscriptView[] = [];
-	if (nonEmpty(server)) blocks.push({ text: server, source: SERVER_SRC });
+	if (nonEmpty(server)) blocks.push({ text: server, source: labels.server });
 	if (nonEmpty(browser) && (!nonEmpty(server) || browser.trim() !== server.trim())) {
-		blocks.push({ text: browser, source: BROWSER_SRC });
+		blocks.push({ text: browser, source: labels.browser });
 	}
 	return blocks;
 }
 
-function SourceBlock({ view }: { view: TranscriptView }) {
+function SourceBlock({ view, emptyLabel }: { view: TranscriptView; emptyLabel: string }) {
 	return (
 		<div>
 			<p className="mb-1 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
 				{view.source}
 			</p>
-			<Transcript text={view.text} />
+			<Transcript text={view.text} emptyLabel={emptyLabel} />
 		</div>
 	);
 }
@@ -163,8 +171,11 @@ export function AudioTranscriptPanel({
 	serverText,
 	correctedText,
 	onActiveText,
+	locale = "en",
 }: {
 	consultationId: number | null;
+	/** Active UI locale — resolves the panel's copy and source captions. */
+	locale?: string;
 	audioStatus?: string | null;
 	hasAudio?: boolean;
 	browserText?: string | null;
@@ -174,11 +185,17 @@ export function AudioTranscriptPanel({
 	 *  generation) use exactly what the doctor is viewing. */
 	onActiveText?: (view: TranscriptView) => void;
 }) {
+	const t = consultationMessages(locale);
 	const [tab, setTab] = useState<"corrected" | "original">("corrected");
 	const status = audioStatus ?? "none";
-	const originals = originalBlocks(browserText ?? null, serverText ?? null);
+	const sourceLabels: TranscriptSourceLabels = {
+		server: t.transcriptPanel.sourceServer,
+		browser: t.transcriptPanel.sourceBrowser,
+		corrected: t.transcriptPanel.sourceCorrected,
+	};
+	const originals = originalBlocks(browserText ?? null, serverText ?? null, sourceLabels);
 	const correctedView: TranscriptView | null = nonEmpty(correctedText)
-		? { text: correctedText, source: CORRECTED_SRC }
+		? { text: correctedText, source: sourceLabels.corrected }
 		: null;
 	const primaryOriginal = originals[0] ?? null;
 	// Tabs only earn their keep when a corrected text exists AND differs
@@ -212,18 +229,18 @@ export function AudioTranscriptPanel({
 				<div className="flex flex-wrap items-center gap-2">
 					{status === "failed" ? (
 						<Badge variant="secondary" className={`ring-1 ${BADGE_TONES.red}`}>
-							enhancement failed — showing original
+							{t.transcriptPanel.enhancementFailed}
 						</Badge>
 					) : inFlight ? (
 						<Badge variant="secondary" className={`ring-1 ${BADGE_TONES.amber}`}>
 							<span className="mr-1 inline-block size-1.5 animate-pulse rounded-full bg-amber-500" />
-							{status === "stored" ? "audio stored" : "enhancing transcript…"}
+							{status === "stored" ? t.transcriptPanel.audioStored : t.transcriptPanel.enhancing}
 						</Badge>
 					) : (
 						// Outer condition: failed || inFlight || correctedView — so
 						// here correctedView is set.
 						<Badge variant="secondary" className={`ring-1 ${BADGE_TONES.green}`}>
-							enhanced ✓
+							{t.transcriptPanel.enhanced}
 						</Badge>
 					)}
 					{hasAudio && consultationId !== null ? (
@@ -231,7 +248,7 @@ export function AudioTranscriptPanel({
 							controls
 							preload="none"
 							src={`/api/consultations/${consultationId}/audio`}
-							aria-label="Consultation audio"
+							aria-label={t.transcriptPanel.audioLabel}
 							className="h-8 w-full max-w-xs"
 						/>
 					) : null}
@@ -245,28 +262,28 @@ export function AudioTranscriptPanel({
 					className="w-full"
 				>
 					<TabsList className="text-xs">
-						<TabsTrigger value="corrected">Corrected</TabsTrigger>
-						<TabsTrigger value="original">Original</TabsTrigger>
+						<TabsTrigger value="corrected">{t.transcriptPanel.tabCorrected}</TabsTrigger>
+						<TabsTrigger value="original">{t.transcriptPanel.tabOriginal}</TabsTrigger>
 					</TabsList>
 					<TabsContent value="corrected" className="pt-2">
-						<SourceBlock view={tabbed.corrected} />
+						<SourceBlock view={tabbed.corrected} emptyLabel={t.common.noTranscript} />
 					</TabsContent>
 					<TabsContent value="original" className="space-y-4 pt-2">
 						{originals.map((b) => (
-							<SourceBlock key={b.source} view={b} />
+							<SourceBlock key={b.source} view={b} emptyLabel={t.common.noTranscript} />
 						))}
 					</TabsContent>
 				</Tabs>
 			) : originals.length ? (
 				<div className="space-y-4">
 					{originals.map((b) => (
-						<SourceBlock key={b.source} view={b} />
+						<SourceBlock key={b.source} view={b} emptyLabel={t.common.noTranscript} />
 					))}
 				</div>
 			) : correctedView ? (
-				<SourceBlock view={correctedView} />
+				<SourceBlock view={correctedView} emptyLabel={t.common.noTranscript} />
 			) : (
-				<Transcript text="" />
+				<Transcript text="" emptyLabel={t.common.noTranscript} />
 			)}
 		</div>
 	);

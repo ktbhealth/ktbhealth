@@ -23,21 +23,22 @@ Regra: perguntar comportamento passado, nunca hipótese. ~20min.
 6. Em que momento do dia você revisaria um rascunho? O que te faria NÃO confiar nele?
 7. Se a IA escrevesse "dor há 3 meses" e fosse 3 dias — como você perceberia? (testa a proposta de evidência)
 
-### Telemedicina
+### Telemedicina e presencial
 
 8. Você atende por videochamada? Em que plataforma? Como documenta hoje?
 9. Um bot chamado "Anamnese" entrando na sua call — o paciente reage como? (consentimento)
+10. E as consultas presenciais? Quantas por dia? Como seria gravar o áudio do consultório — celular na mesa, app no computador? O paciente toparia?
 
 ### Dinheiro
 
-10. Quanto vale pra você terminar o dia sem prontuário pendente? (deixar responder antes de propor número)
-11. Já pagou alguma ferramenta clínica? Quanto? Por que cancelou/continuou?
-12. R$120/mês, 5 consultas grátis pra testar — assinaria hoje? (compromisso, não opinião)
+11. Quanto vale pra você terminar o dia sem prontuário pendente? (deixar responder antes de propor número)
+12. Já pagou alguma ferramenta clínica? Quanto? Por que cancelou/continuou?
+13. R$120/mês, 5 consultas grátis pra testar — assinaria hoje? (compromisso, não opinião)
 
 ### O fechamento (o que importa)
 
-13. Topa pilotar por 2 semanas com X consultas reais? (SIM/NÃO é a métrica — "legal, me avisa" é NÃO)
-14. Quem mais sofre com isso que eu deveria entrevistar?
+14. Topa pilotar por 2 semanas com X consultas reais? (SIM/NÃO é a métrica — "legal, me avisa" é NÃO)
+15. Quem mais sofre com isso que eu deveria entrevistar?
 
 ## Sinais de morte (anotar literalmente)
 

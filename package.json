@@ -10,6 +10,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun --cwd apps/web dev",
+		"dev:node": "bun --cwd apps/web dev:node",
 		"dev:secrets": "bun --cwd apps/web dev:secrets",
 		"build": "vp build",
 		"preview": "vp preview",
@@ -23,7 +24,9 @@
 		"db:migrate": "bun --cwd apps/web db:migrate",
 		"db:migrate:local": "bun --cwd apps/web db:migrate:local",
 		"db:studio": "bun --cwd packages/db db:studio",
-		"knip": "knip"
+		"knip": "knip",
+		"gen:route-types": "bun tools/gen-plugin-route-types.mjs",
+		"check:arch": "bun tools/check-arch.mjs"
 	},
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.2",
@@ -33,7 +36,7 @@
 		"jsdom": "^31.0.0",
 		"knip": "^6.44.2",
 		"typescript": "^6.0.2",
-		"vite-plus": "1.5.0",
+		"vite-plus": "1.5.1",
 		"vitest": "5.1.0"
 	},
 	"overrides": {

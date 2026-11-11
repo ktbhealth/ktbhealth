@@ -217,6 +217,35 @@ describe("server fns", () => {
 		expect(detail?.patientName).toBe("João");
 	});
 
+	it("attachAnamnesis with patientId null clears the link (tri-state wire)", async () => {
+		headers.current = new Headers({ cookie });
+		const patient = await newPatient("Desvincular");
+		const saved = await saveConsultationFn({
+			data: { transcript: "t4", anamnesis: makeAnamnesis("Q4"), engine: "e" },
+		});
+		await attachAnamnesisFn({
+			data: {
+				consultationId: saved.id!,
+				anamnesis: makeAnamnesis("Q4"),
+				engine: "e",
+				patientId: patient!.id,
+			},
+		});
+		// An explicit null on the wire must reach the service as "clear",
+		// not be dropped as "absent" by the normalizer.
+		const res = await attachAnamnesisFn({
+			data: {
+				consultationId: saved.id!,
+				anamnesis: makeAnamnesis("Q4b"),
+				engine: "e",
+				patientId: null,
+			},
+		});
+		expect(res).toEqual({ ok: true });
+		const detail = await getConsultationFn({ data: saved.id! });
+		expect(detail?.patientName).toBeNull();
+	});
+
 	it("listConsultations chiefComplaint null via ?? on missing queixa_principal", async () => {
 		headers.current = new Headers({ cookie });
 		const user = await getSessionUserFn();

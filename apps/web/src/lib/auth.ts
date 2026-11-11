@@ -2,4 +2,3 @@
 // functions share the same contract; this module stays as the host's
 // import path.
 export { ensureSessionUser, getSessionUser } from "@ktb/server-fns";
-export type { SessionUser } from "@ktb/server-fns";

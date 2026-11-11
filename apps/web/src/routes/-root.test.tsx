@@ -47,6 +47,7 @@ type RootOpts = {
 	shellComponent: (p: { children: ReactNode }) => ReactElement;
 	loader: () => Promise<unknown>;
 	head: () => { meta: unknown[]; links: unknown[] };
+	errorComponent: (p: { error: Error; reset: () => void }) => ReactElement;
 	notFoundComponent: () => ReactElement;
 };
 const opts = (Route as unknown as { options: RootOpts }).options;
@@ -66,7 +67,21 @@ describe("root route", () => {
 		const head = opts.head();
 		expect(head.links).toEqual([{ rel: "stylesheet", href: "/styles.css" }]);
 		expect(head.meta).toContainEqual({ charSet: "utf-8" });
+		expect(head.meta).toContainEqual({
+			name: "description",
+			content: expect.stringContaining("KTB Health"),
+		});
+		expect(head.meta).toContainEqual({ property: "og:type", content: "website" });
 		expect(renderToStaticMarkup(opts.notFoundComponent())).toContain("/consultations");
+	});
+
+	it("renders a friendly error page without the stack trace", () => {
+		const reset = vi.fn();
+		const html = renderToStaticMarkup(opts.errorComponent({ error: new Error("boom"), reset }));
+		expect(html).toContain("Something went wrong");
+		expect(html).toContain("Try again");
+		expect(html).toContain("/consultations");
+		expect(html).not.toContain("boom");
 	});
 });
 

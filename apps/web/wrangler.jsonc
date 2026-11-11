@@ -2,15 +2,20 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "ktb",
 	"compatibility_date": "2026-11-06",
-	"compatibility_flags": ["nodejs_compat"],
 	// Custom worker entry: TanStack fetch pipeline + Cloudflare Queue
 	// consumer for async audio transcription (see src/server.ts).
 	"main": "./src/server.ts",
 	"observability": {
 		"enabled": true,
 	},
-	// Local dev only: this file is not used by the Alchemy deploy. Selects
-	// @ktb/captcha-stub so credential endpoints pass without a real widget.
+	// LOCAL EMULATION ONLY — never `wrangler deploy`/`wrangler dev --remote`
+	// this file. Production is deployed exclusively by Alchemy
+	// (alchemy.run.ts) with secrets from the cuora vault; this config only
+	// lets `vp build`/`vp preview` boot the worker locally. The values
+	// below are deliberately dev-only: CAPTCHA_STUB bypasses the bot
+	// check, and the D1 id is a placeholder — a real deploy through
+	// wrangler would either fail on the bogus id or, worse, ship a
+	// stub-captcha worker.
 	"vars": { "CAPTCHA_STUB": "1" },
 	"ai": { "binding": "AI" },
 	"r2_buckets": [{ "binding": "AUDIO_BUCKET", "bucket_name": "ktb-audio" }],
@@ -22,7 +27,9 @@
 		{
 			"binding": "DB",
 			"database_name": "ktb",
-			// Replace with `bunx wrangler d1 create ktb` output before deploy.
+			// Placeholder for local emulation only — the real D1 binding is
+			// created and bound by Alchemy (deployD1 in alchemy.run.ts).
+			// Do NOT paste a real id here and do NOT deploy via wrangler.
 			"database_id": "00000000-0000-0000-0000-000000000000",
 			"migrations_dir": "../../packages/db/drizzle",
 		},

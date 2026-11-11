@@ -4,7 +4,7 @@ import { Query } from "@effect-server-utils/cqrs";
 import * as Effect from "effect/Effect";
 import { Schema } from "effect";
 
-import { ensureSessionUser, getSessionUser, runAs } from "@ktb/server-fns";
+import { ensureSessionUser, getLocale, getSessionUser, runAs } from "@ktb/server-fns";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import { AnamnesisSchema } from "@ktb/anamnesis/schema";
 import type { PatientContext, PatientHistory } from "@ktb/anamnesis";
@@ -92,6 +92,10 @@ const decodeHistoryInput = (input: unknown) =>
 
 /** Session user for route guards — null when anonymous. */
 export const sessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
+
+/** Active UI locale for the current request — route loaders attach it
+ * to their data so plugin views never import the host's i18n runtime. */
+export const localeFn = createServerFn({ method: "GET" }).handler(() => getLocale());
 
 // LLM helpers touch no owned data but still require a session: they proxy
 // paid model calls and must not be an open endpoint.

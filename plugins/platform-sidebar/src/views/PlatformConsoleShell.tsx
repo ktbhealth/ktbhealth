@@ -25,6 +25,8 @@ import {
 } from "@ktbhealth/ui/components/sidebar";
 import type { PanelSidebarItem } from "@ktb/kernel";
 
+import { consoleMessages } from "../i18n.ts";
+
 export interface PlatformConsoleShellProps {
 	/** Aggregated `panel.sidebar` items from every plugin, in topo order. */
 	readonly items: readonly PanelSidebarItem[];
@@ -36,6 +38,8 @@ export interface PlatformConsoleShellProps {
 	 * `platform.header` extension point.
 	 */
 	readonly headerActions?: ReactNode;
+	/** Active UI locale — injected by the host route. */
+	readonly locale?: string;
 	/** Injected by the host — plugins cannot import the auth client. */
 	readonly onSignOut: () => void | Promise<void>;
 	readonly children?: ReactNode;
@@ -56,9 +60,11 @@ export function PlatformConsoleShell({
 	pathname,
 	userEmail,
 	headerActions,
+	locale = "en",
 	onSignOut,
 	children,
 }: PlatformConsoleShellProps) {
+	const t = consoleMessages(locale);
 	// Group sidebar items by their `group` label, preserving the
 	// flattened topo order — groups order by first appearance, with the
 	// ungrouped section pinned to the top.
@@ -77,8 +83,8 @@ export function PlatformConsoleShell({
 	// provides it via panel.sidebar), else the last path segment.
 	const leaf =
 		pathname === "/platform"
-			? "overview"
-			: (current?.label ?? pathname.split("/").filter(Boolean).at(-1) ?? "overview");
+			? t.overview
+			: (current?.label ?? pathname.split("/").filter(Boolean).at(-1) ?? t.overview);
 	return (
 		<SidebarProvider className="h-dvh min-h-0">
 			<Sidebar collapsible="none" className="border-sidebar-border border-r">
@@ -86,7 +92,7 @@ export function PlatformConsoleShell({
 					<div className="flex items-center gap-2 px-2 pt-1">
 						<span className="text-sm font-bold tracking-tight">KTB</span>
 						<span className="rounded border border-sidebar-border px-1 py-0.5 text-[10px] text-muted-foreground">
-							PLATFORM
+							{t.badge}
 						</span>
 					</div>
 				</SidebarHeader>
@@ -119,12 +125,12 @@ export function PlatformConsoleShell({
 				<SidebarFooter>
 					<div className="flex items-center justify-between gap-2 px-2 pb-1">
 						<span className="truncate text-[11px] text-muted-foreground">
-							{userEmail ?? "admin"}
+							{userEmail ?? t.adminFallback}
 						</span>
 						<button
 							type="button"
 							className="rounded p-1 text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-							title="Sign out"
+							title={t.signOut}
 							onClick={() => void onSignOut()}
 						>
 							<LogOutIcon className="size-3.5" />
@@ -137,7 +143,7 @@ export function PlatformConsoleShell({
 					<Breadcrumb className="text-xs">
 						<BreadcrumbList>
 							<BreadcrumbItem>
-								<BreadcrumbLink render={<Link to="/platform" />}>platform</BreadcrumbLink>
+								<BreadcrumbLink render={<Link to="/platform" />}>{t.breadcrumbRoot}</BreadcrumbLink>
 							</BreadcrumbItem>
 							<BreadcrumbSeparator />
 							<BreadcrumbItem>
@@ -152,7 +158,7 @@ export function PlatformConsoleShell({
 							className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
 						>
 							<ArrowLeftIcon className="size-3" />
-							back to app
+							{t.backToApp}
 						</Link>
 					</div>
 				</header>

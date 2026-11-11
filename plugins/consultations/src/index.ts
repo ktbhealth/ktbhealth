@@ -582,17 +582,6 @@ export class Consultations extends Context.Service<
 			userId: string,
 			excludeId?: number,
 		) => Effect.Effect<PatientHistory | null, Forbidden>;
-		/**
-		 * Delete a patient together with every consultation linked to them
-		 * (transcripts, anamneses), atomically. Owner-only on the patient and
-		 * on each consultation. Returns null when the patient does not exist,
-		 * otherwise how many consultations went and the R2 audio keys the
-		 * caller must purge (storage is outside the database).
-		 */
-		readonly deletePatient: (
-			userId: string,
-			patientId: number,
-		) => Effect.Effect<{ consultations: number; audioKeys: string[] } | null, Forbidden>;
 	}
 >()("@ktb/consultations/Consultations") {}
 
@@ -602,7 +591,6 @@ export const ConsultationsLive = Layer.effect(
 		const db = yield* Db;
 		const platformAdmin = yield* PlatformAdmin;
 		const patientQueries = yield* Query.dispatcher(PatientsQueries);
-		const patientCommands = yield* Command.dispatcher(PatientsCommands);
 		const events = yield* EventBus;
 		// Live fan-out for audioJobsStream: every audio-status mutation
 		// (service methods here, the queue consumer via the host) publishes
@@ -823,34 +811,6 @@ export const ConsultationsLive = Layer.effect(
 				yield* requireCanAs("consultation.read", { userId });
 				return yield* Effect.promise(() => patientHistory(db, patientId, userId, excludeId));
 			}),
-			deletePatient: Effect.fn("Consultations.deletePatient")(function* (
-				userId: string,
-				patientId: number,
-			) {
-				yield* requirePrincipalUser(userId, "patient.delete");
-				// Missing patient → null, same contract as before. The
-				// `patients.delete` command below owns patient authz + the
-				// row delete; it runs in this fiber so Principal/Db/EventBus
-				// flow through.
-				const owner = yield* patientQueries["patients.ownerOf"]({ id: patientId });
-				if (owner === null) return null;
-				const rows = yield* Effect.promise(() => patientConsultationRows(db, patientId));
-				// Any consultation owned by someone else blocks the whole cascade.
-				for (const row of rows)
-					yield* requireCanAs("consultation.delete", { userId: row.userId ?? "" });
-				yield* Effect.annotateCurrentSpan({ userId, patientId, consultations: rows.length });
-				yield* Effect.logInfo("patient deleted with consultations", {
-					userId,
-					patientId,
-					consultations: rows.length,
-				});
-				yield* Effect.promise(() => deletePatientConsultations(db, patientId, userId));
-				yield* patientCommands["patients.delete"]({ id: patientId });
-				return {
-					consultations: rows.length,
-					audioKeys: rows.flatMap((r) => (r.audioKey ? [r.audioKey] : [])),
-				};
-			}),
 		});
 	}),
 );
@@ -863,20 +823,6 @@ export const consultationsTablesPlugin = definePlugin({
 /** Cross-plugin query surface — registered so other plugins can
  * `Query.dispatcher(ConsultationsQueries)` against it. */
 export const ConsultationsQueriesLive = Query.handlersOf(ConsultationsQueries, {
-	"consultations.forPatient": ({ patientId }) =>
-		Effect.gen(function* () {
-			const db = yield* Db;
-			return yield* Effect.promise(() =>
-				db
-					.select({
-						id: consultations.id,
-						status: consultations.status,
-						createdAt: consultations.createdAt,
-					})
-					.from(consultations)
-					.where(eq(consultations.patientId, patientId)),
-			);
-		}),
 	// Cross-owner read — same gate as `Consultations.adminList`: the
 	// platform-admin check fails Forbidden for non-admins and for
 	// system contexts (null principal) alike.
@@ -907,8 +853,8 @@ export const PatientRecordConsultationsLive = Query.handlersOf(PatientRecordCons
 			const rows = yield* Effect.promise(() => listConsultations(db, principal.userId, patientId));
 			return rows.map((r) => ({
 				id: r.id,
-				// Rows are filtered by patientId (the column is nullable in the
-				// schema but never null here), so it is the requested id.
+				// Rows are filtered by patientId — the column is nullable
+				// in the schema but the query param is the link here.
 				patientId,
 				createdAt: r.createdAt,
 				status: r.status,
@@ -926,7 +872,7 @@ export const PatientDeleteCascadeLive = Command.handlersOf(PatientCascadeCommand
 			const db = yield* Db;
 			const patientQueries = yield* Query.dispatcher(PatientsQueries);
 			const patientCommands = yield* Command.dispatcher(PatientsCommands);
-			// Mirrors Consultations.deletePatient — the caller is the bound
+			// Patient cascade owned by this plugin — the caller is the bound
 			// Principal (no userId param to cross-check), so the flow is:
 			// patient owner lookup → per-consultation authz → cascade →
 			// `patients.delete` (which owns patient authz + the row delete).

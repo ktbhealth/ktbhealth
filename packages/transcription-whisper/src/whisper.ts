@@ -137,7 +137,7 @@ export class WhisperTranscriber implements Transcriber {
 		const voiced = blocks.filter((r) => r > VOICE_RMS).length;
 		const loud = Math.max(0, ...blocks) > PEAK_RMS;
 		if (!loud || voiced / blocks.length < MIN_VOICED_RATIO) {
-			console.log("[whisper] speechless segment — discarded");
+			console.debug("[whisper] speechless segment — discarded");
 			this.buffer = [];
 			this.rms = [];
 			this.bufferedSec = 0;
@@ -155,7 +155,7 @@ export class WhisperTranscriber implements Transcriber {
 		this.bufferedSec = 0;
 		this.inflight++;
 		this.voicedSec += total / 16000;
-		console.log(`[whisper] sending ${(total / 16000).toFixed(1)}s of audio`);
+		console.debug(`[whisper] sending ${(total / 16000).toFixed(1)}s of audio`);
 		sendAudio(this.id, pcm);
 	}
 

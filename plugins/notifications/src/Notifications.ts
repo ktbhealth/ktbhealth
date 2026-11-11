@@ -8,10 +8,12 @@ import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { Db, type DbClient } from "@ktb/db";
 import { requirePrincipalUser, type Forbidden } from "@ktb/authz";
 import { Event, EventBus } from "@effect-server-utils/cqrs";
+import { getLocale } from "@ktb/server-fns";
 import { PatientCreated, PatientDeleted } from "@ktb/patients/api";
 import { ConsultationCreated } from "@ktb/consultations/api";
 
 import type { ConsoleNotification } from "./context.ts";
+import { notificationMessages } from "./i18n.ts";
 import { notifications } from "./schema.ts";
 
 export type NotificationRow = typeof notifications.$inferSelect;
@@ -135,24 +137,44 @@ const mapEvent = <E extends Event.Any>(
 	project: (event: Event.Type<E>) => NotificationDraft,
 ) => ({ def, project }) as const;
 
+/** Titles are persisted in the actor's UI locale at ingest time; the
+ * runtime may be uninitialized in non-request contexts (tests, queue
+ * consumers), so fall back to the base locale. */
+const ingestLocale = () => {
+	try {
+		return getLocale();
+	} catch {
+		return "en";
+	}
+};
+
 const NOTIFICATION_MAP = [
-	mapEvent(PatientCreated, (e) => ({
-		userId: e.ownerId,
-		kind: "patient.created",
-		title: "Patient created",
-		body: e.name,
-	})),
-	mapEvent(PatientDeleted, (e) => ({
-		userId: e.ownerId,
-		kind: "patient.deleted",
-		title: "Patient deleted",
-	})),
-	mapEvent(ConsultationCreated, (e) => ({
-		userId: e.userId,
-		kind: "consultation.created",
-		title: "Consultation started",
-		body: e.source,
-	})),
+	mapEvent(PatientCreated, (e) => {
+		const t = notificationMessages(ingestLocale());
+		return {
+			userId: e.ownerId,
+			kind: "patient.created",
+			title: t.titles.patientCreated,
+			body: e.name,
+		};
+	}),
+	mapEvent(PatientDeleted, (e) => {
+		const t = notificationMessages(ingestLocale());
+		return {
+			userId: e.ownerId,
+			kind: "patient.deleted",
+			title: t.titles.patientDeleted,
+		};
+	}),
+	mapEvent(ConsultationCreated, (e) => {
+		const t = notificationMessages(ingestLocale());
+		return {
+			userId: e.userId,
+			kind: "consultation.created",
+			title: t.titles.consultationCreated,
+			body: e.source,
+		};
+	}),
 ];
 
 export const NotificationsLive = Layer.effect(

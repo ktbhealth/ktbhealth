@@ -15,8 +15,10 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 
 import { Route } from "./capture-test.tsx";
+import { isNotFound } from "@tanstack/react-router";
 
 const Page = (Route as unknown as { options: { component: () => ReactElement } }).options.component;
+const beforeLoad = (Route as unknown as { options: { beforeLoad: () => void } }).options.beforeLoad;
 
 function makeStream(withAudio = true) {
 	const audioTrack = { label: "tab-audio", readyState: "live", stop: vi.fn() };
@@ -67,6 +69,19 @@ afterEach(() => {
 });
 
 describe("capture-test", () => {
+	it("is dev-only: beforeLoad 404s outside development", () => {
+		vi.stubEnv("DEV", false);
+		let caught: unknown;
+		try {
+			beforeLoad();
+		} catch (e) {
+			caught = e;
+		}
+		vi.unstubAllEnvs();
+		expect(isNotFound(caught)).toBe(true);
+		expect(() => beforeLoad()).not.toThrow();
+	});
+
 	it("captures tab audio and shows level meter", async () => {
 		installMedia(makeStream());
 		render(createElement(Page));

@@ -1,22 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-const sessionUserFn = vi.hoisted(() => vi.fn());
-vi.mock("./fns.ts", () => ({ sessionUserFn }));
+const mocks = vi.hoisted(() => ({
+	sessionUserFn: vi.fn<() => Promise<{ id: string } | null>>(),
+}));
+
+vi.mock("./fns.ts", () => ({ sessionUserFn: mocks.sessionUserFn }));
+
+import { isRedirect } from "@tanstack/react-router";
 
 import { requireSession } from "./guard.ts";
 
-beforeEach(() => {
-	vi.clearAllMocks();
-});
-
 describe("requireSession", () => {
-	it("lets a signed-in user through", async () => {
-		sessionUserFn.mockResolvedValue({ id: "u1" });
+	it("passes for a signed-in user", async () => {
+		mocks.sessionUserFn.mockResolvedValue({ id: "u1" });
 		await expect(requireSession()).resolves.toBeUndefined();
 	});
 
 	it("redirects anonymous visitors to /login", async () => {
-		sessionUserFn.mockResolvedValue(null);
-		await expect(requireSession()).rejects.toMatchObject({ options: { to: "/login" } });
+		mocks.sessionUserFn.mockResolvedValue(null);
+		const caught = await requireSession().catch((e: unknown) => e);
+		expect(isRedirect(caught)).toBe(true);
+		// redirect() returns a Response carrying the navigation options.
+		expect((caught as Response & { options: { to: string } }).options.to).toBe("/login");
 	});
 });

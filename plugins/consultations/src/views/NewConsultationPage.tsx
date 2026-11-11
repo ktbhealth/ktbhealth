@@ -25,8 +25,7 @@ import {
 import { Spinner } from "@ktbhealth/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { anamnesisToText } from "@ktb/anamnesis";
-import { type Anamnesis, HISTORY_SECTION_LABEL, SECTION_LABELS } from "@ktb/anamnesis";
-import { CONFIDENCE_LABELS, type AnamnesisSectionKey } from "@ktb/anamnesis";
+import type { Anamnesis, AnamnesisSectionKey } from "@ktb/anamnesis";
 import { SAMPLE_TRANSCRIPT } from "@ktb/anamnesis";
 import { birthDateFromAge, errorMessage, type PatientErrors } from "@ktb/patients/record";
 import {
@@ -36,6 +35,7 @@ import {
 } from "@ktb/transcription";
 
 import { CONF_BAR, CONF_STYLE } from "./-ui.ts";
+import { consultationMessages } from "../i18n.ts";
 import {
 	AudioTranscriptPanel,
 	useConsultationAudio,
@@ -98,13 +98,18 @@ export function NewConsultationPage({
 	initialPatientId,
 	api,
 	backend,
+	locale = "en",
 }: {
 	initialPatients: Array<{ id: number; name: string }>;
 	/** Preselect a patient (e.g. "New consultation" from the patient record). */
 	initialPatientId?: number;
 	api: NewConsultationApi;
 	backend: TranscriptionBackend;
+	/** Active UI locale, injected by the host (route loader / panel ctx). */
+	locale?: string;
 }) {
+	const t = consultationMessages(locale);
+	const nc = t.newConsultation;
 	const [recording, setRecording] = useState(false);
 	const [supported] = useState(() => backend.mic().supported);
 	const [transcript, setTranscript] = useState("");
@@ -143,7 +148,7 @@ export function NewConsultationPage({
 	const [tabRecording, setTabRecording] = useState(false);
 	const [modelStatus, setModelStatus] = useState<string | null>(() => {
 		const st = backend.status();
-		return st.state === "ready" ? `model ready (${st.device})` : null;
+		return st.state === "ready" ? t.newConsultation.modelReady(st.device) : null;
 	});
 	const [toast, setToast] = useState<ToastData | null>(null);
 	const [source, setSource] = useState<"record" | "bot" | "upload">("record");
@@ -163,19 +168,20 @@ export function NewConsultationPage({
 	useEffect(() => {
 		const off = backend.subscribe((m) => {
 			if (m.type === "progress") setModelStatus(m.message ?? null);
-			if (m.type === "ready") setModelStatus(`model ready (${m.device})`);
-			if (m.type === "error" && !m.id) setModelStatus(`model unavailable: ${m.message}`);
+			if (m.type === "ready") setModelStatus(t.newConsultation.modelReady(m.device));
+			if (m.type === "error" && !m.id)
+				setModelStatus(t.newConsultation.modelUnavailable(m.message ?? ""));
 		});
 		backend.load();
 		return off;
 	}, []);
 
 	useEffect(() => {
-		const t = backend.mic();
-		transcriberRef.current = t;
+		const tr = backend.mic();
+		transcriberRef.current = tr;
 		tabRef.current = backend.tab();
 		return () => {
-			t.stop();
+			tr.stop();
 			tabRef.current?.stop();
 		};
 	}, []);
@@ -213,7 +219,7 @@ export function NewConsultationPage({
 		const form = new FormData();
 		form.append("audio", blob, filename);
 		const res = await fetch("/api/transcribe", { method: "POST", body: form });
-		if (!res.ok) throw new Error(`transcription failed (${res.status})`);
+		if (!res.ok) throw new Error(t.newConsultation.transcriptionFailedStatus(res.status));
 		const { text } = (await res.json()) as { text: string };
 		return text;
 	}
@@ -226,7 +232,7 @@ export function NewConsultationPage({
 			const text = await transcribeAudioBlob(file, file.name);
 			setTranscript((t) => (t ? `${t}\n${text}` : text));
 		} catch (e) {
-			setError(e instanceof Error ? e.message : "transcription failed");
+			setError(e instanceof Error ? e.message : t.newConsultation.transcriptionFailed);
 		} finally {
 			setBusy(false);
 		}
@@ -239,25 +245,26 @@ export function NewConsultationPage({
 	 * lines. No-op for transcribers without stats/recording support.
 	 */
 	async function maybeServerFallback(mode: "mic" | "tab" | "dict") {
-		const t = mode === "tab" ? tabRef.current : transcriberRef.current;
+		const tr = mode === "tab" ? tabRef.current : transcriberRef.current;
 		/* v8 ignore next -- refs are assigned in useEffect before any capture ends */
-		if (!t) return;
-		const stats = t.sessionStats?.();
+		if (!tr) return;
+		const stats = tr.sessionStats?.();
 		if (!stats || !needsServerFallback(stats)) return;
-		const blob = await t.recording?.();
+		const blob = await tr.recording?.();
 		if (!blob) return;
-		setModelStatus("low confidence, reprocessing on the server…");
+		setModelStatus(t.newConsultation.lowConfidenceReprocessing);
 		try {
 			const text = await transcribeAudioBlob(blob, "session.webm");
 			if (!text.trim()) return;
 			const snap = sessionSnapshot.current[mode];
-			const label = mode === "mic" ? "Doctor:" : mode === "tab" ? "Patient:" : "";
+			const label =
+				mode === "mic" ? `${t.speakers.doctor}:` : mode === "tab" ? `${t.speakers.patient}:` : "";
 			setTranscript((prev) => {
 				const base = prev.slice(0, snap).replace(/\s+$/, "");
 				const line = label ? `${label} ${text}` : text;
 				return base ? `${base}\n${line}` : line;
 			});
-			setModelStatus("transcription redone on the server");
+			setModelStatus(t.newConsultation.transcriptionRedone);
 		} catch {
 			setModelStatus(null);
 		}
@@ -279,7 +286,7 @@ export function NewConsultationPage({
 			error?: string;
 		};
 		if (!res.ok || !data.consultationId) {
-			setError(data.error ?? `bot failed: HTTP ${res.status}`);
+			setError(data.error ?? t.newConsultation.botFailed(res.status));
 			return;
 		}
 		setLiveId(data.consultationId);
@@ -287,20 +294,20 @@ export function NewConsultationPage({
 	}
 
 	function toggleRecording() {
-		const t = transcriberRef.current;
+		const tr = transcriberRef.current;
 		/* v8 ignore next -- refs are assigned in useEffect before any click */
-		if (!t) return;
+		if (!tr) return;
 		if (recording) {
-			t.stop();
+			tr.stop();
 			setRecording(false);
 			return;
 		}
 		setError(null);
 		sessionSnapshot.current.mic = transcript.length;
-		t.start((ev) => {
+		tr.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
-				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Doctor: ${ev.text}`);
+				setTranscript((prev) => `${prev}${prev ? "\n" : ""}${t.speakers.doctor}: ${ev.text}`);
 				setPartial("");
 			}
 			if (ev.type === "error") {
@@ -317,20 +324,20 @@ export function NewConsultationPage({
 	}
 
 	function toggleTabCapture() {
-		const t = tabRef.current;
+		const tr = tabRef.current;
 		/* v8 ignore next -- refs are assigned in useEffect before any click */
-		if (!t) return;
+		if (!tr) return;
 		if (tabRecording) {
-			t.stop();
+			tr.stop();
 			setTabRecording(false);
 			return;
 		}
 		setError(null);
 		sessionSnapshot.current.tab = transcript.length;
-		t.start((ev) => {
+		tr.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
-				setTranscript((prev) => `${prev}${prev ? "\n" : ""}Patient: ${ev.text}`);
+				setTranscript((prev) => `${prev}${prev ? "\n" : ""}${t.speakers.patient}: ${ev.text}`);
 				setPartial("");
 			}
 			if (ev.type === "error") {
@@ -348,15 +355,15 @@ export function NewConsultationPage({
 
 	/**
 	 * Post-consultation dictation: same mic transcriber (Whisper), single
-	 * speaker — finals land in the transcript without a "Doctor:" prefix
+	 * speaker — finals land in the transcript without a speaker prefix
 	 * since the narration already describes the whole consultation.
 	 */
 	function toggleDictation() {
-		const t = transcriberRef.current;
+		const tr = transcriberRef.current;
 		/* v8 ignore next -- refs are assigned in useEffect before any click */
-		if (!t) return;
+		if (!tr) return;
 		if (dictating) {
-			t.stop();
+			tr.stop();
 			setDictating(false);
 			return;
 		}
@@ -364,7 +371,7 @@ export function NewConsultationPage({
 		dictationStartRef.current = Date.now();
 		setElapsedSec(0);
 		sessionSnapshot.current.dict = transcript.length;
-		t.start((ev) => {
+		tr.start((ev) => {
 			if (ev.type === "partial") setPartial(ev.text);
 			if (ev.type === "final") {
 				setTranscript((prev) => `${prev}${prev ? "\n" : ""}${ev.text}`);
@@ -409,7 +416,7 @@ export function NewConsultationPage({
 			setAudioConsultId(id);
 		} catch (e) {
 			showToast({
-				text: `Audio could not be uploaded (${e instanceof Error ? e.message : "error"}). The consultation was saved without it.`,
+				text: t.newConsultation.audioUploadFailed(e instanceof Error ? e.message : "error"),
 			});
 		}
 	}
@@ -457,7 +464,7 @@ export function NewConsultationPage({
 						patientId,
 					},
 				});
-				if (!r.ok) throw new Error("session expired. Reload the page");
+				if (!r.ok) throw new Error(t.newConsultation.saveSessionExpired);
 			} else {
 				const res = await api.saveConsultation({
 					data: {
@@ -469,7 +476,7 @@ export function NewConsultationPage({
 				});
 				id = res.id ?? null;
 			}
-			if (!id) throw new Error("could not save the consultation");
+			if (!id) throw new Error(t.newConsultation.saveFailed);
 			if (consented) await api.recordConsent({ data: id });
 			setSavedId(id);
 			void uploadSessionAudio(id);
@@ -497,8 +504,8 @@ export function NewConsultationPage({
 		if (!anamnesis) return;
 		const text = anamnesisToText(anamnesis);
 		void navigator.clipboard.writeText(text).then(
-			() => showToast({ text: "Anamnesis copied to clipboard" }),
-			() => setError("Could not copy. Select the text manually."),
+			() => showToast({ text: t.newConsultation.anamnesisCopied }),
+			() => setError(t.newConsultation.copyFailed),
 		);
 	}
 
@@ -511,7 +518,7 @@ export function NewConsultationPage({
 	const extractText = viewedText?.text ?? transcript;
 	/* v8 ignore next -- patientId only comes from the patients list or createPatient */
 	const dialogPatientName = patientId
-		? (patients.find((p) => p.id === patientId)?.name ?? "patient")
+		? (patients.find((p) => p.id === patientId)?.name ?? t.newConsultation.patientFallback)
 		: null;
 
 	const cardCls = "rounded-2xl border border-border bg-card shadow-sm";
@@ -521,18 +528,15 @@ export function NewConsultationPage({
 			{/* ---- header + progress ---- */}
 			<div className="flex flex-wrap items-end justify-between gap-4">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">New consultation</h1>
-					<p className="mt-1 text-sm text-muted-foreground">
-						Record the conversation or paste the transcript. The anamnesis comes out structured for
-						review.
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{nc.title}</h1>
+					<p className="mt-1 text-sm text-muted-foreground">{nc.subtitle}</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-3 text-sm">
-					<Step n={1} label="Prepare" done={step1} />
+					<Step n={1} label={nc.steps.prepare} done={step1} />
 					<span className="h-px w-6 bg-border" />
-					<Step n={2} label="Transcribe" done={step2} />
+					<Step n={2} label={nc.steps.transcribe} done={step2} />
 					<span className="h-px w-6 bg-border" />
-					<Step n={3} label="Review" done={step3} />
+					<Step n={3} label={nc.steps.review} done={step3} />
 				</div>
 			</div>
 
@@ -542,12 +546,12 @@ export function NewConsultationPage({
 				onValueChange={(v) => setMode(v as "live" | "dictation")}
 				className="mt-4 w-fit"
 			>
-				<TabsList aria-label="Consultation mode">
+				<TabsList aria-label={nc.modeLabel}>
 					<TabsTrigger value="live" disabled={live}>
-						Live consultation
+						{nc.modeLive}
 					</TabsTrigger>
 					<TabsTrigger value="dictation" disabled={live}>
-						Post-consultation dictation
+						{nc.modeDictation}
 					</TabsTrigger>
 				</TabsList>
 			</Tabs>
@@ -560,13 +564,13 @@ export function NewConsultationPage({
 							id="patient-label"
 							className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 						>
-							Patient
+							{nc.patientLabel}
 						</span>
 						<Select
 							value={patientId === null ? "" : String(patientId)}
 							onValueChange={(v) => setPatientId(v ? Number(v) : null)}
 							items={[
-								{ label: "unlinked", value: "" },
+								{ label: nc.unlinked, value: "" },
 								...patients.map((p) => ({ label: p.name, value: String(p.id) })),
 							]}
 						>
@@ -574,7 +578,7 @@ export function NewConsultationPage({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="">unlinked</SelectItem>
+								<SelectItem value="">{nc.unlinked}</SelectItem>
 								{patients.map((p) => (
 									<SelectItem key={p.id} value={String(p.id)}>
 										{p.name}
@@ -587,8 +591,8 @@ export function NewConsultationPage({
 						<Input
 							value={patientName}
 							onChange={(e) => setPatientName(e.target.value)}
-							placeholder="new patient"
-							aria-label="New patient name"
+							placeholder={nc.newPatientPlaceholder}
+							aria-label={nc.newPatientNameLabel}
 							className="w-40"
 						/>
 						<Input
@@ -598,8 +602,8 @@ export function NewConsultationPage({
 							inputMode="numeric"
 							value={patientAge}
 							onChange={(e) => setPatientAge(e.target.value)}
-							placeholder="age"
-							aria-label="New patient age"
+							placeholder={nc.agePlaceholder}
+							aria-label={nc.newPatientAgeLabel}
 							className="w-20"
 						/>
 						<Button
@@ -610,7 +614,7 @@ export function NewConsultationPage({
 								if (!patientName.trim()) return;
 								const age = Number(patientAge);
 								if (patientAge === "" || !Number.isInteger(age) || age < 0) {
-									setPatientError("Enter the patient's age.");
+									setPatientError(nc.ageRequired);
 									return;
 								}
 								setPatientError(null);
@@ -620,7 +624,7 @@ export function NewConsultationPage({
 								if (!res.ok) {
 									// Validation comes back as codes; this view is English-only (T-025).
 									const code = Object.values(res.errors)[0];
-									setPatientError(code ? errorMessage(code) : "Could not register the patient.");
+									setPatientError(code ? errorMessage(code, locale) : nc.patientCreateFailed);
 									return;
 								}
 								const p = res.patient;
@@ -631,7 +635,7 @@ export function NewConsultationPage({
 								setPatientAge("");
 							}}
 						>
-							+ patient
+							{nc.addPatient}
 						</Button>
 						{patientError ? (
 							<span role="alert" className="text-xs text-destructive">
@@ -644,7 +648,7 @@ export function NewConsultationPage({
 								params={{ id: String(quickCreatedId) }}
 								className="text-xs font-medium underline"
 							>
-								Complete the record
+								{nc.completeRecord}
 							</Link>
 						) : null}
 					</div>
@@ -659,7 +663,7 @@ export function NewConsultationPage({
 							checked={consented}
 							onCheckedChange={(checked) => setConsented(checked === true)}
 						/>
-						I declare that the patient was informed and consented to the recording
+						{nc.consentDeclaration}
 					</label>
 				</div>
 			</section>
@@ -668,7 +672,7 @@ export function NewConsultationPage({
 				{/* ================= left column: transcript ================= */}
 				<section className={cardCls}>
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
-						<h2 className="font-semibold">Transcript</h2>
+						<h2 className="font-semibold">{t.common.transcript}</h2>
 						{mode === "live" ? (
 							<Tabs
 								value={source}
@@ -676,9 +680,9 @@ export function NewConsultationPage({
 								className="w-fit"
 							>
 								<TabsList className="text-xs">
-									<TabsTrigger value="record">Record</TabsTrigger>
-									<TabsTrigger value="upload">Upload</TabsTrigger>
-									<TabsTrigger value="bot">Teleconsult (bot)</TabsTrigger>
+									<TabsTrigger value="record">{nc.tabRecord}</TabsTrigger>
+									<TabsTrigger value="upload">{nc.tabUpload}</TabsTrigger>
+									<TabsTrigger value="bot">{nc.tabBot}</TabsTrigger>
 								</TabsList>
 							</Tabs>
 						) : null}
@@ -687,11 +691,7 @@ export function NewConsultationPage({
 					<div className="space-y-4 p-5">
 						{mode === "dictation" ? (
 							<div className="flex flex-col items-center gap-3 rounded-xl border border-border px-6 py-8 text-center">
-								<p className="max-w-md text-sm text-muted-foreground">
-									The consultation already happened? Narrate everything out loud, as if explaining
-									the case, in a single voice (yours): chief complaint, history, exam, and plan. The
-									narration becomes the transcript that generates the anamnesis.
-								</p>
+								<p className="max-w-md text-sm text-muted-foreground">{nc.dictationDescription}</p>
 								<Button
 									type="button"
 									onClick={toggleDictation}
@@ -703,23 +703,20 @@ export function NewConsultationPage({
 									<span
 										className={`size-3 rounded-full ${dictating ? "animate-pulse bg-white" : "bg-white/70"}`}
 									/>
-									{dictating ? `Stop dictation (${fmtElapsed(elapsedSec)})` : "Start dictation"}
+									{dictating ? nc.stopDictation(fmtElapsed(elapsedSec)) : nc.startDictation}
 								</Button>
 								{dictating ? (
 									<p className="text-xs text-muted-foreground">
-										recording… {fmtElapsed(elapsedSec)}. The transcript appears below in real time
+										{nc.dictatingHint(fmtElapsed(elapsedSec))}
 									</p>
 								) : null}
 								{!consented ? (
 									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-										Check the consent box above to enable dictation.
+										{nc.consentRequiredDictation}
 									</Alert>
 								) : null}
 								{!supported ? (
-									<p className="text-xs text-amber-600">
-										Recording is not supported in this browser. Use the sample or paste the text
-										(Chrome/Edge support it).
-									</p>
+									<p className="text-xs text-amber-600">{nc.unsupportedBrowser}</p>
 								) : null}
 							</div>
 						) : source === "upload" ? (
@@ -736,9 +733,9 @@ export function NewConsultationPage({
 									}}
 								/>
 								<span className="font-medium text-foreground">
-									{busy ? "Transcribing…" : "Upload recording"}
+									{busy ? nc.uploading : nc.uploadRecording}
 								</span>
-								<span className="text-[11px]">Audio transcribed on the server (Whisper)</span>
+								<span className="text-[11px]">{nc.uploadHint}</span>
 							</label>
 						) : source === "record" ? (
 							<>
@@ -758,10 +755,10 @@ export function NewConsultationPage({
 											) : (
 												<span className="size-2.5 rounded-full bg-muted-foreground" />
 											)}
-											{recording ? "Stop microphone" : "Record microphone"}
+											{recording ? nc.stopMic : nc.recordMic}
 										</span>
 										<span className="mt-1 text-[11px] text-muted-foreground">
-											Your voice, shown as “Doctor”
+											{nc.micHint(t.speakers.doctor)}
 										</span>
 									</Button>
 									<Button
@@ -779,47 +776,38 @@ export function NewConsultationPage({
 											) : (
 												<span className="size-2.5 rounded-full bg-muted-foreground" />
 											)}
-											{tabRecording ? "Stop tab" : "Capture call tab"}
+											{tabRecording ? nc.stopTab : nc.captureTab}
 										</span>
 										<span className="mt-1 text-[11px] text-muted-foreground">
-											Call audio, shown as “Patient”
+											{nc.tabHint(t.speakers.patient)}
 										</span>
 									</Button>
 								</div>
 								{!consented ? (
 									<Alert className="border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-										Check the consent box above to enable recording.
+										{nc.consentRequiredRecording}
 									</Alert>
 								) : (
-									<p className="text-[11px] text-muted-foreground">
-										Tip: enable both to separate doctor and patient, and use headphones so the
-										microphone does not pick up the speakers.
-									</p>
+									<p className="text-[11px] text-muted-foreground">{nc.recordingTip}</p>
 								)}
 								{!supported ? (
-									<p className="text-xs text-amber-600">
-										Recording is not supported in this browser. Use the sample or paste the text
-										(Chrome/Edge support it).
-									</p>
+									<p className="text-xs text-amber-600">{nc.unsupportedBrowser}</p>
 								) : null}
 							</>
 						) : (
 							<div>
 								<div className="flex items-center gap-2">
 									<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary ring-1 ring-primary/20">
-										free speaker labels via channels
+										{nc.channelsBadge}
 									</span>
 								</div>
-								<p className="mt-2 text-xs text-muted-foreground">
-									The “KTB Health” bot joins your call (Meet/Zoom/Teams), transcribes with speaker
-									separation, and generates the draft when the consultation ends.
-								</p>
+								<p className="mt-2 text-xs text-muted-foreground">{nc.botDescription}</p>
 								<div className="mt-3 flex gap-2">
 									<Input
 										type="url"
 										value={meetUrl}
 										onChange={(e) => setMeetUrl(e.target.value)}
-										aria-label="Teleconsult link"
+										aria-label={nc.teleconsultLinkLabel}
 										placeholder="https://meet.google.com/xxx-xxxx-xxx"
 									/>
 									<Button
@@ -828,7 +816,7 @@ export function NewConsultationPage({
 										disabled={!meetUrl.trim() || liveStatus === "live"}
 										className="shrink-0"
 									>
-										{liveStatus === "live" ? "bot in call…" : "Send bot"}
+										{liveStatus === "live" ? nc.botInCall : nc.sendBot}
 									</Button>
 								</div>
 								{liveId ? (
@@ -838,8 +826,10 @@ export function NewConsultationPage({
 										) : (
 											<span className="size-2 rounded-full bg-primary" />
 										)}
-										consultation #{liveId} ·{" "}
-										{liveStatus === "live" ? "transcribing live" : "call ended"}
+										{nc.consultationLive(
+											liveId,
+											liveStatus === "live" ? nc.transcribingLive : nc.callEnded,
+										)}
 									</p>
 								) : null}
 							</div>
@@ -856,7 +846,7 @@ export function NewConsultationPage({
 							{live ? (
 								<span className="flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700">
 									<span className="size-2 animate-pulse rounded-full bg-red-600" />
-									recording… speak normally
+									{nc.recordingSpeak}
 								</span>
 							) : null}
 						</div>
@@ -872,7 +862,7 @@ export function NewConsultationPage({
 									htmlFor="transcript"
 									className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
 								>
-									Consultation text
+									{nc.consultationText}
 								</label>
 								<div className="flex gap-2">
 									<Button
@@ -881,7 +871,7 @@ export function NewConsultationPage({
 										size="sm"
 										onClick={() => setTranscript(SAMPLE_TRANSCRIPT)}
 									>
-										Use sample
+										{nc.useSample}
 									</Button>
 									<Button
 										type="button"
@@ -890,7 +880,7 @@ export function NewConsultationPage({
 										onClick={() => setTranscript("")}
 										disabled={!transcript}
 									>
-										Clear
+										{nc.clear}
 									</Button>
 								</div>
 							</div>
@@ -899,7 +889,7 @@ export function NewConsultationPage({
 								value={transcript}
 								onChange={(e) => setTranscript(e.target.value)}
 								rows={14}
-								placeholder="The transcript appears here (or paste the consultation text)"
+								placeholder={nc.transcriptPlaceholder}
 								className="w-full resize-y rounded-xl border border-border px-3 py-2.5 font-mono text-sm leading-relaxed"
 							/>
 						</div>
@@ -907,9 +897,10 @@ export function NewConsultationPage({
 						{audioDetail || audioConsultId !== null ? (
 							<div className="rounded-xl border border-border p-3">
 								<p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-									Server transcript
+									{nc.serverTranscript}
 								</p>
 								<AudioTranscriptPanel
+									locale={locale}
 									consultationId={audioConsultId}
 									audioStatus={audioDetail?.audioStatus ?? "queued"}
 									hasAudio={Boolean(audioDetail?.audioKey)}
@@ -928,11 +919,11 @@ export function NewConsultationPage({
 							className="h-auto w-full px-4 py-2.5"
 						>
 							{busy ? <Spinner /> : null}
-							{busy ? "Generating anamnesis…" : "Generate anamnesis →"}
+							{busy ? nc.generating : nc.generate}
 						</Button>
 						{viewedText ? (
 							<p className="text-[11px] text-muted-foreground">
-								anamnesis generated from the {viewedText.source} transcript
+								{nc.generatedFrom(viewedText.source)}
 							</p>
 						) : null}
 						{error ? (
@@ -946,9 +937,9 @@ export function NewConsultationPage({
 				{/* ================= right column: result ================= */}
 				<section className={`${cardCls} lg:sticky lg:top-4`}>
 					<div className="flex items-center justify-between border-b border-border px-5 py-3">
-						<span className="text-sm font-medium">Anamnesis</span>
+						<span className="text-sm font-medium">{t.common.anamnesis}</span>
 						{engine ? (
-							<span className="text-[11px] text-muted-foreground">engine: {engine}</span>
+							<span className="text-[11px] text-muted-foreground">{t.common.engine(engine)}</span>
 						) : null}
 					</div>
 
@@ -958,11 +949,8 @@ export function NewConsultationPage({
 								<EmptyMedia variant="icon">
 									<ClipboardListIcon />
 								</EmptyMedia>
-								<EmptyTitle>Waiting for anamnesis</EmptyTitle>
-								<EmptyDescription className="max-w-xs">
-									The structured anamnesis appears here. Each section shows the confidence and the
-									source sentences that ground it.
-								</EmptyDescription>
+								<EmptyTitle>{nc.waitingTitle}</EmptyTitle>
+								<EmptyDescription className="max-w-xs">{nc.waitingDescription}</EmptyDescription>
 							</EmptyHeader>
 						</Empty>
 					) : (
@@ -970,14 +958,16 @@ export function NewConsultationPage({
 							{anamnesis.historico ? (
 								<div className="rounded-xl border border-border bg-muted/40 p-3">
 									<p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-										{HISTORY_SECTION_LABEL}
+										{t.sections.historico}
 									</p>
 									<p className="mt-1 text-sm leading-relaxed whitespace-pre-wrap">
 										{anamnesis.historico.content}
 									</p>
 								</div>
 							) : null}
-							{(Object.keys(SECTION_LABELS) as AnamnesisSectionKey[]).map((key) => {
+							{(
+								Object.keys(t.sections).filter((k) => k !== "historico") as AnamnesisSectionKey[]
+							).map((key) => {
 								const sec = anamnesis[key];
 								return (
 									<div
@@ -989,12 +979,12 @@ export function NewConsultationPage({
 												htmlFor={`sec-${key}`}
 												className="text-xs font-semibold text-foreground"
 											>
-												{SECTION_LABELS[key]}
+												{t.sections[key]}
 											</label>
 											<span
 												className={`rounded-full px-2 py-0.5 text-[10px] ring-1 ${CONF_STYLE[sec.confidence]}`}
 											>
-												{CONFIDENCE_LABELS[sec.confidence]}
+												{t.confidence[sec.confidence]}
 											</span>
 										</div>
 										<textarea
@@ -1007,7 +997,7 @@ export function NewConsultationPage({
 										{sec.evidence.length ? (
 											<details className="mt-1">
 												<summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-muted-foreground">
-													evidence ({sec.evidence.length})
+													{t.detail.evidence(sec.evidence.length)}
 												</summary>
 												<ul className="mt-1 list-inside list-disc text-[11px] text-muted-foreground">
 													{sec.evidence.map((ev) => (
@@ -1025,11 +1015,11 @@ export function NewConsultationPage({
 					{anamnesis ? (
 						<div className="flex items-center gap-2 border-t border-border px-5 py-3">
 							<Button type="button" variant="outline" size="sm" onClick={copyAnamnesis}>
-								Copy
+								{t.common.copy}
 							</Button>
 							<Button type="button" size="sm" onClick={save} disabled={saving}>
 								{saving ? <Spinner /> : null}
-								{saving ? "Saving…" : savedId ? "Update consultation" : "Save consultation"}
+								{saving ? nc.saving : savedId ? nc.updateConsultation : nc.saveConsultation}
 							</Button>
 						</div>
 					) : null}
@@ -1042,10 +1032,10 @@ export function NewConsultationPage({
 				tone={saveDialog?.kind === "error" ? "error" : "success"}
 				title={
 					saveDialog?.kind === "error"
-						? "Could not save"
+						? nc.dialogErrorTitle
 						: saveDialog?.updated
-							? "Consultation updated"
-							: "Anamnesis saved successfully"
+							? nc.dialogUpdatedTitle
+							: nc.dialogSavedTitle
 				}
 				actions={
 					saveDialog?.kind === "ok" ? (
@@ -1056,32 +1046,34 @@ export function NewConsultationPage({
 								className={buttonVariants({ variant: "outline", size: "sm" })}
 							>
 								<DownloadIcon className="mr-1.5 inline size-4 -translate-y-px" />
-								Download PDF
+								{t.common.downloadPdf}
 							</a>
 							<Link
 								to="/consultations/$id"
 								params={{ id: String(saveDialog.id) }}
 								className={buttonVariants({ variant: "outline", size: "sm" })}
 							>
-								View consultation
+								{nc.viewConsultation}
 							</Link>
 							<Button type="button" size="sm" onClick={() => setSaveDialog(null)}>
-								Confirm
+								{nc.confirm}
 							</Button>
 						</>
 					) : (
 						<Button type="button" size="sm" onClick={() => setSaveDialog(null)}>
-							Got it
+							{nc.gotIt}
 						</Button>
 					)
 				}
 			>
 				{saveDialog?.kind === "ok" ? (
 					<p>
-						Consultation <strong>#{saveDialog.id}</strong>
-						{patientId ? ` for ${dialogPatientName}` : ""} was{" "}
-						{saveDialog.updated ? "updated" : "saved"} with the reviewed anamnesis.
-						{consented ? " Patient consent recorded." : ""}
+						{nc.dialogSavedBody({
+							id: saveDialog.id,
+							patientName: dialogPatientName,
+							updated: saveDialog.updated,
+							consented,
+						})}
 					</p>
 				) : (
 					<p>{saveDialog?.kind === "error" ? saveDialog.message : ""}</p>

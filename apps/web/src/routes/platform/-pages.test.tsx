@@ -82,7 +82,9 @@ describe.each([
 		mocks.params.current = { _splat: "patients" };
 		mocks.loaderData.current = { rows: 2 };
 		render(createElement(opts(route).component));
-		expect(screen.getByTestId("page").textContent).toBe('{"rows":2}|{"plugins":["plugin-a"]}');
+		expect(screen.getByTestId("page").textContent).toBe(
+			'{"rows":2}|{"plugins":["plugin-a"],"locale":"en"}',
+		);
 	});
 });
 

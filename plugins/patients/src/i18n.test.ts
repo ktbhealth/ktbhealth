@@ -33,6 +33,18 @@ const leaves = (node: unknown): string[] =>
 			? Object.values(node).flatMap(leaves)
 			: [];
 
+/** Every function leaf of a catalog — views call these with real args;
+ * the sweep invokes each once per locale so no catalog ships dead copy. */
+const functionsOf = (
+	node: unknown,
+	out: Array<(...args: any[]) => unknown> = [],
+): Array<(...args: any[]) => unknown> => {
+	if (typeof node === "function") out.push(node as (...args: any[]) => unknown);
+	else if (node !== null && typeof node === "object")
+		for (const value of Object.values(node)) functionsOf(value, out);
+	return out;
+};
+
 describe("patient catalogs", () => {
 	it("resolves known locales and falls back to the base locale", () => {
 		expect(isPatientLocale("pt-BR")).toBe(true);
@@ -62,6 +74,20 @@ describe("patient catalogs", () => {
 		expect(patientMessages("pt-BR").form.approximate("1984")).toBe(
 			"Registrado como 1984 (aproximado). Informe a data exata, se souber.",
 		);
+	});
+
+	it("every catalog function returns copy in every locale", () => {
+		for (const locale of PATIENT_LOCALES) {
+			const fns = functionsOf(patientMessages(locale));
+			expect(fns.length).toBeGreaterThan(5);
+			for (const fn of fns) {
+				// Singular/plural, string and empty-arg shapes hit the inner
+				// ternaries (`n === 1`, `approx ? …`).
+				for (const args of [[1], [2, true], ["x"], [0]]) {
+					expect(typeof fn(...args)).toBe("string");
+				}
+			}
+		}
 	});
 
 	it("translates every validation code", () => {

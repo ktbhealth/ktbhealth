@@ -25,7 +25,7 @@ vi.mock("@alchemy.run/cloudflare", () => ({
 	},
 }));
 
-import { deployD1, deployStaticSite, deployWorker } from "./index.ts";
+import { deploySqlDatabase, deployStaticSite, deployWorker } from "./index.ts";
 
 describe("infra ports and cloudflare adapter", () => {
 	beforeEach(() => {
@@ -36,7 +36,7 @@ describe("infra ports and cloudflare adapter", () => {
 	it("exports deploy functions", () => {
 		expect(typeof deployStaticSite).toBe("function");
 		expect(typeof deployWorker).toBe("function");
-		expect(typeof deployD1).toBe("function");
+		expect(typeof deploySqlDatabase).toBe("function");
 	});
 
 	it("deployStaticSite uses default build command and returns url", async () => {
@@ -79,8 +79,10 @@ describe("infra ports and cloudflare adapter", () => {
 		expect(staticSiteCalls[0]?.spec.compatibility).toBeUndefined();
 	});
 
-	it("deployD1 passes the migrations dir", async () => {
-		const out = await run(deployD1({ name: "db-a", migrationsDir: "packages/db/drizzle" }));
+	it("deploySqlDatabase passes the migrations dir", async () => {
+		const out = await run(
+			deploySqlDatabase({ name: "db-a", migrationsDir: "packages/db/drizzle" }),
+		);
 		expect(out.db).toEqual({ name: "db-a" });
 		expect(d1Calls[0]).toEqual({
 			name: "db-a",

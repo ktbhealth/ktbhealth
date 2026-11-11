@@ -156,6 +156,7 @@ beforeAll(() => {
 		},
 		recordExporters: { "fhir-r4": fhirR4Exporter, openehr: openEhrExporter },
 		getLocale: () => "en",
+		audioTranscribeModel: "test-model",
 	});
 });
 

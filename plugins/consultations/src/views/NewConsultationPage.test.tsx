@@ -728,6 +728,15 @@ describe("NewConsultationPage", () => {
 		await screen.findByText(/model unavailable: falhou tudo/);
 	});
 
+	it("engine error with a segment id is ignored; messageless errors still surface", async () => {
+		renderPage();
+		// Segment-scoped errors (id present) must not clobber model status.
+		for (const fn of engineSubs) fn({ type: "error", id: "seg-1", message: "chunk failed" });
+		// A global error without a message falls back to the empty suffix.
+		for (const fn of engineSubs) fn({ type: "error" });
+		await screen.findByText(/model unavailable/);
+	});
+
 	it("live consultation done stops polling and shows call ended", async () => {
 		const user = userEvent.setup();
 		const api = makeApi({

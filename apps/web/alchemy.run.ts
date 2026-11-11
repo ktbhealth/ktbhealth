@@ -2,7 +2,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import { deployD1, deployWorker } from "@ktb/infra-cloudflare";
+import { deploySqlDatabase, deployWorker } from "@ktb/infra-cloudflare";
 
 export default Alchemy.Stack(
 	"ktb-web",
@@ -11,7 +11,7 @@ export default Alchemy.Stack(
 		state: Cloudflare.state(),
 	},
 	Effect.gen(function* () {
-		const { db } = yield* deployD1({
+		const { db } = yield* deploySqlDatabase({
 			name: "db",
 			migrationsDir: "../../packages/db/alchemy-migrations",
 		});
@@ -35,6 +35,9 @@ export default Alchemy.Stack(
 				...(process.env.BETTER_AUTH_SECRET
 					? { BETTER_AUTH_SECRET: Redacted.make(process.env.BETTER_AUTH_SECRET) }
 					: {}),
+				// Public base URL better-auth builds callback/reset links
+				// from — config, not a secret (cuora ref: better-auth-url).
+				...(process.env.BETTER_AUTH_URL ? { BETTER_AUTH_URL: process.env.BETTER_AUTH_URL } : {}),
 				...(process.env.TURNSTILE_SECRET_KEY
 					? { TURNSTILE_SECRET_KEY: Redacted.make(process.env.TURNSTILE_SECRET_KEY) }
 					: {}),
@@ -48,6 +51,7 @@ export default Alchemy.Stack(
 						"LLM_BASE_URL",
 						"LLM_MODEL",
 						"WORKERS_AI_MODEL",
+						"RECALL_API_KEY",
 					]
 						.filter((k) => process.env[k])
 						.map((k) => [k, Redacted.make(process.env[k] as string)]),
@@ -57,8 +61,13 @@ export default Alchemy.Stack(
 				...(process.env.PLATFORM_ADMIN_EMAILS
 					? { PLATFORM_ADMIN_EMAILS: process.env.PLATFORM_ADMIN_EMAILS }
 					: {}),
+				// Server-side transcription model override (plain config).
+				...(process.env.AUDIO_TRANSCRIBE_MODEL
+					? { AUDIO_TRANSCRIBE_MODEL: process.env.AUDIO_TRANSCRIBE_MODEL }
+					: {}),
 			},
-			compatibilityFlags: ["nodejs_compat"],
+			// No nodejs_compat: worker-runtime code reads secrets only via
+			// bindings (.dev.vars in dev, these bindings in prod).
 		});
 
 		// Queue consumer → this worker's `queue` handler (src/server.ts).

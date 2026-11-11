@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { Notifications, rowToConsole } from "@ktb/notifications";
-import { run, runAs } from "#/lib/platform.ts";
+import { run, runAs, serverPlugins } from "#/lib/platform.ts";
 import { platformPages } from "#/lib/platform-pages.ts";
 import { PlatformAdmin } from "@ktb/platform";
+import type { PanelPage } from "@ktb/kernel";
 import { Schema } from "effect";
 import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
 import * as Effect from "effect/Effect";
@@ -45,6 +46,11 @@ export type PlatformPageDataResult =
 	| { readonly status: "ok"; readonly data: any }
 	| { readonly status: "notfound" };
 
+/** Server-registry page lookup, built lazily on first dispatch — kept
+ * out of module scope so the client bundle never evaluates it (the
+ * `serverPlugins` import is handler-only, like `run`/`runAs`). */
+let serverPages: ReadonlyMap<string, PanelPage> | undefined;
+
 /**
  * Loader data for /platform console pages contributed via
  * `panel.pages` (P-050): resolves the descriptor registered for `path`
@@ -65,14 +71,25 @@ export const platformPageDataFn = createServerFn({ method: "GET" })
 		if (!user) return { status: "notfound" };
 		const page = platformPages.get(path);
 		if (page === undefined) return { status: "notfound" };
+		// Page descriptors are split across the two registries: the client
+		// manifest (platformPages) carries id/path/component, while
+		// `guard`/`loader` stay server-side on the @ktb/app-host plugin
+		// objects and never reach the browser bundle. A descriptor's own
+		// handlers win when present — tests inject full pages directly.
+		serverPages ??= new Map(
+			serverPlugins.flatMap((p) => (p.panel?.pages ?? []).map((pg) => [pg.path, pg] as const)),
+		);
+		const serverPage = serverPages.get(path);
+		const guard = page.guard ?? serverPage?.guard;
+		const loader = page.loader ?? serverPage?.loader;
 		// Page-level guard (feature flags / entitlements) runs before the
 		// loader; `false` hides the page exactly like an unknown path.
-		if (page.guard !== undefined) {
-			const allowed = await runAs(user, page.guard());
+		if (guard !== undefined) {
+			const allowed = await runAs(user, guard());
 			if (!allowed) return { status: "notfound" };
 		}
-		if (page.loader === undefined) return { status: "ok", data: null };
-		return { status: "ok", data: await runAs(user, page.loader()) };
+		if (loader === undefined) return { status: "ok", data: null };
+		return { status: "ok", data: await runAs(user, loader()) };
 	});
 
 // ---------- patients ----------
