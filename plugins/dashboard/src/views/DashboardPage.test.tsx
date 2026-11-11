@@ -40,6 +40,7 @@ const consultation = (over: Partial<AdminConsultationRow>): AdminConsultationRow
 	ownerEmail: "d@x.com",
 	ownerName: "Dra",
 	patientName: null,
+	tenantId: null,
 	...over,
 });
 

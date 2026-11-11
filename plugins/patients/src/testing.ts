@@ -4,6 +4,7 @@ import type { Patient } from "./index.ts";
 export const makePatient = (over: Partial<Patient> = {}): Patient => ({
 	id: 1,
 	ownerId: "u1",
+	tenantId: null,
 	name: "Maria Silva",
 	active: true,
 	socialName: null,

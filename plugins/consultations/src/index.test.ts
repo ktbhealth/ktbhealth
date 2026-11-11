@@ -13,6 +13,7 @@ import {
 	PatientsQueriesLive,
 } from "@ktb/patients";
 import { makeEventBus, Query } from "@effect-server-utils/cqrs";
+import { Tenant, type Tenant as TenantScope } from "@ktb/tenant";
 import {
 	makePlatformAdminGate,
 	parsePlatformAdminEmails,
@@ -55,8 +56,8 @@ import * as Stream from "effect/Stream";
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
-CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
 `;
 
 // ConsultationsLive requires PlatformAdmin (adminList) — every runtime
@@ -1154,5 +1155,253 @@ describe("plugins", () => {
 			"consultations.landing-nav",
 			"consultations.panel",
 		]);
+	});
+});
+
+describe("ConsultationsLive tenant scope (P-053)", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let testDb: ReturnType<typeof makeDb>;
+
+	const TENANT_A: TenantScope = { id: 7, kind: "clinic", slug: "clinica-a", role: "member" };
+	const TENANT_B: TenantScope = { id: 8, kind: "clinic", slug: "clinica-b", role: "member" };
+
+	const asUser = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Consultations>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
+		);
+
+	const asTenant = <A, E>(
+		userId: string,
+		tenant: TenantScope,
+		effect: Effect.Effect<A, E, Consultations>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(
+				Effect.provideService(effect, Principal, { userId, email }),
+				Tenant,
+				tenant,
+			),
+		);
+
+	const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
+		Effect.flatMap(Consultations, f);
+
+	const saveInput = (over: Partial<SaveConsultationInput> = {}): SaveConsultationInput => ({
+		transcript: "t",
+		anamnesis: {} as SaveConsultationInput["anamnesis"],
+		engine: "e",
+		...over,
+	});
+
+	const tenantIdOf = async (id: number) => {
+		const rows = await testDb
+			.select({ tenantId: consultationsTable.tenantId })
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id));
+		return rows[0]?.tenantId ?? null;
+	};
+
+	beforeAll(async () => {
+		testDb = makeDb(makeD1(DDL));
+		// The shared DDL seeds only u1 — tenant-member scenarios need u2
+		// (the consultations.user_id FK is enforced by better-sqlite3).
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("create/save/adminCreate stamp tenant_id from the bound tenant", async () => {
+		const id = await asTenant(
+			"u1",
+			TENANT_A,
+			call((c) => c.create({ userId: "u1", source: "browser" })),
+		);
+		expect(await tenantIdOf(id!)).toBe(7);
+
+		const saved = await asTenant(
+			"u1",
+			TENANT_A,
+			call((c) => c.save("u1", saveInput())),
+		);
+		expect(await tenantIdOf(saved.id)).toBe(7);
+
+		const admin = await asTenant(
+			"u1",
+			TENANT_A,
+			call((c) => c.adminCreate({ userId: "u2", source: "manual" })),
+			"admin@x.com",
+		);
+		expect(await tenantIdOf(admin!)).toBe(7);
+
+		// Personal scope and non-numeric tenant ids both stamp NULL.
+		const personal = await asUser(
+			"u1",
+			call((c) => c.create({ userId: "u1", source: "browser" })),
+		);
+		expect(await tenantIdOf(personal!)).toBeNull();
+		const weird = await asTenant(
+			"u1",
+			{ ...TENANT_A, id: "clinic-x" },
+			call((c) => c.create({ userId: "u1", source: "browser" })),
+		);
+		expect(await tenantIdOf(weird!)).toBeNull();
+	});
+
+	it("list shows tenant consultations to members and hides them from outsiders and personal scope", async () => {
+		const t7 = await createConsultation(testDb, { userId: "u1", source: "browser" }, 7);
+		const t8 = await createConsultation(testDb, { userId: "u1", source: "browser" }, 8);
+
+		const member = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.list("u2")),
+		);
+		const memberIds = member.map((r) => r.id);
+		expect(memberIds).toContain(t7);
+		expect(memberIds).not.toContain(t8);
+
+		// Personal scope: tenant rows are invisible even to their creator.
+		const personal = await asUser(
+			"u1",
+			call((c) => c.list("u1")),
+		);
+		const personalIds = personal.map((r) => r.id);
+		expect(personalIds).not.toContain(t7);
+		expect(personalIds).not.toContain(t8);
+	});
+
+	it("get/getLive let tenant members read tenant rows; outsiders and personal-scope owners are Forbidden", async () => {
+		const t7 = await createConsultation(
+			testDb,
+			{ userId: "u1", transcript: "shared", source: "mic", status: "live" },
+			7,
+		);
+
+		const got = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.get(t7!, "u2")),
+		);
+		expect(got?.transcript).toBe("shared");
+		const live = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.getLive(t7!, "u2")),
+		);
+		expect(live).toEqual({ transcript: "shared", status: "live" });
+
+		// Member of a different tenant → Forbidden.
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.get(t7!, "u2")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "consultation.read" });
+		// The creator in personal scope → Forbidden (strict tenant rows).
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.get(t7!, "u1")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		// Platform admin reads cross-tenant.
+		const admin = await asTenant(
+			"u1",
+			TENANT_B,
+			call((c) => c.get(t7!, "u1")),
+			"admin@x.com",
+		);
+		expect(admin?.transcript).toBe("shared");
+	});
+
+	it("attachAnamnesis/recordConsent let tenant members update tenant rows", async () => {
+		const t7 = await createConsultation(testDb, { userId: "u1", source: "mic" }, 7);
+		const anamnesis = {} as SaveConsultationInput["anamnesis"];
+
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.attachAnamnesis("u2", { consultationId: t7!, anamnesis, engine: "e" })),
+		);
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.recordConsent(t7!, "u2")),
+		);
+		const rows = await testDb
+			.select({
+				anamnesis: consultationsTable.anamnesis,
+				consentAt: consultationsTable.consentAt,
+			})
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, t7!));
+		expect(rows[0]?.anamnesis).not.toBeNull();
+		expect(rows[0]?.consentAt).toBeInstanceOf(Date);
+
+		// Non-member → Forbidden on both paths.
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.attachAnamnesis("u2", { consultationId: t7!, anamnesis, engine: "e2" })),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.recordConsent(t7!, "u2")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("save links tenant patients for members and rejects non-members", async () => {
+		const patient = (
+			await testDb
+				.insert(patientsTable)
+				.values({ ownerId: "u1", name: "Tenant Patient", tenantId: 7, createdAt: new Date() })
+				.returning({ id: patientsTable.id })
+		)[0]!;
+
+		// Member of tenant 7 links the shared patient; the consultation
+		// is stamped with the bound tenant.
+		const saved = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.save("u2", saveInput({ patientId: patient.id }))),
+		);
+		expect(await tenantIdOf(saved.id)).toBe(7);
+
+		// Member of another tenant → Forbidden (can't probe patient ids).
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.save("u2", saveInput({ patientId: patient.id }))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patient.read" });
+
+		// The patient's owner in personal scope → Forbidden: tenant
+		// patients need tenant context to link.
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.save("u1", saveInput({ patientId: patient.id }))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
 });

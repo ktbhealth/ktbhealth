@@ -28,6 +28,7 @@ import {
 import { PatientsCommands } from "./api.ts";
 import { validatePatient, type PatientFields } from "./record.ts";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
+import { Tenant, type Tenant as TenantScope } from "@ktb/tenant";
 
 /** Validated fields for a name (birth date fixed — only the name varies in these tests). */
 const fields = (name: string, extra: Record<string, string> = {}): PatientFields => {
@@ -40,7 +41,7 @@ const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
 INSERT INTO "user" VALUES ('u2', 'Dr B', 'b@x.com', 0, NULL, 0, 0);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
 `;
 
 describe("patients repo", () => {
@@ -591,6 +592,202 @@ describe("PatientsCommandsLive", () => {
 			expect(await getPatient(db, row.id)).not.toBeNull();
 		} finally {
 			await runtime.dispose();
+		}
+	});
+});
+
+describe("PatientsLive tenant scope (P-053)", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Patients, never>;
+	let db: ReturnType<typeof makeDb>;
+
+	const TENANT_A: TenantScope = { id: 7, kind: "clinic", slug: "clinica-a", role: "member" };
+	const TENANT_B: TenantScope = { id: 8, kind: "clinic", slug: "clinica-b", role: "member" };
+
+	beforeAll(() => {
+		db = makeDb(makeD1(DDL));
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, db),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+			makeEventBus(),
+		);
+		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
+	});
+
+	afterAll(() => runtime.dispose());
+
+	const asUser = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Patients>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
+		);
+
+	const asTenant = <A, E>(
+		userId: string,
+		tenant: TenantScope,
+		effect: Effect.Effect<A, E, Patients>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(
+				Effect.provideService(effect, Principal, { userId, email }),
+				Tenant,
+				tenant,
+			),
+		);
+
+	const call = <A, E>(f: (p: Patients["Service"]) => Effect.Effect<A, E>) =>
+		Effect.flatMap(Patients, f);
+
+	it("create stamps tenant_id from the bound tenant; personal scope stamps NULL", async () => {
+		const shared = await asTenant(
+			"u1",
+			TENANT_A,
+			call((p) => p.create("u1", fields("Tenant Pat"))),
+		);
+		expect(shared?.tenantId).toBe(7);
+		expect((await getPatient(db, shared!.id))?.tenantId).toBe(7);
+
+		const personal = await asUser(
+			"u1",
+			call((p) => p.create("u1", fields("Personal Pat"))),
+		);
+		expect(personal?.tenantId).toBeNull();
+	});
+
+	it("create leaves tenant_id NULL for non-numeric tenant ids", async () => {
+		const row = await asTenant(
+			"u1",
+			{ ...TENANT_A, id: "clinic-x" },
+			call((p) => p.create("u1", fields("Strange Tenant"))),
+		);
+		expect(row?.tenantId).toBeNull();
+	});
+
+	it("adminCreate stamps the bound tenant", async () => {
+		const row = await asTenant(
+			"u1",
+			TENANT_A,
+			call((p) => p.adminCreate("u2", fields("Admin Tenant Pat"))),
+			"admin@x.com",
+		);
+		expect(row?.tenantId).toBe(7);
+		expect(row?.ownerId).toBe("u2");
+	});
+
+	it("list shows tenant rows to members and hides them from outsiders and personal scope", async () => {
+		await createPatient(db, "u1", fields("Clinic Shared"), 7);
+		await createPatient(db, "u2", fields("Other Clinic"), 8);
+
+		// u2 is a member of tenant 7: sees u1's tenant-7 row, not tenant 8's.
+		const member = await asTenant(
+			"u2",
+			TENANT_A,
+			call((p) => p.list("u2")),
+		);
+		const memberNames = member.map((r) => r.name);
+		expect(memberNames).toContain("Clinic Shared");
+		expect(memberNames).not.toContain("Other Clinic");
+
+		// Personal scope: tenant rows are invisible even to their creator.
+		const personal = await asUser(
+			"u1",
+			call((p) => p.list("u1")),
+		);
+		expect(personal.map((r) => r.name)).not.toContain("Clinic Shared");
+		expect(personal.map((r) => r.name)).not.toContain("Other Clinic");
+	});
+
+	it("get lets tenant members read tenant rows; outsiders, personal-scope owners and admins behave", async () => {
+		const shared = (await createPatient(db, "u1", fields("Shared Get"), 7))!;
+
+		const got = await asTenant(
+			"u2",
+			TENANT_A,
+			call((p) => p.get("u2", shared.id)),
+		);
+		expect(got?.name).toBe("Shared Get");
+
+		// Member of a different tenant → Forbidden.
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((p) => p.get("u2", shared.id)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patient.read" });
+
+		// The creator in personal scope → Forbidden: tenant rows require
+		// tenant context, ownerId is not an access grant outside it.
+		await expect(
+			asUser(
+				"u1",
+				call((p) => p.get("u1", shared.id)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+
+		// Platform admin reads cross-tenant.
+		const admin = await asTenant(
+			"u1",
+			TENANT_B,
+			call((p) => p.get("u1", shared.id)),
+			"admin@x.com",
+		);
+		expect(admin?.name).toBe("Shared Get");
+	});
+
+	it("update lets tenant members operate tenant rows; non-members are Forbidden", async () => {
+		const shared = (await createPatient(db, "u1", fields("Shared Edit"), 7))!;
+
+		const updated = await asTenant(
+			"u2",
+			TENANT_A,
+			call((p) => p.update("u2", shared.id, fields("Shared Edit 2"))),
+		);
+		expect(updated?.name).toBe("Shared Edit 2");
+
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((p) => p.update("u2", shared.id, fields("Hijack"))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patient.update" });
+	});
+
+	it("patients.delete lets a tenant member remove a tenant row; non-members are Forbidden", async () => {
+		const db2 = makeDb(makeD1(DDL));
+		const shared = (await createPatient(db2, "u1", fields("Shared Del"), 7))!;
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, db2),
+			makeEventBus(),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+		);
+		const rt = ManagedRuntime.make(PatientsCommandsLive.pipe(Layer.provideMerge(deps)));
+		const del = (tenant: TenantScope) =>
+			rt.runPromise(
+				Effect.provideService(
+					Effect.provideService(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(PatientsCommands);
+							yield* commands["patients.delete"]({ id: shared.id });
+						}).pipe(Effect.scoped),
+						Principal,
+						{ userId: "u2" },
+					),
+					Tenant,
+					tenant,
+				),
+			);
+		try {
+			await expect(del(TENANT_B)).rejects.toMatchObject({ _tag: "Forbidden" });
+			expect(await getPatient(db2, shared.id)).not.toBeNull();
+			await del(TENANT_A);
+			expect(await getPatient(db2, shared.id)).toBeNull();
+		} finally {
+			await rt.dispose();
 		}
 	});
 });

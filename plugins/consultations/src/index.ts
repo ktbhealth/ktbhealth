@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 import { Option } from "effect";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, ne, or, type SQL } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 
 import { user as users } from "@ktb/auth/schema";
@@ -35,6 +35,12 @@ import {
 	PatientsQueries,
 } from "@ktb/patients/api";
 import { ConsultationAudioUpdated, ConsultationCreated, ConsultationsQueries } from "./api.ts";
+import {
+	accessibleTenantIds,
+	Tenant,
+	tenantScopeCondition,
+	type Tenant as TenantScope,
+} from "@ktb/tenant";
 import { ConsultationsPlatformPage } from "./platform-page.tsx";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { consultations } from "./schema.ts";
@@ -98,12 +104,14 @@ export async function createConsultation(
 		status?: string;
 		botId?: string;
 	},
+	tenantId: number | null = null,
 ) {
 	const rows = await db
 		.insert(consultations)
 		.values({
 			userId: fields.userId,
 			patientId: fields.patientId ?? null,
+			tenantId,
 			transcript: fields.transcript ?? "",
 			source: fields.source,
 			status: fields.status ?? "done",
@@ -262,12 +270,18 @@ export async function ownsBot(db: DbClient, consultationId: number, botId: strin
 	return rows.length > 0;
 }
 
-async function saveConsultation(db: DbClient, userId: string, data: SaveConsultationInput) {
+async function saveConsultation(
+	db: DbClient,
+	userId: string,
+	data: SaveConsultationInput,
+	tenantId: number | null = null,
+) {
 	const rows = await db
 		.insert(consultations)
 		.values({
 			userId,
 			patientId: data.patientId ?? null,
+			tenantId,
 			transcript: data.transcript,
 			anamnesis: JSON.stringify(data.anamnesis),
 			engine: data.engine,
@@ -283,6 +297,7 @@ async function patientConsultationRows(db: DbClient, patientId: number) {
 		.select({
 			id: consultations.id,
 			userId: consultations.userId,
+			tenantId: consultations.tenantId,
 			audioKey: consultations.audioKey,
 		})
 		.from(consultations)
@@ -297,25 +312,24 @@ async function patientConsultationRows(db: DbClient, patientId: number) {
  * fails `Forbidden` on a foreign one — that check is what keeps a
  * stray cross-owner link from silently surviving (or blocking) the
  * patient delete via the FK. */
-async function deletePatientConsultations(db: DbClient, patientId: number, userId?: string) {
+async function deletePatientConsultations(db: DbClient, patientId: number, scope?: SQL) {
 	await db
 		.delete(consultations)
 		.where(
-			userId === undefined
+			scope === undefined
 				? eq(consultations.patientId, patientId)
-				: and(eq(consultations.patientId, patientId), eq(consultations.userId, userId)),
+				: and(eq(consultations.patientId, patientId), scope),
 		);
 }
 
 async function listConsultations(
 	db: DbClient,
-	userId: string,
-	patientId?: number,
+	patientId: number | undefined,
+	scope: SQL,
 ): Promise<ConsultationSummary[]> {
-	const where =
-		patientId === undefined
-			? eq(consultations.userId, userId)
-			: and(eq(consultations.userId, userId), eq(consultations.patientId, patientId));
+	const conds = [scope];
+	if (patientId !== undefined) conds.push(eq(consultations.patientId, patientId));
+	const where = and(...conds);
 	const rows = await db
 		.select({
 			id: consultations.id,
@@ -425,14 +439,15 @@ export async function audioJobRow(
 	return rows[0] ?? null;
 }
 
-/** Owner lookup for authz checks — fetches by id regardless of caller. */
-async function consultationOwnerId(db: DbClient, id: number): Promise<string | null> {
+/** Owner lookup for authz checks — fetches by id regardless of caller.
+ * `tenantId` lets the service apply tenant visibility (P-053). */
+async function consultationOwner(db: DbClient, id: number) {
 	const rows = await db
-		.select({ userId: consultations.userId })
+		.select({ userId: consultations.userId, tenantId: consultations.tenantId })
 		.from(consultations)
 		.where(eq(consultations.id, id))
 		.limit(1);
-	return rows[0]?.userId ?? null;
+	return rows[0] ?? null;
 }
 
 async function getConsultation(db: DbClient, id: number): Promise<ConsultationDetail | null> {
@@ -457,6 +472,7 @@ async function getLiveConsultation(db: DbClient, id: number) {
 			transcript: consultations.transcript,
 			status: consultations.status,
 			userId: consultations.userId,
+			tenantId: consultations.tenantId,
 		})
 		.from(consultations)
 		.where(eq(consultations.id, id))
@@ -464,10 +480,11 @@ async function getLiveConsultation(db: DbClient, id: number) {
 	return rows[0] ?? null;
 }
 
-async function attachAnamnesis(db: DbClient, userId: string, data: AttachAnamnesisInput) {
+async function attachAnamnesis(db: DbClient, data: AttachAnamnesisInput, scope?: SQL) {
 	// patientId is tri-state: undefined leaves the column untouched,
 	// null clears the link, a number re-links (ownership already checked
-	// by the service).
+	// by the service). `scope` is the caller's tenant-aware visibility
+	// fence — tenant members may update rows they don't own.
 	const set: {
 		anamnesis: string;
 		engine: string;
@@ -483,14 +500,14 @@ async function attachAnamnesis(db: DbClient, userId: string, data: AttachAnamnes
 	await db
 		.update(consultations)
 		.set(set)
-		.where(and(eq(consultations.id, data.consultationId), eq(consultations.userId, userId)));
+		.where(and(eq(consultations.id, data.consultationId), scope));
 }
 
-async function recordConsent(db: DbClient, id: number, userId: string) {
+async function recordConsent(db: DbClient, id: number, scope?: SQL) {
 	await db
 		.update(consultations)
 		.set({ consentAt: new Date() })
-		.where(and(eq(consultations.id, id), eq(consultations.userId, userId)));
+		.where(and(eq(consultations.id, id), scope));
 }
 
 /** How many prior consultations feed the history summary. */
@@ -565,6 +582,64 @@ const isPlatformAdmin = (platformAdmin: PlatformAdminShape) =>
 		Effect.as(true),
 		Effect.catchTag("Forbidden", () => Effect.succeed(false)),
 	);
+
+/**
+ * Tenant visibility fence (P-053-B) — same model as the patients
+ * plugin. A consultation row is visible to the caller when the
+ * `tenantScopeCondition` fence admits it (`tenant_id` NULL or in the
+ * caller's accessible tenant set — `Tenant`/`TenantAccess`) AND it is
+ * either a personal row they own (`user_id` = caller, `tenant_id`
+ * NULL) or a tenant-owned row (`tenant_id` NOT NULL — membership
+ * already proved by the fence). Personal scope degrades to "own
+ * personal rows only".
+ */
+export const consultationScope = (userId: string) =>
+	Effect.map(
+		tenantScopeCondition(consultations),
+		(fence) =>
+			// and() types as SQL|undefined but the fence is always a fragment.
+			and(fence, or(eq(consultations.userId, userId), isNotNull(consultations.tenantId))) as SQL,
+	);
+
+/** `tenant_id` is an integer FK to `groups.id` — `Tenant.id` is
+ * string|number by contract, so normalize. Non-numeric ids cannot be
+ * stamped (this plugin's directory emits numeric group ids); the row
+ * then stays personal rather than pointing at a bogus tenant. */
+const tenantIdOf = (tenant: TenantScope | null): number | null => {
+	if (tenant === null) return null;
+	const id = Number(tenant.id);
+	return Number.isFinite(id) ? id : null;
+};
+
+/** True when `tenantId` is in the caller's accessible tenant set
+ * (`Tenant`/`TenantAccess` — empty in personal scope). Ids compare
+ * numerically so string|number directory ids both match. */
+const tenantRowVisible = (tenantId: number) =>
+	Effect.map(accessibleTenantIds, (ids) => ids.some((id) => Number(id) === tenantId));
+
+/**
+ * Row-level authz (P-053-B). Tenant-owned rows (`tenant_id` set) are
+ * governed by tenant membership: any member of the row's tenant may
+ * read/operate it — `userId` stays creator attribution and is NOT an
+ * access grant outside the tenant. Everyone else needs the
+ * platform-admin override, which works cross-tenant. Personal rows
+ * (`tenant_id` NULL) keep the owner-scoped permix check.
+ */
+const authorizeConsultationRow = (
+	platformAdmin: PlatformAdminShape,
+	row: { readonly userId: string | null; readonly tenantId: number | null },
+	action: "consultation.read" | "consultation.update" | "consultation.delete",
+) =>
+	Effect.gen(function* () {
+		if (row.tenantId !== null) {
+			if (yield* tenantRowVisible(row.tenantId)) return;
+			yield* platformAdmin
+				.requireAdmin()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.fail(new Forbidden({ path: action }))));
+			return;
+		}
+		yield* orPlatformAdmin(platformAdmin, requireCanAs(action, { userId: row.userId ?? "" }));
+	});
 
 /**
  * Consultations domain port — Effect service, swappable in tests.
@@ -681,6 +756,15 @@ export const ConsultationsLive = Layer.effect(
 			Effect.gen(function* () {
 				const owner = yield* patientQueries["patients.ownerOf"]({ id: patientId });
 				if (owner === null) return yield* Effect.fail(new Forbidden({ path }));
+				// Tenant-owned patients are governed by membership (P-053):
+				// any member of the patient's tenant may link it; the
+				// ownerId check applies to personal patients only.
+				if (owner.tenantId !== null) {
+					if (!(yield* tenantRowVisible(owner.tenantId))) {
+						return yield* Effect.fail(new Forbidden({ path }));
+					}
+					return;
+				}
 				yield* requireCanAs("patient.read", { ownerId: owner.ownerId });
 			});
 		yield* events.subscribeAfterCommit(ConsultationAudioUpdated, (event) =>
@@ -701,12 +785,13 @@ export const ConsultationsLive = Layer.effect(
 			}) {
 				yield* requirePrincipalUser(fields.userId, "consultation.create");
 				yield* requireCanAs("consultation.create");
+				const tenant = yield* Tenant;
 				yield* Effect.annotateCurrentSpan({ userId: fields.userId, source: fields.source });
 				yield* Effect.logInfo("consultation create", {
 					userId: fields.userId,
 					source: fields.source,
 				});
-				const id = yield* Effect.promise(() => createConsultation(db, fields));
+				const id = yield* Effect.promise(() => createConsultation(db, fields, tenantIdOf(tenant)));
 				if (id !== null) {
 					yield* events.dispatch([
 						ConsultationCreated.make({
@@ -746,13 +831,15 @@ export const ConsultationsLive = Layer.effect(
 				if (input.patientId !== undefined) {
 					yield* requireOwnedPatient(input.patientId, "patient.read");
 				}
+				const tenant = yield* Tenant;
 				yield* Effect.annotateCurrentSpan({ userId, engine: input.engine });
 				yield* Effect.logInfo("consultation save", { userId, engine: input.engine });
-				return yield* Effect.promise(() => saveConsultation(db, userId, input));
+				return yield* Effect.promise(() => saveConsultation(db, userId, input, tenantIdOf(tenant)));
 			}),
 			list: Effect.fn("Consultations.list")(function* (userId: string, patientId?: number) {
 				yield* requireCanAs("consultation.read", { userId });
-				return yield* Effect.promise(() => listConsultations(db, userId, patientId));
+				const scope = yield* consultationScope(userId);
+				return yield* Effect.promise(() => listConsultations(db, patientId, scope));
 			}),
 			adminList: Effect.fn("Consultations.adminList")(function* () {
 				// Platform gate first — fails Forbidden for non-admins and
@@ -783,6 +870,7 @@ export const ConsultationsLive = Layer.effect(
 				status?: string;
 			}) {
 				yield* platformAdmin.requireAdmin();
+				const tenant = yield* Tenant;
 				if (fields.patientId !== undefined) {
 					const owner = yield* patientQueries["patients.ownerOf"]({
 						id: fields.patientId,
@@ -798,7 +886,7 @@ export const ConsultationsLive = Layer.effect(
 					userId: fields.userId,
 					source: fields.source,
 				});
-				const id = yield* Effect.promise(() => createConsultation(db, fields));
+				const id = yield* Effect.promise(() => createConsultation(db, fields, tenantIdOf(tenant)));
 				if (id !== null) {
 					yield* events.dispatch([
 						ConsultationCreated.make({
@@ -824,23 +912,17 @@ export const ConsultationsLive = Layer.effect(
 				yield* requirePrincipalUser(userId, "consultation.read");
 				const detail = yield* Effect.promise(() => getConsultation(db, id));
 				if (detail === null) return null;
-				// permix checks the entity's real owner — a row owned by
-				// someone else is Forbidden for regular principals;
-				// platform admins read cross-owner (admin detail page).
-				yield* orPlatformAdmin(
-					platformAdmin,
-					requireCanAs("consultation.read", { userId: detail.userId ?? "" }),
-				);
+				// Tenant members read tenant-owned rows; personal rows stay
+				// owner-scoped and platform admins read cross-owner either
+				// way (admin detail page).
+				yield* authorizeConsultationRow(platformAdmin, detail, "consultation.read");
 				return detail;
 			}),
 			getLive: Effect.fn("Consultations.getLive")(function* (id: number, userId: string) {
 				yield* requirePrincipalUser(userId, "consultation.read");
 				const row = yield* Effect.promise(() => getLiveConsultation(db, id));
 				if (row === null) return null;
-				yield* orPlatformAdmin(
-					platformAdmin,
-					requireCanAs("consultation.read", { userId: row.userId ?? "" }),
-				);
+				yield* authorizeConsultationRow(platformAdmin, row, "consultation.read");
 				return { transcript: row.transcript, status: row.status };
 			}),
 			attachAnamnesis: Effect.fn("Consultations.attachAnamnesis")(function* (
@@ -848,16 +930,17 @@ export const ConsultationsLive = Layer.effect(
 				input: AttachAnamnesisInput,
 			) {
 				yield* requirePrincipalUser(userId, "consultation.update");
-				const owner = yield* Effect.promise(() => consultationOwnerId(db, input.consultationId));
+				const owner = yield* Effect.promise(() => consultationOwner(db, input.consultationId));
 				// Missing row → the UPDATE below is a no-op; nothing to authorize.
 				if (owner !== null) {
-					yield* requireCanAs("consultation.update", { userId: owner });
+					yield* authorizeConsultationRow(platformAdmin, owner, "consultation.update");
 				}
 				// Re-linking to a patient requires owning that patient;
 				// null (clear) and undefined (keep) skip the lookup.
 				if (typeof input.patientId === "number") {
 					yield* requireOwnedPatient(input.patientId, "patient.read");
 				}
+				const scope = yield* consultationScope(userId);
 				yield* Effect.annotateCurrentSpan({
 					userId,
 					consultationId: input.consultationId,
@@ -868,29 +951,30 @@ export const ConsultationsLive = Layer.effect(
 					consultationId: input.consultationId,
 					engine: input.engine,
 				});
-				return yield* Effect.promise(() => attachAnamnesis(db, userId, input));
+				return yield* Effect.promise(() => attachAnamnesis(db, input, scope));
 			}),
 			recordConsent: Effect.fn("Consultations.recordConsent")(function* (
 				id: number,
 				userId: string,
 			) {
 				yield* requirePrincipalUser(userId, "consultation.update");
-				const owner = yield* Effect.promise(() => consultationOwnerId(db, id));
+				const owner = yield* Effect.promise(() => consultationOwner(db, id));
 				if (owner !== null) {
-					yield* requireCanAs("consultation.update", { userId: owner });
+					yield* authorizeConsultationRow(platformAdmin, owner, "consultation.update");
 				}
+				const scope = yield* consultationScope(userId);
 				yield* Effect.annotateCurrentSpan({ consultationId: id, userId });
 				yield* Effect.logInfo("consultation consent recorded", { consultationId: id, userId });
-				return yield* Effect.promise(() => recordConsent(db, id, userId));
+				return yield* Effect.promise(() => recordConsent(db, id, scope));
 			}),
 			attachAudio: Effect.fn("Consultations.attachAudio")(function* (
 				userId: string,
 				input: { consultationId: number } & AudioJobFields,
 			) {
 				yield* requirePrincipalUser(userId, "consultation.update");
-				const owner = yield* Effect.promise(() => consultationOwnerId(db, input.consultationId));
+				const owner = yield* Effect.promise(() => consultationOwner(db, input.consultationId));
 				if (owner !== null) {
-					yield* requireCanAs("consultation.update", { userId: owner });
+					yield* authorizeConsultationRow(platformAdmin, owner, "consultation.update");
 				}
 				yield* Effect.annotateCurrentSpan({
 					userId,
@@ -916,9 +1000,9 @@ export const ConsultationsLive = Layer.effect(
 				status: AudioRouteStatus,
 			) {
 				yield* requirePrincipalUser(userId, "consultation.update");
-				const owner = yield* Effect.promise(() => consultationOwnerId(db, consultationId));
+				const owner = yield* Effect.promise(() => consultationOwner(db, consultationId));
 				if (owner !== null) {
-					yield* requireCanAs("consultation.update", { userId: owner });
+					yield* authorizeConsultationRow(platformAdmin, owner, "consultation.update");
 				}
 				yield* Effect.annotateCurrentSpan({ userId, consultationId, audioStatus: status });
 				yield* Effect.promise(() => markAudioQueued(db, consultationId));
@@ -995,9 +1079,10 @@ export const PatientRecordConsultationsLive = Query.handlersOf(PatientRecordCons
 						})(),
 					}));
 			}
-			// Same gate as Consultations.list — owner-scoped read.
+			// Same gate as Consultations.list — owner + tenant scoped read.
 			yield* requireCanAs("consultation.read", { userId: principal.userId });
-			const rows = yield* Effect.promise(() => listConsultations(db, principal.userId, patientId));
+			const scope = yield* consultationScope(principal.userId);
+			const rows = yield* Effect.promise(() => listConsultations(db, patientId, scope));
 			return rows.map((r) => ({
 				id: r.id,
 				// Rows are filtered by patientId — the column is nullable
@@ -1031,14 +1116,18 @@ export const PatientDeleteCascadeLive = Command.handlersOf(PatientCascadeCommand
 			// cross-owner; `patients.delete` applies the same override.
 			const admin = yield* isPlatformAdmin(platformAdmin);
 			for (const row of rows) {
-				if (!admin) yield* requireCanAs("consultation.delete", { userId: row.userId ?? "" });
+				// Tenant members pass on tenant-owned rows; personal rows
+				// keep the per-row owner check (admin already skipped).
+				if (!admin) {
+					yield* authorizeConsultationRow(platformAdmin, row, "consultation.delete");
+				}
 			}
 			// Every row passed the per-row authz above, so all survivors
-			// are principal-owned — the delete is scoped to them anyway.
+			// are visible to the caller — the delete is fenced to the
+			// same scope (own personal rows + accessible tenants).
 			// Admins act cross-owner: every linked consultation goes.
-			yield* Effect.promise(() =>
-				deletePatientConsultations(db, patientId, admin ? undefined : principal.userId),
-			);
+			const scope = admin ? undefined : yield* consultationScope(principal.userId);
+			yield* Effect.promise(() => deletePatientConsultations(db, patientId, scope));
 			yield* patientCommands["patients.delete"]({ id: patientId });
 			return {
 				consultations: rows.length,

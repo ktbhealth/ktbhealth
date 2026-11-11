@@ -66,6 +66,7 @@ const row = (over: Partial<AdminConsultationRow>): AdminConsultationRow => ({
 	ownerEmail: "dra@x.com",
 	ownerName: "Dra Ana",
 	patientName: "Paciente Um",
+	tenantId: null,
 	...over,
 });
 
