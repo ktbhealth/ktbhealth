@@ -15,13 +15,15 @@ const DDL = `
 CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT, payload TEXT, read_at INTEGER, created_at INTEGER NOT NULL);
 `;
 
-const app = createApp({
+const env = {
 	DB: makeD1(DDL),
 	BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!!",
 	BETTER_AUTH_URL: "http://localhost:3000",
 	PLATFORM_ADMIN_EMAILS: "admin@x.com",
 	AI: { run: async () => ({ response: "  Texto corrigido.  " }) },
-});
+};
+
+const app = createApp(env);
 
 /** Structured log lines emitted through Logger.consoleJson. */
 const logged = (spy: ReturnType<typeof vi.spyOn>) =>
@@ -39,6 +41,26 @@ describe("createApp", () => {
 
 	it("run executes system-path effects without a principal", async () => {
 		await expect(app.run(Effect.succeed("ok"))).resolves.toBe("ok");
+	});
+
+	it("binds an app-supplied tenant resolver into runAs", async () => {
+		const seen: unknown[] = [];
+		const tenantApp = createApp(env, {
+			tenantResolver: {
+				resolve: (selector) => {
+					seen.push(selector);
+					return Effect.succeed(null);
+				},
+			},
+		});
+		try {
+			await expect(
+				tenantApp.runAs({ id: "u1" }, Effect.succeed("ok"), { slug: "clinic-a" }),
+			).resolves.toBe("ok");
+			expect(seen).toEqual([{ slug: "clinic-a" }]);
+		} finally {
+			await tenantApp.runtime.dispose();
+		}
 	});
 
 	describe("assertCaptchaConfigured", () => {

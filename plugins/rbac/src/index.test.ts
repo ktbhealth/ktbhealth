@@ -28,6 +28,7 @@ import {
 	setRolePermission,
 	unassignSubject,
 	updateRole,
+	type AdminRbacPageData,
 } from "./index.ts";
 import { roles as rolesTable } from "@ktb/rbac/schema";
 import { RbacCommands, RbacQueries } from "./api.ts";
@@ -49,6 +50,33 @@ const ADMIN = { userId: "admin@x.com", email: "admin@x.com" };
 const MEMBER = { userId: "user@x.com", email: "user@x.com" };
 
 const adminGate = makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"));
+
+/** A DbClient stub for the defensive empty-RETURNING paths real
+ * drivers never produce: `selects` is a queue of row arrays consumed
+ * by `where()`/`orderBy()` terminals in call order, `insertRows` is
+ * what `insert(...).values(...).returning()` resolves with. The same
+ * `values()` also answers `onConflictDoUpdate` (epoch bumps). */
+const fakeDb = (opts: {
+	readonly selects?: readonly unknown[][];
+	readonly insertRows?: readonly unknown[];
+}): DbClient => {
+	const selects = [...(opts.selects ?? [])];
+	return {
+		select: () => ({
+			from: () => ({
+				where: async () => selects.shift() ?? [],
+				orderBy: async () => selects.shift() ?? [],
+				innerJoin: () => ({ orderBy: async () => selects.shift() ?? [] }),
+			}),
+		}),
+		insert: () => ({
+			values: () => ({
+				returning: async () => opts.insertRows ?? [],
+				onConflictDoUpdate: async () => [],
+			}),
+		}),
+	} as unknown as DbClient;
+};
 
 describe("rbac repo", () => {
 	let db: DbClient;
@@ -171,6 +199,67 @@ describe("rbac repo", () => {
 	it("groupIdsForUser reads group_members without importing groups", async () => {
 		expect(await groupIdsForUser(db, "u1")).toEqual(["7"]);
 		expect(await groupIdsForUser(db, "nobody")).toEqual([]);
+	});
+
+	it("updateRole patches meta and assignSubject refresh keeps grantedBy", async () => {
+		const role = (await createRole(db, { name: "meta-role" }))!;
+		const updated = await updateRole(db, { id: role.id, meta: '{"a":1}' });
+		expect(updated?.meta).toBe('{"a":1}');
+
+		const exp = new Date("2031-05-05T00:00:00.000Z");
+		const a1 = await assignSubject(db, {
+			subjectKind: "user",
+			subjectId: "u7",
+			roleId: role.id,
+			expiresAt: exp,
+			grantedBy: "first",
+		});
+		expect(a1?.expiresAt?.getTime()).toBe(exp.getTime());
+
+		// Refresh without grantedBy/expiresAt inputs keeps the stored
+		// granter and clears the expiry.
+		const a2 = await assignSubject(db, {
+			subjectKind: "user",
+			subjectId: "u7",
+			roleId: role.id,
+		});
+		expect(a2?.id).toBe(a1?.id);
+		expect(a2?.grantedBy).toBe("first");
+		expect(a2?.expiresAt).toBeNull();
+	});
+});
+
+describe("rbac repo — empty-driver paths", () => {
+	it("createRole returns null when RETURNING yields no row", async () => {
+		expect(await createRole(fakeDb({}), { name: "ghost" })).toBeNull();
+	});
+
+	it("assignSubject returns null when the insert RETURNING yields no row", async () => {
+		const result = await assignSubject(fakeDb({ selects: [[]] }), {
+			subjectKind: "user",
+			subjectId: "u",
+			roleId: 1,
+		});
+		expect(result).toBeNull();
+	});
+
+	it("assignSubject reports an empty roleName when the role row is gone", async () => {
+		const row = {
+			id: 1,
+			subjectKind: "user",
+			subjectId: "u-ghost",
+			roleId: 999,
+			tenantId: null,
+			grantedBy: null,
+			expiresAt: null,
+			createdAt: new Date(0),
+		};
+		const result = await assignSubject(fakeDb({ selects: [[], []], insertRows: [[row]] }), {
+			subjectKind: "user",
+			subjectId: "u-ghost",
+			roleId: 999,
+		});
+		expect(result?.roleName).toBe("");
 	});
 });
 
@@ -305,6 +394,234 @@ describe("rbac services + CQRS", () => {
 		// point is the services resolve.
 		expect(out.grants.size).toBe(0);
 		await runtime.runPromise(out.invalidate());
+	});
+
+	it("rbac.role returns null for an unknown id", async () => {
+		const detail = await asUser(
+			ADMIN,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const queries = yield* Query.dispatcher(RbacQueries);
+					return yield* queries["rbac.role"]({ id: 999 });
+				}),
+			),
+		);
+		expect(detail).toBeNull();
+	});
+
+	it("assignSubject fails Forbidden for an unknown role", async () => {
+		await expect(
+			asUser(
+				ADMIN,
+				Effect.scoped(
+					Effect.gen(function* () {
+						const commands = yield* Command.dispatcher(RbacCommands);
+						return yield* commands["rbac.assignSubject"]({
+							subjectKind: "user",
+							subjectId: "u",
+							roleId: 999,
+						});
+					}),
+				),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+});
+
+describe("rbac services — empty-driver paths", () => {
+	const servicesLayer = () => rbacServicesPlugin.services as Layer.Layer<unknown, unknown, unknown>;
+
+	const runtimeFor = (db: DbClient, gate: PlatformAdmin["Service"] = adminGate) => {
+		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, gate));
+		return ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+	};
+
+	const asPrincipal = <A, E>(
+		rt: ManagedRuntime.ManagedRuntime<unknown, never>,
+		principal: { userId: string; email?: string } | null,
+		effect: Effect.Effect<A, E, unknown>,
+	) =>
+		rt.runPromise(
+			effect.pipe(
+				Effect.provideService(
+					Principal,
+					principal === null ? null : { userId: principal.userId, email: principal.email },
+				),
+			),
+		);
+
+	it("createRole fails Forbidden when INSERT ... RETURNING yields no row", async () => {
+		const rt = runtimeFor(fakeDb({}));
+		try {
+			await expect(
+				asPrincipal(
+					rt,
+					ADMIN,
+					Effect.scoped(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(RbacCommands);
+							return yield* commands["rbac.createRole"]({ name: "ghost" });
+						}),
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("assignSubject fails Forbidden when the insert RETURNING yields no row", async () => {
+		const role = {
+			id: 1,
+			name: "auditor",
+			description: null,
+			meta: null,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		};
+		// getRole → [role], findAssignment → [], insert RETURNING → [].
+		const rt = runtimeFor(fakeDb({ selects: [[role], []] }));
+		try {
+			await expect(
+				asPrincipal(
+					rt,
+					ADMIN,
+					Effect.scoped(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(RbacCommands);
+							return yield* commands["rbac.assignSubject"]({
+								subjectKind: "user",
+								subjectId: "u",
+								roleId: 1,
+							});
+						}),
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("assignSubject records a null grantedBy without a bound principal", async () => {
+		const db = makeDb(makeD1(DDL));
+		await db.insert(rolesTable).values({ name: "auditor", description: null, meta: null });
+		// A gate that admits everyone isolates the grantedBy null path.
+		const openGate: PlatformAdmin["Service"] = {
+			isAdmin: () => Effect.succeed(true),
+			requireAdmin: () => Effect.void,
+		};
+		const rt = runtimeFor(db, openGate);
+		try {
+			const row = await asPrincipal(
+				rt,
+				null,
+				Effect.scoped(
+					Effect.gen(function* () {
+						const commands = yield* Command.dispatcher(RbacCommands);
+						return yield* commands["rbac.assignSubject"]({
+							subjectKind: "user",
+							subjectId: "u9",
+							roleId: 1,
+						});
+					}),
+				),
+			);
+			expect(row.grantedBy).toBeNull();
+		} finally {
+			await rt.dispose();
+		}
+	});
+});
+
+describe("rbac panel loader", () => {
+	const servicesLayer = () => rbacServicesPlugin.services as Layer.Layer<unknown, unknown, unknown>;
+	const loader = rbacPanelPlugin.panel!.pages![0]!.loader as () => Effect.Effect<
+		AdminRbacPageData,
+		unknown,
+		unknown
+	>;
+
+	it("returns roles, details, assignments and the catalog", async () => {
+		const db = makeDb(makeD1(DDL));
+		await db.insert(rolesTable).values({ name: "auditor", description: null, meta: null });
+		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, adminGate));
+		const rt = ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+		try {
+			const data = await rt.runPromise(
+				Effect.scoped(loader()).pipe(
+					Effect.provideService(Principal, {
+						userId: ADMIN.userId,
+						email: ADMIN.email,
+					}),
+				),
+			);
+			expect(data.roles.map((r) => r.name)).toContain("auditor");
+			expect(data.details).toHaveLength(data.roles.length);
+			expect(data.details[0]?.permissions).toEqual([]);
+			expect(data.catalog.some((c) => c.key === "patient.read")).toBe(true);
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("collapses Forbidden to the empty console", async () => {
+		const db = makeDb(makeD1(DDL));
+		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, adminGate));
+		const rt = ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+		try {
+			const data = await rt.runPromise(
+				Effect.scoped(loader()).pipe(
+					Effect.provideService(Principal, {
+						userId: MEMBER.userId,
+						email: MEMBER.email,
+					}),
+				),
+			);
+			expect(data).toEqual({ roles: [], details: [], assignments: [], catalog: [] });
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("drops roles whose detail query returns null", async () => {
+		const role = {
+			id: 1,
+			name: "auditor",
+			description: null,
+			meta: null,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		};
+		// rbac.roles → [role], rbac.assignments → [], rbac.role → null.
+		const env = Layer.mergeAll(
+			Layer.succeed(Db, fakeDb({ selects: [[role], [], []] })),
+			Layer.succeed(PlatformAdmin, adminGate),
+		);
+		const rt = ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+		try {
+			const data = await rt.runPromise(
+				Effect.scoped(loader()).pipe(
+					Effect.provideService(Principal, {
+						userId: ADMIN.userId,
+						email: ADMIN.email,
+					}),
+				),
+			);
+			expect(data.roles).toHaveLength(1);
+			expect(data.details).toEqual([]);
+			expect(data.assignments).toEqual([]);
+		} finally {
+			await rt.dispose();
+		}
 	});
 });
 

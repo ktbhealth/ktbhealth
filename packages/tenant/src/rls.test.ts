@@ -28,6 +28,12 @@ describe("tenantRlsStatements", () => {
 		expect(policy).toContain("current_setting('app.org_ids', true)::text[]");
 	});
 
+	it("defaults column and policy name for object tables", () => {
+		const [, policy] = tenantRlsStatements({ name: "docs" });
+		expect(policy).toContain('CREATE POLICY "docs_tenant_isolation" ON "docs"');
+		expect(policy).toContain('"tenant_id" = ANY');
+	});
+
 	it("quotes identifiers safely", () => {
 		const [, policy] = tenantRlsStatements('we"ird');
 		expect(policy).toContain('"we""ird"');

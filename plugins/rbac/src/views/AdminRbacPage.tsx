@@ -83,6 +83,7 @@ export function AdminRbacPage({
 	};
 
 	const cycleEffect = (resource: string, action: string) => {
+		/* v8 ignore next -- the matrix button only renders when detail is non-null */
 		if (!detail) return;
 		const key = permKey(resource, action);
 		const current = grants.get(key);
