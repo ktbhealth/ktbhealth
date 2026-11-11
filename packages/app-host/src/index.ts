@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Binding, DbLive, makeDb, type SqlDatabase } from "@ktb/db";
-import { makeAuth } from "@ktb/auth-better";
+import { makeAuth, makeAuthService } from "@ktb/auth-better";
 import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
 import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
@@ -177,25 +177,9 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		);
 	// Infra layers are provided to plugin layers explicitly: mergeAll does
 	// not wire one sibling's outputs into another's requirements.
-	// Auth port backed by the same better-auth instance the routes use.
-	const AuthServiceLive = Layer.succeed(
-		Auth,
-		Auth.of({
-			getSession: async (headers) => {
-				const s = await auth.api.getSession({ headers });
-				if (!s) return null;
-				return {
-					user: {
-						id: s.user.id,
-						email: s.user.email,
-						name: s.user.name ?? null,
-					},
-					sessionId: s.session.id,
-					expiresAt: new Date(s.session.expiresAt),
-				};
-			},
-		}),
-	);
+	// Auth port backed by the same better-auth instance the routes use;
+	// makeAuthService adds the banned-user enforcement + revocation (T-034).
+	const AuthServiceLive = Layer.succeed(Auth, makeAuthService(auth, db));
 	// LLM provider config is resolved here, once — impl packages never
 	// read env themselves.
 	const llmConfig: LlmConfig = {

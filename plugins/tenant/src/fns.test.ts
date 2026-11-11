@@ -76,6 +76,7 @@ describe("tenants admin fns", () => {
 		) as unknown as Layer.Layer<unknown, never, never>;
 		runtime = ManagedRuntime.make(services);
 		const auth = Auth.of({
+			setUserBanned: async () => {},
 			getSession: async () => sessionFor(currentEmail) as never,
 		});
 		setServerRuntime({

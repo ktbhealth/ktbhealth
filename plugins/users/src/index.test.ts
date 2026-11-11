@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Query } from "@effect-server-utils/cqrs";
 
+import { Auth } from "@ktb/auth";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Forbidden, Principal } from "@ktb/authz";
@@ -25,9 +26,11 @@ import {
 } from "./index.ts";
 
 const DDL = `
-CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-INSERT INTO "user" VALUES ('u1', 'Admin', 'admin@x.com', 1, NULL, 1000, 1000);
-INSERT INTO "user" VALUES ('u2', 'Doc', 'doc@x.com', 0, NULL, 2000, 2000);
+CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, banned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+INSERT INTO "user" (id, name, email, email_verified, image, banned, created_at, updated_at) VALUES
+  ('u1', 'Admin', 'admin@x.com', 1, NULL, 0, 1000, 1000),
+  ('u2', 'Doc', 'doc@x.com', 0, NULL, 0, 2000, 2000),
+  ('u3', 'Banned', 'banned@x.com', 1, NULL, 1, 3000, 3000);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER);
 INSERT INTO patients (owner_id, name, created_at) VALUES ('u2', 'Ana', 0), ('u2', 'Bia', 0);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, status TEXT);
@@ -44,8 +47,8 @@ describe("users repo", () => {
 	it("counts zero for a user with no patients and no consultations", async () => {
 		const empty = makeDb(
 			makeD1(`
-CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-INSERT INTO "user" VALUES ('u9', 'New', 'new@x.com', 0, NULL, 3000, 3000);
+CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, banned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+INSERT INTO "user" (id, name, email, email_verified, image, banned, created_at, updated_at) VALUES ('u9', 'New', 'new@x.com', 0, NULL, 0, 3000, 3000);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, status TEXT);
 `),
@@ -56,8 +59,10 @@ CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT N
 
 	it("listAllUsers returns users newest-first with aggregate counts", async () => {
 		const rows = await listAllUsers(db);
-		expect(rows.map((r) => r.id)).toEqual(["u2", "u1"]);
+		expect(rows.map((r) => r.id)).toEqual(["u3", "u2", "u1"]);
+		expect(rows.find((r) => r.id === "u3")?.banned).toBe(true);
 		const doc = rows.find((r) => r.id === "u2")!;
+		expect(doc.banned).toBe(false);
 		expect(doc.patientCount).toBe(2);
 		expect(doc.consultationCount).toBe(1);
 		const admin = rows.find((r) => r.id === "u1")!;
@@ -70,11 +75,13 @@ CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT N
 
 describe("UsersLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Users, never>;
+	const setUserBanned = vi.fn(async (_userId: string, _banned: boolean) => {});
 
 	beforeAll(() => {
 		const db = makeDb(makeD1(DDL));
-		const deps = Layer.merge(
+		const deps = Layer.mergeAll(
 			Layer.succeed(Db, db),
+			Layer.succeed(Auth, { getSession: async () => null, setUserBanned }),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
 		);
 		runtime = ManagedRuntime.make(UsersLive.pipe(Layer.provide(deps)));
@@ -99,7 +106,7 @@ describe("UsersLive", () => {
 			call((p) => p.adminList()),
 			"admin@x.com",
 		);
-		expect(rows).toHaveLength(2);
+		expect(rows).toHaveLength(3);
 		expect(rows.find((r) => r.email === "admin@x.com")?.isAdmin).toBe(true);
 		expect(rows.find((r) => r.email === "doc@x.com")?.isAdmin).toBe(false);
 	});
@@ -118,6 +125,41 @@ describe("UsersLive", () => {
 				call((p) => p.adminList()),
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminSetSuspended delegates suspend/reactivate to the Auth port", async () => {
+		setUserBanned.mockClear();
+		await asUser(
+			"u1",
+			call((p) => p.adminSetSuspended("u2", true)),
+			"admin@x.com",
+		);
+		expect(setUserBanned).toHaveBeenCalledWith("u2", true);
+		await asUser(
+			"u1",
+			call((p) => p.adminSetSuspended("u2", false)),
+			"admin@x.com",
+		);
+		expect(setUserBanned).toHaveBeenCalledWith("u2", false);
+		expect(setUserBanned).toHaveBeenCalledTimes(2);
+	});
+
+	it("adminSetSuspended fails Forbidden for non-admin email and null principal", async () => {
+		setUserBanned.mockClear();
+		await expect(
+			asUser(
+				"u2",
+				call((p) => p.adminSetSuspended("u1", true)),
+				"doc@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+		await expect(
+			asUser(
+				null,
+				call((p) => p.adminSetSuspended("u1", true)),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		expect(setUserBanned).not.toHaveBeenCalled();
 	});
 });
 

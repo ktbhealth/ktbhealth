@@ -5,6 +5,7 @@ import { count, desc, eq } from "drizzle-orm";
 import { UserCogIcon } from "lucide-react";
 
 import { user as users } from "@ktb/auth/schema";
+import { Auth } from "@ktb/auth";
 import { consultations } from "@ktb/consultations/schema";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
@@ -21,7 +22,9 @@ export type UserRow = typeof users.$inferSelect & {
 	readonly consultationCount: number;
 };
 
-/** Console row: repo row plus the platform-admin flag resolved by the gate. */
+/** Console row: repo row plus the platform-admin flag resolved by the
+ * gate. `banned` (from the auth-owned user table) is the suspension
+ * flag — the console labels it "suspended". */
 export interface AdminUserRow extends UserRow {
 	readonly isAdmin: boolean;
 }
@@ -59,6 +62,15 @@ export class Users extends Context.Service<
 	{
 		/** Cross-owner listing for the /platform console — platform admins only. */
 		readonly adminList: () => Effect.Effect<AdminUserRow[], Forbidden>;
+		/**
+		 * Suspend (`true`) or reactivate (`false`) a user's sign-in —
+		 * platform admins only. Delegates to the Auth port, which revokes
+		 * sessions on ban and makes `getSession` return null.
+		 */
+		readonly adminSetSuspended: (
+			userId: string,
+			suspended: boolean,
+		) => Effect.Effect<void, Forbidden>;
 	}
 >()("@ktb/users/Users") {}
 
@@ -66,6 +78,7 @@ export const UsersLive = Layer.effect(
 	Users,
 	Effect.gen(function* () {
 		const db = yield* Db;
+		const auth = yield* Auth;
 		const platformAdmin = yield* PlatformAdmin;
 		return Users.of({
 			adminList: Effect.fn("Users.adminList")(function* () {
@@ -76,6 +89,12 @@ export const UsersLive = Layer.effect(
 				return yield* Effect.forEach(rows, (row) =>
 					Effect.map(platformAdmin.isAdmin(row.email), (isAdmin) => ({ ...row, isAdmin })),
 				);
+			}),
+			adminSetSuspended: Effect.fn("Users.adminSetSuspended")(function* (userId, suspended) {
+				// Same platform gate as adminList — suspension is a
+				// cross-owner, platform-level action.
+				yield* platformAdmin.requireAdmin();
+				yield* Effect.promise(() => auth.setUserBanned(userId, suspended));
 			}),
 		});
 	}),

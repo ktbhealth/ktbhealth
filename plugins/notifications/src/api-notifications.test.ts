@@ -39,6 +39,7 @@ const SESSION_USER = { id: "u-sse", email: "sse@x.com", name: "Dra SSE" };
 
 /** Cookie "session=sse" authenticates as SESSION_USER; anything else is anonymous. */
 const authStub = Auth.of({
+	setUserBanned: async () => {},
 	getSession: async (h: Headers) => {
 		const cookie = h.get("cookie") ?? "";
 		if (!cookie.includes("session=sse")) return null;

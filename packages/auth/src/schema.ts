@@ -7,6 +7,10 @@ export const user = sqliteTable("user", {
 	email: text("email").notNull().unique(),
 	emailVerified: integer("email_verified", { mode: "boolean" }).default(false).notNull(),
 	image: text("image"),
+	// Platform suspension flag (T-034): set via the Auth port's
+	// setUserBanned; Auth.getSession returns null while true and all
+	// session rows are revoked on ban.
+	banned: integer("banned", { mode: "boolean" }).default(false).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),

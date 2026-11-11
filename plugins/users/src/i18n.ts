@@ -23,11 +23,22 @@ export interface UserMessages {
 	readonly colPatients: string;
 	readonly colConsultations: string;
 	readonly colRole: string;
+	readonly colStatus: string;
 	readonly colCreated: string;
+	readonly colActions: string;
 	readonly yes: string;
 	readonly no: string;
 	readonly roleAdmin: string;
 	readonly roleUser: string;
+	readonly statusActive: string;
+	readonly statusSuspended: string;
+	readonly suspend: string;
+	readonly reactivate: string;
+	readonly suspendTitle: string;
+	readonly suspendDescription: (email: string) => string;
+	readonly suspendConfirm: string;
+	readonly cancel: string;
+	readonly saveError: string;
 	readonly searchPlaceholder: string;
 	readonly searchLabel: string;
 	readonly noMatch: string;
@@ -47,11 +58,23 @@ const en: UserMessages = {
 	colPatients: "Patients",
 	colConsultations: "Consultations",
 	colRole: "Role",
+	colStatus: "Status",
 	colCreated: "Created",
+	colActions: "Actions",
 	yes: "yes",
 	no: "no",
 	roleAdmin: "admin",
 	roleUser: "user",
+	statusActive: "active",
+	statusSuspended: "suspended",
+	suspend: "Suspend",
+	reactivate: "Reactivate",
+	suspendTitle: "Suspend user",
+	suspendDescription: (email) =>
+		`Suspend ${email}? They will be signed out and unable to sign in until reactivated.`,
+	suspendConfirm: "Suspend",
+	cancel: "Cancel",
+	saveError: "Could not update the user. Try again.",
 	searchPlaceholder: "Search by name or email…",
 	searchLabel: "Search users",
 	noMatch: "No users match the search.",
@@ -71,11 +94,23 @@ const ptBR: UserMessages = {
 	colPatients: "Pacientes",
 	colConsultations: "Consultas",
 	colRole: "Papel",
+	colStatus: "Status",
 	colCreated: "Criado em",
+	colActions: "Ações",
 	yes: "sim",
 	no: "não",
 	roleAdmin: "admin",
 	roleUser: "usuário",
+	statusActive: "ativo",
+	statusSuspended: "suspenso",
+	suspend: "Suspender",
+	reactivate: "Reativar",
+	suspendTitle: "Suspender usuário",
+	suspendDescription: (email) =>
+		`Suspender ${email}? O usuário será desconectado e não poderá entrar até ser reativado.`,
+	suspendConfirm: "Suspender",
+	cancel: "Cancelar",
+	saveError: "Não foi possível atualizar o usuário. Tente novamente.",
 	searchPlaceholder: "Buscar por nome ou e-mail…",
 	searchLabel: "Buscar usuários",
 	noMatch: "Nenhum usuário corresponde à busca.",
@@ -95,11 +130,23 @@ const es: UserMessages = {
 	colPatients: "Pacientes",
 	colConsultations: "Consultas",
 	colRole: "Rol",
+	colStatus: "Estado",
 	colCreated: "Creado",
+	colActions: "Acciones",
 	yes: "sí",
 	no: "no",
 	roleAdmin: "admin",
 	roleUser: "usuario",
+	statusActive: "activo",
+	statusSuspended: "suspendido",
+	suspend: "Suspender",
+	reactivate: "Reactivar",
+	suspendTitle: "Suspender usuario",
+	suspendDescription: (email) =>
+		`¿Suspender a ${email}? Se cerrará su sesión y no podrá iniciar sesión hasta que se reactive.`,
+	suspendConfirm: "Suspender",
+	cancel: "Cancelar",
+	saveError: "No se pudo actualizar el usuario. Inténtalo de nuevo.",
 	searchPlaceholder: "Buscar por nombre o correo…",
 	searchLabel: "Buscar usuarios",
 	noMatch: "Ningún usuario coincide con la búsqueda.",

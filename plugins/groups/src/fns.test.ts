@@ -73,6 +73,7 @@ describe("groups admin fns", () => {
 			services.pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
 		);
 		const auth = Auth.of({
+			setUserBanned: async () => {},
 			getSession: async () => sessionFor(currentEmail) as never,
 		});
 		setServerRuntime({
