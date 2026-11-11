@@ -112,6 +112,16 @@ describe("tenantSelectorFromHeaders", () => {
 		const headers = new Headers({ "x-tenant-id": "clinic-42" });
 		expect(tenantSelectorFromHeaders(headers)).toEqual({ id: "clinic-42" });
 	});
+
+	it("parses negative numeric ids", () => {
+		const headers = new Headers({ "x-tenant-id": "-7" });
+		expect(tenantSelectorFromHeaders(headers)).toEqual({ id: -7 });
+	});
+
+	it("extracts a partial selector when only some headers are present", () => {
+		const headers = new Headers({ "x-tenant-slug": "clinic-a" });
+		expect(tenantSelectorFromHeaders(headers)).toEqual({ slug: "clinic-a" });
+	});
 });
 
 describe("isEmptySelector", () => {
@@ -161,6 +171,14 @@ describe("makeTenantResolver", () => {
 			selectDefault: (ms) => (ms.length === 1 ? ms[0] : null),
 		});
 		await expect(Effect.runPromise(resolver.resolve(null, "u1"))).resolves.toEqual(tenantA);
+	});
+
+	it("selectDefault may return a Tenant directly", async () => {
+		const resolver = makeTenantResolver({
+			directory: directory(),
+			selectDefault: () => tenantB,
+		});
+		await expect(Effect.runPromise(resolver.resolve(null, "u1"))).resolves.toEqual(tenantB);
 	});
 
 	it("selectDefault returning null falls through to the fallback", async () => {

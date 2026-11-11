@@ -149,7 +149,8 @@ export const makeTenantResolver = (options: MakeTenantResolverOptions): TenantRe
 				return null;
 			}
 			if (userId === null) {
-				return yield* Effect.fail(new TenantNotFound({ selector: selector ?? {} }));
+				// isEmptySelector above guarantees a non-empty selector here.
+				return yield* Effect.fail(new TenantNotFound({ selector: selector as TenantSelector }));
 			}
 			const tenant = yield* options.directory.findBySelector(userId, selector as TenantSelector);
 			if (tenant === null) {

@@ -78,6 +78,23 @@ describe("tenantAuthz", () => {
 		expect(member.patient.delete).toBe(false);
 	});
 
+	it("accepts a list of minimum roles — the lowest rank wins", () => {
+		const listMatrix: RoleActionMatrix = {
+			patient: {
+				// member-and-above even though "owner" is listed too.
+				create: ["member", "owner"],
+				// admin-and-above.
+				read: ["admin", "owner"],
+			},
+		};
+		const member = tenantAuthz<Def>(listMatrix)("member");
+		const admin = tenantAuthz<Def>(listMatrix)("admin");
+		expect(member.patient.create).toBe(true);
+		expect(member.patient.read).toBe(false);
+		expect(admin.patient.create).toBe(true);
+		expect(admin.patient.read).toBe(true);
+	});
+
 	it("keeps function grants data-dependent", () => {
 		const member = tenantAuthz<Def>(matrix)("member");
 		const update = member.patient.update as (data: unknown) => boolean;

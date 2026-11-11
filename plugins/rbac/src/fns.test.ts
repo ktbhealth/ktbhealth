@@ -109,6 +109,24 @@ describe("rbac admin fns", () => {
 		expect(res).toEqual({ ok: false });
 	});
 
+	it("collapses Forbidden to ok:false for every admin fn", async () => {
+		currentEmail = "user@x.com";
+		const results = await Promise.all([
+			createRoleFn({ data: { name: "nurse" } }),
+			updateRoleFn({ data: { id: 1, name: "nurse" } }),
+			deleteRoleFn({ data: { id: 1 } }),
+			setRolePermissionFn({
+				data: { roleId: 1, resource: "patient", action: "read", effect: "allow" },
+			}),
+			revokeRolePermissionFn({ data: { roleId: 1, resource: "patient", action: "read" } }),
+			assignSubjectFn({
+				data: { subjectKind: "user", subjectId: "u1", roleId: 1 },
+			}),
+			unassignSubjectFn({ data: { id: 1 } }),
+		]);
+		for (const res of results) expect(res).toEqual({ ok: false });
+	});
+
 	it("runs the full admin lifecycle", async () => {
 		currentEmail = "admin@x.com";
 		const created = await createRoleFn({ data: { name: "auditor", description: "RO" } });

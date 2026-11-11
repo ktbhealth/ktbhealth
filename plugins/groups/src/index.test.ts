@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { BoxesIcon } from "lucide-react";
 
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
+import { PermissionInvalidator } from "@ktb/rbac";
 
 import { GroupsQueries } from "./api.ts";
 import { groups as groupsTable } from "./schema.ts";
@@ -423,5 +424,50 @@ describe("plugins", () => {
 
 	it("exports the discovery plugins array", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["groups.tables", "groups.services", "groups.panel"]);
+	});
+});
+
+describe("GroupsLive with PermissionInvalidator", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Groups, never>;
+	let invalidations = 0;
+
+	beforeAll(() => {
+		const db = makeDb(makeD1(DDL));
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, db),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+			Layer.succeed(PermissionInvalidator, {
+				invalidate: () => Effect.sync(() => invalidations++),
+			}),
+		);
+		runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("membership writes bump the permission epoch", async () => {
+		const added = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.addMember({ groupId: 1, memberKind: "user", memberId: "u9", role: "mod" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(added?.memberId).toBe("u9");
+		const removed = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.removeMember({ groupId: 1, memberKind: "user", memberId: "u9" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(removed?.memberId).toBe("u9");
+		expect(invalidations).toBe(2);
 	});
 });
