@@ -144,28 +144,32 @@ const pageData = async (path: string, shell: PageShell): Promise<PageDataResult>
 	return { status: "ok", data: await runEffect(loader()) };
 };
 
-const pageDataFn = (shell: PageShell) =>
-	createServerFn({ method: "GET" })
-		.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
-		// Loader results are plugin-defined `unknown` at the kernel
-		// boundary; the wire type is whatever each page's loader returns
-		// (serializable rows — same shape the retired per-page fns sent).
-		.handler(async ({ data: path }): Promise<PageDataResult> => pageData(path, shell));
-
 /**
  * Loader data for /platform console pages (P-050): `panel.pages`
  * descriptors plus console-context `pages` entries. Anonymous callers,
  * unknown paths and `guard` denials all collapse to
  * `{ status: "notfound" }` — the route dispatcher turns that into a 404.
+ *
+ * NOTE: each export must be a literal `createServerFn` chain — the
+ * Start compiler only treats those as server fns; wrapping the chain
+ * in a factory (`pageDataFn("console")`) ships the handler (and its
+ * `platform.ts` imports) to the client bundle.
  */
-export const platformPageDataFn = pageDataFn("console");
+export const platformPageDataFn = createServerFn({ method: "GET" })
+	.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
+	// Loader results are plugin-defined `unknown` at the kernel
+	// boundary; the wire type is whatever each page's loader returns
+	// (serializable rows — same shape the retired per-page fns sent).
+	.handler(async ({ data: path }): Promise<PageDataResult> => pageData(path, "console"));
 
 /**
  * Loader data for app-shell pages contributed via `pages` (P-059):
  * same dispatch as `platformPageDataFn` but session-optional — public
  * pages run their Effects without a bound Principal.
  */
-export const appPageDataFn = pageDataFn("app");
+export const appPageDataFn = createServerFn({ method: "GET" })
+	.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
+	.handler(async ({ data: path }): Promise<PageDataResult> => pageData(path, "app"));
 
 // ---------- patients ----------
 // Patient server functions are owned by the patients plugin (P-033) —
