@@ -24,7 +24,7 @@
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/patients": "workspace:*",
-		"@tanstack/react-start": "1.169.4",
+		"@tanstack/react-start": "1.169.5",
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"react": "^19.2.0",

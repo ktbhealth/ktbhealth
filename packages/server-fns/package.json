@@ -8,7 +8,7 @@
 	"dependencies": {
 		"@ktb/auth": "workspace:*",
 		"@ktb/interop": "workspace:*",
-		"@tanstack/react-start": "1.169.4",
+		"@tanstack/react-start": "1.169.5",
 		"effect": "4.1.2"
 	}
 }
