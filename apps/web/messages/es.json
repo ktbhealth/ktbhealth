@@ -112,6 +112,8 @@
 	"panel_nav_groups": "Grupos",
 	"panel_group_access": "Acceso",
 	"panel_group_domains": "Dominios",
+	"panel_nav_ops": "Operaciones",
+	"panel_group_system": "Sistema",
 	"persona_label": "Ver como",
 	"persona_doctors": "Médicos",
 	"persona_patients": "Pacientes",

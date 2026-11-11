@@ -112,6 +112,8 @@
 	"panel_nav_groups": "Groups",
 	"panel_group_access": "Access",
 	"panel_group_domains": "Domains",
+	"panel_nav_ops": "Ops",
+	"panel_group_system": "System",
 	"persona_label": "View as",
 	"persona_doctors": "Doctors",
 	"persona_patients": "Patients",

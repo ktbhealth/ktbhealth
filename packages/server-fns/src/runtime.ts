@@ -45,6 +45,79 @@ export interface AudioQueueSender {
 	send(message: AudioJobMessage): Promise<unknown>;
 }
 
+/**
+ * Row-count snapshot of the transcription queue, grouped by delivery
+ * status. Only available when the bound queue exposes stats — the
+ * dev:node SQLite queue does; the workerd Queue binding does not
+ * (production queues are managed in the Cloudflare dashboard, so the
+ * ops console reports them as externally managed instead).
+ */
+export interface QueueDepth {
+	readonly pending: number;
+	readonly processing: number;
+	readonly done: number;
+	readonly failed: number;
+}
+
+/**
+ * Aggregate object stats for the audio bucket. `truncated` means the
+ * listing hit the page cap — counts are a lower bound, not exact.
+ */
+export interface AudioStorageStats {
+	readonly objects: number;
+	readonly bytes: number;
+	readonly truncated: boolean;
+}
+
+/**
+ * Minimal paginated listing slice — the real R2Bucket satisfies this
+ * (its `list` returns R2Objects, a superset of the shape below). Used
+ * only by the ops stats probe; audio routes never list.
+ */
+export interface AudioObjectLister {
+	list(options?: { readonly limit?: number; readonly cursor?: string }): Promise<{
+		readonly objects: readonly { readonly key: string; readonly size: number }[];
+		readonly truncated: boolean;
+		readonly cursor?: string;
+	}>;
+}
+
+/** Page cap for the storage stats probe — an ops health signal needs
+ * an order-of-magnitude count, not a full bucket inventory. */
+const STORAGE_STATS_MAX_PAGES = 5;
+
+/**
+ * Aggregate object count + bytes over an R2-style lister, capped at
+ * `maxPages` pages. Returns null when the bucket cannot list or any
+ * page fails — the ops console renders "unavailable", never a fake
+ * zero.
+ */
+export const audioStorageStats = async (
+	bucket: AudioObjectLister | undefined,
+	maxPages = STORAGE_STATS_MAX_PAGES,
+): Promise<AudioStorageStats | null> => {
+	if (bucket?.list === undefined) return null;
+	try {
+		let objects = 0;
+		let bytes = 0;
+		let cursor: string | undefined;
+		for (let page = 0; page < maxPages; page++) {
+			const result = await bucket.list({ limit: 1000, cursor });
+			for (const object of result.objects) {
+				objects += 1;
+				bytes += object.size;
+			}
+			if (!result.truncated) return { objects, bytes, truncated: false };
+			cursor = result.cursor;
+			// Truncated without a cursor cannot be paged further.
+			if (cursor === undefined) return { objects, bytes, truncated: true };
+		}
+		return { objects, bytes, truncated: true };
+	} catch {
+		return null;
+	}
+};
+
 /** The slice of the Workers AI binding the transcribe route needs. */
 export interface AiRunner {
 	run(model: string, inputs: unknown): Promise<unknown>;
@@ -73,6 +146,13 @@ export interface ServerRuntime {
 	readonly audio?: AudioStore;
 	/** Queue producer for async transcription jobs; undefined when unbound. */
 	readonly audioQueue?: AudioQueueSender;
+	/** Queue depth probe — present only when the bound queue exposes
+	 * stats (the dev:node SQLite queue). Resolves null on probe failure;
+	 * undefined field means the queue is managed externally. */
+	readonly audioQueueDepth?: () => Promise<QueueDepth | null>;
+	/** Audio bucket aggregate stats (object count + bytes, capped
+	 * pagination); undefined when no bucket binding is published. */
+	readonly audioStorageStats?: () => Promise<AudioStorageStats | null>;
 	/** Workers AI binding (or host-resolved stand-in) for transcription;
 	 * undefined when unbound. */
 	readonly ai?: AiRunner;

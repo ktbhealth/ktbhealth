@@ -3,6 +3,8 @@ import { dirname, resolve } from "node:path";
 
 import Database from "better-sqlite3";
 
+import type { QueueDepth } from "@ktb/server-fns";
+
 /**
  * Restart-persistent stand-in for the Cloudflare Queue binding under
  * `KTB_DEV_NODE=1` (see node-cloudflare-workers.ts). Messages live in a
@@ -62,9 +64,13 @@ export interface LocalQueueOptions {
 }
 
 /** Returned queue: the Cloudflare QueueProducer slice plus close()
- * (tests use close()+reopen on the same dbPath to simulate restarts). */
+ * (tests use close()+reopen on the same dbPath to simulate restarts)
+ * and stats() — the dev-only depth probe behind ServerRuntime's
+ * `audioQueueDepth` (prod workerd Queues expose no query API, so the
+ * ops console reports them as externally managed). */
 export interface LocalQueue {
 	send(body: unknown): Promise<unknown>;
+	stats(): Promise<QueueDepth>;
 	close(): void;
 }
 
@@ -232,12 +238,26 @@ export const makeLocalQueue = (options: LocalQueueOptions): LocalQueue => {
 	const timer = setInterval(() => void poll(), pollMs);
 	timer.unref();
 
+	const countByStatus = db.prepare(`SELECT status, COUNT(*) AS n FROM jobs GROUP BY status`);
+
 	return {
 		send: (body: unknown): Promise<unknown> => {
 			const text = JSON.stringify(body) ?? "null";
 			const t = now();
 			insert.run(queue, text, maxAttempts, t, t, t);
 			return Promise.resolve({});
+		},
+		stats: (): Promise<QueueDepth> => {
+			const depth: Record<keyof QueueDepth, number> = {
+				pending: 0,
+				processing: 0,
+				done: 0,
+				failed: 0,
+			};
+			for (const row of countByStatus.all() as { status: string; n: number }[]) {
+				if (row.status in depth) depth[row.status as keyof QueueDepth] = row.n;
+			}
+			return Promise.resolve(depth);
 		},
 		close: () => {
 			clearInterval(timer);

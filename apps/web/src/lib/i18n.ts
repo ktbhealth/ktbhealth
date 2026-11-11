@@ -44,11 +44,13 @@ const PANEL_LABELS: Record<string, () => string> = {
 	"/platform/patients": () => m.nav_patients(),
 	"/platform/users": () => m.panel_nav_users(),
 	"/platform/groups": () => m.panel_nav_groups(),
+	"/platform/ops": () => m.panel_nav_ops(),
 };
 
 const PANEL_GROUPS: Record<string, () => string> = {
 	Access: () => m.panel_group_access(),
 	Domains: () => m.panel_group_domains(),
+	System: () => m.panel_group_system(),
 };
 
 /** Switch the UI locale (paraglide persists the cookie and reloads). */

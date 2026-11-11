@@ -1,6 +1,12 @@
 import { env } from "cloudflare:workers";
 
-import { setServerRuntime, getTenantSelector } from "@ktb/server-fns";
+import {
+	audioStorageStats,
+	getTenantSelector,
+	setServerRuntime,
+	type AudioObjectLister,
+	type QueueDepth,
+} from "@ktb/server-fns";
 import type { TenantSelector } from "@ktb/tenant/selector";
 import { makeTenantResolver } from "@ktb/tenant";
 import { makeDb, type SqlDatabase } from "@ktb/db";
@@ -100,6 +106,17 @@ const recordExporters: Record<ExportFormat, RecordExporter> = {
 	openehr: openEhrExporter,
 };
 
+// Ops probes (T-035): the queue depth signal exists only when the bound
+// queue exposes stats — the dev:node SQLite queue does; the workerd
+// Queue binding doesn't (prod queues are managed in the Cloudflare
+// dashboard, so the ops console reports them as externally managed).
+// The storage probe paginates the bucket's list() with a page cap; a
+// missing listing capability or a failed page resolves null → the page
+// shows "unavailable", never a fake zero.
+const queueDepthProbe = (env.AUDIO_QUEUE as { stats?: () => Promise<QueueDepth> } | undefined)
+	?.stats;
+const audioBucketLister = env.AUDIO_BUCKET as unknown as AudioObjectLister | undefined;
+
 // P-033: publish the runtime to @ktb/server-fns so plugin-owned server
 // functions (plugins/*/src/**) reach run/runAs, audio purge and locale
 // without importing this module. Env reads stay here — the registry
@@ -109,6 +126,10 @@ setServerRuntime({
 	runAs,
 	audio: env.AUDIO_BUCKET,
 	audioQueue: env.AUDIO_QUEUE,
+	audioQueueDepth:
+		typeof queueDepthProbe === "function" ? () => queueDepthProbe().catch(() => null) : undefined,
+	audioStorageStats:
+		audioBucketLister === undefined ? undefined : () => audioStorageStats(audioBucketLister),
 	ai: aiBinding,
 	audioTranscribeModel,
 	recordExporters,

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { jobsHeaderPlugin } from "./index.ts";
-import { jobFromAudioRow, jobsFromAudioRows } from "./jobs.ts";
+import { jobsHeaderPlugin, opsPanelPlugin, opsServicesPlugin, plugins } from "./index.ts";
+import {
+	isAudioRetryable,
+	jobFromAudioRow,
+	jobStatusOf,
+	jobsFromAudioRows,
+	RETRYABLE_AUDIO_STATUSES,
+} from "./jobs.ts";
 
 describe("jobs.header plugin", () => {
 	it("declares the header action contribution", () => {
@@ -10,6 +16,58 @@ describe("jobs.header plugin", () => {
 		expect(jobsHeaderPlugin.optionalDeps).toEqual(["platform.header"]);
 		expect(jobsHeaderPlugin.panel?.headerActions).toHaveLength(1);
 		expect(jobsHeaderPlugin.panel?.headerActions?.[0]?.id).toBe("jobs");
+	});
+});
+
+describe("ops plugins", () => {
+	it("declares the ops services contribution behind consultations + admin deps", () => {
+		expect(opsServicesPlugin.id).toBe("jobs.ops.services");
+		expect(opsServicesPlugin.requiredDeps).toEqual(["consultations.services", "platform.admin"]);
+	});
+
+	it("declares the /platform/ops sidebar entry and page", () => {
+		expect(opsPanelPlugin.id).toBe("jobs.panel");
+		expect(opsPanelPlugin.requiredDeps).toEqual(["platform.panel", "jobs.ops.services"]);
+		expect(opsPanelPlugin.panel?.sidebar?.[0]).toMatchObject({
+			to: "/platform/ops",
+			label: "Ops",
+			group: "System",
+		});
+		const page = opsPanelPlugin.panel?.pages?.[0];
+		expect(page).toMatchObject({ id: "jobs.ops", path: "/platform/ops" });
+		expect(typeof page?.guard).toBe("function");
+		expect(typeof page?.loader).toBe("function");
+	});
+
+	it("is discoverable through the plugins export", () => {
+		expect(plugins.map((p) => p.id)).toEqual([
+			"jobs.header",
+			"jobs.routes",
+			"jobs.ops.services",
+			"jobs.panel",
+		]);
+	});
+});
+
+describe("audio job status helpers", () => {
+	it("maps pipeline statuses to badges and null for non-jobs", () => {
+		expect(jobStatusOf("stored")).toBe("queued");
+		expect(jobStatusOf("queued")).toBe("queued");
+		expect(jobStatusOf("processing")).toBe("processing");
+		expect(jobStatusOf("done")).toBe("done");
+		expect(jobStatusOf("failed")).toBe("failed");
+		expect(jobStatusOf("none")).toBeNull();
+		expect(jobStatusOf("bogus")).toBeNull();
+	});
+
+	it("marks only stored/failed rows as retryable", () => {
+		expect([...RETRYABLE_AUDIO_STATUSES]).toEqual(["stored", "failed"]);
+		expect(isAudioRetryable("stored")).toBe(true);
+		expect(isAudioRetryable("failed")).toBe(true);
+		expect(isAudioRetryable("queued")).toBe(false);
+		expect(isAudioRetryable("processing")).toBe(false);
+		expect(isAudioRetryable("done")).toBe(false);
+		expect(isAudioRetryable("none")).toBe(false);
 	});
 });
 

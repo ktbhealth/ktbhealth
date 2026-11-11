@@ -737,6 +737,121 @@ describe("audio pipeline", () => {
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
+
+	it("adminAudioJobs lists the projection for admins and denies others", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(testDb, id, { audioKey: "k-admin-jobs", size: 1 });
+		const rows = await asUser(
+			"u1",
+			call((c) => c.adminAudioJobs()),
+			"admin@x.com",
+		);
+		expect(rows.find((r) => r.id === id)?.audioStatus).toBe("stored");
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminAudioJobs()),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				null,
+				call((c) => c.adminAudioJobs()),
+			),
+		).rejects.toMatchObject({
+			_tag: "Forbidden",
+		});
+	});
+
+	it("adminAudioJob returns the retry record and denies non-admins", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(testDb, id, { audioKey: "k-retry", size: 1 });
+		await failAudioJob(testDb, id, "boom");
+		const record = await asUser(
+			"u1",
+			call((c) => c.adminAudioJob(id)),
+			"admin@x.com",
+		);
+		expect(record).toMatchObject({
+			audioKey: "k-retry",
+			audioStatus: "failed",
+			userId: "u1",
+		});
+		expect(
+			await asUser(
+				"u1",
+				call((c) => c.adminAudioJob(424242)),
+				"admin@x.com",
+			),
+		).toBeNull();
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminAudioJob(id)),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminRequeueAudio flips retryable rows to queued and publishes the event", async () => {
+		// Explicit bus so the test can subscribe to the same instance the
+		// service layer dispatches on (same pattern as the tenant suite).
+		const busRuntime = ManagedRuntime.make(makeEventBus());
+		const bus = await busRuntime.runPromise(EventBus);
+		const rt = ManagedRuntime.make(
+			ConsultationsLive.pipe(Layer.provide(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
+		);
+		const seen: { consultationId: number; audioStatus: string; tenantId?: number | null }[] = [];
+		await Effect.runPromise(
+			bus.subscribe(ConsultationAudioUpdated, (e) =>
+				Effect.sync(() => {
+					seen.push({
+						consultationId: e.consultationId,
+						audioStatus: e.audioStatus,
+						tenantId: e.tenantId,
+					});
+				}),
+			),
+		);
+		const asAdmin = <A, E>(effect: Effect.Effect<A, E, Consultations>) =>
+			rt.runPromise(
+				Effect.provideService(effect, Principal, { userId: "u1", email: "admin@x.com" }),
+			);
+		try {
+			const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+			await attachAudioRecord(testDb, id, { audioKey: "k-requeue", size: 1 });
+			await failAudioJob(testDb, id, "boom");
+			const ok = await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)));
+			expect(ok).toBe(true);
+			const row = await audioJobRecord(testDb, id);
+			expect(row?.audioStatus).toBe("queued");
+			const full = await testDb.query.consultations.findFirst({
+				where: (t, { eq }) => eq(t.id, id),
+			});
+			expect(full?.audioError).toBeNull();
+			expect(seen).toContainEqual({ consultationId: id, audioStatus: "queued", tenantId: null });
+			// Second call: status already "queued" — not retryable → false.
+			const again = await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)));
+			expect(again).toBe(false);
+			// Missing row → false; non-admin → Forbidden.
+			expect(await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(424242)))).toBe(
+				false,
+			);
+			await expect(
+				rt.runPromise(
+					Effect.provideService(
+						Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)),
+						Principal,
+						{ userId: "u1", email: "other@x.com" },
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+		} finally {
+			await rt.dispose();
+			await busRuntime.dispose();
+		}
+	});
 });
 
 describe("Consultations.history", () => {

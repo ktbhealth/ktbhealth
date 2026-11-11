@@ -371,4 +371,24 @@ describe("makeLocalQueue", () => {
 			process.chdir(cwd);
 		}
 	});
+
+	it("stats() reports row counts grouped by status", async () => {
+		const queue = makeLocalQueue({
+			dbPath: dbPath(),
+			pollMs: 60_000, // keep rows pending — no consumer delivery
+			loadHandler: async () => ackAll,
+		});
+		expect(await queue.stats()).toEqual({ pending: 0, processing: 0, done: 0, failed: 0 });
+		await queue.send({ n: 1 });
+		await queue.send({ n: 2 });
+		expect(await queue.stats()).toEqual({ pending: 2, processing: 0, done: 0, failed: 0 });
+		// Force one row terminal directly — the probe reads the table,
+		// not the in-memory queue state.
+		const db = new Database(dbPath());
+		db.pragma("busy_timeout = 5000");
+		db.prepare("UPDATE jobs SET status = 'failed' WHERE id = 1").run();
+		db.close();
+		expect(await queue.stats()).toEqual({ pending: 1, processing: 0, done: 0, failed: 1 });
+		queue.close();
+	});
 });

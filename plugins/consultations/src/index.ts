@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 import { Option } from "effect";
-import { and, count, desc, eq, isNotNull, ne, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, ne, or, type SQL } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 
 import { user as users } from "@ktb/auth/schema";
@@ -246,6 +246,37 @@ export async function failAudioJob(db: DbClient, consultationId: number, reason:
 		.update(consultations)
 		.set({ audioStatus: "failed", audioError: reason })
 		.where(eq(consultations.id, consultationId));
+}
+
+/**
+ * Audio statuses an admin retry may re-queue (T-035): "failed" is the
+ * terminal pipeline state and "stored" means the upload landed but the
+ * enqueue failed. "queued"/"processing" may have a live delivery in
+ * flight — re-enqueueing them risks duplicate transcription — and
+ * "done" is terminal-success. A job stuck in "queued" with no pending
+ * message has no staleness signal to detect it; recovery stays manual.
+ */
+export const AUDIO_RETRY_STATUSES = ["stored", "failed"] as const;
+
+/**
+ * Re-queue marker for the admin retry path: flips a retryable
+ * consultation back to "queued" and clears the error. The UPDATE is
+ * conditional on the retryable set so a concurrent consumer transition
+ * (processing/done) is never overwritten. Returns false when the row
+ * is missing or already past the retryable states.
+ */
+export async function requeueAudioJob(db: DbClient, consultationId: number): Promise<boolean> {
+	const rows = await db
+		.update(consultations)
+		.set({ audioStatus: "queued", audioError: null })
+		.where(
+			and(
+				eq(consultations.id, consultationId),
+				inArray(consultations.audioStatus, [...AUDIO_RETRY_STATUSES]),
+			),
+		)
+		.returning({ id: consultations.id });
+	return rows.length > 0;
 }
 
 /**
@@ -691,6 +722,22 @@ export class Consultations extends Context.Service<
 		 * `consultation.audioUpdated` event. Platform admins only.
 		 */
 		readonly audioJobsStream: () => Stream.Stream<AudioJobRow, Forbidden>;
+		/** One-shot variant of the audioJobs projection — platform admins only. */
+		readonly adminAudioJobs: () => Effect.Effect<AudioJobRow[], Forbidden>;
+		/**
+		 * Single audio-job record for the admin retry path (T-035):
+		 * carries the R2 key + owner/tenant the re-enqueued
+		 * AudioJobMessage needs. Platform admins only.
+		 */
+		readonly adminAudioJob: (id: number) => Effect.Effect<AudioJobRecord | null, Forbidden>;
+		/**
+		 * Flip a retryable audio job (stored|failed) back to "queued"
+		 * after the caller re-enqueued it — platform admins only.
+		 * Conditional on the retryable set so a concurrent consumer
+		 * transition is never overwritten; false when the row is missing
+		 * or already past those states.
+		 */
+		readonly adminRequeueAudio: (id: number) => Effect.Effect<boolean, Forbidden>;
 		/**
 		 * Create a consultation on behalf of `userId` — platform admins
 		 * only. `patientId`, when given, must resolve to an existing
@@ -880,6 +927,33 @@ export const ConsultationsLive = Layer.effect(
 						return Stream.concat(Stream.fromIterable(rows), Stream.fromPubSub(liveAudioJobs));
 					}),
 				),
+			adminAudioJobs: Effect.fn("Consultations.adminAudioJobs")(function* () {
+				// Same gate as adminList — fails Forbidden for non-admins
+				// and for system contexts (null principal) alike.
+				yield* platformAdmin.requireAdmin();
+				return yield* Effect.promise(() => listAudioJobRows(db));
+			}),
+			adminAudioJob: Effect.fn("Consultations.adminAudioJob")(function* (id: number) {
+				yield* platformAdmin.requireAdmin();
+				return yield* Effect.promise(() => audioJobRecord(db, id));
+			}),
+			adminRequeueAudio: Effect.fn("Consultations.adminRequeueAudio")(function* (id: number) {
+				yield* platformAdmin.requireAdmin();
+				const queued = yield* Effect.promise(() => requeueAudioJob(db, id));
+				if (!queued) return false;
+				// The row's tenant_id is authoritative for the live fan-out
+				// (same rule as attachAudio/updateAudioStatus).
+				const tenantId = yield* Effect.promise(() => consultationTenantId(db, id));
+				yield* events.dispatch([
+					ConsultationAudioUpdated.make({
+						consultationId: id,
+						audioStatus: "queued",
+						audioError: null,
+						tenantId,
+					}),
+				]);
+				return true;
+			}),
 			adminCreate: Effect.fn("Consultations.adminCreate")(function* (fields: {
 				userId: string;
 				patientId?: number;
