@@ -289,6 +289,25 @@ describe("/platform/$ splat dispatcher", () => {
 		expect(screen.getByText("clinic-a")).toBeTruthy();
 	});
 
+	it("renders the tenants page contributed by the tenant plugin", () => {
+		pageParam = "tenants";
+		loaderData = [
+			{
+				id: 4,
+				name: "Clinic B",
+				slug: "clinic-b",
+				kind: "clinic",
+				meta: null,
+				createdAt: new Date("2026-11-01T10:00:00Z"),
+				updatedAt: new Date("2026-11-01T10:00:00Z"),
+				memberCount: 2,
+			},
+		];
+		render(createElement(component(PlatformPageRoute)));
+		expect(screen.getByText("Clinic B")).toBeTruthy();
+		expect(screen.getByText("clinic-b")).toBeTruthy();
+	});
+
 	it("loader resolves the descriptor path and calls the data fn", async () => {
 		await loader(PlatformPageRoute)!({ params: { _splat: "patients" } });
 		expect(platformPageDataFn).toHaveBeenCalledWith("/platform/patients");

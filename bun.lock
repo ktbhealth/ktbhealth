@@ -609,6 +609,33 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/tenant": {
+      "name": "@ktb/tenant-plugin",
+      "dependencies": {
+        "@ktb/auth": "workspace:*",
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/groups": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktb/tenant": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/users": {
       "name": "@ktb/users",
       "dependencies": {
@@ -1056,6 +1083,8 @@
     "@ktb/server-fns": ["@ktb/server-fns@workspace:packages/server-fns"],
 
     "@ktb/tenant": ["@ktb/tenant@workspace:packages/tenant"],
+
+    "@ktb/tenant-plugin": ["@ktb/tenant-plugin@workspace:plugins/tenant"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
 

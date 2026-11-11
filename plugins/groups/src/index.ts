@@ -46,6 +46,14 @@ export interface RemoveGroupMemberInput {
 	readonly memberId: string;
 }
 
+export interface UpdateGroupMemberRoleInput {
+	readonly groupId: number;
+	readonly memberKind: string;
+	readonly memberId: string;
+	/** `null` clears the role back to the column default. */
+	readonly role: string | null;
+}
+
 export async function createGroup(db: DbClient, input: CreateGroupInput) {
 	const rows = await db
 		.insert(groups)
@@ -145,6 +153,27 @@ export async function removeMember(db: DbClient, input: RemoveGroupMemberInput) 
 	return existing;
 }
 
+/**
+ * Updates the `role` column of an existing membership; returns the
+ * updated row, or null when no such membership exists.
+ */
+export async function updateMemberRole(db: DbClient, input: UpdateGroupMemberRoleInput) {
+	const existing = await findMembership(db, input.groupId, input.memberKind, input.memberId);
+	if (existing === null) return null;
+	const rows = await db
+		.update(groupMembers)
+		.set({ role: input.role })
+		.where(
+			and(
+				eq(groupMembers.groupId, input.groupId),
+				eq(groupMembers.memberKind, input.memberKind),
+				eq(groupMembers.memberId, input.memberId),
+			),
+		)
+		.returning();
+	return rows[0] ?? existing;
+}
+
 export async function listMembers(db: DbClient, groupId: number) {
 	return db
 		.select()
@@ -176,6 +205,9 @@ export class Groups extends Context.Service<
 		) => Effect.Effect<GroupMember | null, Forbidden>;
 		readonly removeMember: (
 			input: RemoveGroupMemberInput,
+		) => Effect.Effect<GroupMember | null, Forbidden>;
+		readonly updateMemberRole: (
+			input: UpdateGroupMemberRoleInput,
 		) => Effect.Effect<GroupMember | null, Forbidden>;
 		readonly members: (groupId: number) => Effect.Effect<GroupMember[], Forbidden>;
 		readonly requireMember: (
@@ -234,6 +266,18 @@ export const GroupsLive = Layer.effect(
 				yield* platformAdmin.requireAdmin();
 				const member = yield* Effect.promise(() => removeMember(db, input));
 				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				return member;
+			}),
+			updateMemberRole: Effect.fn("Groups.updateMemberRole")(function* (
+				input: UpdateGroupMemberRoleInput,
+			) {
+				yield* platformAdmin.requireAdmin();
+				const member = yield* Effect.promise(() => updateMemberRole(db, input));
+				// Role changes feed RBAC group-derived grants — same epoch
+				// bump as add/remove (P-054).
+				if (member !== null && invalidatePermissions !== undefined) {
+					yield* invalidatePermissions();
+				}
 				return member;
 			}),
 			members: Effect.fn("Groups.members")(function* (groupId: number) {

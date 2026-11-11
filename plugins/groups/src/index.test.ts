@@ -31,6 +31,7 @@ import {
 	listMembers,
 	plugins,
 	removeMember,
+	updateMemberRole,
 } from "./index.ts";
 
 const DDL = `
@@ -99,6 +100,33 @@ describe("groups repo", () => {
 		expect(await findMembership(db, 2, "user", "u9")).toBeNull();
 		expect(await removeMember(db, { groupId: 2, memberKind: "user", memberId: "u9" })).toBeNull();
 	});
+
+	it("updateMemberRole rewrites the role and reports misses", async () => {
+		const updated = await updateMemberRole(db, {
+			groupId: 1,
+			memberKind: "user",
+			memberId: "u2",
+			role: "owner",
+		});
+		expect(updated?.role).toBe("owner");
+		expect((await findMembership(db, 1, "user", "u2"))?.role).toBe("owner");
+		// Clearing the role stores null.
+		const cleared = await updateMemberRole(db, {
+			groupId: 1,
+			memberKind: "user",
+			memberId: "u2",
+			role: null,
+		});
+		expect(cleared?.role).toBeNull();
+		expect(
+			await updateMemberRole(db, {
+				groupId: 1,
+				memberKind: "user",
+				memberId: "ghost",
+				role: "admin",
+			}),
+		).toBeNull();
+	});
 	it("createGroup stores the optional meta payload", async () => {
 		const created = await createGroup(db, {
 			name: "With meta",
@@ -149,6 +177,21 @@ describe("groups repo — empty driver results", () => {
 		expect(
 			await addMember(emptyInsert, { groupId: 1, memberKind: "user", memberId: "u" }),
 		).toBeNull();
+	});
+
+	it("updateMemberRole falls back to the pre-update row when RETURNING yields nothing", async () => {
+		const memberRow = { id: 7, role: "admin" };
+		const fakeDb = {
+			select: () => ({ from: () => ({ where: async () => [memberRow] }) }),
+			update: () => ({ set: () => ({ where: () => ({ returning: async () => [] }) }) }),
+		} as unknown as DbClient;
+		const result = await updateMemberRole(fakeDb, {
+			groupId: 1,
+			memberKind: "user",
+			memberId: "u1",
+			role: "owner",
+		});
+		expect(result).toBe(memberRow);
 	});
 });
 
@@ -247,6 +290,49 @@ describe("GroupsLive", () => {
 			"admin@x.com",
 		);
 		expect(removed?.memberId).toBe("u7");
+	});
+
+	it("admin updateMemberRole rewrites roles, misses return null and non-admins are Forbidden", async () => {
+		const updated = await asUser(
+			"u1",
+			call((p) =>
+				p.updateMemberRole({
+					groupId: 1,
+					memberKind: "user",
+					memberId: "u2",
+					role: "member",
+				}),
+			),
+			"admin@x.com",
+		);
+		expect(updated?.role).toBe("member");
+		const missing = await asUser(
+			"u1",
+			call((p) =>
+				p.updateMemberRole({
+					groupId: 1,
+					memberKind: "user",
+					memberId: "ghost",
+					role: "admin",
+				}),
+			),
+			"admin@x.com",
+		);
+		expect(missing).toBeNull();
+		await expect(
+			asUser(
+				"u2",
+				call((p) =>
+					p.updateMemberRole({
+						groupId: 1,
+						memberKind: "user",
+						memberId: "u1",
+						role: "member",
+					}),
+				),
+				"doc@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
 	});
 
 	it("requireMember passes when the bound user is a member", async () => {
@@ -509,6 +595,30 @@ describe("GroupsLive with PermissionInvalidator", () => {
 			),
 		);
 		expect(removed?.memberId).toBe("u9");
+		// A role update on an existing membership bumps the epoch too; a
+		// miss (null member) does not.
+		const updated = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.updateMemberRole({ groupId: 1, memberKind: "user", memberId: "u1", role: "owner" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(updated?.role).toBe("owner");
+		const missed = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.updateMemberRole({ groupId: 1, memberKind: "user", memberId: "ghost", role: "admin" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(missed).toBeNull();
 		// A successful delete cascades memberships — same epoch bump.
 		const deleted = await runtime.runPromise(
 			Effect.flatMap(Groups, (p) => p.delete(2)).pipe(
@@ -519,6 +629,6 @@ describe("GroupsLive with PermissionInvalidator", () => {
 			),
 		);
 		expect(deleted).toBe(true);
-		expect(invalidations).toBe(3);
+		expect(invalidations).toBe(4);
 	});
 });
