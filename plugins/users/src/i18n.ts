@@ -28,6 +28,10 @@ export interface UserMessages {
 	readonly no: string;
 	readonly roleAdmin: string;
 	readonly roleUser: string;
+	readonly searchPlaceholder: string;
+	readonly searchLabel: string;
+	readonly noMatch: string;
+	readonly filteredCount: (shown: number, total: number) => string;
 }
 
 const en: UserMessages = {
@@ -48,6 +52,10 @@ const en: UserMessages = {
 	no: "no",
 	roleAdmin: "admin",
 	roleUser: "user",
+	searchPlaceholder: "Search by name or email…",
+	searchLabel: "Search users",
+	noMatch: "No users match the search.",
+	filteredCount: (shown, total) => `Showing ${shown} of ${total}`,
 };
 
 const ptBR: UserMessages = {
@@ -68,6 +76,10 @@ const ptBR: UserMessages = {
 	no: "não",
 	roleAdmin: "admin",
 	roleUser: "usuário",
+	searchPlaceholder: "Buscar por nome ou e-mail…",
+	searchLabel: "Buscar usuários",
+	noMatch: "Nenhum usuário corresponde à busca.",
+	filteredCount: (shown, total) => `Exibindo ${shown} de ${total}`,
 };
 
 const es: UserMessages = {
@@ -88,6 +100,10 @@ const es: UserMessages = {
 	no: "no",
 	roleAdmin: "admin",
 	roleUser: "usuario",
+	searchPlaceholder: "Buscar por nombre o correo…",
+	searchLabel: "Buscar usuarios",
+	noMatch: "Ningún usuario coincide con la búsqueda.",
+	filteredCount: (shown, total) => `Mostrando ${shown} de ${total}`,
 };
 
 const CATALOGS: Record<UserLocale, UserMessages> = { en, "pt-BR": ptBR, es };

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,7 @@ const fns = vi.hoisted(() => ({
 	revokeRolePermissionFn: vi.fn<FnMock>(async () => ({ ok: true })),
 	setRolePermissionFn: vi.fn<FnMock>(async () => ({ ok: true })),
 	unassignSubjectFn: vi.fn<FnMock>(async () => ({ ok: true })),
+	updateRoleFn: vi.fn<FnMock>(async () => ({ ok: true })),
 }));
 vi.mock("../fns.ts", () => fns);
 
@@ -28,11 +29,12 @@ const role = (
 	id: number,
 	name: string,
 	description: string | null = null,
+	meta: string | null = null,
 ): AdminRbacPageData["roles"][number] => ({
 	id,
 	name,
 	description,
-	meta: null,
+	meta,
 	createdAt: new Date("2026-11-01T10:00:00Z"),
 });
 
@@ -61,7 +63,7 @@ const assignment = (
 });
 
 const full: AdminRbacPageData = {
-	roles: [role(1, "auditor", "Read-only"), role(2, "billing")],
+	roles: [role(1, "auditor", "Read-only"), role(2, "billing", null, '{"tier":"ops"}')],
 	details: [
 		detail(1, "auditor", [
 			{ id: 1, roleId: 1, resource: "patient", action: "read", effect: "allow" },
@@ -190,16 +192,31 @@ describe("AdminRbacPage", () => {
 		});
 	});
 
-	it("selects another role and deletes a role", async () => {
+	it("selects another role and deletes a role after confirming", async () => {
 		const user = userEvent.setup();
 		render(<AdminRbacPage data={full} />);
 		// Row click switches the selected role (billing has no grants).
 		await user.click(screen.getAllByText("billing")[0]!.closest("tr")!);
 		expect(screen.getAllByText("—").length).toBeGreaterThan(2);
-		// Delete on the auditor row — stopPropagation keeps the selection.
+		// Delete on the auditor row opens the confirm dialog — the fn
+		// does not fire until the destructive action is confirmed.
 		const deleteButtons = screen.getAllByRole("button", { name: /Delete/ });
 		await user.click(deleteButtons[0]!);
+		expect(fns.deleteRoleFn).not.toHaveBeenCalled();
+		const dialog = await screen.findByRole("alertdialog");
+		expect(within(dialog).getByText(/Delete “auditor”\?/)).toBeTruthy();
+		await user.click(within(dialog).getByRole("button", { name: "Delete" }));
 		expect(fns.deleteRoleFn).toHaveBeenCalledWith({ data: { id: 1 } });
+	});
+
+	it("keeps the role when the delete confirm is cancelled", async () => {
+		const user = userEvent.setup();
+		render(<AdminRbacPage data={full} />);
+		await user.click(screen.getAllByRole("button", { name: /Delete/ })[0]!);
+		const dialog = await screen.findByRole("alertdialog");
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+		expect(fns.deleteRoleFn).not.toHaveBeenCalled();
+		await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
 	});
 
 	it("assigns a subject with and without optional fields", async () => {
@@ -243,12 +260,117 @@ describe("AdminRbacPage", () => {
 		});
 	});
 
-	it("unassigns a subject", async () => {
+	it("unassigns a subject after confirming", async () => {
 		const user = userEvent.setup();
 		render(<AdminRbacPage data={full} />);
 		const removeButtons = screen.getAllByRole("button", { name: "Remove" });
 		await user.click(removeButtons[0]!);
+		expect(fns.unassignSubjectFn).not.toHaveBeenCalled();
+		const dialog = await screen.findByRole("alertdialog");
+		expect(within(dialog).getByText("Remove u1 from the “auditor” role?")).toBeTruthy();
+		await user.click(within(dialog).getByRole("button", { name: "Remove" }));
 		expect(fns.unassignSubjectFn).toHaveBeenCalledWith({ data: { id: 5 } });
+	});
+
+	it("keeps the assignment when the unassign confirm is cancelled", async () => {
+		const user = userEvent.setup();
+		render(<AdminRbacPage data={full} />);
+		await user.click(screen.getAllByRole("button", { name: "Remove" })[0]!);
+		const dialog = await screen.findByRole("alertdialog");
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+		expect(fns.unassignSubjectFn).not.toHaveBeenCalled();
+		await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+	});
+
+	it("edits a role from the dialog and submits the update", async () => {
+		const user = userEvent.setup();
+		render(<AdminRbacPage data={full} />);
+		// Pencil button on the auditor row (aria-labelled "Edit").
+		const editButtons = screen.getAllByRole("button", { name: "Edit" });
+		await user.click(editButtons[0]!);
+		const dialog = await screen.findByRole("dialog");
+		// Pre-filled from the role row.
+		expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("auditor");
+		expect((within(dialog).getByLabelText("Description") as HTMLInputElement).value).toBe(
+			"Read-only",
+		);
+		expect((within(dialog).getByLabelText("Meta") as HTMLInputElement).value).toBe("");
+
+		await user.clear(within(dialog).getByLabelText("Description"));
+		await user.type(within(dialog).getByLabelText("Description"), "Auditor v2");
+		fireEvent.change(within(dialog).getByLabelText("Meta"), {
+			target: { value: '{"tier":"ops"}' },
+		});
+		await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+		expect(fns.updateRoleFn).toHaveBeenCalledWith({
+			data: {
+				id: 1,
+				name: "auditor",
+				description: "Auditor v2",
+				meta: '{"tier":"ops"}',
+			},
+		});
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+	});
+
+	it("collapses empty edit fields to null and guards an empty name", async () => {
+		const user = userEvent.setup();
+		render(<AdminRbacPage data={full} />);
+		await user.click(screen.getAllByRole("button", { name: "Edit" })[0]!);
+		const dialog = await screen.findByRole("dialog");
+		const nameInput = within(dialog).getByLabelText("Name");
+		const descInput = within(dialog).getByLabelText("Description");
+
+		// Clearing the name blocks the submit entirely.
+		await user.clear(nameInput);
+		fireEvent.submit(nameInput.closest("form")!);
+		expect(fns.updateRoleFn).not.toHaveBeenCalled();
+
+		// Empty description/meta serialize as null.
+		await user.type(nameInput, "auditor");
+		await user.clear(descInput);
+		await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+		expect(fns.updateRoleFn).toHaveBeenCalledWith({
+			data: { id: 1, name: "auditor", description: null, meta: null },
+		});
+	});
+
+	it("keeps the edit dialog open with an inline error on failure", async () => {
+		const user = userEvent.setup();
+		fns.updateRoleFn.mockResolvedValueOnce({ ok: false });
+		render(<AdminRbacPage data={full} />);
+		await user.click(screen.getAllByRole("button", { name: "Edit" })[0]!);
+		const dialog = await screen.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+		expect(fns.updateRoleFn).toHaveBeenCalledTimes(1);
+		await waitFor(() => expect(within(dialog).getByText("Save failed")).toBeTruthy());
+		expect(screen.getByRole("dialog")).toBeTruthy();
+	});
+
+	it("pre-fills null description and existing meta on the edit dialog", async () => {
+		const user = userEvent.setup();
+		render(<AdminRbacPage data={full} />);
+		// billing: description null, meta set — exercises both ?? fallbacks.
+		await user.click(screen.getAllByRole("button", { name: "Edit" })[1]!);
+		const dialog = await screen.findByRole("dialog");
+		expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("billing");
+		expect((within(dialog).getByLabelText("Description") as HTMLInputElement).value).toBe("");
+		expect((within(dialog).getByLabelText("Meta") as HTMLInputElement).value).toBe(
+			'{"tier":"ops"}',
+		);
+		// Escape dismisses through the dialog's onOpenChange path.
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+	});
+
+	it("closes the edit dialog on cancel without calling the fn", async () => {
+		const user = userEvent.setup();
+		render(<AdminRbacPage data={full} />);
+		await user.click(screen.getAllByRole("button", { name: "Edit" })[0]!);
+		const dialog = await screen.findByRole("dialog");
+		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+		expect(fns.updateRoleFn).not.toHaveBeenCalled();
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 	});
 
 	it("surfaces save errors from failed mutations", async () => {

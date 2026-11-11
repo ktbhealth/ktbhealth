@@ -4,6 +4,8 @@ import type { ConsoleNotification } from "@ktb/notifications/context";
 import type { AdminPatientRow } from "@ktb/patients";
 
 import { dashboardMessages } from "../i18n.ts";
+import { PageContainer } from "@ktbhealth/ui/components/page-container";
+import { PageHeader } from "@ktbhealth/ui/components/page-header";
 import {
 	Table,
 	TableBody,
@@ -65,18 +67,17 @@ export function DashboardPage({
 	const recent = consultations.slice(0, 8);
 	const sidebarItems = plugins.reduce((n, p) => n + (p.panel?.sidebar?.length ?? 0), 0);
 	return (
-		<div>
-			<h1 className="text-lg font-bold tracking-tight">{t.title}</h1>
-			<p className="mt-1 text-xs text-muted-foreground">{t.subtitle}</p>
+		<PageContainer>
+			<PageHeader title={t.title} description={t.subtitle} />
 
-			<div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+			<div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
 				<Stat label={t.stats.patients} value={patients.length} />
 				<Stat label={t.stats.consultations} value={consultations.length} />
 				<Stat label={t.stats.plugins} value={plugins.length} />
 				<Stat label={t.stats.sidebarItems} value={sidebarItems} />
 			</div>
 
-			<div className="mt-6 grid gap-6 lg:grid-cols-2">
+			<div className="grid gap-6 lg:grid-cols-2">
 				<section>
 					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
 						{t.recentConsultations}
@@ -139,7 +140,7 @@ export function DashboardPage({
 			</div>
 
 			{notifications !== undefined ? (
-				<section className="mt-6">
+				<section>
 					<h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
 						{t.consoleActivity}
 					</h2>
@@ -177,6 +178,6 @@ export function DashboardPage({
 					</div>
 				</section>
 			) : null}
-		</div>
+		</PageContainer>
 	);
 }

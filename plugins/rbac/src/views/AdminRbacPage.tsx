@@ -1,9 +1,18 @@
 import { useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button } from "@ktbhealth/ui/components/button";
+import { ConfirmDialog } from "@ktbhealth/ui/components/confirm-dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@ktbhealth/ui/components/dialog";
+import { Field, FieldLabel } from "@ktbhealth/ui/components/field";
 import { Input } from "@ktbhealth/ui/components/input";
 import {
 	Select,
@@ -12,6 +21,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ktbhealth/ui/components/select";
+import { PageContainer } from "@ktbhealth/ui/components/page-container";
+import { PageHeader } from "@ktbhealth/ui/components/page-header";
 import {
 	Table,
 	TableBody,
@@ -21,7 +32,7 @@ import {
 	TableRow,
 } from "@ktbhealth/ui/components/table";
 
-import type { AdminRbacPageData, AssignmentRow, RoleDetailWire } from "../index.ts";
+import type { AdminRbacPageData, AssignmentRow, RoleDetailWire, RoleWire } from "../index.ts";
 import {
 	assignSubjectFn,
 	createRoleFn,
@@ -29,8 +40,9 @@ import {
 	revokeRolePermissionFn,
 	setRolePermissionFn,
 	unassignSubjectFn,
+	updateRoleFn,
 } from "../fns.ts";
-import { rbacMessages } from "../i18n.ts";
+import { rbacMessages, type RbacMessages } from "../i18n.ts";
 
 const inputCls =
 	"h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring";
@@ -62,6 +74,9 @@ export function AdminRbacPage({
 	const [selectedId, setSelectedId] = useState<number | null>(data.roles[0]?.id ?? null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState(false);
+	const [editing, setEditing] = useState<RoleWire | null>(null);
+	const [deleting, setDeleting] = useState<RoleWire | null>(null);
+	const [unassigning, setUnassigning] = useState<AssignmentRow | null>(null);
 	const [newName, setNewName] = useState("");
 	const [newDesc, setNewDesc] = useState("");
 	const [assign, setAssign] = useState<{
@@ -125,15 +140,22 @@ export function AdminRbacPage({
 		);
 	};
 
+	const confirmDelete = async (role: RoleWire) => {
+		setDeleting(null);
+		await run(() => deleteRoleFn({ data: { id: role.id } }));
+	};
+
+	const confirmUnassign = async (a: AssignmentRow) => {
+		setUnassigning(null);
+		await run(() => unassignSubjectFn({ data: { id: a.id } }));
+	};
+
 	const fmtDate = (d: Date | string | null) =>
 		d === null ? t.neverExpires : new Date(d).toLocaleString(locale);
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<h1 className="text-lg font-bold tracking-tight">{t.title}</h1>
-				<p className="mt-1 text-xs text-muted-foreground">{t.subtitle}</p>
-			</div>
+		<PageContainer className="space-y-8">
+			<PageHeader title={t.title} description={t.subtitle} />
 			{error ? <p className="text-xs text-destructive">{t.saveError}</p> : null}
 
 			<section>
@@ -180,7 +202,7 @@ export function AdminRbacPage({
 								<TableRow>
 									<TableHead>{t.roleName}</TableHead>
 									<TableHead>{t.roleDescription}</TableHead>
-									<TableHead className="text-right">{t.unassign}</TableHead>
+									<TableHead className="text-right">{t.colActions}</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -201,9 +223,22 @@ export function AdminRbacPage({
 												variant="ghost"
 												size="sm"
 												disabled={busy}
+												aria-label={t.editRole}
 												onClick={(e) => {
 													e.stopPropagation();
-													void run(() => deleteRoleFn({ data: { id: r.id } }));
+													setEditing(r);
+												}}
+											>
+												<PencilIcon className="size-3.5" />
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												disabled={busy}
+												onClick={(e) => {
+													e.stopPropagation();
+													setDeleting(r);
 												}}
 											>
 												<Trash2Icon className="size-3.5" /> {t.deleteRole}
@@ -383,7 +418,7 @@ export function AdminRbacPage({
 												variant="ghost"
 												size="sm"
 												disabled={busy}
-												onClick={() => void run(() => unassignSubjectFn({ data: { id: a.id } }))}
+												onClick={() => setUnassigning(a)}
 											>
 												{t.unassign}
 											</Button>
@@ -395,6 +430,147 @@ export function AdminRbacPage({
 					</div>
 				)}
 			</section>
-		</div>
+			{editing !== null ? (
+				<EditRoleDialog key={editing.id} role={editing} t={t} onClose={() => setEditing(null)} />
+			) : null}
+			{deleting !== null ? (
+				<ConfirmDialog
+					open
+					onOpenChange={(open) => {
+						/* v8 ignore next -- mounted only while deleting; only close events fire */
+						if (!open) setDeleting(null);
+					}}
+					title={t.deleteRoleTitle}
+					description={t.deleteRoleDescription(deleting.name)}
+					confirmLabel={t.deleteRole}
+					cancelLabel={t.cancel}
+					variant="destructive"
+					loading={busy}
+					onConfirm={() => confirmDelete(deleting)}
+				/>
+			) : null}
+			{unassigning !== null ? (
+				<ConfirmDialog
+					open
+					onOpenChange={(open) => {
+						/* v8 ignore next -- mounted only while unassigning; only close events fire */
+						if (!open) setUnassigning(null);
+					}}
+					title={t.unassignTitle}
+					description={t.unassignDescription(unassigning.subjectId, unassigning.roleName)}
+					confirmLabel={t.unassign}
+					cancelLabel={t.cancel}
+					variant="destructive"
+					loading={busy}
+					onConfirm={() => confirmUnassign(unassigning)}
+				/>
+			) : null}
+		</PageContainer>
+	);
+}
+
+/** Edit-role dialog — name/description/meta, pre-filled from the row. */
+function EditRoleDialog({
+	role,
+	t,
+	onClose,
+}: {
+	role: RoleWire;
+	t: RbacMessages;
+	onClose: () => void;
+}) {
+	const router = useRouter();
+	const [form, setForm] = useState({
+		name: role.name,
+		description: role.description ?? "",
+		meta: role.meta ?? "",
+	});
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState(false);
+
+	const submit = async () => {
+		const name = form.name.trim();
+		if (name === "") return;
+		setBusy(true);
+		setError(false);
+		try {
+			const res = await updateRoleFn({
+				data: {
+					id: role.id,
+					name,
+					description: form.description.trim() === "" ? null : form.description.trim(),
+					meta: form.meta.trim() === "" ? null : form.meta.trim(),
+				},
+			});
+			if (!res.ok) {
+				setError(true);
+				return;
+			}
+			onClose();
+			await router.invalidate();
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<Dialog
+			open
+			onOpenChange={(open) => {
+				/* v8 ignore next -- mounted only while editing; only close events fire */
+				if (!open) onClose();
+			}}
+		>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>{t.editRoleTitle}</DialogTitle>
+				</DialogHeader>
+				<form
+					className="space-y-3"
+					onSubmit={(e) => {
+						e.preventDefault();
+						void submit();
+					}}
+				>
+					<Field>
+						<FieldLabel htmlFor="edit-role-name">{t.roleName}</FieldLabel>
+						<Input
+							id="edit-role-name"
+							className={inputCls}
+							value={form.name}
+							onChange={(e) => setForm({ ...form, name: e.target.value })}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="edit-role-description">{t.roleDescription}</FieldLabel>
+						<Input
+							id="edit-role-description"
+							className={inputCls}
+							value={form.description}
+							onChange={(e) => setForm({ ...form, description: e.target.value })}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="edit-role-meta">{t.roleMeta}</FieldLabel>
+						<Input
+							id="edit-role-meta"
+							className={inputCls}
+							placeholder={t.metaPlaceholder}
+							value={form.meta}
+							onChange={(e) => setForm({ ...form, meta: e.target.value })}
+						/>
+					</Field>
+					{error ? <p className="text-xs text-destructive">{t.saveError}</p> : null}
+					<DialogFooter>
+						<Button type="button" variant="ghost" size="sm" onClick={onClose}>
+							{t.cancel}
+						</Button>
+						<Button type="submit" size="sm" disabled={busy}>
+							{t.editRoleSubmit}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 	);
 }

@@ -189,6 +189,10 @@ export interface ConsultationMessages {
 		readonly colOwner: string;
 		readonly colAudio: string;
 		readonly colCreated: string;
+		readonly searchPlaceholder: string;
+		readonly searchLabel: string;
+		readonly noMatch: string;
+		readonly filteredCount: (shown: number, total: number) => string;
 	};
 }
 
@@ -373,6 +377,10 @@ const en: ConsultationMessages = {
 		colOwner: "Owner",
 		colAudio: "Audio",
 		colCreated: "Created",
+		searchPlaceholder: "Search by patient or owner…",
+		searchLabel: "Search consultations",
+		noMatch: "No consultations match the search.",
+		filteredCount: (shown, total) => `Showing ${shown} of ${total}`,
 	},
 };
 
@@ -558,6 +566,10 @@ const ptBR: ConsultationMessages = {
 		colOwner: "Proprietário",
 		colAudio: "Áudio",
 		colCreated: "Criada em",
+		searchPlaceholder: "Buscar por paciente ou proprietário…",
+		searchLabel: "Buscar consultas",
+		noMatch: "Nenhuma consulta corresponde à busca.",
+		filteredCount: (shown, total) => `Exibindo ${shown} de ${total}`,
 	},
 };
 
@@ -746,6 +758,10 @@ const es: ConsultationMessages = {
 		colOwner: "Propietario",
 		colAudio: "Audio",
 		colCreated: "Creada",
+		searchPlaceholder: "Buscar por paciente o propietario…",
+		searchLabel: "Buscar consultas",
+		noMatch: "Ninguna consulta coincide con la búsqueda.",
+		filteredCount: (shown, total) => `Mostrando ${shown} de ${total}`,
 	},
 };
 

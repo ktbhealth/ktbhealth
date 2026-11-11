@@ -20,6 +20,17 @@ export interface RbacMessages {
 	readonly roleDescription: string;
 	readonly createRole: string;
 	readonly deleteRole: string;
+	readonly colActions: string;
+	readonly editRole: string;
+	readonly editRoleTitle: string;
+	readonly editRoleSubmit: string;
+	readonly cancel: string;
+	readonly roleMeta: string;
+	readonly metaPlaceholder: string;
+	readonly deleteRoleTitle: string;
+	readonly deleteRoleDescription: (name: string) => string;
+	readonly unassignTitle: string;
+	readonly unassignDescription: (subjectId: string, roleName: string) => string;
 	readonly permissionsTitle: string;
 	readonly matrixEmpty: string;
 	readonly colPermission: string;
@@ -57,6 +68,18 @@ const en: RbacMessages = {
 	roleDescription: "Description",
 	createRole: "Create",
 	deleteRole: "Delete",
+	colActions: "Actions",
+	editRole: "Edit",
+	editRoleTitle: "Edit role",
+	editRoleSubmit: "Save changes",
+	cancel: "Cancel",
+	roleMeta: "Meta",
+	metaPlaceholder: "Optional JSON payload",
+	deleteRoleTitle: "Delete role",
+	deleteRoleDescription: (name) =>
+		`Delete “${name}”? This removes the role, its permission grants, and all of its assignments.`,
+	unassignTitle: "Remove assignment",
+	unassignDescription: (subjectId, roleName) => `Remove ${subjectId} from the “${roleName}” role?`,
 	permissionsTitle: "Permission matrix",
 	matrixEmpty: "Select a role to edit its grants.",
 	colPermission: "Permission",
@@ -94,6 +117,18 @@ const ptBR: RbacMessages = {
 	roleDescription: "Descrição",
 	createRole: "Criar",
 	deleteRole: "Excluir",
+	colActions: "Ações",
+	editRole: "Editar",
+	editRoleTitle: "Editar função",
+	editRoleSubmit: "Salvar alterações",
+	cancel: "Cancelar",
+	roleMeta: "Metadados",
+	metaPlaceholder: "JSON opcional",
+	deleteRoleTitle: "Excluir função",
+	deleteRoleDescription: (name) =>
+		`Excluir “${name}”? Isso remove a função, suas concessões de permissão e todas as suas atribuições.`,
+	unassignTitle: "Remover atribuição",
+	unassignDescription: (subjectId, roleName) => `Remover ${subjectId} da função “${roleName}”?`,
 	permissionsTitle: "Matriz de permissões",
 	matrixEmpty: "Selecione uma função para editar suas concessões.",
 	colPermission: "Permissão",
@@ -131,6 +166,18 @@ const es: RbacMessages = {
 	roleDescription: "Descripción",
 	createRole: "Crear",
 	deleteRole: "Eliminar",
+	colActions: "Acciones",
+	editRole: "Editar",
+	editRoleTitle: "Editar role",
+	editRoleSubmit: "Guardar cambios",
+	cancel: "Cancelar",
+	roleMeta: "Metadatos",
+	metaPlaceholder: "JSON opcional",
+	deleteRoleTitle: "Eliminar role",
+	deleteRoleDescription: (name) =>
+		`¿Eliminar “${name}”? Esto elimina el role, sus concesiones de permisos y todas sus asignaciones.`,
+	unassignTitle: "Quitar asignación",
+	unassignDescription: (subjectId, roleName) => `¿Quitar a ${subjectId} del role “${roleName}”?`,
 	permissionsTitle: "Matriz de permisos",
 	matrixEmpty: "Selecciona un role para editar sus concesiones.",
 	colPermission: "Permiso",

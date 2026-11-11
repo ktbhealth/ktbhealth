@@ -9,6 +9,9 @@ describe("rbac i18n", () => {
 			expect(m.title.length).toBeGreaterThan(0);
 			expect(m.effectAllow).toBeTruthy();
 			expect(m.effectDeny).toBeTruthy();
+			// Interpolating confirm descriptions resolve in every locale.
+			expect(m.deleteRoleDescription("auditor")).toContain("auditor");
+			expect(m.unassignDescription("u1", "auditor")).toContain("u1");
 		}
 	});
 

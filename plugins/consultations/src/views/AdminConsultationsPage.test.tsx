@@ -1,6 +1,22 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-router", async () => {
+	const React = await import("react");
+	return {
+		Link: ({ to, params, ...props }: Record<string, unknown>) =>
+			React.createElement(
+				"a",
+				{
+					...props,
+					href: String(to).replace("$id", String((params as { id?: string })?.id ?? "")),
+				},
+				props.children as never,
+			),
+	};
+});
 
 import type { AdminConsultationRow } from "../index.ts";
 import { AdminConsultationsPage } from "./AdminConsultationsPage.tsx";
@@ -65,5 +81,48 @@ describe("AdminConsultationsPage", () => {
 		expect(screen.getByText("Dra Ana")).toBeTruthy();
 		// Missing owner profile falls back to dash; missing patient too.
 		expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+	});
+
+	it("links each patient name to the consultation detail page", () => {
+		render(
+			<AdminConsultationsPage
+				consultations={[row({}), row({ id: 2, patientName: "Paciente Dois" })]}
+			/>,
+		);
+		expect(screen.getByRole("link", { name: "Paciente Um" }).getAttribute("href")).toBe(
+			"/consultations/1",
+		);
+		expect(screen.getByRole("link", { name: "Paciente Dois" }).getAttribute("href")).toBe(
+			"/consultations/2",
+		);
+	});
+
+	it("filters rows case-insensitively by patient or owner", async () => {
+		const user = userEvent.setup();
+		render(
+			<AdminConsultationsPage
+				consultations={[
+					row({}),
+					row({
+						id: 2,
+						patientName: "Paciente Dois",
+						ownerName: "Dr B",
+						ownerEmail: "drb@x.com",
+					}),
+				]}
+			/>,
+		);
+		await user.type(screen.getByLabelText("Search consultations"), "drb");
+		expect(screen.queryByText("Paciente Um")).toBeNull();
+		expect(screen.getByText("Paciente Dois")).toBeTruthy();
+		expect(screen.getByText("Showing 1 of 2")).toBeTruthy();
+	});
+
+	it("shows the no-match row when the filter empties the list", async () => {
+		const user = userEvent.setup();
+		render(<AdminConsultationsPage consultations={[row({})]} />);
+		await user.type(screen.getByLabelText("Search consultations"), "zzz");
+		expect(screen.getByText("No consultations match the search.")).toBeTruthy();
+		expect(screen.getByText("Showing 0 of 1")).toBeTruthy();
 	});
 });

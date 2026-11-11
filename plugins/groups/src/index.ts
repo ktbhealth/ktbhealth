@@ -76,6 +76,15 @@ export async function listGroups(db: DbClient): Promise<AdminGroupRow[]> {
 	return rows.map((g) => ({ ...g, memberCount: counts.get(g.id) ?? 0 }));
 }
 
+/**
+ * Deletes a group row; `group_members` rows cascade via the FK. Returns
+ * false when no group with that id exists.
+ */
+export async function deleteGroup(db: DbClient, id: number): Promise<boolean> {
+	const rows = await db.delete(groups).where(eq(groups.id, id)).returning({ id: groups.id });
+	return rows.length > 0;
+}
+
 export async function getGroup(db: DbClient, id: number): Promise<Group | null> {
 	const rows = await db.select().from(groups).where(eq(groups.id, id));
 	return rows[0] ?? null;
@@ -147,8 +156,8 @@ export async function listMembers(db: DbClient, groupId: number) {
 /**
  * Groups domain port — Effect service, swappable in tests.
  *
- * Admin-facing operations (`create`, `list`, `get`, `addMember`,
- * `removeMember`, `members`) enforce the `PlatformAdmin` env-allowlist
+ * Admin-facing operations (`create`, `list`, `get`, `delete`,
+ * `addMember`, `removeMember`, `members`) enforce the `PlatformAdmin` env-allowlist
  * gate against the bound `Principal` — defense in depth on top of the
  * /platform layout guard. `requireMember` is the member-scoped check for
  * future non-admin paths: for `memberKind === "user"` the bound
@@ -161,6 +170,7 @@ export class Groups extends Context.Service<
 		readonly create: (input: CreateGroupInput) => Effect.Effect<Group | null, Forbidden>;
 		readonly list: () => Effect.Effect<AdminGroupRow[], Forbidden>;
 		readonly get: (id: number) => Effect.Effect<AdminGroupRow | null, Forbidden>;
+		readonly delete: (id: number) => Effect.Effect<boolean, Forbidden>;
 		readonly addMember: (
 			input: AddGroupMemberInput,
 		) => Effect.Effect<GroupMember | null, Forbidden>;
@@ -203,6 +213,14 @@ export const GroupsLive = Layer.effect(
 				if (group === null) return null;
 				const memberCount = yield* Effect.promise(() => countGroupMembers(db, id));
 				return { ...group, memberCount };
+			}),
+			delete: Effect.fn("Groups.delete")(function* (id: number) {
+				yield* platformAdmin.requireAdmin();
+				const deleted = yield* Effect.promise(() => deleteGroup(db, id));
+				// Cascaded memberships feed RBAC group-derived grants — bump
+				// the permission epoch like the member mutations do.
+				if (deleted && invalidatePermissions !== undefined) yield* invalidatePermissions();
+				return deleted;
 			}),
 			addMember: Effect.fn("Groups.addMember")(function* (input: AddGroupMemberInput) {
 				yield* platformAdmin.requireAdmin();

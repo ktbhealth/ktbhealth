@@ -141,6 +141,10 @@ export interface PatientMessages {
 		readonly colOwner: string;
 		readonly colOwnerId: string;
 		readonly colCreated: string;
+		readonly searchPlaceholder: string;
+		readonly searchLabel: string;
+		readonly noMatch: string;
+		readonly filteredCount: (shown: number, total: number) => string;
 	};
 	readonly form: {
 		readonly editTitle: string;
@@ -304,6 +308,10 @@ const en: PatientMessages = {
 		colOwner: "Owner",
 		colOwnerId: "Owner id",
 		colCreated: "Created",
+		searchPlaceholder: "Search by name or owner…",
+		searchLabel: "Search patients",
+		noMatch: "No patients match the search.",
+		filteredCount: (shown, total) => `Showing ${shown} of ${total}`,
 	},
 	form: {
 		editTitle: "Edit patient",
@@ -468,6 +476,10 @@ const ptBR: PatientMessages = {
 		colOwner: "Proprietário",
 		colOwnerId: "Id do proprietário",
 		colCreated: "Cadastrado em",
+		searchPlaceholder: "Buscar por nome ou proprietário…",
+		searchLabel: "Buscar pacientes",
+		noMatch: "Nenhum paciente corresponde à busca.",
+		filteredCount: (shown, total) => `Exibindo ${shown} de ${total}`,
 	},
 	form: {
 		editTitle: "Editar paciente",
@@ -634,6 +646,10 @@ const es: PatientMessages = {
 		colOwner: "Propietario",
 		colOwnerId: "Id del propietario",
 		colCreated: "Creado",
+		searchPlaceholder: "Buscar por nombre o propietario…",
+		searchLabel: "Buscar pacientes",
+		noMatch: "Ningún paciente coincide con la búsqueda.",
+		filteredCount: (shown, total) => `Mostrando ${shown} de ${total}`,
 	},
 	form: {
 		editTitle: "Editar paciente",

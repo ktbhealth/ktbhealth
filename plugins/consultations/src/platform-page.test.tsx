@@ -1,6 +1,21 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@tanstack/react-router", async () => {
+	const React = await import("react");
+	return {
+		Link: ({ to, params, ...props }: Record<string, unknown>) =>
+			React.createElement(
+				"a",
+				{
+					...props,
+					href: String(to).replace("$id", String((params as { id?: string })?.id ?? "")),
+				},
+				props.children as never,
+			),
+	};
+});
 
 import type { PanelPageContext } from "@ktb/kernel";
 

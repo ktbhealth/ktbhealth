@@ -18,6 +18,7 @@ import { groups as groupsTable } from "./schema.ts";
 import {
 	addMember,
 	createGroup,
+	deleteGroup,
 	findMembership,
 	getGroup,
 	Groups,
@@ -124,6 +125,15 @@ describe("groups repo", () => {
 		const row = await getGroup(db, 1);
 		expect(row!.name).toBe("Clinic A2");
 		expect(row!.updatedAt.getTime()).toBeGreaterThan(1000);
+	});
+
+	it("deleteGroup removes the row and reports misses", async () => {
+		// Membership cascade is schema-level (schema.test.ts asserts the
+		// onDelete: "cascade" reference); the in-memory driver does not
+		// enforce PRAGMA foreign_keys.
+		expect(await deleteGroup(db, 2)).toBe(true);
+		expect(await getGroup(db, 2)).toBeNull();
+		expect(await deleteGroup(db, 999)).toBe(false);
 	});
 });
 
@@ -316,6 +326,37 @@ describe("GroupsLive", () => {
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden", path: "groups.member" });
 	});
+
+	it("delete removes a group for admins, reports misses and is Forbidden otherwise", async () => {
+		// Runs last: deleting group 2 cascades its patient membership used
+		// by the requireMember tests above.
+		const deleted = await asUser(
+			"u1",
+			call((p) => p.delete(2)),
+			"admin@x.com",
+		);
+		expect(deleted).toBe(true);
+		expect(
+			await asUser(
+				"u1",
+				call((p) => p.get(2)),
+				"admin@x.com",
+			),
+		).toBeNull();
+		const missing = await asUser(
+			"u1",
+			call((p) => p.delete(999)),
+			"admin@x.com",
+		);
+		expect(missing).toBe(false);
+		await expect(
+			asUser(
+				"u2",
+				call((p) => p.delete(1)),
+				"doc@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+	});
 });
 
 describe("GroupsLive with a driver that returns no rows", () => {
@@ -445,7 +486,7 @@ describe("GroupsLive with PermissionInvalidator", () => {
 
 	afterAll(() => runtime.dispose());
 
-	it("membership writes bump the permission epoch", async () => {
+	it("membership writes and group deletes bump the permission epoch", async () => {
 		const added = await runtime.runPromise(
 			Effect.flatMap(Groups, (p) =>
 				p.addMember({ groupId: 1, memberKind: "user", memberId: "u9", role: "mod" }),
@@ -468,6 +509,16 @@ describe("GroupsLive with PermissionInvalidator", () => {
 			),
 		);
 		expect(removed?.memberId).toBe("u9");
-		expect(invalidations).toBe(2);
+		// A successful delete cascades memberships — same epoch bump.
+		const deleted = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) => p.delete(2)).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(deleted).toBe(true);
+		expect(invalidations).toBe(3);
 	});
 });
