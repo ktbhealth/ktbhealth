@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ClipboardListIcon, DownloadIcon, SearchIcon } from "lucide-react";
+import { ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { buttonVariants } from "@ktbhealth/ui/components/button";
@@ -12,7 +12,7 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
-import { Input } from "@ktbhealth/ui/components/input";
+import { SearchInput } from "@ktbhealth/ui/components/search-input";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 
 import { BADGE_TONES } from "./-ui.ts";
@@ -98,17 +98,13 @@ export function ConsultationsPage({
 
 			{consultations.length > 0 ? (
 				<div className="mt-6 flex flex-wrap items-center gap-3">
-					<div className="relative w-full max-w-sm">
-						<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							type="search"
-							value={q}
-							onChange={(e) => setQ(e.target.value)}
-							placeholder={t.list.searchPlaceholder}
-							aria-label={t.list.searchLabel}
-							className="pl-8"
-						/>
-					</div>
+					<SearchInput
+						value={q}
+						onChange={(e) => setQ(e.target.value)}
+						placeholder={t.list.searchPlaceholder}
+						aria-label={t.list.searchLabel}
+						className="w-full max-w-sm"
+					/>
 					<Tabs
 						value={filter}
 						onValueChange={(v) => setFilter(v as (typeof FILTERS)[number][0])}

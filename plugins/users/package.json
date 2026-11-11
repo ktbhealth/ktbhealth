@@ -15,7 +15,7 @@
 		"@ktb/kernel": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
-		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.0@react",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
 		"drizzle-orm": "^0.45.1",
 		"effect": "4.1.2",
 		"lucide-react": "0.544.0"

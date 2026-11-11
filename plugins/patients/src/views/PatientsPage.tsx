@@ -5,7 +5,6 @@ import {
 	EllipsisVerticalIcon,
 	PencilIcon,
 	PlusIcon,
-	SearchIcon,
 	Trash2Icon,
 	UsersIcon,
 } from "lucide-react";
@@ -29,7 +28,7 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
-import { Input } from "@ktbhealth/ui/components/input";
+import { SearchInput } from "@ktbhealth/ui/components/search-input";
 import type { Patient } from "../index.ts";
 import { patientMessages } from "../i18n.ts";
 import { formatCpf } from "../record.ts";
@@ -86,17 +85,13 @@ export function PatientsPage({
 			</div>
 
 			{patients.length > 0 ? (
-				<div className="relative mt-5 w-full max-w-sm">
-					<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						type="search"
-						value={q}
-						onChange={(e) => setQ(e.target.value)}
-						placeholder={t.list.searchPlaceholder}
-						aria-label={t.list.searchLabel}
-						className="pl-8"
-					/>
-				</div>
+				<SearchInput
+					value={q}
+					onChange={(e) => setQ(e.target.value)}
+					placeholder={t.list.searchPlaceholder}
+					aria-label={t.list.searchLabel}
+					className="mt-5 w-full max-w-sm"
+				/>
 			) : null}
 
 			<div className="mt-4 space-y-3">
