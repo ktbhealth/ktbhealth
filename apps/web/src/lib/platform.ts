@@ -2,10 +2,13 @@ import { env } from "cloudflare:workers";
 
 import { setServerRuntime, getTenantSelector } from "@ktb/server-fns";
 import type { TenantSelector } from "@ktb/tenant/selector";
+import { makeTenantResolver } from "@ktb/tenant";
+import { makeDb, type SqlDatabase } from "@ktb/db";
 import type * as Effect from "effect/Effect";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
+import { makeTenantDirectory } from "./tenant-directory.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
 import { fhirR4Exporter } from "@ktb/interop-fhir";
@@ -23,7 +26,20 @@ const aiBinding = resolveAi(env as unknown as AiEnv);
 
 const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
 
-const app = createApp(appEnv as unknown as typeof env);
+// Tenant resolution (P-053, phase A): the directory reads the groups
+// plugin's membership tables directly (edge adapter — the groups
+// service is PlatformAdmin-gated); resolution runs per request inside
+// runAs. Fallback stays "personal" so requests without a tenant
+// selector keep the pre-tenancy ownerId-scoped behavior. With no
+// selector, a user with exactly one membership auto-selects it; zero
+// or several memberships fall through to personal scope.
+const tenantResolver = makeTenantResolver({
+	directory: makeTenantDirectory(makeDb(env.DB as unknown as SqlDatabase)),
+	fallback: "personal",
+	selectDefault: (memberships) => (memberships.length === 1 ? memberships[0] : undefined),
+});
+
+const app = createApp(appEnv as unknown as typeof env, { tenantResolver });
 
 export const {
 	BindingLive,
