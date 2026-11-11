@@ -132,7 +132,7 @@ export const makeLocalAudioBucket = (dir: string) => {
 				// Empty/missing store dir → zero objects, not an error.
 				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 			}
-			objects.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+			objects.sort((a, b) => a.key.localeCompare(b.key));
 			return { objects, truncated: false };
 		},
 	};

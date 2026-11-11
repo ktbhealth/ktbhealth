@@ -387,6 +387,11 @@ describe("makeLocalQueue", () => {
 		const db = new Database(dbPath());
 		db.pragma("busy_timeout = 5000");
 		db.prepare("UPDATE jobs SET status = 'failed' WHERE id = 1").run();
+		// A status outside the QueueDepth keys is ignored by the probe.
+		db.prepare(
+			`INSERT INTO jobs (queue, body, status, attempts, max_attempts, run_at, created_at, updated_at)
+			 VALUES ('q', '{}', 'paused', 0, 3, 0, 0, 0)`,
+		).run();
 		db.close();
 		expect(await queue.stats()).toEqual({ pending: 1, processing: 0, done: 0, failed: 1 });
 		queue.close();

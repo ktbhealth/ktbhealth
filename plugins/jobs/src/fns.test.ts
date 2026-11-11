@@ -26,7 +26,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 
 import { makeEventBus } from "@effect-server-utils/cqrs";
 import { Auth } from "@ktb/auth";
-import { Principal } from "@ktb/authz";
+import { Forbidden, Principal } from "@ktb/authz";
 import {
 	attachAudioRecord,
 	ConsultationsLive,
@@ -34,6 +34,7 @@ import {
 	createConsultation,
 	failAudioJob,
 } from "@ktb/consultations";
+import { consultations } from "@ktb/consultations/schema";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
@@ -76,13 +77,26 @@ const authStub = Auth.of({
 
 const db = makeDb(makeD1(DDL));
 
+// Wraps the real gate so a test can deny a specific requireAdmin call —
+// the retry fn's phase-2 re-check must swallow a Forbidden the same way
+// the phase-1 read does.
+const baseAdminGate = makePlatformAdminGate(parsePlatformAdminEmails("platform-admin@ktb.test"));
+let adminRequireCalls = 0;
+let forbidAdminCallAt: number | null = null;
+const gatedAdmin: PlatformAdmin["Service"] = {
+	isAdmin: baseAdminGate.isAdmin,
+	requireAdmin: () => {
+		adminRequireCalls += 1;
+		return forbidAdminCallAt !== null && adminRequireCalls >= forbidAdminCallAt
+			? Effect.fail(new Forbidden({ path: "platform.admin" }))
+			: baseAdminGate.requireAdmin();
+	},
+};
+
 const infra = Layer.mergeAll(
 	Layer.succeed(Db, db),
 	Layer.succeed(Auth, authStub),
-	Layer.succeed(
-		PlatformAdmin,
-		makePlatformAdminGate(parsePlatformAdminEmails("platform-admin@ktb.test")),
-	),
+	Layer.succeed(PlatformAdmin, gatedAdmin),
 	makeEventBus(),
 );
 
@@ -236,6 +250,44 @@ describe("retryAudioJobFn", () => {
 				audioTranscribeModel: "test-model",
 				audioQueue,
 			});
+		}
+	});
+
+	it("sends an empty userId fallback for legacy rows without an owner", async () => {
+		useSession("admin");
+		const [row] = await db
+			.insert(consultations)
+			.values({
+				userId: null,
+				transcript: "",
+				source: "browser",
+				status: "done",
+				createdAt: new Date(),
+			})
+			.returning({ id: consultations.id });
+		const id = row!.id;
+		await attachAudioRecord(db, id, { audioKey: "k-legacy", size: 1 });
+		await failAudioJob(db, id, "boom");
+		const res = await retryAudioJobFn({ data: { consultationId: id } });
+		expect(res).toEqual({ ok: true });
+		expect(sent.at(-1)).toMatchObject({ consultationId: id, userId: "" });
+	});
+
+	it("still reports ok when the phase-2 admin re-check is denied", async () => {
+		useSession("admin");
+		const id = (await createConsultation(db, { userId: "u-ops", source: "browser" }))!;
+		await attachAudioRecord(db, id, { audioKey: "k-phase2", size: 1 });
+		await failAudioJob(db, id, "boom");
+		// adminAudioJob's requireAdmin is call 1 (passes); adminRequeueAudio's
+		// is call 2 (denied) — the fn swallows it like the phase-1 read.
+		adminRequireCalls = 0;
+		forbidAdminCallAt = 2;
+		try {
+			expect(await retryAudioJobFn({ data: { consultationId: id } })).toEqual({ ok: true });
+			// The requeue never ran — the row keeps its failed status.
+			expect(await audioStatusOf(id)).toBe("failed");
+		} finally {
+			forbidAdminCallAt = null;
 		}
 	});
 

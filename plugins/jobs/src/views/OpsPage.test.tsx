@@ -118,6 +118,55 @@ describe("OpsPage", () => {
 		expect(screen.getAllByText("Processing").length).toBeGreaterThan(0);
 	});
 
+	it("renders queued jobs, missing patients and Date/invalid createdAt values", () => {
+		render(
+			<OpsPage
+				jobs={[
+					job({
+						id: 6,
+						audioStatus: "queued",
+						audioError: null,
+						patientName: null,
+						createdAt: new Date("2025-02-02T00:00:00Z"),
+					}),
+					job({
+						id: 7,
+						audioStatus: "done",
+						audioError: null,
+						patientName: "X",
+						createdAt: "not-a-date",
+					}),
+				]}
+				queue={queue}
+				storage={storage}
+				locale="en"
+			/>,
+		);
+		// "Queued" is both a job badge label here and a queue stat label.
+		expect(screen.getAllByText("Queued").length).toBeGreaterThan(0);
+		// The null patientName falls back to the em-dash placeholder.
+		expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+	});
+
+	it("searches rows with missing patient names and shows the no-match row", () => {
+		render(
+			<OpsPage
+				jobs={[
+					job({ id: 8, audioStatus: "done", audioError: null, patientName: null }),
+					job({ id: 9, patientName: "Ana", audioStatus: "done", audioError: null }),
+				]}
+				queue={queue}
+				storage={storage}
+				locale="en"
+			/>,
+		);
+		fireEvent.change(screen.getByLabelText("Filter jobs"), { target: { value: "ana" } });
+		expect(screen.queryByText("#8")).toBeNull();
+		expect(screen.getByText("#9")).toBeTruthy();
+		fireEvent.change(screen.getByLabelText("Filter jobs"), { target: { value: "zzz" } });
+		expect(screen.getByText("No jobs match the filter.")).toBeTruthy();
+	});
+
 	it("localizes the console in pt-BR", () => {
 		render(<OpsPage jobs={[job()]} queue={queue} storage={storage} locale="pt-BR" />);
 		expect(screen.getByText("Operações")).toBeTruthy();

@@ -120,4 +120,18 @@ describe("makeLocalAudioBucket", () => {
 			{ key: "b/two.wav", size: 2 },
 		]);
 	});
+
+	it("list() tolerates a missing store dir as zero objects", async () => {
+		const bucket = makeLocalAudioBucket(join(bucketDir(), "does-not-exist"));
+		expect(await bucket.list()).toEqual({ objects: [], truncated: false });
+	});
+
+	it("list() surfaces non-ENOENT walk errors", async () => {
+		// Rooting the bucket at a plain file makes readdir fail ENOTDIR —
+		// only ENOENT (missing store dir) is tolerated.
+		const root = join(bucketDir(), "not-a-dir");
+		writeFileSync(root, "x");
+		const bucket = makeLocalAudioBucket(root);
+		await expect(bucket.list()).rejects.toThrow(/ENOTDIR|not a directory/);
+	});
 });

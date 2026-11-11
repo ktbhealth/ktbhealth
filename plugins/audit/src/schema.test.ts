@@ -1,6 +1,8 @@
 import { getTableConfig } from "drizzle-orm/sqlite-core/utils";
 import { describe, expect, it } from "vitest";
 
+import { groups } from "@ktb/groups/schema";
+
 import { adminAudit } from "./schema.ts";
 
 describe("admin_audit schema", () => {
@@ -25,6 +27,10 @@ describe("admin_audit schema", () => {
 		expect(cfg.indexes).toHaveLength(3);
 		for (const fk of cfg.foreignKeys) {
 			expect(fk.onDelete).toBe("set null");
+			// reference() evaluates the lazy `() => groups.id` callback.
+			const ref = fk.reference();
+			expect(ref.foreignTable).toBe(groups);
+			expect(ref.foreignColumns.map((c) => c.name)).toEqual(["id"]);
 		}
 	});
 });

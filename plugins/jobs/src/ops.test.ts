@@ -118,6 +118,22 @@ describe("OpsLive", () => {
 		} finally {
 			await runtime2.dispose();
 		}
+
+		// Runtime registered but the probes themselves are absent → null.
+		setServerRuntime({
+			run: () => Promise.reject(new Error("unused")),
+			runAs: () => Promise.reject(new Error("unused")),
+			getLocale: () => "en",
+			audioTranscribeModel: "test-model",
+		});
+		const runtime3 = makeRuntime({});
+		try {
+			const [, queue, storage] = await asPrincipal(runtime3, "admin@x.com");
+			expect(queue).toBeNull();
+			expect(storage).toBeNull();
+		} finally {
+			await runtime3.dispose();
+		}
 	});
 
 	it("denies non-admin principals on every signal", async () => {

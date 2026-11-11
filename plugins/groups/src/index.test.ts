@@ -195,6 +195,35 @@ describe("groups repo — empty driver results", () => {
 		});
 		expect(result).toBe(memberRow);
 	});
+
+	it("service create/addMember return null and skip audit when RETURNING yields nothing", async () => {
+		const writeOnlyDb = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as DbClient;
+		const deps = Layer.merge(
+			Layer.succeed(Db, writeOnlyDb),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+		);
+		const runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+		try {
+			const asAdmin = <A, E>(effect: Effect.Effect<A, E, Groups>) =>
+				runtime.runPromise(
+					Effect.provideService(effect, Principal, { userId: "u1", email: "admin@x.com" }),
+				);
+			expect(
+				await asAdmin(Effect.flatMap(Groups, (p) => p.create({ name: "X", slug: "x", kind: "k" }))),
+			).toBeNull();
+			expect(
+				await asAdmin(
+					Effect.flatMap(Groups, (p) =>
+						p.addMember({ groupId: 1, memberKind: "user", memberId: "u9" }),
+					),
+				),
+			).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
 });
 
 describe("GroupsLive", () => {

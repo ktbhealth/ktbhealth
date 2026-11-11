@@ -52,11 +52,18 @@ describe("audit catalogs", () => {
 			"pt-BR": ["3 ações de admin registradas.", "Últimas 2 de 5 ações de admin."],
 			es: ["3 acciones de admin registradas.", "Últimas 2 de 5 acciones de admin."],
 		};
+		const singularLatest: Record<string, string> = {
+			en: "Latest 0 of 1 admin action.",
+			"pt-BR": "Últimas 0 de 1 ação de admin.",
+			es: "Últimas 0 de 1 acción de admin.",
+		};
 		for (const locale of AUDIT_LOCALES) {
 			const description = (auditMessages(locale) as AuditMessages).description;
 			const [all, capped] = expected[locale]!;
 			expect(description(3, 3)).toBe(all);
 			expect(description(2, 5)).toBe(capped);
+			// Singular noun on the capped arm too (shown < total === 1).
+			expect(description(0, 1)).toBe(singularLatest[locale]);
 		}
 	});
 

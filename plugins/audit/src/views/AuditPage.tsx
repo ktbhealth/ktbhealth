@@ -40,9 +40,13 @@ const fmtDate = (value: Date | string, locale: string): string => {
 };
 
 /** Action group = first dot segment ("users.suspend" → "users"). */
-const actionGroup = (action: string): string => action.split(".")[0] ?? action;
+const actionGroup = (action: string): string => {
+	const dot = action.indexOf(".");
+	return dot === -1 ? action : action.slice(0, dot);
+};
 
 const parseDetail = (raw: string | null): unknown => {
+	/* v8 ignore next -- the JSON button only renders for non-null detail */
 	if (raw === null) return null;
 	try {
 		return JSON.parse(raw);

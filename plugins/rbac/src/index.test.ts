@@ -496,6 +496,21 @@ describe("rbac services + CQRS", () => {
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
+
+	it("unassignSubject on a missing row audits a null detail", async () => {
+		await asUser(
+			ADMIN,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const commands = yield* Command.dispatcher(RbacCommands);
+					yield* commands["rbac.unassignSubject"]({ id: 424242 });
+				}),
+			),
+		);
+		const rows = await db.select().from(adminAudit);
+		const row = rows.find((r) => r.action === "rbac.subject.unassign" && r.targetId === "424242");
+		expect(row).toMatchObject({ detail: null, tenantId: null });
+	});
 });
 
 describe("rbac services — empty-driver paths", () => {

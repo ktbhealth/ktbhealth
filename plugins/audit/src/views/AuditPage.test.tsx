@@ -111,4 +111,60 @@ describe("AuditPage", () => {
 		expect(screen.getByText("Log de auditoria")).toBeTruthy();
 		expect(screen.getByText(/2 ações de admin registradas/)).toBeTruthy();
 	});
+
+	it("handles string/invalid dates, dot-less actions and empty targets", () => {
+		render(
+			<AuditPage
+				entries={[
+					row({
+						id: 3,
+						action: "login",
+						targetType: null,
+						targetId: null,
+						detail: null,
+						// Serialized loader payloads carry ISO strings.
+						createdAt: "2026-11-01T10:00:00Z" as unknown as Date,
+					}),
+					row({
+						id: 4,
+						action: "users.touch",
+						targetType: "user",
+						targetId: "",
+						detail: null,
+						createdAt: "not-a-date" as unknown as Date,
+					}),
+				]}
+				total={2}
+				locale="en"
+			/>,
+		);
+		// Dot-less action groups under itself; empty targets render "—".
+		expect(screen.getByText("login")).toBeTruthy();
+		expect(screen.getByText("user")).toBeTruthy();
+		expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("searches rows with null target ids", () => {
+		render(
+			<AuditPage
+				entries={[
+					row({
+						id: 5,
+						action: "rbac.role.delete",
+						targetType: "role",
+						targetId: null,
+						detail: null,
+					}),
+					row({ id: 6, action: "users.suspend", targetId: "u9" }),
+				]}
+				total={2}
+				locale="en"
+			/>,
+		);
+		fireEvent.change(screen.getByLabelText("Search audit entries"), {
+			target: { value: "rbac" },
+		});
+		expect(screen.queryByText("users.suspend")).toBeNull();
+		expect(screen.getByText("rbac.role.delete")).toBeTruthy();
+	});
 });

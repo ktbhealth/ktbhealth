@@ -54,6 +54,7 @@ const statusLabel = (t: OpsMessages, status: string): string => {
 			return t.statusDone;
 		case "failed":
 			return t.statusFailed;
+		/* v8 ignore next -- unreachable: jobRows are pre-filtered to mapped audio statuses */
 		default:
 			return status;
 	}
@@ -66,16 +67,14 @@ function OpsSection({
 	children,
 }: {
 	title: string;
-	description?: string;
+	description: string;
 	children: ReactNode;
 }) {
 	return (
 		<section className="overflow-hidden rounded-lg border border-border">
 			<header className="border-b border-border px-3 py-2">
 				<h2 className="text-sm font-medium">{title}</h2>
-				{description !== undefined ? (
-					<p className="text-xs text-muted-foreground">{description}</p>
-				) : null}
+				<p className="text-xs text-muted-foreground">{description}</p>
 			</header>
 			<div className="p-3">{children}</div>
 		</section>
