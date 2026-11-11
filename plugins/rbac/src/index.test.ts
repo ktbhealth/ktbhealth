@@ -22,6 +22,7 @@ import {
 	listRolePermissions,
 	listRoles,
 	plugins,
+	rbacChromePlugin,
 	rbacPanelPlugin,
 	rbacServicesPlugin,
 	rbacTablesPlugin,
@@ -31,7 +32,7 @@ import {
 	updateRole,
 	type AdminRbacPageData,
 } from "./index.ts";
-import { roles as rolesTable } from "@ktb/rbac/schema";
+import { roles as rolesTable } from "@ktb/db/schema";
 import { RbacCommands, RbacQueries } from "./api.ts";
 
 const DDL = `
@@ -725,13 +726,26 @@ describe("plugins", () => {
 		expect(rbacServicesPlugin.services).toBeDefined();
 		expect(rbacPanelPlugin.id).toBe("rbac.panel");
 		expect(rbacPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(rbacPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" },
-		]);
 		expect(rbacPanelPlugin.panel?.pages?.[0]).toMatchObject({
 			id: "rbac.admin",
 			path: "/platform/roles",
 		});
-		expect(plugins).toEqual([rbacTablesPlugin, rbacServicesPlugin, rbacPanelPlugin]);
+		expect(rbacChromePlugin.id).toBe("rbac.chrome");
+		expect(rbacChromePlugin.chrome).toEqual([
+			{
+				id: "rbac.sidebar",
+				region: "console.sidebar",
+				content: {
+					kind: "sidebarItem",
+					item: { to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" },
+				},
+			},
+		]);
+		expect(plugins).toEqual([
+			rbacTablesPlugin,
+			rbacServicesPlugin,
+			rbacChromePlugin,
+			rbacPanelPlugin,
+		]);
 	});
 });

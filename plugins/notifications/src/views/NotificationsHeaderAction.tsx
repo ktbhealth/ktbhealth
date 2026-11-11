@@ -97,7 +97,7 @@ const markIdsRead = (
 ): readonly ConsoleNotification[] => list.map((n) => (ids.has(n.id) ? { ...n, read: true } : n));
 
 /**
- * Header action contributed via `panel.headerActions`: a tooltip'd bell
+ * Header action contributed via `console.header.actions` chrome: a tooltip'd bell
  * button with an unread-count badge opening a popover with the console
  * notifications feed. The host seeds the list through
  * NotificationsDataContext (SSR/loader data); when EventSource is

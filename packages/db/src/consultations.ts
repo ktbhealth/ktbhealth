@@ -1,22 +1,25 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { groups } from "@ktb/groups/schema";
-import { patients } from "@ktb/patients/schema";
-import { tenantIdColumn } from "@ktb/tenant/schema";
+import { groups } from "./groups.ts";
+import { patients } from "./patients.ts";
 
 // `tenantId` (P-053): NULL = personal row scoped by `userId`; a
 // `groups.id` = tenant-owned row readable/operable by that tenant's
 // members. `userId` stays the creator/owner attribution either way.
 // Same `sqliteTable` (not `tenantTable`) rationale as the patients
-// table — see plugins/patients/src/schema.ts. SET NULL keeps the
-// record if the clinic group is deleted.
+// table — see ./patients.ts. SET NULL keeps the record if the clinic
+// group is deleted. The column is declared inline (`integer("tenant_id")`,
+// same shape as `@ktb/tenant`'s `tenantIdColumn`) because @ktb/tenant
+// depends on @ktb/db — importing it here would create a workspace cycle.
+// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
+// plugin workspace cycle — plugins import this from `@ktb/db/schema`.
 export const consultations = sqliteTable(
 	"consultations",
 	{
 		id: integer().primaryKey({ autoIncrement: true }),
 		userId: text("user_id"),
 		patientId: integer("patient_id").references(() => patients.id),
-		tenantId: tenantIdColumn().references(() => groups.id, { onDelete: "set null" }),
+		tenantId: integer("tenant_id").references(() => groups.id, { onDelete: "set null" }),
 		/** Browser-side transcript; the stored audio lives in R2 (audioKey). */
 		transcript: text().notNull(),
 		/** Serialized Anamnesis (structured, reviewed/editable). */

@@ -17,6 +17,7 @@ vi.mock("#/lib/fns.ts", () => ({
 	markMyNotificationsReadFn: vi.fn(),
 	markAllMyNotificationsReadFn: vi.fn(),
 	getSessionUserFn: vi.fn(async () => ({ id: "u1", email: "a@x.com", name: "A" })),
+	pluginStatesFn: vi.fn(async () => ({ enabled: [] as string[] })),
 }));
 vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: vi.fn() } }));
 
@@ -35,7 +36,9 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			const loc = { pathname: "/platform" };
 			return opts?.select ? opts.select(loc) : loc;
 		},
-		getRouteApi: () => ({ useLoaderData: () => null }),
+		getRouteApi: () => ({
+			useLoaderData: () => ({ user: null, pluginStates: { enabled: [] } }),
+		}),
 		Link: (props: Record<string, unknown>) => {
 			const { to, children, ...rest } = props;
 			return React.createElement("a", { href: to as string, ...rest }, children as never);

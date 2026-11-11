@@ -15,7 +15,7 @@ import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "
 import { PermissionInvalidator } from "@ktb/rbac";
 
 import { GroupsQueries } from "./api.ts";
-import { groups as groupsTable } from "./schema.ts";
+import { groups as groupsTable } from "@ktb/db/schema";
 import {
 	addMember,
 	createGroup,
@@ -25,6 +25,7 @@ import {
 	Groups,
 	GroupsLive,
 	GroupsQueriesLive,
+	groupsChromePlugin,
 	groupsPanelPlugin,
 	groupsServicesPlugin,
 	groupsTablesPlugin,
@@ -598,8 +599,17 @@ describe("plugins", () => {
 		expect(groupsServicesPlugin.services).toBeDefined();
 		expect(groupsPanelPlugin.id).toBe("groups.panel");
 		expect(groupsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(groupsPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+		expect(groupsPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform/groups");
+		expect(groupsChromePlugin.id).toBe("groups.chrome");
+		expect(groupsChromePlugin.chrome).toEqual([
+			{
+				id: "groups.sidebar",
+				region: "console.sidebar",
+				content: {
+					kind: "sidebarItem",
+					item: { to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+				},
+			},
 		]);
 	});
 
@@ -626,15 +636,21 @@ describe("plugins", () => {
 		});
 	});
 
-	it("contributes no routes or top-nav", () => {
+	it("contributes no routes outside the chrome plugin", () => {
 		for (const p of [groupsTablesPlugin, groupsServicesPlugin, groupsPanelPlugin]) {
 			expect("routes" in p).toBe(false);
-			expect("landingNav" in p).toBe(false);
+			expect("chrome" in p).toBe(false);
 		}
+		expect("routes" in groupsChromePlugin).toBe(false);
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["groups.tables", "groups.services", "groups.panel"]);
+		expect(plugins.map((p) => p.id)).toEqual([
+			"groups.tables",
+			"groups.services",
+			"groups.chrome",
+			"groups.panel",
+		]);
 	});
 });
 

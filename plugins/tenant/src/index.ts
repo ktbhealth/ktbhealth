@@ -117,15 +117,31 @@ export const tenantServicesPlugin = definePlugin({
 	services: TenantsLive,
 });
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const tenantChromePlugin = definePlugin({
+	id: "tenant.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "tenant.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/tenants", label: "Tenants", icon: Building2Icon, group: "Access" },
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: /platform/tenants is mounted by
-// the platform plugin's physical route subtree; this plugin only
-// declares the sidebar entry and page descriptor. The dep edge orders
-// it after the shell.
+// the platform plugin's physical route subtree; this plugin declares
+// the page descriptor. The dep edge orders it after the shell.
 export const tenantPanelPlugin = definePlugin({
 	id: "tenant.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/tenants", label: "Tenants", icon: Building2Icon, group: "Access" }],
 		pages: [
 			{
 				id: "tenant.admin",
@@ -148,13 +164,18 @@ export const tenantPanelPlugin = definePlugin({
 
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [tenantServicesPlugin, tenantPanelPlugin];
+export const plugins: readonly Plugin[] = [
+	tenantServicesPlugin,
+	tenantChromePlugin,
+	tenantPanelPlugin,
+];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"tenant.services": true;
+		"tenant.chrome": true;
 		"tenant.panel": true;
 	}
 }

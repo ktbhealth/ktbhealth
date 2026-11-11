@@ -3,6 +3,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { CommandBus, QueryBus } from "@effect-server-utils/cqrs";
 import { Auth } from "@ktb/auth";
 import { makeD1 } from "@ktb/db/testing";
+import { PluginStates } from "@ktb/platform/plugin-states";
 import {
 	NotificationsMarkAllRead,
 	NotificationsUnreadCount,
@@ -13,6 +14,7 @@ import { assertCaptchaConfigured, createApp, plugins } from "./index.ts";
 
 const DDL = `
 CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT, payload TEXT, read_at INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE plugin_state (plugin_id TEXT PRIMARY KEY NOT NULL, enabled INTEGER DEFAULT true NOT NULL, config TEXT, updated_at INTEGER NOT NULL);
 `;
 
 const env = {
@@ -124,6 +126,56 @@ describe("createApp", () => {
 			);
 			expect(exit).toMatchObject({ _tag: "Forbidden" });
 			expect(logged(log).some((l: string) => l.includes("cqrs dispatch failed"))).toBe(true);
+		});
+	});
+
+	describe("plugin enabled gate (P-058)", () => {
+		const user = { id: "u1", email: "u1@x.com" };
+		const unread = () =>
+			app.runAs(
+				user,
+				Effect.flatMap(QueryBus, (bus) => bus.execute(NotificationsUnreadCount, { userId: "u1" })),
+			);
+		const setEnabled = (ids: readonly string[], enabled: boolean) =>
+			app.run(
+				Effect.gen(function* () {
+					const states = yield* PluginStates;
+					yield* states.setEnabled(ids, enabled);
+				}),
+			);
+		const notificationsIds = plugins
+			.filter((p) => p.id.startsWith("notifications."))
+			.map((p) => p.id);
+
+		it("blocks dispatch with PluginDisabled when every plugin of the package is off", async () => {
+			expect(notificationsIds.length).toBeGreaterThan(1);
+			await expect(unread()).resolves.toBe(0);
+			await setEnabled(notificationsIds, false);
+			try {
+				const exit = await app
+					.runAs(
+						user,
+						Effect.flatMap(QueryBus, (bus) =>
+							bus.execute(NotificationsUnreadCount, { userId: "u1" }),
+						).pipe(Effect.flip),
+					)
+					.catch((e: unknown) => e);
+				expect(exit).toMatchObject({ _tag: "PluginDisabled", pluginId: "notifications" });
+			} finally {
+				await setEnabled(notificationsIds, true);
+			}
+			await expect(unread()).resolves.toBe(0);
+		});
+
+		it("keeps dispatch open while any plugin id of the package is enabled", async () => {
+			// Disabling only the services plugin leaves the package's other
+			// ids enabled — the package-level gate stays open.
+			await setEnabled(["notifications.services"], false);
+			try {
+				await expect(unread()).resolves.toBe(0);
+			} finally {
+				await setEnabled(["notifications.services"], true);
+			}
 		});
 	});
 

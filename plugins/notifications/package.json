@@ -6,7 +6,6 @@
 		".": "./src/index.ts",
 		"./api": "./src/api.ts",
 		"./context": "./src/context.ts",
-		"./schema": "./src/schema.ts",
 		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {

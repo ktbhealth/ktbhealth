@@ -52,6 +52,9 @@ const USERS = new Map([
 	["user", { id: "u-jobs", email: "jobs-user@x.com", name: "Dra Jobs" }],
 ]);
 
+/** Mutable enable-state behind the route gate (createPluginApiRoute). */
+const pluginGate = { enabled: true };
+
 /** Cookie "session=<key>" authenticates as USERS[key]; anything else is anonymous. */
 const authStub = Auth.of({
 	setUserBanned: async () => {},
@@ -106,6 +109,7 @@ beforeAll(() => {
 			),
 		getLocale: () => "en",
 		audioTranscribeModel: "test-model",
+		pluginEnabled: async () => pluginGate.enabled,
 	});
 });
 
@@ -149,6 +153,18 @@ async function readUntil(body: ReadableStream<Uint8Array>, needle: string, ms = 
 }
 
 describe("GET /api/jobs", () => {
+	it("answers 404 when the jobs.routes plugin is disabled", async () => {
+		pluginGate.enabled = false;
+		try {
+			useSession(signIn("admin"));
+			const res = await get();
+			expect(res.status).toBe(404);
+			expect(await res.json()).toEqual({ error: "not found" });
+		} finally {
+			pluginGate.enabled = true;
+		}
+	});
+
 	it("rejects unauthenticated requests", async () => {
 		const saved = headers.current;
 		headers.current = new Headers();

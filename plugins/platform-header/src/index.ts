@@ -3,7 +3,7 @@ import { platformPanelPlugin } from "@ktb/platform";
 
 /**
  * Marker plugin for the /platform console top-bar extension point.
- * Its presence enables `panel.headerActions` contributions (icon
+ * Its presence enables `console.header.actions` chrome contributions (icon
  * buttons/popovers on the right side of the header) — the host only
  * aggregates them when this plugin is registered, so feature plugins
  * can offer header widgets (jobs, notifications…) that degrade

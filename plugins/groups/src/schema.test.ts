@@ -1,7 +1,7 @@
 import { getTableConfig } from "drizzle-orm/sqlite-core/utils";
 import { describe, expect, it } from "vitest";
 
-import { groupMembers, groups } from "./schema.ts";
+import { groupMembers, groups } from "@ktb/db/schema";
 
 describe("groups schema", () => {
 	it("exposes table config with slug unique", () => {

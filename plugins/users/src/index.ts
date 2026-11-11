@@ -4,13 +4,11 @@ import * as Layer from "effect/Layer";
 import { count, desc, eq } from "drizzle-orm";
 import { UserCogIcon } from "lucide-react";
 
-import { user as users } from "@ktb/auth/schema";
 import { Auth } from "@ktb/auth";
 import { audit, auditServicesPlugin } from "@ktb/audit";
-import { consultations } from "@ktb/consultations/schema";
 import { Db, type DbClient } from "@ktb/db";
+import { consultations, patients, user as users } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import { patients } from "@ktb/patients/schema";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import type { Forbidden } from "@ktb/authz";
 import { Query } from "@effect-server-utils/cqrs";
@@ -134,14 +132,31 @@ export const usersServicesPlugin = definePlugin({
 	services: Layer.mergeAll(UsersLive, UsersQueriesLive),
 });
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const usersChromePlugin = definePlugin({
+	id: "users.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "users.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" },
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: /platform/users is mounted by
 // the platform plugin's physical route subtree; this plugin only
-// declares the sidebar entry. The dep edge orders it after the shell.
+// declares the page descriptor. The dep edge orders it after the shell.
 export const usersPanelPlugin = definePlugin({
 	id: "users.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" }],
 		pages: [
 			{
 				id: "users.admin",
@@ -164,13 +179,18 @@ export const usersPanelPlugin = definePlugin({
 
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [usersServicesPlugin, usersPanelPlugin];
+export const plugins: readonly Plugin[] = [
+	usersServicesPlugin,
+	usersChromePlugin,
+	usersPanelPlugin,
+];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"users.services": true;
+		"users.chrome": true;
 		"users.panel": true;
 	}
 }

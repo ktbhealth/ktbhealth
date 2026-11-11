@@ -1,23 +1,30 @@
 import { createElement } from "react";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, notFound } from "@tanstack/react-router";
 
-import { platformPageDataFn } from "#/lib/fns.ts";
-import { platformPages } from "#/lib/platform-pages.ts";
+import { platformPageDataFn, pluginStatesFn } from "#/lib/fns.ts";
+import { consolePages, enabledIdSet } from "#/lib/registry.ts";
 import { plugins } from "#/plugins.ts";
 import { getLocale } from "#/paraglide/runtime.js";
+
+const rootApi = getRouteApi("__root__");
 
 // Generic dispatcher for /platform/<path…> console pages (P-050):
 // plugins contribute `panel.pages` descriptors keyed by full path
 // ("/platform" itself is the index route; anything deeper lands here).
 // The splat param `_splat` carries the remainder ("patients" or
 // "foo/bar"); we resolve `/platform/${_splat}` against the registry,
-// 404 when no plugin owns it or its `guard` Effect denies, and render
-// the contributed component with `{ data, ctx: { plugins } }`.
+// 404 when no plugin owns it, when its owner plugin is disabled (P-058)
+// or when its `guard` Effect denies, and render the contributed
+// component with `{ data, ctx: { plugins } }`.
 export const Route = createFileRoute("/platform/$")({
 	loader: async ({ params }) => {
 		const path = `/platform/${params._splat ?? ""}`;
-		const page = platformPages.get(path);
-		if (page === undefined) throw notFound();
+		const entry = consolePages.get(path);
+		if (entry === undefined) throw notFound();
+		// Client-side early gate: a disabled plugin's page 404s before the
+		// server fn round-trip (platformPageDataFn re-checks server-side).
+		const states = await pluginStatesFn();
+		if (!enabledIdSet(states).has(entry.pluginId)) throw notFound();
 		const result = await platformPageDataFn({ data: path });
 		if (result.status === "notfound") throw notFound();
 		return result.data;
@@ -25,8 +32,15 @@ export const Route = createFileRoute("/platform/$")({
 	component: function PlatformPageRoute() {
 		const { _splat } = Route.useParams();
 		const data = Route.useLoaderData();
-		const page = platformPages.get(`/platform/${_splat ?? ""}`);
-		if (page === undefined) return null;
-		return createElement(page.component, { data, ctx: { plugins, locale: getLocale() } });
+		const { user } = rootApi.useLoaderData();
+		const entry = consolePages.get(`/platform/${_splat ?? ""}`);
+		if (entry === undefined) return null;
+		// ctx.plugins is the FULL discovered registry (P-058): the
+		// /platform/plugins manager needs disabled plugins too; enabled
+		// filtering already happened in the loader gate above.
+		return createElement(entry.page.component, {
+			data,
+			ctx: { plugins, locale: getLocale(), user },
+		});
 	},
 });

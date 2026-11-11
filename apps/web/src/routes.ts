@@ -27,4 +27,7 @@ export const routes = rootRoute("__root.tsx", [
 	route("capture-test", "capture-test.tsx"),
 	route("login", "login.tsx"),
 	physical("/api", "api"),
+	// Root splat (P-059): dispatches plugin-contributed `pages` at
+	// arbitrary app paths; static routes above keep match priority.
+	route("$", "$.tsx"),
 ]);

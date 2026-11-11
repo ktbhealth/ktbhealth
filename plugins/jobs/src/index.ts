@@ -23,9 +23,13 @@ export const jobsHeaderPlugin = definePlugin({
 	id: "jobs.header",
 	requiredDeps: [platformPanelPlugin.id],
 	optionalDeps: [platformHeaderPlugin.id],
-	panel: {
-		headerActions: [{ id: "jobs", component: JobsHeaderAction }],
-	},
+	chrome: [
+		{
+			id: "jobs.header-action",
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "jobs", component: JobsHeaderAction },
+		},
+	],
 });
 
 // Route subtree composed into the host's virtualRouteConfig (P-033):
@@ -57,15 +61,32 @@ export const opsServicesPlugin = definePlugin({
 	services: OpsLive,
 });
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const opsChromePlugin = definePlugin({
+	id: "jobs.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "jobs.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/ops", label: "Ops", icon: ActivityIcon, group: "System" },
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: /platform/ops is mounted by the
 // platform plugin's physical route subtree; this plugin declares the
-// sidebar entry and page descriptor. The dep edge orders it after the
-// shell and the ops services its loader consumes.
+// page descriptor. The dep edge orders it after the shell and the ops
+// services its loader consumes.
 export const opsPanelPlugin = definePlugin({
 	id: "jobs.panel",
 	requiredDeps: [platformPanelPlugin.id, opsServicesPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/ops", label: "Ops", icon: ActivityIcon, group: "System" }],
 		pages: [
 			{
 				id: "jobs.ops",
@@ -106,6 +127,7 @@ export const plugins: readonly Plugin[] = [
 	jobsHeaderPlugin,
 	jobsRoutesPlugin,
 	opsServicesPlugin,
+	opsChromePlugin,
 	opsPanelPlugin,
 ];
 
@@ -128,6 +150,7 @@ declare module "@ktb/kernel" {
 		"jobs.header": true;
 		"jobs.routes": true;
 		"jobs.ops.services": true;
+		"jobs.chrome": true;
 		"jobs.panel": true;
 	}
 }

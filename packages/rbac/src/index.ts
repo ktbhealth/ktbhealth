@@ -7,10 +7,10 @@ import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { Forbidden, Principal, requireCanAs } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
 
-import { permissionEpoch, rolePermissions, subjectRoles } from "./schema.ts";
+import { permissionEpoch, rolePermissions, subjectRoles } from "@ktb/db/schema";
 
-export { permissionEpoch, rolePermissions, roles, subjectRoles } from "./schema.ts";
-export type { Role, RolePermission, SubjectRole } from "./schema.ts";
+export { permissionEpoch, rolePermissions, roles, subjectRoles } from "@ktb/db/schema";
+export type { Role, RolePermission, SubjectRole } from "@ktb/db/schema";
 export * from "./vocabulary.ts";
 
 // ---------- vocabulary-facing types ----------

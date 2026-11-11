@@ -22,11 +22,11 @@ vi.mock("@tanstack/react-start", () => ({
 
 import { env } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
-import type { PanelPage } from "@ktb/kernel";
-import { platformPages } from "./platform-pages.ts";
+import type { Page, PanelPage } from "@ktb/kernel";
+import { appPages, consolePages } from "./registry.ts";
 import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/anamnesis";
 import { auth, db } from "./platform.ts";
-import { consultations } from "@ktb/db/schema";
+import { consultations, pluginState } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
@@ -53,6 +53,7 @@ import {
 	patientHistoryFn,
 	platformAdminFn,
 	platformPageDataFn,
+	appPageDataFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
@@ -673,10 +674,11 @@ describe("server fns", () => {
 			guard: () => Effect.succeed(true),
 		};
 		// No shipped plugin uses `guard` yet — register throwaway
-		// descriptors directly on the (mutable) registry map.
-		const pages = platformPages as unknown as Map<string, PanelPage>;
-		pages.set(denied.path, denied);
-		pages.set(allowed.path, allowed);
+		// descriptors directly on the (mutable) registry map. The owner
+		// id must be a real enabled plugin for the P-058 gate.
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
+		pages.set(denied.path, { page: denied, pluginId: "platform.routes" });
+		pages.set(allowed.path, { page: allowed, pluginId: "platform.routes" });
 		try {
 			expect(await platformPageDataFn({ data: denied.path })).toEqual({ status: "notfound" });
 			expect(loaderRan).toBe(false);
@@ -688,6 +690,100 @@ describe("server fns", () => {
 		} finally {
 			pages.delete(denied.path);
 			pages.delete(allowed.path);
+		}
+	});
+
+	it("platform page data reports notfound for a disabled plugin (P-058)", async () => {
+		headers.current = new Headers({ cookie });
+		const page: PanelPage = {
+			id: "test.disabled",
+			path: "/platform/test-disabled",
+			component: () => null,
+			loader: () => Effect.succeed("never"),
+		};
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
+		pages.set(page.path, { page, pluginId: "platform.routes" });
+		// Direct row write: the dep invariant lives in PluginStates.setEnabled
+		// and would (correctly) refuse to disable platform.routes while
+		// platform.panel depends on it — the gate only reads the row.
+		await db
+			.insert(pluginState)
+			.values({ pluginId: "platform.routes", enabled: false, updatedAt: new Date() });
+		try {
+			expect(await platformPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
+		} finally {
+			pages.delete(page.path);
+			await db.delete(pluginState).where(eq(pluginState.pluginId, "platform.routes"));
+		}
+	});
+
+	it("app page data fn serves public pages to anonymous callers (P-059)", async () => {
+		headers.current = new Headers();
+		const page: Page = {
+			id: "test.app",
+			path: "/test-app-page",
+			component: () => null,
+			loader: () => Effect.succeed("public"),
+		};
+		const pages = appPages as unknown as Map<
+			string,
+			{ page: Page; pluginId: string; context?: string }
+		>;
+		pages.set(page.path, { page, pluginId: "platform.routes", context: "app" });
+		try {
+			expect(await appPageDataFn({ data: page.path })).toEqual({
+				status: "ok",
+				data: "public",
+			});
+			// Shell isolation: the console fn never serves app paths and
+			// the app fn never serves console paths.
+			expect(await platformPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
+			expect(await appPageDataFn({ data: "/platform/patients" })).toEqual({
+				status: "notfound",
+			});
+			// Signed-in callers get the same result — effects then run
+			// under runAs (Principal + Authz bound) instead of run.
+			headers.current = new Headers({ cookie });
+			expect(await appPageDataFn({ data: page.path })).toEqual({
+				status: "ok",
+				data: "public",
+			});
+			headers.current = new Headers();
+			// An entry whose context disagrees with the requested shell
+			// is refused even when the path is registered.
+			pages.set("/test-mismatch", {
+				page: { ...page, path: "/test-mismatch" },
+				pluginId: "platform.routes",
+				context: "console",
+			});
+			expect(await appPageDataFn({ data: "/test-mismatch" })).toEqual({ status: "notfound" });
+			pages.delete("/test-mismatch");
+		} finally {
+			pages.delete(page.path);
+		}
+	});
+
+	it("app page data fn reports notfound for a disabled plugin (P-058)", async () => {
+		headers.current = new Headers();
+		const page: Page = {
+			id: "test.app-disabled",
+			path: "/test-app-disabled",
+			component: () => null,
+			loader: () => Effect.succeed("never"),
+		};
+		const pages = appPages as unknown as Map<
+			string,
+			{ page: Page; pluginId: string; context?: string }
+		>;
+		pages.set(page.path, { page, pluginId: "platform.routes", context: "app" });
+		await db
+			.insert(pluginState)
+			.values({ pluginId: "platform.routes", enabled: false, updatedAt: new Date() });
+		try {
+			expect(await appPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
+		} finally {
+			pages.delete(page.path);
+			await db.delete(pluginState).where(eq(pluginState.pluginId, "platform.routes"));
 		}
 	});
 

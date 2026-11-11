@@ -1,6 +1,7 @@
 import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
+import { makePluginStatesLive, PluginDisabled, PluginStates } from "@ktb/platform/plugin-states";
 import { Bot, stubBotDriver } from "@ktb/bot";
 import { recallDriver } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
@@ -51,11 +52,21 @@ export const plugins: readonly Plugin[] = orderPlugins(
  * Events need no enumeration — `EventBus` is already app-wide.
  */
 const apiModules = import.meta.glob("../../../plugins/*/src/api.ts", { eager: true });
-const moduleExports = Object.values(apiModules).flatMap((m) =>
-	Object.values(m as Record<string, unknown>),
+// Each api module belongs to a plugin PACKAGE (`plugins/<pkg>/src/api.ts`);
+// the enabled-state gate below is package-granular — a package's CQRS
+// surface is live while ANY of its plugin ids is enabled (P-058).
+const apiEntries = Object.entries(apiModules).flatMap(([path, m]) => {
+	const pkg = /(?:^|\/)plugins\/([^/]+)\/src\/api\.ts$/.exec(path)?.[1];
+	return pkg === undefined
+		? []
+		: Object.values(m as Record<string, unknown>).map((value) => ({ pkg, value }));
+});
+const queryGroups = apiEntries.flatMap(({ pkg, value }) =>
+	Query.isGroup(value) ? [{ pkg, group: value }] : [],
 );
-const queryGroups = moduleExports.filter(Query.isGroup);
-const commandGroups = moduleExports.filter(Command.isGroup);
+const commandGroups = apiEntries.flatMap(({ pkg, value }) =>
+	Command.isGroup(value) ? [{ pkg, group: value }] : [],
+);
 
 /** Minimal binding surface the host needs. Any platform (workerd, bun,
  * future adapters) supplies these; the host never touches cloudflare:*. */
@@ -197,6 +208,13 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		PlatformAdmin,
 		makePlatformAdminGate(parsePlatformAdminEmails(env.PLATFORM_ADMIN_EMAILS)),
 	);
+	// Runtime plugin enable/config state (P-058): the service is built
+	// from the discovered registry (ids, dep edges, meta.config schemas)
+	// over the Db port — provided here so plugin layers, server fns and
+	// the CQRS gate below all share one instance. `.pipe(Layer.provide(
+	// DbLive))` wires the sibling Db output in explicitly (mergeAll does
+	// not), leaving only `Binding` for the outer provideMerge.
+	const PluginStatesLive = makePluginStatesLive(plugins).pipe(Layer.provide(DbLive));
 	// Tenant resolution is opt-in: the app supplies a TenantResolverShape
 	// (usually makeTenantResolver over its TenantDirectory adapter). When
 	// absent the Reference default resolves null — personal scope.
@@ -211,6 +229,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		AuthServiceLive,
 		AnamnesisEngineLive,
 		PlatformAdminLive,
+		PluginStatesLive,
 		// Cross-plugin event bus — plugins publish/subscribe via EventBus
 		// inside their service layers (CQRS event surface).
 		makeEventBus(),
@@ -246,25 +265,52 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 					),
 				),
 	];
+	// Enabled-state gate (P-058): services layers always compose
+	// (ManagedRuntime can't recompose per toggle), so dispatch is the
+	// fail-closed seam — a group's handlers are unreachable while EVERY
+	// plugin id of its package (`plugins/<pkg>/*`) is disabled. The gate
+	// reads PluginStates per dispatch so toggles apply without restart.
+	//
+	// `Middleware` is typed `(payload) => Effect<A, E>` — R=never — but
+	// the bus executes inside the app runtime where core services are
+	// provided; the cast is the same erasure `Layer.Any` plugin layers
+	// already rely on.
+	const pluginGate = (pkg: string): Middleware.Middleware => {
+		const gate =
+			<A, E>(
+				dispatch: (payload: never) => Effect.Effect<A, E>,
+			): ((payload: never) => Effect.Effect<A, E>) =>
+			(payload) =>
+				Effect.gen(function* () {
+					const states = yield* PluginStates;
+					const enabled = yield* states.enabledIds();
+					const prefix = `${pkg}.`;
+					if (![...enabled].some((id) => id.startsWith(prefix))) {
+						return yield* Effect.fail(new PluginDisabled({ pluginId: pkg }));
+					}
+					return yield* dispatch(payload);
+				}) as Effect.Effect<A, E>;
+		return gate as Middleware.Middleware;
+	};
 	const busesLive = Layer.unwrap(
 		Effect.gen(function* () {
-			const queryTables = yield* Effect.forEach(queryGroups, (group) =>
-				Query.dispatcher(group, { middleware: busMiddleware }),
+			const queryTables = yield* Effect.forEach(queryGroups, ({ pkg, group }) =>
+				Query.dispatcher(group, { middleware: [pluginGate(pkg), ...busMiddleware] }),
 			);
-			const commandTables = yield* Effect.forEach(commandGroups, (group) =>
-				Command.dispatcher(group, { middleware: busMiddleware }),
+			const commandTables = yield* Effect.forEach(commandGroups, ({ pkg, group }) =>
+				Command.dispatcher(group, { middleware: [pluginGate(pkg), ...busMiddleware] }),
 			);
 			return Layer.mergeAll(
 				Layer.succeed(
 					QueryBus,
 					makeQueryBus(mergeDispatchTables(...queryTables) as DispatchTable, {
-						declaredIn: queryGroups,
+						declaredIn: queryGroups.map(({ group }) => group),
 					}),
 				),
 				Layer.succeed(
 					CommandBus,
 					makeCommandBus(mergeDispatchTables(...commandTables) as DispatchTable, {
-						declaredIn: commandGroups,
+						declaredIn: commandGroups.map(({ group }) => group),
 					}),
 				),
 			);

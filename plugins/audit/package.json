@@ -9,10 +9,8 @@
 	"dependencies": {
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
-		"@ktb/groups": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/platform": "workspace:*",
-		"@ktb/tenant": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
 		"drizzle-orm": "^0.45.1",
 		"effect": "4.1.2",

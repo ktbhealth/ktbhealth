@@ -5,8 +5,7 @@
 	"exports": {
 		".": "./src/index.ts",
 		"./fns": "./src/fns.ts",
-		"./views": "./src/views/index.ts",
-		"./schema": "./src/schema.ts"
+		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {
 		"@effect-server-utils/cqrs": "0.1.0-beta.10",

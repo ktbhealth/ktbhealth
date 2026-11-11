@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 
-import { permissionEpoch, rolePermissions, roles, subjectRoles } from "./schema.ts";
+import { permissionEpoch, rolePermissions, roles, subjectRoles } from "@ktb/db/schema";
 
 const DDL = `
 CREATE TABLE roles (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, meta TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);

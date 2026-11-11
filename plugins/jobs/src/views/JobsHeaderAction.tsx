@@ -59,7 +59,7 @@ const upsertJob = (
 };
 
 /**
- * Header action contributed via `panel.headerActions`: a tooltip'd icon
+ * Header action contributed via `console.header.actions` chrome: a tooltip'd icon
  * button opening a wide popover with the console jobs feed — status
  * filter tabs, batch progress and grouped queue sections. Data comes
  * from JobsDataContext (the host injects it) as the seed; when

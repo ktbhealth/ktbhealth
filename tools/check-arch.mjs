@@ -274,6 +274,138 @@ const runProgramRule = (ruleName, filename, body) => {
 	check("tenant-scope exempts test files", testCtx.reports.length === 0);
 }
 
+// plugin-route-gate: page routes under plugins/*/src/routes/** must use
+// createPluginFileRoute("<pkg>.routes") — bare createFileRoute and wrong
+// gate ids are flagged; api-routes and test files are out of scope.
+{
+	const routeFile = "/repo/plugins/demo/src/routes/index.tsx";
+	const helperImport = () => importDecl("@ktb/server-fns", ["createPluginFileRoute"]);
+	const routeExport = () =>
+		exportConst("Route", {
+			type: "CallExpression",
+			callee: id("createPluginFileRoute"),
+			arguments: [literal("demo.routes")],
+		});
+
+	// Bare createFileRoute import is banned.
+	const badCtx = makeContext(routeFile);
+	const badVisitor = plugin.rules["plugin-route-gate"].create(badCtx);
+	badVisitor.Program(
+		program([
+			importDecl("@tanstack/react-router", ["createFileRoute"]),
+			helperImport(),
+			routeExport(),
+		]),
+	);
+	check("plugin-route-gate flags bare createFileRoute", badCtx.reports.length === 1);
+
+	// Route export without the helper import is flagged.
+	const noHelperCtx = makeContext(routeFile);
+	plugin.rules["plugin-route-gate"].create(noHelperCtx).Program(program([routeExport()]));
+	check("plugin-route-gate flags missing helper import", noHelperCtx.reports.length === 1);
+
+	// Wrong gate id literal is flagged.
+	const wrongIdCtx = makeContext(routeFile);
+	const wrongIdVisitor = plugin.rules["plugin-route-gate"].create(wrongIdCtx);
+	wrongIdVisitor.Program(program([helperImport(), routeExport()]));
+	wrongIdVisitor.CallExpression({
+		type: "CallExpression",
+		callee: id("createPluginFileRoute"),
+		arguments: [literal("other.routes")],
+	});
+	check("plugin-route-gate flags wrong plugin id", wrongIdCtx.reports.length === 1);
+
+	// Correct usage passes.
+	const okCtx = makeContext(routeFile);
+	const okVisitor = plugin.rules["plugin-route-gate"].create(okCtx);
+	okVisitor.Program(program([helperImport(), routeExport()]));
+	okVisitor.CallExpression({
+		type: "CallExpression",
+		callee: id("createPluginFileRoute"),
+		arguments: [literal("demo.routes")],
+	});
+	check("plugin-route-gate accepts gated route", okCtx.reports.length === 0);
+
+	// api-routes/** are server endpoints gated by plugin-api-route-gate,
+	// not this rule.
+	const apiCtx = makeContext("/repo/plugins/demo/src/api-routes/jobs.ts");
+	const apiVisitor = plugin.rules["plugin-route-gate"].create(apiCtx);
+	apiVisitor.Program?.(program([importDecl("@tanstack/react-router", ["createFileRoute"])]));
+	check("plugin-route-gate ignores api-routes", apiCtx.reports.length === 0);
+
+	// Test files under routes/** are exempt.
+	const rtTestCtx = makeContext("/repo/plugins/demo/src/routes/index.test.tsx");
+	const rtTestVisitor = plugin.rules["plugin-route-gate"].create(rtTestCtx);
+	rtTestVisitor.Program?.(program([importDecl("@tanstack/react-router", ["createFileRoute"])]));
+	check("plugin-route-gate exempts test files", rtTestCtx.reports.length === 0);
+}
+
+// plugin-api-route-gate: API/server routes under plugins/*/src/api-routes/**
+// must use createPluginApiRoute("<pkg>.routes") — bare createFileRoute,
+// a missing helper import, and wrong gate ids are flagged; page routes
+// and test files are out of scope.
+{
+	const apiFile = "/repo/plugins/demo/src/api-routes/jobs.ts";
+	const helperImport = () => importDecl("@ktb/server-fns", ["createPluginApiRoute"]);
+	const routeExport = () =>
+		exportConst("Route", {
+			type: "CallExpression",
+			callee: id("createPluginApiRoute"),
+			arguments: [literal("demo.routes")],
+		});
+
+	// Bare createFileRoute import is banned.
+	const badCtx = makeContext(apiFile);
+	const badVisitor = plugin.rules["plugin-api-route-gate"].create(badCtx);
+	badVisitor.Program(
+		program([
+			importDecl("@tanstack/react-router", ["createFileRoute"]),
+			helperImport(),
+			routeExport(),
+		]),
+	);
+	check("plugin-api-route-gate flags bare createFileRoute", badCtx.reports.length === 1);
+
+	// Route export without the helper import is flagged.
+	const noHelperCtx = makeContext(apiFile);
+	plugin.rules["plugin-api-route-gate"].create(noHelperCtx).Program(program([routeExport()]));
+	check("plugin-api-route-gate flags missing helper import", noHelperCtx.reports.length === 1);
+
+	// Wrong gate id literal is flagged.
+	const wrongIdCtx = makeContext(apiFile);
+	const wrongIdVisitor = plugin.rules["plugin-api-route-gate"].create(wrongIdCtx);
+	wrongIdVisitor.Program(program([helperImport(), routeExport()]));
+	wrongIdVisitor.CallExpression({
+		type: "CallExpression",
+		callee: id("createPluginApiRoute"),
+		arguments: [literal("other.routes")],
+	});
+	check("plugin-api-route-gate flags wrong plugin id", wrongIdCtx.reports.length === 1);
+
+	// Correct usage passes.
+	const okCtx = makeContext(apiFile);
+	const okVisitor = plugin.rules["plugin-api-route-gate"].create(okCtx);
+	okVisitor.Program(program([helperImport(), routeExport()]));
+	okVisitor.CallExpression({
+		type: "CallExpression",
+		callee: id("createPluginApiRoute"),
+		arguments: [literal("demo.routes")],
+	});
+	check("plugin-api-route-gate accepts gated api route", okCtx.reports.length === 0);
+
+	// Page routes under src/routes/** belong to plugin-route-gate.
+	const pageCtx = makeContext("/repo/plugins/demo/src/routes/index.tsx");
+	const pageVisitor = plugin.rules["plugin-api-route-gate"].create(pageCtx);
+	pageVisitor.Program?.(program([importDecl("@tanstack/react-router", ["createFileRoute"])]));
+	check("plugin-api-route-gate ignores page routes", pageCtx.reports.length === 0);
+
+	// Test files under api-routes/** are exempt.
+	const apiTestCtx = makeContext("/repo/plugins/demo/src/api-routes/jobs.test.ts");
+	const apiTestVisitor = plugin.rules["plugin-api-route-gate"].create(apiTestCtx);
+	apiTestVisitor.Program?.(program([importDecl("@tanstack/react-router", ["createFileRoute"])]));
+	check("plugin-api-route-gate exempts test files", apiTestCtx.reports.length === 0);
+}
+
 if (failures > 0) {
 	console.error(`\n${failures} arch-policy check(s) failed`);
 	process.exit(1);

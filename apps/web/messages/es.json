@@ -164,5 +164,7 @@
 	"never_3": "Nunca sugiere lo que el médico debería pensar",
 	"never_4": "Nunca reemplaza el juicio clínico",
 	"never_quote_a": "El médico revisa, edita y aprueba.",
-	"never_quote_b": "Nada entra en la historia clínica sin firma."
+	"never_quote_b": "Nada entra en la historia clínica sin firma.",
+	"panel_nav_plugins": "Plugins",
+	"panel_group_system": "Sistema"
 }

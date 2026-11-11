@@ -54,6 +54,24 @@ old URLs redirect).
   model ids, provider endpoints). Adapters, apps/_, infra/_ and
   @ktb/app-host are the exempt edge; tests keep adapter-import bans but
   are exempt from platform/provider rules.
+- packages/ vs plugins/: `plugins/` = registry citizens — they
+  contribute tables/services/routes/nav/chrome/pages/panel AND can add
+  capabilities other plugins consume (services, CQRS groups, events)
+  with `requiredDeps`/`optionalDeps` ordering (see patients.services →
+  consultations). `packages/` = infra BELOW the plugin system: ports,
+  adapters, drivers, env composition (db, authz, tenant, bot, captcha)
+  that plugins consume but that never join the registry. Rule of thumb:
+  needs registry contributions or plugin-graph deps → `plugins/`;
+  reusable infra → `packages/`. A package may get a thin `plugins/`
+  wrapper when it needs registry contributions (see `packages/rbac` vs
+  `plugins/rbac`). Known exception: `plugins/platform` is host
+  infrastructure (admin gate, console shell, plugin_state) — candidate
+  to move to `packages/platform` (T-087).
+- Apps are composition roots: `apps/web/src/lib/` holds only
+  app-bound wiring (i18n, server fns, runtime registration, deploy
+  adapters). Generic logic belongs in packages — currently
+  `chrome`/`pages`/`plugin-state` collection is being extracted to
+  `@ktb/app-host/client` (T-086).
 - Positioning: documentation-only — the physician decides, KTB
   records. No diagnosis/treatment/recommendation copy (T-021).
 - Server fns validate wire input with effect/Schema — tolerate

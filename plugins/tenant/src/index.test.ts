@@ -10,7 +10,14 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Building2Icon } from "lucide-react";
 
-import { plugins, Tenants, tenantPanelPlugin, tenantServicesPlugin, TenantsLive } from "./index.ts";
+import {
+	plugins,
+	Tenants,
+	tenantChromePlugin,
+	tenantPanelPlugin,
+	tenantServicesPlugin,
+	TenantsLive,
+} from "./index.ts";
 
 const DDL = `
 CREATE TABLE groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, kind TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -162,11 +169,17 @@ describe("plugins", () => {
 		expect(tenantServicesPlugin.requiredDeps).toEqual(["groups.services"]);
 		expect(tenantServicesPlugin.services).toBeDefined();
 		expect(TenantsLive).toBeDefined();
+		expect(tenantChromePlugin.id).toBe("tenant.chrome");
+		expect(tenantChromePlugin.requiredDeps).toEqual(["platform.panel"]);
+		expect(tenantChromePlugin.chrome?.[0]).toMatchObject({
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/tenants", label: "Tenants", icon: Building2Icon, group: "Access" },
+			},
+		});
 		expect(tenantPanelPlugin.id).toBe("tenant.panel");
 		expect(tenantPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(tenantPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/tenants", label: "Tenants", icon: Building2Icon, group: "Access" },
-		]);
 	});
 
 	describe("panel page loader", () => {
@@ -193,7 +206,7 @@ describe("plugins", () => {
 	});
 
 	it("contributes no routes, tables or top-nav", () => {
-		for (const p of [tenantServicesPlugin, tenantPanelPlugin]) {
+		for (const p of [tenantServicesPlugin, tenantChromePlugin, tenantPanelPlugin]) {
 			expect("routes" in p).toBe(false);
 			expect("tables" in p).toBe(false);
 			expect("landingNav" in p).toBe(false);
@@ -201,6 +214,6 @@ describe("plugins", () => {
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["tenant.services", "tenant.panel"]);
+		expect(plugins.map((p) => p.id)).toEqual(["tenant.services", "tenant.chrome", "tenant.panel"]);
 	});
 });

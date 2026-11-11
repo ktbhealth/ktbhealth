@@ -3,13 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import { user as userTable } from "@ktb/auth/schema";
+import { user as userTable } from "@ktb/db/schema";
 import { Principal } from "@ktb/authz";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Command, EventBus, type EventBusShape, makeEventBus } from "@effect-server-utils/cqrs";
-import { UsersIcon } from "lucide-react";
 import {
 	createPatient,
 	getPatient,
@@ -18,7 +17,7 @@ import {
 	Patients,
 	PatientsCommandsLive,
 	PatientsLive,
-	patientsLandingNavPlugin,
+	patientsChromePlugin,
 	patientsPanelPlugin,
 	patientsRoutesPlugin,
 	patientsServicesPlugin,
@@ -433,16 +432,19 @@ describe("plugins", () => {
 		expect(patientsServicesPlugin.services).toBeDefined();
 		expect(patientsPanelPlugin.id).toBe("patients.panel");
 		expect(patientsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(patientsPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/patients", label: "Patients", icon: UsersIcon, group: "Domains" },
+		expect(patientsPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform/patients");
+		expect(patientsChromePlugin.id).toBe("patients.chrome");
+		expect(patientsChromePlugin.chrome.map((c) => c.region)).toEqual([
+			"app.header.nav",
+			"console.sidebar",
 		]);
 	});
 
-	it("keeps routes and nav out of the tables, services and panel plugins", () => {
+	it("keeps routes and chrome out of the tables, services and panel plugins", () => {
 		expect("routes" in patientsTablesPlugin).toBe(false);
-		expect("landingNav" in patientsServicesPlugin).toBe(false);
+		expect("chrome" in patientsServicesPlugin).toBe(false);
 		expect("routes" in patientsPanelPlugin).toBe(false);
-		expect("landingNav" in patientsPanelPlugin).toBe(false);
+		expect("chrome" in patientsPanelPlugin).toBe(false);
 	});
 
 	it("declares the /patients route subtree and nav entry", () => {
@@ -450,8 +452,8 @@ describe("plugins", () => {
 		// P-033: the subtree is a physical() mount of this package's own
 		// src/routes directory — resolved against the host routes dir.
 		expect(JSON.stringify(patientsRoutesPlugin.routes)).toContain("plugins/patients/src/routes");
-		expect(patientsLandingNavPlugin.id).toBe("patients.landing-nav");
-		expect(patientsLandingNavPlugin.landingNav).toEqual([{ to: "/patients", label: "Patients" }]);
+		const nav = patientsChromePlugin.chrome.find((c) => c.region === "app.header.nav");
+		expect(nav?.content).toEqual({ kind: "link", to: "/patients", label: "Patients" });
 	});
 
 	it("exports the discovery plugins array", () => {
@@ -459,7 +461,7 @@ describe("plugins", () => {
 			"patients.tables",
 			"patients.services",
 			"patients.routes",
-			"patients.landing-nav",
+			"patients.chrome",
 			"patients.panel",
 		]);
 	});

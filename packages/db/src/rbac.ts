@@ -1,6 +1,9 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
+// package workspace cycle — consumers import this from `@ktb/db/schema`.
+
 /**
  * Dynamic roles (P-054): named, runtime-managed bundles of
  * (resource, action, effect) grants assignable to users and groups.
@@ -23,8 +26,8 @@ export const roles = sqliteTable("roles", {
 
 /**
  * Permission grants per role. `resource`/`action` are flat vocabulary
- * strings (see ./vocabulary.ts); `effect` is "allow" or "deny" — deny
- * always wins at resolution time. The package validates shape, not
+ * strings (see @ktb/rbac/vocabulary); `effect` is "allow" or "deny" —
+ * deny always wins at resolution time. The package validates shape, not
  * meaning: apps own the vocabulary.
  */
 export const rolePermissions = sqliteTable(

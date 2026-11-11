@@ -18,10 +18,9 @@ import {
 const contributions = (p: Plugin) =>
 	[
 		p.routes?.length ? "routes" : null,
-		p.landingNav?.length ? "landing-nav" : null,
+		p.chrome?.length ? "chrome" : null,
 		p.landing ? "landing" : null,
-		p.landingFooter?.blocks.length ? "landing-footer" : null,
-		p.panel?.sidebar?.length ? "panel" : null,
+		p.panel?.pages?.length ? "panel" : null,
 		p.tables !== undefined ? "tables" : null,
 		p.services !== undefined ? "services" : null,
 	]
@@ -65,7 +64,10 @@ export function DashboardPage({
 	const t = dashboardMessages(locale);
 	const fmtDate = (d: Date) => d.toLocaleString(locale);
 	const recent = consultations.slice(0, 8);
-	const sidebarItems = plugins.reduce((n, p) => n + (p.panel?.sidebar?.length ?? 0), 0);
+	const sidebarItems = plugins.reduce(
+		(n, p) => n + (p.chrome ?? []).filter((c) => c.region === "console.sidebar").length,
+		0,
+	);
 	return (
 		<PageContainer>
 			<PageHeader title={t.title} description={t.subtitle} />

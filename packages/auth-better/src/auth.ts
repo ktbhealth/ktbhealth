@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/d1";
 
 import type { AuthShape, Session, SessionUser } from "@ktb/auth";
-import { session as sessionTable, user as userTable } from "@ktb/auth/schema";
+import { session as sessionTable, user as userTable } from "@ktb/db/schema";
 
 export interface AuthOptions {
 	readonly secret?: string;

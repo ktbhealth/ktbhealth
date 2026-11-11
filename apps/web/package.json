@@ -43,6 +43,7 @@
 		"@ktb/interop-openehr": "workspace:*",
 		"@ktb/jobs": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/manager": "workspace:*",
 		"@ktb/notifications": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",

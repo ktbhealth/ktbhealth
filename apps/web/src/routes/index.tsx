@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, Link } from "@tanstack/react-router";
 import { buttonVariants } from "@ktbhealth/ui/components/button";
 import { getLocale } from "#/paraglide/runtime.js";
 import { plugins } from "#/plugins.ts";
+import { enabledIdSet, enabledPlugins } from "#/lib/registry.ts";
 import { validateAudienceSearch } from "@ktb/audience";
 
 // A plugin may own the whole landing page (`landing.page`); the first
@@ -18,8 +19,15 @@ function MissingLanding() {
 	);
 }
 
+const rootApi = getRouteApi("__root__");
+
 function Landing() {
-	const Page = plugins.find((p) => p.landing !== undefined)?.landing?.page;
+	// Enabled-state filter (P-058): the first ENABLED landing plugin in
+	// topo order wins; a disabled one is skipped like it never existed.
+	const { pluginStates } = rootApi.useLoaderData();
+	const Page = enabledPlugins(plugins, enabledIdSet(pluginStates)).find(
+		(p) => p.landing !== undefined,
+	)?.landing?.page;
 	// `locale` is injected by the host — plugins cannot import the host's
 	// i18n runtime (see LandingPageProps in @ktb/kernel).
 	return Page === undefined ? <MissingLanding /> : <Page locale={getLocale()} />;

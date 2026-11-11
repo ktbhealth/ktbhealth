@@ -30,7 +30,7 @@ import {
 import { validatePatient } from "@ktb/patients/record";
 import { setServerRuntime, type AudioJobMessage } from "@ktb/server-fns";
 
-import { consultations as consultationsTable } from "./schema.ts";
+import { consultations as consultationsTable } from "@ktb/db/schema";
 import { ConsultationsLive, createConsultation } from "./index.ts";
 import { Route as AudioRoute } from "./api-routes/consultations.$id.audio.ts";
 import { Route as ExportRoute } from "./api-routes/patients.$id.export.ts";

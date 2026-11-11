@@ -164,5 +164,7 @@
 	"never_3": "Nunca sugere o que o médico deveria pensar",
 	"never_4": "Nunca substitui o julgamento clínico",
 	"never_quote_a": "O médico revisa, edita e aprova.",
-	"never_quote_b": "Nada entra no prontuário sem assinatura."
+	"never_quote_b": "Nada entra no prontuário sem assinatura.",
+	"panel_nav_plugins": "Plugins",
+	"panel_group_system": "Sistema"
 }

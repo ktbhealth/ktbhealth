@@ -7,9 +7,9 @@ import { Option } from "effect";
 import { and, count, desc, eq, inArray, isNotNull, ne, or, type SQL } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 
-import { user as users } from "@ktb/auth/schema";
 import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
+import { consultations, patients, user as users } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import {
 	PlatformAdmin,
@@ -22,7 +22,6 @@ import { ClipboardListIcon } from "lucide-react";
 import type { Anamnesis, PatientHistory, PriorVisit } from "@ktb/anamnesis";
 import { factContent } from "@ktb/anamnesis";
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
-import { patients } from "@ktb/patients/schema";
 import {
 	Patients,
 	patientsServicesPlugin,
@@ -44,8 +43,8 @@ import {
 	tenantScopeId,
 } from "@ktb/tenant";
 import { ConsultationsPlatformPage } from "./platform-page.tsx";
+import { NewConsultationLink } from "./chrome.tsx";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
-import { consultations } from "./schema.ts";
 
 export type ConsultationRow = typeof consultations.$inferSelect;
 
@@ -1310,27 +1309,55 @@ export const consultationsRoutesPlugin = definePlugin({
 	],
 });
 
-export const consultationsLandingNavPlugin = definePlugin({
-	id: "consultations.landing-nav",
-	landingNav: [{ to: "/consultations", label: "Consultations" }],
+// Chrome contributions (P-060): the app-shell nav link, the
+// "New consultation" CTA and the console sidebar entry live in `chrome`
+// regions; the dep edge orders the sidebar item after the platform
+// shell like the retired panel entry.
+export const consultationsChromePlugin = definePlugin({
+	id: "consultations.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "consultations.nav",
+			region: "app.header.nav",
+			content: { kind: "link", to: "/consultations", label: "Consultations" },
+		},
+		{
+			id: "consultations.new",
+			region: "app.header.actions",
+			// Before the locale toggle (unordered → Infinity).
+			order: 0,
+			content: { kind: "component", component: NewConsultationLink },
+		},
+		{
+			id: "consultations.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: {
+					to: "/platform/consultations",
+					label: "Consultations",
+					icon: ClipboardListIcon,
+					group: "Domains",
+				},
+			},
+		},
+	],
 });
 
 // Panel (system console) contribution: /platform/consultations is
 // mounted by the platform plugin's physical route subtree; this plugin
-// only declares the sidebar entry. The dep edge orders it after the
+// only declares the page descriptor. The dep edge orders it after the
 // platform shell.
 export const consultationsPanelPlugin = definePlugin({
 	id: "consultations.panel",
 	requiredDeps: [platformPanelPlugin.id],
+	meta: {
+		name: "Consultations",
+		description: "Consultation records and audio jobs",
+		icon: ClipboardListIcon,
+	},
 	panel: {
-		sidebar: [
-			{
-				to: "/platform/consultations",
-				label: "Consultations",
-				icon: ClipboardListIcon,
-				group: "Domains",
-			},
-		],
 		pages: [
 			{
 				id: "consultations.admin",
@@ -1378,7 +1405,7 @@ export const plugins: readonly Plugin[] = [
 	consultationsTablesPlugin,
 	consultationsServicesPlugin,
 	consultationsRoutesPlugin,
-	consultationsLandingNavPlugin,
+	consultationsChromePlugin,
 	consultationsPanelPlugin,
 ];
 
@@ -1389,7 +1416,7 @@ declare module "@ktb/kernel" {
 		"consultations.tables": true;
 		"consultations.services": true;
 		"consultations.routes": true;
-		"consultations.landing-nav": true;
+		"consultations.chrome": true;
 		"consultations.panel": true;
 	}
 }

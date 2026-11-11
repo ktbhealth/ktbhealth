@@ -1,11 +1,13 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { notFound } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { ConsultationDetailPage } from "../views/index.ts";
 import { getConsultationFn, localeFn, patientHistoryFn } from "../fns.ts";
 import { requireSession } from "../guard.ts";
 import { consultationDetailApi } from "../apis.ts";
 
-export const Route = createFileRoute("/consultations/$id")({
+export const Route = createPluginFileRoute("consultations.routes")("/consultations/$id")({
 	staleTime: 30_000,
 	beforeLoad: () => requireSession(),
 	loader: async ({ params }) => {

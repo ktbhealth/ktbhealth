@@ -1,7 +1,7 @@
 import { getTableConfig } from "drizzle-orm/sqlite-core/utils";
 import { describe, expect, it } from "vitest";
 
-import { groups } from "@ktb/groups/schema";
+import { groups } from "@ktb/db/schema";
 
 import { adminAudit } from "./schema.ts";
 

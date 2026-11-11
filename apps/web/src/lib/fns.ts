@@ -2,9 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { Notifications, rowToConsole } from "@ktb/notifications";
 import { run, runAs, serverPlugins } from "#/lib/platform.ts";
-import { platformPages } from "#/lib/platform-pages.ts";
+import {
+	appPages,
+	consolePages,
+	defaultPageContext,
+	type PageShell,
+	type PluginStatesResult,
+} from "#/lib/registry.ts";
 import { PlatformAdmin } from "@ktb/platform";
-import type { PanelPage } from "@ktb/kernel";
+import { PluginStates } from "@ktb/platform/plugin-states";
+import type { Page, PanelPage } from "@ktb/kernel";
 import { Schema } from "effect";
 import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
 import * as Effect from "effect/Effect";
@@ -17,6 +24,25 @@ import * as Effect from "effect/Effect";
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
+
+/**
+ * Enabled plugin ids for chrome/landing/panel filtering (P-058). No row
+ * in `plugin_state` means enabled, so the set covers every discovered
+ * plugin minus the disabled ones. Unauthenticated — chrome renders for
+ * anonymous visitors too. The id universe comes from the service's
+ * registry snapshot (serverPlugins and the client registry share ids).
+ */
+export const pluginStatesFn = createServerFn({ method: "GET" }).handler(
+	async (): Promise<PluginStatesResult> => {
+		const enabled = await run(
+			Effect.gen(function* () {
+				const states = yield* PluginStates;
+				return yield* states.enabledIds();
+			}),
+		);
+		return { enabled: [...enabled] };
+	},
+);
 
 /**
  * /platform console gate: true when the session user's email is in the
@@ -36,61 +62,110 @@ export const platformAdminFn = createServerFn({ method: "GET" }).handler(async (
 });
 
 /**
- * Result of `platformPageDataFn`: a discriminated union so the route
- * loader can tell "page denied/missing" apart from a loader that
- * legitimately returned `null`/`undefined` data. Server-fn errors do
- * not round-trip as router `notFound()`, so denial is data, not a
- * throw — the route maps `notfound` to `throw notFound()`.
+ * Result of the page data server fns (`platformPageDataFn`,
+ * `appPageDataFn`): a discriminated union so the route loader can tell
+ * "page denied/missing" apart from a loader that legitimately returned
+ * `null`/`undefined` data. Server-fn errors do not round-trip as
+ * router `notFound()`, so denial is data, not a throw — the route maps
+ * `notfound` to `throw notFound()`.
  */
-export type PlatformPageDataResult =
+export type PageDataResult =
 	| { readonly status: "ok"; readonly data: any }
 	| { readonly status: "notfound" };
 
 /** Server-registry page lookup, built lazily on first dispatch — kept
  * out of module scope so the client bundle never evaluates it (the
- * `serverPlugins` import is handler-only, like `run`/`runAs`). */
-let serverPages: ReadonlyMap<string, PanelPage> | undefined;
+ * `serverPlugins` import is handler-only, like `run`/`runAs`). Merges
+ * `panel.pages` AND `pages` contributions (P-059); first in topo order
+ * wins, matching the client registry. */
+let serverPages: ReadonlyMap<string, Page | PanelPage> | undefined;
+
+const serverPageMap = (): ReadonlyMap<string, Page | PanelPage> => {
+	serverPages ??= (() => {
+		const map = new Map<string, Page | PanelPage>();
+		for (const p of serverPlugins) {
+			for (const page of [...(p.panel?.pages ?? []), ...(p.pages ?? [])]) {
+				if (!map.has(page.path)) map.set(page.path, page);
+			}
+		}
+		return map;
+	})();
+	return serverPages;
+};
 
 /**
- * Loader data for /platform console pages contributed via
- * `panel.pages` (P-050): resolves the descriptor registered for `path`
- * and runs its Effect under the session principal (`runAs` binds
- * Principal + AuthzLive — authz stays inside the domain services).
- * Anonymous callers, unknown paths and `guard` denials all collapse to
- * `{ status: "notfound" }` — the route dispatcher turns that into a 404
- * (same as a missing page). Pages without a loader get
+ * Shared page dispatch (P-050/P-059): resolves the descriptor registered
+ * for `path` in the given shell's client registry and runs its Effect
+ * handlers. Console pages require a session (anonymous → notfound);
+ * app pages may be public — effects then run without a bound Principal
+ * (`run` instead of `runAs`), so loaders that need a user must guard
+ * themselves. The enabled-state gate (`PluginStates.isEnabled`) applies
+ * to both shells: a disabled plugin's pages 404 exactly like
+ * unregistered paths. Page `guard` runs before `loader`; `false` or a
+ * failure hides the page. Pages without a loader get
  * `{ status: "ok", data: null }`.
  */
-export const platformPageDataFn = createServerFn({ method: "GET" })
-	.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
-	// Loader results are plugin-defined `unknown` at the kernel
-	// boundary; the wire type is whatever each page's loader returns
-	// (serializable rows — same shape the retired per-page fns sent).
-	.handler(async ({ data: path }): Promise<PlatformPageDataResult> => {
-		const user = await getSessionUser();
-		if (!user) return { status: "notfound" };
-		const page = platformPages.get(path);
-		if (page === undefined) return { status: "notfound" };
-		// Page descriptors are split across the two registries: the client
-		// manifest (platformPages) carries id/path/component, while
-		// `guard`/`loader` stay server-side on the @ktb/app-host plugin
-		// objects and never reach the browser bundle. A descriptor's own
-		// handlers win when present — tests inject full pages directly.
-		serverPages ??= new Map(
-			serverPlugins.flatMap((p) => (p.panel?.pages ?? []).map((pg) => [pg.path, pg] as const)),
-		);
-		const serverPage = serverPages.get(path);
-		const guard = page.guard ?? serverPage?.guard;
-		const loader = page.loader ?? serverPage?.loader;
-		// Page-level guard (feature flags / entitlements) runs before the
-		// loader; `false` hides the page exactly like an unknown path.
-		if (guard !== undefined) {
-			const allowed = await runAs(user, guard());
-			if (!allowed) return { status: "notfound" };
-		}
-		if (loader === undefined) return { status: "ok", data: null };
-		return { status: "ok", data: await runAs(user, loader()) };
-	});
+const pageData = async (path: string, shell: PageShell): Promise<PageDataResult> => {
+	const entry = (shell === "console" ? consolePages : appPages).get(path);
+	if (entry === undefined) return { status: "notfound" };
+	// Entries injected by tests may predate the `context` field — derive
+	// it from the path the same way collectPages does.
+	const context = entry.context ?? defaultPageContext(path);
+	if (context !== shell) return { status: "notfound" };
+	const user = await getSessionUser();
+	if (shell === "console" && user === null) return { status: "notfound" };
+	const runEffect = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
+		user === null ? run(effect) : runAs(user, effect);
+	// Enabled-state gate (P-058): checked before guard/loader.
+	const pluginOn = await runEffect(
+		Effect.gen(function* () {
+			const states = yield* PluginStates;
+			return yield* states.isEnabled(entry.pluginId);
+		}),
+	);
+	if (!pluginOn) return { status: "notfound" };
+	// Page descriptors are split across the two registries: the client
+	// manifest carries id/path/component, while `guard`/`loader` stay
+	// server-side on the @ktb/app-host plugin objects and never reach
+	// the browser bundle. A descriptor's own handlers win when present —
+	// tests inject full pages directly.
+	const serverPage = serverPageMap().get(path);
+	const page = entry.page;
+	const guard = page.guard ?? serverPage?.guard;
+	const loader = page.loader ?? serverPage?.loader;
+	// Page-level guard (feature flags / entitlements) runs before the
+	// loader; `false` — or a failure — hides the page exactly like an
+	// unknown path.
+	if (guard !== undefined) {
+		const allowed = await runEffect(guard()).catch(() => false);
+		if (!allowed) return { status: "notfound" };
+	}
+	if (loader === undefined) return { status: "ok", data: null };
+	return { status: "ok", data: await runEffect(loader()) };
+};
+
+const pageDataFn = (shell: PageShell) =>
+	createServerFn({ method: "GET" })
+		.validator((input: unknown) => Schema.decodeUnknownSync(Schema.String)(input))
+		// Loader results are plugin-defined `unknown` at the kernel
+		// boundary; the wire type is whatever each page's loader returns
+		// (serializable rows — same shape the retired per-page fns sent).
+		.handler(async ({ data: path }): Promise<PageDataResult> => pageData(path, shell));
+
+/**
+ * Loader data for /platform console pages (P-050): `panel.pages`
+ * descriptors plus console-context `pages` entries. Anonymous callers,
+ * unknown paths and `guard` denials all collapse to
+ * `{ status: "notfound" }` — the route dispatcher turns that into a 404.
+ */
+export const platformPageDataFn = pageDataFn("console");
+
+/**
+ * Loader data for app-shell pages contributed via `pages` (P-059):
+ * same dispatch as `platformPageDataFn` but session-optional — public
+ * pages run their Effects without a bound Principal.
+ */
+export const appPageDataFn = pageDataFn("app");
 
 // ---------- patients ----------
 // Patient server functions are owned by the patients plugin (P-033) —
@@ -127,6 +202,19 @@ export {
 	recordConsentFn,
 	saveConsultationFn,
 } from "@ktb/consultations/fns";
+
+// ---------- plugin manager (P-058) ----------
+// Plugin-state server functions are owned by the manager plugin — its
+// /platform/plugins page and this host file share the implementations
+// through @ktb/manager/fns. Re-exported here so host callers keep their
+// import path. `pluginStatesFn` above stays host-side: the root loader
+// needs it even when the manager plugin itself is disabled.
+export {
+	getPluginConfigFn,
+	listPluginStatesFn,
+	setPluginConfigFn,
+	setPluginEnabledFn,
+} from "@ktb/manager/fns";
 
 // ---------- notifications ----------
 

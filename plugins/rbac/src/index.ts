@@ -546,14 +546,31 @@ export const rbacTablesPlugin = definePlugin({
 	},
 });
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const rbacChromePlugin = definePlugin({
+	id: "rbac.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "rbac.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" },
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: /platform/roles is mounted by
 // the platform plugin's physical route subtree; this plugin declares
-// the sidebar entry + page descriptor.
+// the page descriptor.
 export const rbacPanelPlugin = definePlugin({
 	id: "rbac.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" }],
 		pages: [
 			{
 				id: "rbac.admin",
@@ -600,7 +617,12 @@ export const rbacPanelPlugin = definePlugin({
 
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [rbacTablesPlugin, rbacServicesPlugin, rbacPanelPlugin];
+export const plugins: readonly Plugin[] = [
+	rbacTablesPlugin,
+	rbacServicesPlugin,
+	rbacChromePlugin,
+	rbacPanelPlugin,
+];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
@@ -608,6 +630,7 @@ declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"rbac.tables": true;
 		"rbac.services": true;
+		"rbac.chrome": true;
 		"rbac.panel": true;
 	}
 }

@@ -10,7 +10,8 @@ import {
 import type { TenantSelector } from "@ktb/tenant/selector";
 import { makeTenantResolver } from "@ktb/tenant";
 import { makeDb, type SqlDatabase } from "@ktb/db";
-import type * as Effect from "effect/Effect";
+import * as Effect from "effect/Effect";
+import { PluginStates } from "@ktb/platform/plugin-states";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
@@ -134,6 +135,15 @@ setServerRuntime({
 	audioTranscribeModel,
 	recordExporters,
 	getLocale,
+	// P-058: backs `pluginEnabledFn` / `createPluginFileRoute` — plugin
+	// page routes 404 when their `*.routes` plugin is disabled.
+	pluginEnabled: (pluginId) =>
+		run(
+			Effect.gen(function* () {
+				const states = yield* PluginStates;
+				return yield* states.isEnabled(pluginId);
+			}),
+		),
 });
 
 // Raw platform binding passthrough — not composed, just exposed.

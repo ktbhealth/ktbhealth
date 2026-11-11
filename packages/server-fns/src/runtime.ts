@@ -165,6 +165,13 @@ export interface ServerRuntime {
 	readonly recordExporters?: Record<ExportFormat, RecordExporter>;
 	/** Active UI locale — the host's i18n runtime (paraglide) resolved per request. */
 	readonly getLocale: () => string;
+	/**
+	 * Plugin enable-state check (P-058) backing `pluginEnabledFn` and the
+	 * `createPluginFileRoute` gate. The composition root wires it to
+	 * `PluginStates.isEnabled`; absent (tests, non-app contexts) the gate
+	 * is inert — there is no plugin_state store to consult anyway.
+	 */
+	readonly pluginEnabled?: (pluginId: string) => Promise<boolean>;
 }
 
 let runtime: ServerRuntime | undefined;
@@ -186,6 +193,13 @@ export const getServerRuntime = (): ServerRuntime => {
 		);
 	return runtime;
 };
+
+/**
+ * Non-throwing variant of `getServerRuntime` for optional capabilities
+ * (the plugin route gate): `undefined` outside the composed app, where
+ * callers degrade to their documented default instead of crashing.
+ */
+export const peekServerRuntime = (): ServerRuntime | undefined => runtime;
 
 /** `run` against the registered runtime. */
 export const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>

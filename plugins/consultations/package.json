@@ -8,7 +8,6 @@
 		"./apis": "./src/apis.ts",
 		"./fns": "./src/fns.ts",
 		"./i18n": "./src/i18n.ts",
-		"./schema": "./src/schema.ts",
 		"./views": "./src/views/index.ts"
 	},
 	"dependencies": {

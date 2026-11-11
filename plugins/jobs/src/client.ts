@@ -19,9 +19,13 @@ export const jobsHeaderPlugin = definePlugin({
 	id: "jobs.header",
 	requiredDeps: ["platform.panel"],
 	optionalDeps: ["platform.header"],
-	panel: {
-		headerActions: [{ id: "jobs", component: JobsHeaderAction }],
-	},
+	chrome: [
+		{
+			id: "jobs.header-action",
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "jobs", component: JobsHeaderAction },
+		},
+	],
 });
 
 /**
@@ -35,6 +39,25 @@ export const opsServicesPlugin = definePlugin({
 });
 
 /**
+ * Client mirror of opsChromePlugin — the console sidebar entry lives in
+ * the `console.sidebar` chrome region.
+ */
+export const opsChromePlugin = definePlugin({
+	id: "jobs.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "jobs.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/ops", label: "Ops", icon: ActivityIcon, group: "System" },
+			},
+		},
+	],
+});
+
+/**
  * Client mirror of opsPanelPlugin — `panel.pages` keep id/path/component
  * only; the guard/loader Effects run server-side and stay in
  * ./index.ts.
@@ -43,7 +66,6 @@ export const opsPanelPlugin = definePlugin({
 	id: "jobs.panel",
 	requiredDeps: ["platform.panel", "jobs.ops.services"],
 	panel: {
-		sidebar: [{ to: "/platform/ops", label: "Ops", icon: ActivityIcon, group: "System" }],
 		pages: [{ id: "jobs.ops", path: "/platform/ops", component: OpsPlatformPage }],
 	},
 });
@@ -54,5 +76,6 @@ export const plugins: readonly Plugin[] = [
 	jobsHeaderPlugin,
 	definePlugin({ id: "jobs.routes" }),
 	opsServicesPlugin,
+	opsChromePlugin,
 	opsPanelPlugin,
 ];

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import { account, session, user, verification } from "./schema.ts";
+import { account, session, user, verification } from "@ktb/db/schema";
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL DEFAULT 0, image TEXT, banned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);

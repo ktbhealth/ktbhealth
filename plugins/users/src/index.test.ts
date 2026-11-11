@@ -21,6 +21,7 @@ import {
 	Users,
 	UsersLive,
 	UsersQueriesLive,
+	usersChromePlugin,
 	usersPanelPlugin,
 	usersServicesPlugin,
 	plugins,
@@ -203,8 +204,17 @@ describe("plugins", () => {
 		expect(usersServicesPlugin.services).toBeDefined();
 		expect(usersPanelPlugin.id).toBe("users.panel");
 		expect(usersPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(usersPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" },
+		expect(usersPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform/users");
+		expect(usersChromePlugin.id).toBe("users.chrome");
+		expect(usersChromePlugin.chrome).toEqual([
+			{
+				id: "users.sidebar",
+				region: "console.sidebar",
+				content: {
+					kind: "sidebarItem",
+					item: { to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" },
+				},
+			},
 		]);
 	});
 
@@ -235,11 +245,11 @@ describe("plugins", () => {
 		expect("routes" in usersServicesPlugin).toBe(false);
 		expect("tables" in usersServicesPlugin).toBe(false);
 		expect("routes" in usersPanelPlugin).toBe(false);
-		expect("landingNav" in usersPanelPlugin).toBe(false);
+		expect("chrome" in usersPanelPlugin).toBe(false);
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["users.services", "users.panel"]);
+		expect(plugins.map((p) => p.id)).toEqual(["users.services", "users.chrome", "users.panel"]);
 	});
 });
 

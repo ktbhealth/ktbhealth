@@ -1,7 +1,7 @@
 /**
  * Module boundary: `core.ts` is the UI-framework-neutral registry
  * contract (PluginRegistry/PluginId/PluginBase/ForbiddenContributions —
- * zero imports). `contributions.ts` carries the host-chrome contract:
+ * type-only imports, no runtime deps). `contributions.ts` carries the host-chrome contract:
  * the Plugin union and its prop types reference React/TanStack/drizzle/
  * effect, but ONLY via `import type` against devDependencies, so the
  * emitted package stays dependency-free and server consumers
@@ -11,12 +11,16 @@
  */
 import type { Plugin } from "./contributions.ts";
 
-export type { PluginRegistry, PluginId } from "./core.ts";
+export type { PluginConfigSchema, PluginId, PluginMeta, PluginRegistry } from "./core.ts";
 export type {
+	ChromeContent,
+	ChromeContribution,
+	ChromePlugin,
+	ChromeProps,
+	ChromeUser,
+	ChromeWhen,
 	LandingFooterBlock,
-	LandingFooterPlugin,
 	LandingLink,
-	LandingNavPlugin,
 	LandingPageProps,
 	LandingPlugin,
 	MarkerPlugin,
@@ -25,6 +29,9 @@ export type {
 	PanelPageContext,
 	PanelPlugin,
 	PanelSidebarItem,
+	Page,
+	PageContext,
+	PagesPlugin,
 	Plugin,
 	RoutesPlugin,
 	ServicesPlugin,

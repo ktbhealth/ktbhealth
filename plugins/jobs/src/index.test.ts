@@ -6,7 +6,13 @@ import { Forbidden, Principal } from "@ktb/authz";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
 import type { QueueDepth, AudioStorageStats } from "@ktb/server-fns";
 
-import { jobsHeaderPlugin, opsPanelPlugin, opsServicesPlugin, plugins } from "./index.ts";
+import {
+	jobsHeaderPlugin,
+	opsChromePlugin,
+	opsPanelPlugin,
+	opsServicesPlugin,
+	plugins,
+} from "./index.ts";
 import { Ops } from "./ops.ts";
 import type { OpsPageData } from "./platform-page.tsx";
 import {
@@ -22,8 +28,11 @@ describe("jobs.header plugin", () => {
 		expect(jobsHeaderPlugin.id).toBe("jobs.header");
 		expect(jobsHeaderPlugin.requiredDeps).toEqual(["platform.panel"]);
 		expect(jobsHeaderPlugin.optionalDeps).toEqual(["platform.header"]);
-		expect(jobsHeaderPlugin.panel?.headerActions).toHaveLength(1);
-		expect(jobsHeaderPlugin.panel?.headerActions?.[0]?.id).toBe("jobs");
+		expect(jobsHeaderPlugin.chrome).toHaveLength(1);
+		expect(jobsHeaderPlugin.chrome?.[0]).toMatchObject({
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "jobs" },
+		});
 	});
 });
 
@@ -34,13 +43,17 @@ describe("ops plugins", () => {
 	});
 
 	it("declares the /platform/ops sidebar entry and page", () => {
+		expect(opsChromePlugin.id).toBe("jobs.chrome");
+		expect(opsChromePlugin.requiredDeps).toEqual(["platform.panel"]);
+		expect(opsChromePlugin.chrome?.[0]).toMatchObject({
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/ops", label: "Ops", group: "System" },
+			},
+		});
 		expect(opsPanelPlugin.id).toBe("jobs.panel");
 		expect(opsPanelPlugin.requiredDeps).toEqual(["platform.panel", "jobs.ops.services"]);
-		expect(opsPanelPlugin.panel?.sidebar?.[0]).toMatchObject({
-			to: "/platform/ops",
-			label: "Ops",
-			group: "System",
-		});
 		const page = opsPanelPlugin.panel?.pages?.[0];
 		expect(page).toMatchObject({ id: "jobs.ops", path: "/platform/ops" });
 		expect(typeof page?.guard).toBe("function");
@@ -52,6 +65,7 @@ describe("ops plugins", () => {
 			"jobs.header",
 			"jobs.routes",
 			"jobs.ops.services",
+			"jobs.chrome",
 			"jobs.panel",
 		]);
 	});

@@ -34,7 +34,7 @@ import {
 	createConsultation,
 	failAudioJob,
 } from "@ktb/consultations";
-import { consultations } from "@ktb/consultations/schema";
+import { consultations } from "@ktb/db/schema";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";

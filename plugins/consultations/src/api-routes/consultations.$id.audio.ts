@@ -1,8 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
-import { getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * POST /api/consultations/:id/audio — store the session recording in R2
@@ -51,7 +50,7 @@ const fetchOwned = (id: number, userId: string) =>
 		}),
 	);
 
-export const Route = createFileRoute("/api/consultations/$id/audio")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/consultations/$id/audio")({
 	server: {
 		handlers: {
 			POST: async ({ request, params }) => {

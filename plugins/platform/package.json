@@ -3,12 +3,15 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		".": "./src/index.ts"
+		".": "./src/index.ts",
+		"./plugin-states": "./src/plugin-states.ts"
 	},
 	"dependencies": {
 		"@ktb/authz": "workspace:*",
+		"@ktb/db": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@tanstack/virtual-file-routes": "1.162.0",
+		"drizzle-orm": "^0.45.1",
 		"effect": "4.1.2"
 	}
 }

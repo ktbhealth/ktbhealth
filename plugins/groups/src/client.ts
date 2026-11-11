@@ -9,18 +9,32 @@ import { GroupsPlatformPage } from "./platform-page.tsx";
  * through `@ktb/app-host/client` (import.meta.glob on
  * `plugins/<name>/src/client.ts`). Every server entry keeps its id and dep
  * edges so topo order matches the server registry, but only
- * client-consumed contributions are carried: the panel sidebar entry
+ * client-consumed contributions are carried: the console.sidebar chrome entry
  * and page descriptor. `panel.pages` keep id/path/component only — the
  * loader Effect runs server-side and stays in ./index.ts.
  * tables/services degrade to markers. Dep ids are literals: importing
  * ./index.ts would pull the server graph into the client bundle. Keep
  * in sync — parity is asserted by apps/web/src/plugins.test.ts.
  */
+export const groupsChromePlugin = definePlugin({
+	id: "groups.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "groups.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+			},
+		},
+	],
+});
+
 export const groupsPanelPlugin = definePlugin({
 	id: "groups.panel",
 	requiredDeps: ["platform.panel"],
 	panel: {
-		sidebar: [{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" }],
 		pages: [
 			{
 				id: "groups.admin",
@@ -43,5 +57,6 @@ export const plugins: readonly Plugin[] = [
 		// graph into the client bundle.
 		optionalDeps: ["rbac.services", "audit.services"],
 	}),
+	groupsChromePlugin,
 	groupsPanelPlugin,
 ];

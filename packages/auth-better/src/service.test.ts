@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
-import { session as sessionTable, user as userTable } from "@ktb/auth/schema";
+import { session as sessionTable, user as userTable } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 
 import { makeAuth, makeAuthService } from "./index.ts";

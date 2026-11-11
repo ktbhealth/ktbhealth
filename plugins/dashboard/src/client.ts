@@ -14,19 +14,31 @@ import { DashboardPlatformPage } from "./platform-page.tsx";
  * ./index.ts would pull the server graph into the client bundle. Keep
  * in sync — parity is asserted by apps/web/src/plugins.test.ts.
  */
+export const dashboardChromePlugin = definePlugin({
+	id: "dashboard.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "dashboard.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: {
+					to: "/platform",
+					label: "Dashboard",
+					icon: LayoutDashboardIcon,
+					exact: true,
+				},
+			},
+		},
+	],
+});
+
 export const dashboardPanelPlugin = definePlugin({
 	id: "dashboard.panel",
 	requiredDeps: ["platform.panel", "patients.services", "consultations.services"],
 	optionalDeps: ["notifications.services"],
 	panel: {
-		sidebar: [
-			{
-				to: "/platform",
-				label: "Dashboard",
-				icon: LayoutDashboardIcon,
-				exact: true,
-			},
-		],
 		pages: [
 			{
 				id: "dashboard.home",
@@ -39,4 +51,4 @@ export const dashboardPanelPlugin = definePlugin({
 
 /** Single-concern plugins contributed by this module — the client
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [dashboardPanelPlugin];
+export const plugins: readonly Plugin[] = [dashboardChromePlugin, dashboardPanelPlugin];

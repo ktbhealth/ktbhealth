@@ -354,8 +354,11 @@ describe("plugins", () => {
 		expect(notificationsHeaderPlugin.id).toBe("notifications.header");
 		expect(notificationsHeaderPlugin.requiredDeps).toEqual(["platform.panel"]);
 		expect(notificationsHeaderPlugin.optionalDeps).toEqual(["platform.header"]);
-		expect(notificationsHeaderPlugin.panel?.headerActions).toHaveLength(1);
-		expect(notificationsHeaderPlugin.panel?.headerActions?.[0]?.id).toBe("notifications");
+		expect(notificationsHeaderPlugin.chrome).toHaveLength(1);
+		expect(notificationsHeaderPlugin.chrome?.[0]).toMatchObject({
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "notifications" },
+		});
 	});
 
 	it("declares tables and services as single-concern plugins", () => {

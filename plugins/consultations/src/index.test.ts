@@ -3,10 +3,13 @@ import { eq } from "drizzle-orm";
 
 import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb } from "@ktb/db";
-import { user as userTable } from "@ktb/db/schema";
+import {
+	consultations as consultationsTable,
+	patients as patientsTable,
+	user as userTable,
+} from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
-import { patients as patientsTable } from "@ktb/patients/schema";
 import {
 	Patients,
 	patientsServicesPlugin,
@@ -22,8 +25,6 @@ import {
 	platformAdminPlugin,
 	platformPanelPlugin,
 } from "@ktb/platform";
-import { ClipboardListIcon } from "lucide-react";
-import { consultations as consultationsTable } from "./schema.ts";
 import { ConsultationAudioUpdated, ConsultationsQueries } from "./api.ts";
 import {
 	Consultations,
@@ -34,7 +35,7 @@ import {
 	audioJobRecord,
 	beginAudioJob,
 	completeAudioJob,
-	consultationsLandingNavPlugin,
+	consultationsChromePlugin,
 	consultationsPanelPlugin,
 	consultationsRoutesPlugin,
 	consultationsServicesPlugin,
@@ -106,7 +107,7 @@ describe("consultations repo", () => {
 		});
 		await appendTranscript(db, id!, "two");
 		await appendTranscript(db, id!, "three");
-		const { consultations } = await import("./schema.ts");
+		const { consultations } = await import("@ktb/db/schema");
 		const { eq } = await import("drizzle-orm");
 		const rows = await db
 			.select({ t: consultations.transcript })
@@ -122,7 +123,7 @@ describe("consultations repo", () => {
 			status: "live",
 		});
 		await finishConsultation(db, id!);
-		const { consultations } = await import("./schema.ts");
+		const { consultations } = await import("@ktb/db/schema");
 		const { eq } = await import("drizzle-orm");
 		const rows = await db
 			.select({ s: consultations.status })
@@ -1258,18 +1259,16 @@ describe("plugins", () => {
 			patientsServicesPlugin.id,
 			platformAdminPlugin.id,
 		]);
-		expect(consultationsLandingNavPlugin.id).toBe("consultations.landing-nav");
-		expect(consultationsLandingNavPlugin.landingNav?.[0]?.to).toBe("/consultations");
+		expect(consultationsChromePlugin.id).toBe("consultations.chrome");
+		expect(consultationsChromePlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
+		expect(consultationsChromePlugin.chrome.map((c) => c.region)).toEqual([
+			"app.header.nav",
+			"app.header.actions",
+			"console.sidebar",
+		]);
 		expect(consultationsPanelPlugin.id).toBe("consultations.panel");
 		expect(consultationsPanelPlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
-		expect(consultationsPanelPlugin.panel?.sidebar).toEqual([
-			{
-				to: "/platform/consultations",
-				label: "Consultations",
-				icon: ClipboardListIcon,
-				group: "Domains",
-			},
-		]);
+		expect(consultationsPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform/consultations");
 	});
 
 	it("declares the /consultations route subtree", () => {
@@ -1310,7 +1309,7 @@ describe("plugins", () => {
 			"consultations.tables",
 			"consultations.services",
 			"consultations.routes",
-			"consultations.landing-nav",
+			"consultations.chrome",
 			"consultations.panel",
 		]);
 	});

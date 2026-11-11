@@ -16,11 +16,25 @@ import { TenantsPlatformPage } from "./platform-page.tsx";
  * ./index.ts would pull the server graph into the client bundle. Keep
  * in sync — parity is asserted by apps/web/src/plugins.test.ts.
  */
+export const tenantChromePlugin = definePlugin({
+	id: "tenant.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "tenant.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/tenants", label: "Tenants", icon: Building2Icon, group: "Access" },
+			},
+		},
+	],
+});
+
 export const tenantPanelPlugin = definePlugin({
 	id: "tenant.panel",
 	requiredDeps: ["platform.panel"],
 	panel: {
-		sidebar: [{ to: "/platform/tenants", label: "Tenants", icon: Building2Icon, group: "Access" }],
 		pages: [
 			{
 				id: "tenant.admin",
@@ -41,5 +55,6 @@ export const plugins: readonly Plugin[] = [
 		// into the client bundle.
 		requiredDeps: ["groups.services"],
 	}),
+	tenantChromePlugin,
 	tenantPanelPlugin,
 ];

@@ -45,12 +45,19 @@ const PANEL_LABELS: Record<string, () => string> = {
 	"/platform/users": () => m.panel_nav_users(),
 	"/platform/groups": () => m.panel_nav_groups(),
 	"/platform/ops": () => m.panel_nav_ops(),
+	"/platform/plugins": () => m.panel_nav_plugins(),
 };
 
 const PANEL_GROUPS: Record<string, () => string> = {
 	Access: () => m.panel_group_access(),
 	Domains: () => m.panel_group_domains(),
 	System: () => m.panel_group_system(),
+};
+
+// Footer notes are plugin-declared keys (English fallback in the
+// manifest); the host maps known keys to localized strings here.
+const FOOTER_NOTES: Record<string, () => string> = {
+	disclaimer: () => m.footer_disclaimer(),
 };
 
 /** Switch the UI locale (paraglide persists the cookie and reloads). */
@@ -72,4 +79,9 @@ export function pluginPanelLabel(to: string, fallback: string): string {
 /** Localized label for a plugin-declared sidebar group, or its raw label. */
 export function pluginPanelGroup(group: string): string {
 	return PANEL_GROUPS[group]?.() ?? group;
+}
+
+/** Localized text for a plugin-declared footer note, or its fallback. */
+export function pluginFooterNote(key: string, fallback: string): string {
+	return FOOTER_NOTES[key]?.() ?? fallback;
 }

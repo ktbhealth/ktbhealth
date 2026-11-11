@@ -5,9 +5,9 @@ import { and, asc, desc, eq, isNotNull, or, type SQL } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 import { UsersIcon } from "lucide-react";
 
-import { user as users } from "@ktb/auth/schema";
 import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
+import { patients, user as users } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { PatientCreated, PatientDeleted, PatientsCommands, PatientsQueries } from "./api.ts";
@@ -21,7 +21,6 @@ import {
 import { Forbidden, requireCanAs, requirePrincipalUser } from "@ktb/authz";
 import { accessibleTenantIds, Tenant, tenantScopeCondition, tenantScopeId } from "@ktb/tenant";
 import type { PatientFields } from "./record.ts";
-import { patients } from "./schema.ts";
 
 export type Patient = typeof patients.$inferSelect;
 
@@ -389,19 +388,46 @@ export const patientsRoutesPlugin = definePlugin({
 	routes: [physical("/patients", "../../../../plugins/patients/src/routes")],
 });
 
-export const patientsLandingNavPlugin = definePlugin({
-	id: "patients.landing-nav",
-	landingNav: [{ to: "/patients", label: "Patients" }],
+// Chrome contributions (P-060): the app-shell nav link and the console
+// sidebar entry live in `chrome` regions; the dep edge orders the
+// sidebar item after the platform shell like the retired panel entry.
+export const patientsChromePlugin = definePlugin({
+	id: "patients.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "patients.nav",
+			region: "app.header.nav",
+			content: { kind: "link", to: "/patients", label: "Patients" },
+		},
+		{
+			id: "patients.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: {
+					to: "/platform/patients",
+					label: "Patients",
+					icon: UsersIcon,
+					group: "Domains",
+				},
+			},
+		},
+	],
 });
 
 // Panel (system console) contribution: /platform/patients is mounted by
 // the platform plugin's physical route subtree; this plugin only declares
-// the sidebar entry. The dep edge orders it after the platform shell.
+// the page descriptor. The dep edge orders it after the platform shell.
 export const patientsPanelPlugin = definePlugin({
 	id: "patients.panel",
 	requiredDeps: [platformPanelPlugin.id],
+	meta: {
+		name: "Patients",
+		description: "Patient records and demographics",
+		icon: UsersIcon,
+	},
 	panel: {
-		sidebar: [{ to: "/platform/patients", label: "Patients", icon: UsersIcon, group: "Domains" }],
 		pages: [
 			{
 				id: "patients.admin",
@@ -434,7 +460,7 @@ export const plugins: readonly Plugin[] = [
 	patientsTablesPlugin,
 	patientsServicesPlugin,
 	patientsRoutesPlugin,
-	patientsLandingNavPlugin,
+	patientsChromePlugin,
 	patientsPanelPlugin,
 ];
 
@@ -445,7 +471,7 @@ declare module "@ktb/kernel" {
 		"patients.tables": true;
 		"patients.services": true;
 		"patients.routes": true;
-		"patients.landing-nav": true;
+		"patients.chrome": true;
 		"patients.panel": true;
 	}
 }

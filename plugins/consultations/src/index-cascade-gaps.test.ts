@@ -5,7 +5,7 @@ import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { PatientCascadeCommands, PatientRecordConsultationsQueries } from "@ktb/patients/api";
-import { patients as patientsTable } from "@ktb/patients/schema";
+import { patients as patientsTable } from "@ktb/db/schema";
 import { PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
 import { Command, makeEventBus, Query } from "@effect-server-utils/cqrs";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 
-import { consultations as consultationsTable } from "./schema.ts";
+import { consultations as consultationsTable } from "@ktb/db/schema";
 import {
 	PatientDeleteCascadeLive,
 	PatientRecordConsultationsLive,

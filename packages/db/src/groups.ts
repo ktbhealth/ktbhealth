@@ -1,6 +1,9 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
+// plugin workspace cycle — plugins import this from `@ktb/db/schema`.
+
 /**
  * Generic groups: clinics, orgs, cohorts or any custom grouping. `kind`
  * is free-form; `meta` is an optional JSON payload stored as text.

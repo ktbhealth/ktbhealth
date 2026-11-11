@@ -16,7 +16,7 @@ import { Query } from "@effect-server-utils/cqrs";
 
 import { GroupsQueries } from "./api.ts";
 import { GroupsPlatformPage } from "./platform-page.tsx";
-import { groupMembers, groups } from "./schema.ts";
+import { groupMembers, groups } from "@ktb/db/schema";
 
 export type Group = typeof groups.$inferSelect;
 export type GroupMember = typeof groupMembers.$inferSelect;
@@ -406,14 +406,31 @@ export const groupsServicesPlugin = definePlugin({
 	services: Layer.mergeAll(GroupsLive, GroupsQueriesLive),
 });
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const groupsChromePlugin = definePlugin({
+	id: "groups.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "groups.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: /platform/groups is mounted by
 // the platform plugin's physical route subtree; this plugin only
-// declares the sidebar entry. The dep edge orders it after the shell.
+// declares the page descriptor. The dep edge orders it after the shell.
 export const groupsPanelPlugin = definePlugin({
 	id: "groups.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" }],
 		pages: [
 			{
 				id: "groups.admin",
@@ -439,6 +456,7 @@ export const groupsPanelPlugin = definePlugin({
 export const plugins: readonly Plugin[] = [
 	groupsTablesPlugin,
 	groupsServicesPlugin,
+	groupsChromePlugin,
 	groupsPanelPlugin,
 ];
 
@@ -448,6 +466,7 @@ declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"groups.tables": true;
 		"groups.services": true;
+		"groups.chrome": true;
 		"groups.panel": true;
 	}
 }

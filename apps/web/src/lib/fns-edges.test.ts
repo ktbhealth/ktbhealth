@@ -89,13 +89,14 @@ vi.mock("#/lib/platform.ts", async (importOriginal) => {
 });
 
 import * as Effect from "effect/Effect";
-import type { PanelPage } from "@ktb/kernel";
-import { platformPages } from "./platform-pages.ts";
+import type { Page, PanelPage } from "@ktb/kernel";
+import { appPages, consolePages } from "./registry.ts";
 import {
 	localeFn as patientsLocaleFn,
 	sessionUserFn as patientsSessionUserFn,
 } from "@ktb/patients/fns";
 import {
+	appPageDataFn,
 	createPatientFn,
 	extractAnamnesisFn,
 	markAllMyNotificationsReadFn,
@@ -159,12 +160,76 @@ describe("platformPageDataFn", () => {
 			id: "test.noloader",
 			path: "/platform/test-noloader",
 		} as unknown as PanelPage;
-		const pages = platformPages as unknown as Map<string, PanelPage>;
-		pages.set(page.path, page);
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
+		pages.set(page.path, { page, pluginId: "platform.routes" });
 		try {
 			expect(await platformPageDataFn({ data: page.path })).toEqual({ status: "ok", data: null });
 		} finally {
 			pages.delete(page.path);
+		}
+	});
+});
+
+describe("appPageDataFn (P-059)", () => {
+	const register = (page: Page) => {
+		const pages = appPages as unknown as Map<
+			string,
+			{ page: Page; pluginId: string; context?: string }
+		>;
+		pages.set(page.path, { page, pluginId: "platform.routes", context: "app" });
+		return () => pages.delete(page.path);
+	};
+
+	it("serves a public page to anonymous callers", async () => {
+		hoisted.user = null;
+		const cleanup = register({
+			id: "test.app-public",
+			path: "/test-app-public",
+			component: () => null,
+			loader: () => Effect.succeed("hi"),
+		});
+		try {
+			expect(await appPageDataFn({ data: "/test-app-public" })).toEqual({
+				status: "ok",
+				data: "hi",
+			});
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("hides the page when the guard denies or fails", async () => {
+		hoisted.user = null;
+		let loaderRan = false;
+		const base = {
+			component: () => null,
+			loader: () =>
+				Effect.sync(() => {
+					loaderRan = true;
+					return "loaded";
+				}),
+		};
+		const denied = register({
+			...base,
+			id: "test.app-denied",
+			path: "/test-app-denied",
+			guard: () => Effect.succeed(false),
+		});
+		const failing = register({
+			...base,
+			id: "test.app-guardfail",
+			path: "/test-app-guardfail",
+			guard: () => Effect.fail("boom"),
+		});
+		try {
+			expect(await appPageDataFn({ data: "/test-app-denied" })).toEqual({ status: "notfound" });
+			expect(await appPageDataFn({ data: "/test-app-guardfail" })).toEqual({
+				status: "notfound",
+			});
+			expect(loaderRan).toBe(false);
+		} finally {
+			denied();
+			failing();
 		}
 	});
 });

@@ -8,17 +8,32 @@ import { UsersPlatformPage } from "./platform-page.tsx";
  * Client-safe mirror of ./index.ts — discovered by the browser bundle
  * through `@ktb/app-host/client` (import.meta.glob on
  * `plugins/<name>/src/client.ts`). The services entry degrades to a marker;
- * the panel entry keeps its sidebar item and page descriptor —
+ * the panel entry keeps its page descriptor; the sidebar item
+ * lives in the console.sidebar chrome contribution —
  * `panel.pages` keep id/path/component only, the loader Effect runs
  * server-side and stays in ./index.ts. Dep ids are literals: importing
  * ./index.ts would pull the server graph into the client bundle. Keep
  * in sync — parity is asserted by apps/web/src/plugins.test.ts.
  */
+export const usersChromePlugin = definePlugin({
+	id: "users.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "users.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" },
+			},
+		},
+	],
+});
+
 export const usersPanelPlugin = definePlugin({
 	id: "users.panel",
 	requiredDeps: ["platform.panel"],
 	panel: {
-		sidebar: [{ to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" }],
 		pages: [
 			{
 				id: "users.admin",
@@ -40,5 +55,6 @@ export const plugins: readonly Plugin[] = [
 		// into the client bundle.
 		optionalDeps: ["audit.services"],
 	}),
+	usersChromePlugin,
 	usersPanelPlugin,
 ];

@@ -1,14 +1,4 @@
 import { authClient } from "@ktb/auth-better/client";
-import { Avatar, AvatarFallback } from "@ktbhealth/ui/components/avatar";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@ktbhealth/ui/components/dropdown-menu";
 import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
@@ -20,17 +10,35 @@ import {
 	useLocation,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { BookPlusIcon, SearchXIcon, TriangleAlertIcon } from "lucide-react";
+import { SearchXIcon, TriangleAlertIcon } from "lucide-react";
+import { createElement, type ReactNode } from "react";
 import * as m from "#/paraglide/messages.js";
 import { getLocale, locales } from "#/paraglide/runtime.js";
-import { LanguageToggle } from "@ktbhealth/ui/components/language-toggle";
-import { changeLocale, localeName, pluginNavLabel } from "#/lib/i18n.ts";
-import { sessionFn } from "#/lib/fns.ts";
+import { changeLocale, localeName, pluginFooterNote, pluginNavLabel } from "#/lib/i18n.ts";
+import {
+	collectChrome,
+	enabledIdSet,
+	enabledPlugins,
+	KNOWN_CHROME_REGIONS,
+	warnUnknownChromeRegions,
+} from "#/lib/registry.ts";
+import { sessionFn, pluginStatesFn } from "#/lib/fns.ts";
 import { plugins } from "#/plugins.ts";
+import type { ChromeContribution, ChromeProps } from "@ktb/kernel";
 import appCss from "../styles.css?url";
 
+// Chrome regions (P-060): this shell declares the app.* slots; plugins
+// fill them via `chrome` contributions. The dev warning uses the union
+// of all shell regions so console.* contributions aren't false positives.
+if (import.meta.env.DEV) warnUnknownChromeRegions(plugins, KNOWN_CHROME_REGIONS);
+
 export const Route = createRootRoute({
-	loader: () => sessionFn(),
+	// Session user + enabled plugin ids (P-058) — chrome/landing/panel
+	// contributions are filtered by the enabled set before render.
+	loader: async () => ({
+		user: await sessionFn(),
+		pluginStates: await pluginStatesFn(),
+	}),
 	head: () => ({
 		meta: [
 			{ charSet: "utf-8" },
@@ -99,13 +107,70 @@ const NAV_LINK =
 const NAV_ACTIVE = "bg-muted text-foreground";
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-	const user = Route.useLoaderData();
+	const { user, pluginStates } = Route.useLoaderData();
 	const pathname = useLocation({ select: (l) => l.pathname });
 	// /platform is a system console, not an app page — it owns the whole
 	// viewport (own chrome) so the marketing header/footer and the
 	// max-w-6xl column don't wrap it.
 	const isConsole = pathname === "/platform" || pathname.startsWith("/platform/");
-	const footerBlocks = plugins.flatMap((p) => p.landingFooter?.blocks ?? []);
+	// Enabled-state filter (P-058): disabled plugins contribute nothing
+	// to any chrome region.
+	const visiblePlugins = enabledPlugins(plugins, enabledIdSet(pluginStates));
+	// Chrome regions (P-060): the shell owns the slots; plugins fill
+	// them via `chrome` contributions filtered by `when` + pathname.
+	const chromeProps: ChromeProps = {
+		user,
+		locale: getLocale(),
+		plugins: visiblePlugins,
+		locales,
+		localeName,
+		setLocale: changeLocale,
+		labels: {
+			signIn: m.nav_sign_in(),
+			signOut: m.nav_sign_out(),
+			newConsultation: m.nav_new_consultation(),
+			langMenu: m.lang_menu_label(),
+		},
+		signOut: async () => {
+			await authClient.signOut();
+			window.location.assign("/");
+		},
+	};
+	const entries = (region: string) => collectChrome(visiblePlugins, region, pathname);
+	const renderEntry = (entry: ChromeContribution): ReactNode => {
+		const { content } = entry;
+		switch (content.kind) {
+			case "link":
+				return (
+					<Link
+						key={entry.id}
+						to={content.to}
+						className={NAV_LINK}
+						activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+					>
+						{pluginNavLabel(content.to, content.label)}
+					</Link>
+				);
+			case "component":
+				return createElement(content.component, { key: entry.id, ...chromeProps });
+			default:
+				// sidebarItem/headerAction/footerBlock/note belong to other
+				// shells or footer regions — never rendered in the header.
+				return null;
+		}
+	};
+	const brand = entries("app.header.brand").map(renderEntry);
+	const nav = entries("app.header.nav").map(renderEntry);
+	const actions = entries("app.header.actions").map(renderEntry);
+	const session = entries("app.header.session").map(renderEntry);
+	const footerBlocks = entries("app.footer.blocks").flatMap((entry) =>
+		entry.content.kind === "footerBlock" ? [entry.content.block] : [],
+	);
+	const footerNotes = entries("app.footer.note").flatMap((entry) =>
+		entry.content.kind === "note"
+			? [<div key={entry.id}>{pluginFooterNote(entry.content.key, entry.content.fallback)}</div>]
+			: [],
+	);
 	return (
 		<html lang={getLocale()}>
 			<head>
@@ -119,76 +184,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 						<>
 							<header className="sticky top-0 z-40 border-b border-border bg-background">
 								<nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-									<Link to="/" className="flex items-center gap-2.5">
-										<span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-											<BookPlusIcon className="size-5" />
-										</span>
-										<span className="text-lg font-bold tracking-tight">KTB Health</span>
-									</Link>
+									{brand}
 									<div className="flex items-center gap-1.5">
-										{plugins
-											.flatMap((p) => p.landingNav ?? [])
-											.map((item) => (
-												<Link
-													key={item.to}
-													to={item.to}
-													className={NAV_LINK}
-													activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
-												>
-													{pluginNavLabel(item.to, item.label)}
-												</Link>
-											))}
-										<Link
-											to="/consultations/new"
-											className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
-										>
-											{m.nav_new_consultation()}
-										</Link>
-										<LanguageToggle
-											locales={locales}
-											value={getLocale()}
-											onValueChange={changeLocale}
-											labels={Object.fromEntries(locales.map((l) => [l, localeName(l)]))}
-											label={m.lang_menu_label()}
-										/>
-										{!user ? (
-											<Link to="/login" className={NAV_LINK}>
-												{m.nav_sign_in()}
-											</Link>
-										) : (
-											<DropdownMenu>
-												<DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground">
-													<Avatar size="sm">
-														<AvatarFallback className="bg-muted text-[11px] font-semibold uppercase">
-															{user?.name?.[0] ?? "?"}
-														</AvatarFallback>
-													</Avatar>
-													<span className="max-w-32 truncate">{user?.name}</span>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end" className="w-52">
-													<DropdownMenuGroup>
-														<DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-															<span className="text-sm font-medium text-foreground">
-																{user?.name}
-															</span>
-															<span className="truncate text-xs text-muted-foreground">
-																{user?.email}
-															</span>
-														</DropdownMenuLabel>
-													</DropdownMenuGroup>
-													<DropdownMenuSeparator />
-													<DropdownMenuItem
-														variant="destructive"
-														onClick={async () => {
-															await authClient.signOut();
-															window.location.assign("/");
-														}}
-													>
-														{m.nav_sign_out()}
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										)}
+										{nav}
+										{actions}
+										{session}
 									</div>
 								</nav>
 							</header>
@@ -214,7 +214,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										))}
 									</div>
 								) : null}
-								{m.footer_disclaimer()}
+								{footerNotes}
 							</footer>
 							<TanStackDevtools
 								config={{ position: "bottom-right" }}

@@ -58,7 +58,7 @@ vi.mock("@tanstack/react-router-devtools", () => ({
 
 import { RouterProvider } from "@tanstack/react-router";
 import { eq } from "drizzle-orm";
-import { user as userTable } from "@ktb/auth/schema";
+import { user as userTable } from "@ktb/db/schema";
 import { getRouter } from "./router.tsx";
 import { plugins } from "./plugins.ts";
 import { routes } from "./routes.ts";

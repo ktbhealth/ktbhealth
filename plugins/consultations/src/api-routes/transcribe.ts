@@ -1,6 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import { getSessionUser, getServerRuntime } from "@ktb/server-fns";
+import { createPluginApiRoute, getSessionUser, getServerRuntime } from "@ktb/server-fns";
 
 /**
  * POST /api/transcribe — server-side transcription of an uploaded
@@ -36,7 +34,7 @@ const bytesToBase64 = (bytes: Uint8Array): string => {
 	return btoa(binary);
 };
 
-export const Route = createFileRoute("/api/transcribe")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/transcribe")({
 	server: {
 		handlers: {
 			POST: async ({ request }) => {

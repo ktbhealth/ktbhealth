@@ -25,3 +25,5 @@ export {
 	getTenantSelector,
 	type SessionUser,
 } from "./session.ts";
+export { createPluginApiRoute, createPluginFileRoute, pluginEnabledFn } from "./plugin-route.ts";
+export { peekServerRuntime } from "./runtime.ts";

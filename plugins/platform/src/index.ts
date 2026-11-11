@@ -67,7 +67,7 @@ export const platformAdminPlugin = definePlugin({
 // is the console layout; `physical("", "platform")` mounts every module
 // under the host's routes/platform/ directory as a child of the layout —
 // feature plugins (e.g. patients) contribute console pages by dropping
-// route modules there plus a `panel.sidebar` entry, without being able to
+// route modules there plus a `console.sidebar` chrome entry, without being able to
 // import apps (arch lint).
 export const platformRoutesPlugin = definePlugin({
 	id: "platform.routes",

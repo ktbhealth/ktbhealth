@@ -24,7 +24,7 @@ import {
 	splitPermission,
 	subjectRoles,
 } from "./index.ts";
-import { rolePermissions, roles } from "./schema.ts";
+import { rolePermissions, roles } from "@ktb/db/schema";
 
 const DDL = `
 CREATE TABLE roles (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, meta TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);

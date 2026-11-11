@@ -17,7 +17,7 @@ import {
 	NotificationsLive,
 } from "./Notifications.ts";
 import { NotificationsCommands, NotificationsQueries } from "./api.ts";
-import { notifications } from "./schema.ts";
+import { notifications } from "@ktb/db/schema";
 
 import { NotificationsHeaderAction } from "./views/NotificationsHeaderAction.tsx";
 
@@ -33,9 +33,13 @@ export const notificationsHeaderPlugin = definePlugin({
 	id: "notifications.header",
 	requiredDeps: [platformPanelPlugin.id],
 	optionalDeps: [platformHeaderPlugin.id],
-	panel: {
-		headerActions: [{ id: "notifications", component: NotificationsHeaderAction }],
-	},
+	chrome: [
+		{
+			id: "notifications.header-action",
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "notifications", component: NotificationsHeaderAction },
+		},
+	],
 });
 
 export const notificationsTablesPlugin = definePlugin({
@@ -132,7 +136,7 @@ export {
 	NotificationsUnreadCount,
 	NotificationRow as NotificationRowSchema,
 } from "./api.ts";
-export { notifications } from "./schema.ts";
+export { notifications } from "@ktb/db/schema";
 export {
 	NotificationsActionsContext,
 	NotificationsDataContext,

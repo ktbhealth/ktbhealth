@@ -1,6 +1,9 @@
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
+// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
+// package workspace cycle — consumers import this from `@ktb/db/schema`.
+
 export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),

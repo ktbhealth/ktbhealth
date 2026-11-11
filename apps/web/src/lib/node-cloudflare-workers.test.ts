@@ -144,7 +144,11 @@ describe("node-cloudflare-workers env", () => {
 					done: 1,
 					total: 1,
 				}),
-			{ timeout: 10000 },
+			// The consumer lazily imports ./audio-jobs.ts — a cold vite
+			// transform of the platform graph that can exceed 10s under
+			// parallel load. Generous timeout; the assertion itself is
+			// unchanged.
+			{ timeout: 30000 },
 		);
-	}, 15000);
+	}, 45000);
 });

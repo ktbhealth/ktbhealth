@@ -15,6 +15,7 @@ import {
 	Audit,
 	AuditLive,
 	audit,
+	auditChromePlugin,
 	auditPanelPlugin,
 	auditServicesPlugin,
 	auditTablesPlugin,
@@ -288,11 +289,17 @@ describe("plugins", () => {
 		expect(auditServicesPlugin.id).toBe("audit.services");
 		expect(auditServicesPlugin.requiredDeps).toEqual(["platform.admin"]);
 		expect(auditServicesPlugin.services).toBeDefined();
+		expect(auditChromePlugin.id).toBe("audit.chrome");
+		expect(auditChromePlugin.requiredDeps).toEqual(["platform.panel"]);
+		expect(auditChromePlugin.chrome?.[0]).toMatchObject({
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/audit", label: "Audit log", group: "System" },
+			},
+		});
 		expect(auditPanelPlugin.id).toBe("audit.panel");
 		expect(auditPanelPlugin.requiredDeps).toEqual(["platform.panel", "audit.services"]);
-		expect(auditPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/audit", label: "Audit log", icon: expect.anything(), group: "System" },
-		]);
 	});
 
 	describe("panel page guard", () => {
@@ -363,7 +370,12 @@ describe("plugins", () => {
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["audit.tables", "audit.services", "audit.panel"]);
+		expect(plugins.map((p) => p.id)).toEqual([
+			"audit.tables",
+			"audit.services",
+			"audit.chrome",
+			"audit.panel",
+		]);
 	});
 });
 

@@ -1,6 +1,8 @@
 import { discoverPlugins, orderPlugins } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
 
+import { collectPages } from "./pages.ts";
+
 /**
  * Client-safe plugin registry: every module under plugins/<name>/src/client.ts
  * exporting `plugins` is registered, topo-sorted by
@@ -13,3 +15,13 @@ import type { Plugin } from "@ktb/kernel";
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins(import.meta.glob("../../../plugins/*/src/client.ts", { eager: true })),
 );
+
+// Registry-derived collections (P-058/P-059/P-060): pure helpers over the
+// plugin list, re-exported so apps consume one client entry. The page
+// maps are computed once here — the registry is static.
+export * from "./chrome.ts";
+export * from "./pages.ts";
+export * from "./plugin-state.ts";
+
+/** Every contributed page by path (first in topo order wins). */
+export const { pages, appPages, consolePages } = collectPages(plugins);

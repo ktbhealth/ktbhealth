@@ -5,13 +5,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	platformPageDataFn: vi.fn(),
-	pages: new Map<string, { component: (p: { data: unknown; ctx: unknown }) => unknown }>(),
+	pluginStatesFn: vi.fn(),
+	pages: new Map<
+		string,
+		{ page: { component: (p: { data: unknown; ctx: unknown }) => unknown }; pluginId: string }
+	>(),
 	loaderData: { current: undefined as unknown },
 	params: { current: {} as { _splat?: string } },
+	rootData: { current: { user: null as unknown } },
 }));
 
-vi.mock("#/lib/fns.ts", () => ({ platformPageDataFn: mocks.platformPageDataFn }));
-vi.mock("#/lib/platform-pages.ts", () => ({ platformPages: mocks.pages }));
+vi.mock("#/lib/fns.ts", () => ({
+	platformPageDataFn: mocks.platformPageDataFn,
+	pluginStatesFn: mocks.pluginStatesFn,
+}));
+vi.mock("@ktb/app-host/client", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@ktb/app-host/client")>();
+	return { ...actual, consolePages: mocks.pages };
+});
 vi.mock("#/plugins.ts", () => ({ plugins: ["plugin-a"] }));
 vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -22,6 +33,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			useLoaderData: () => mocks.loaderData.current,
 			useParams: () => mocks.params.current,
 		}),
+		getRouteApi: () => ({ useLoaderData: () => mocks.rootData.current }),
 	};
 });
 
@@ -37,10 +49,16 @@ const opts = (r: unknown) => (r as { options: Opts }).options;
 const Page = ({ data, ctx }: { data: unknown; ctx: unknown }) =>
 	createElement("p", { "data-testid": "page" }, `${JSON.stringify(data)}|${JSON.stringify(ctx)}`);
 
+const entry = (path: string) => {
+	mocks.pages.set(path, { page: { component: Page }, pluginId: "plugin-a" });
+	mocks.pluginStatesFn.mockResolvedValue({ enabled: ["plugin-a"] });
+};
+
 afterEach(() => {
 	cleanup();
 	mocks.pages.clear();
 	mocks.params.current = {};
+	mocks.rootData.current = { user: null };
 	vi.clearAllMocks();
 });
 
@@ -58,15 +76,23 @@ describe.each([
 		expect(mocks.platformPageDataFn).not.toHaveBeenCalled();
 	});
 
+	it("throws notFound when the owning plugin is disabled (P-058)", async () => {
+		entry(path);
+		mocks.pluginStatesFn.mockResolvedValue({ enabled: [] });
+		await expect(load()).rejects.toMatchObject({ isNotFound: true });
+		// The client-side gate short-circuits before the server fn.
+		expect(mocks.platformPageDataFn).not.toHaveBeenCalled();
+	});
+
 	it("throws notFound when the page's guard denies", async () => {
-		mocks.pages.set(path, { component: Page });
+		entry(path);
 		mocks.platformPageDataFn.mockResolvedValue({ status: "notfound" });
 		await expect(load()).rejects.toMatchObject({ isNotFound: true });
 		expect(mocks.platformPageDataFn).toHaveBeenCalledWith({ data: path });
 	});
 
 	it("returns the loader Effect's data", async () => {
-		mocks.pages.set(path, { component: Page });
+		entry(path);
 		mocks.platformPageDataFn.mockResolvedValue({ status: "ok", data: { rows: 2 } });
 		await expect(load()).resolves.toEqual({ rows: 2 });
 	});
@@ -78,19 +104,19 @@ describe.each([
 	});
 
 	it("renders the contributed component with data and plugin context", () => {
-		mocks.pages.set(path, { component: Page });
+		entry(path);
 		mocks.params.current = { _splat: "patients" };
 		mocks.loaderData.current = { rows: 2 };
 		render(createElement(opts(route).component));
 		expect(screen.getByTestId("page").textContent).toBe(
-			'{"rows":2}|{"plugins":["plugin-a"],"locale":"en"}',
+			'{"rows":2}|{"plugins":["plugin-a"],"locale":"en","user":null}',
 		);
 	});
 });
 
 describe("/platform/$ with an empty splat", () => {
 	it("resolves the bare /platform/ path in the loader and the component", async () => {
-		mocks.pages.set("/platform/", { component: Page });
+		entry("/platform/");
 		mocks.platformPageDataFn.mockResolvedValue({ status: "ok", data: "d" });
 		await expect(opts(SplatRoute).loader({ params: {} })).resolves.toBe("d");
 		expect(mocks.platformPageDataFn).toHaveBeenCalledWith({ data: "/platform/" });

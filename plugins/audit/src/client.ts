@@ -14,11 +14,25 @@ import { AuditPlatformPage } from "./platform-page.tsx";
  * importing ./index.ts would pull the server graph into the client
  * bundle. Keep in sync — parity is asserted by apps/web/src/plugins.test.ts.
  */
+export const auditChromePlugin = definePlugin({
+	id: "audit.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "audit.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/audit", label: "Audit log", icon: ScrollTextIcon, group: "System" },
+			},
+		},
+	],
+});
+
 export const auditPanelPlugin = definePlugin({
 	id: "audit.panel",
 	requiredDeps: ["platform.panel", "audit.services"],
 	panel: {
-		sidebar: [{ to: "/platform/audit", label: "Audit log", icon: ScrollTextIcon, group: "System" }],
 		pages: [{ id: "audit.admin", path: "/platform/audit", component: AuditPlatformPage }],
 	},
 });
@@ -38,5 +52,6 @@ export const plugins: readonly Plugin[] = [
 		// into the client bundle.
 		requiredDeps: ["platform.admin"],
 	}),
+	auditChromePlugin,
 	auditPanelPlugin,
 ];

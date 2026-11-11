@@ -1,11 +1,13 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { groups } from "@ktb/groups/schema";
-import { tenantIdColumn } from "@ktb/tenant/schema";
+import { groups } from "./groups.ts";
 
 // FHIR R4 Patient + RNDS/BR Core extensions; codes and labels live in
-// ./record.ts. Everything beyond `name` is nullable so pre-existing
-// name-only patients stay valid until the doctor completes the record.
+// @ktb/patients/record. Everything beyond `name` is nullable so
+// pre-existing name-only patients stay valid until the doctor completes
+// the record. Host-owned by @ktb/db (not a plugin slice) to break the
+// @ktb/db ↔ plugin workspace cycle — plugins import this from
+// `@ktb/db/schema`.
 //
 // `tenantId` (P-053): NULL = personal row scoped by `ownerId`; a
 // `groups.id` = tenant-owned row readable/operable by that tenant's
@@ -14,13 +16,16 @@ import { tenantIdColumn } from "@ktb/tenant/schema";
 // repo helpers rely on joins/group-bys and system paths that
 // `scopedRepo` cannot express — tenant fencing is applied through
 // `tenantScopeCondition` + service authz instead. SET NULL keeps the
-// record if the clinic group is deleted.
+// record if the clinic group is deleted. The column is declared inline
+// (`integer("tenant_id")`, same shape as `@ktb/tenant`'s
+// `tenantIdColumn`) because @ktb/tenant depends on @ktb/db — importing
+// it here would create a workspace cycle.
 export const patients = sqliteTable(
 	"patients",
 	{
 		id: integer().primaryKey({ autoIncrement: true }),
 		ownerId: text("owner_id").notNull(),
-		tenantId: tenantIdColumn().references(() => groups.id, { onDelete: "set null" }),
+		tenantId: integer("tenant_id").references(() => groups.id, { onDelete: "set null" }),
 		name: text().notNull(),
 		active: integer({ mode: "boolean" }).notNull().default(true),
 		socialName: text("social_name"),

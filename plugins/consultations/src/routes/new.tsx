@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { NewConsultationPage } from "../views/index.ts";
 import { prefersWhisper, transcriptionBackend } from "../backend.ts";
@@ -12,7 +13,7 @@ import { localeFn } from "../fns.ts";
 import { requireSession } from "../guard.ts";
 import { prefetchWhisperModel } from "../whisper-prefetch.ts";
 
-export const Route = createFileRoute("/consultations/new")({
+export const Route = createPluginFileRoute("consultations.routes")("/consultations/new")({
 	validateSearch: validateNewConsultationSearch,
 	beforeLoad: () => requireSession(),
 	loader: async () => {

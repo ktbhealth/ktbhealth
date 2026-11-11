@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
 	plugins: [] as unknown[],
 	audiencePlugins: [] as unknown[],
+	disabledIds: [] as string[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -18,6 +19,15 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			useSearch: () => ({ audience: "doctors" }),
 		}),
 		useNavigate: () => vi.fn(),
+		getRouteApi: () => ({
+			useLoaderData: () => ({
+				pluginStates: {
+					enabled: (state.plugins as { id: string }[])
+						.map((p) => p.id)
+						.filter((id) => !state.disabledIds.includes(id)),
+				},
+			}),
+		}),
 		useSearch: (opts: { strict: false; select: (s: Record<string, unknown>) => unknown }) =>
 			opts.select({ audience: "doctors" }),
 		Link: (props: Record<string, unknown>) => {
@@ -63,6 +73,7 @@ const Landing = opts.component as () => ReactNode;
 afterEach(() => {
 	cleanup();
 	state.plugins = [];
+	state.disabledIds = [];
 });
 
 describe("landing route", () => {
@@ -78,6 +89,13 @@ describe("landing route", () => {
 		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
 			"The doctor decides. KTB Health records.",
 		);
+	});
+
+	it("skips a disabled landing plugin and renders the fallback (P-058)", () => {
+		state.plugins = state.audiencePlugins;
+		state.disabledIds = (state.audiencePlugins as { id: string }[]).map((p) => p.id);
+		render(createElement(Landing));
+		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("KTB Health");
 	});
 
 	it("renders the fallback when no landing plugin is registered", () => {

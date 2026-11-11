@@ -11,7 +11,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 
-import { consultations as consultationsTable } from "./schema.ts";
+import { consultations as consultationsTable } from "@ktb/db/schema";
 import {
 	Consultations,
 	ConsultationsLive,

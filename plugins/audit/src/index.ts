@@ -200,15 +200,32 @@ export const auditServicesPlugin = definePlugin({
 	services: AuditLive,
 });
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const auditChromePlugin = definePlugin({
+	id: "audit.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "audit.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/audit", label: "Audit log", icon: ScrollTextIcon, group: "System" },
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: /platform/audit is mounted by
 // the platform plugin's physical route subtree; this plugin declares
-// the sidebar entry and page descriptor. The dep edge orders it after
-// the shell and the audit services its loader consumes.
+// the page descriptor. The dep edge orders it after the shell and the
+// audit services its loader consumes.
 export const auditPanelPlugin = definePlugin({
 	id: "audit.panel",
 	requiredDeps: [platformPanelPlugin.id, auditServicesPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/audit", label: "Audit log", icon: ScrollTextIcon, group: "System" }],
 		pages: [
 			{
 				id: "audit.admin",
@@ -242,6 +259,7 @@ export const auditPanelPlugin = definePlugin({
 export const plugins: readonly Plugin[] = [
 	auditTablesPlugin,
 	auditServicesPlugin,
+	auditChromePlugin,
 	auditPanelPlugin,
 ];
 
@@ -251,6 +269,7 @@ declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"audit.tables": true;
 		"audit.services": true;
+		"audit.chrome": true;
 		"audit.panel": true;
 	}
 }

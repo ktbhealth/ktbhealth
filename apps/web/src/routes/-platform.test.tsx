@@ -23,6 +23,7 @@ const getSessionUserFn = vi.fn(
 	}),
 );
 const listMyNotificationsFn = vi.fn(async () => [] as unknown[]);
+const pluginStatesFn = vi.fn(async () => ({ enabled: [] as string[] }));
 const signOut = vi.fn(async () => {});
 
 vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: () => signOut() } }));
@@ -36,6 +37,7 @@ vi.mock("#/lib/fns.ts", () => ({
 	markMyNotificationsReadFn: (arg: unknown) => markMyNotificationsReadFn(arg),
 	markAllMyNotificationsReadFn: () => markAllMyNotificationsReadFn(),
 	getSessionUserFn: () => getSessionUserFn(),
+	pluginStatesFn: () => pluginStatesFn(),
 }));
 
 let loaderData: unknown = { patients: [], consultations: [] };
@@ -76,7 +78,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			return opts?.select ? opts.select(loc) : loc;
 		},
 		getRouteApi: () => ({
-			useLoaderData: () => ({ id: "u1", email: "admin@ktb.test", name: "Admin" }),
+			useLoaderData: () => ({
+				user: { id: "u1", email: "admin@ktb.test", name: "Admin" },
+				pluginStates: { enabled: plugins.map((p) => p.id) },
+			}),
 		}),
 		Link: (props: Record<string, unknown>) => {
 			const { to, children, ...rest } = props;
@@ -92,7 +97,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 import { Route as PlatformRoute } from "./platform.tsx";
 import { Route as PlatformIndexRoute } from "./platform/index.tsx";
 import { Route as PlatformPageRoute } from "./platform/$.tsx";
-import { platformPages } from "#/lib/platform-pages.ts";
+import { consolePages } from "#/lib/registry.ts";
+import { plugins } from "#/plugins.ts";
 import type { PanelPage } from "@ktb/kernel";
 
 const component = (route: unknown) =>
@@ -121,6 +127,7 @@ afterEach(() => {
 	markMyNotificationsReadFn.mockReset().mockResolvedValue(true);
 	markAllMyNotificationsReadFn.mockReset().mockResolvedValue(true);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
+	pluginStatesFn.mockReset().mockResolvedValue({ enabled: plugins.map((p) => p.id) });
 	loaderData = {
 		patients: [],
 		consultations: [],
@@ -172,6 +179,20 @@ describe("/platform layout", () => {
 			audioJobs: [{ id: 1 }],
 			notifications: [{ id: 2 }],
 		});
+	});
+
+	it("loader skips feeds whose plugin package is fully disabled (P-058)", async () => {
+		pluginStatesFn.mockResolvedValue({
+			enabled: plugins
+				.filter((p) => !p.id.startsWith("consultations.") && !p.id.startsWith("notifications."))
+				.map((p) => p.id),
+		});
+		await expect(loader(PlatformRoute)!()).resolves.toEqual({
+			audioJobs: [],
+			notifications: [],
+		});
+		expect(adminListAudioJobsFn).not.toHaveBeenCalled();
+		expect(listMyNotificationsFn).not.toHaveBeenCalled();
 	});
 
 	it("injects mark-read actions for the notifications popover", async () => {
@@ -316,11 +337,14 @@ describe("/platform/$ splat dispatcher", () => {
 	it("loader resolves nested splat paths against the registry", async () => {
 		// No shipped plugin owns a nested path — register a throwaway
 		// descriptor so the splat lookup has something to find.
-		const pages = platformPages as unknown as Map<string, PanelPage>;
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
 		pages.set("/platform/foo/bar", {
-			id: "test.nested",
-			path: "/platform/foo/bar",
-			component: () => null,
+			page: {
+				id: "test.nested",
+				path: "/platform/foo/bar",
+				component: () => null,
+			},
+			pluginId: "platform.routes",
 		});
 		try {
 			await loader(PlatformPageRoute)!({ params: { _splat: "foo/bar" } });
