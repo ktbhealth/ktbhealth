@@ -16,7 +16,9 @@
 				"scripts/**/*.{ts,mjs}"
 			],
 			// Resolved by @tailwindcss/vite through @ktbhealth/ui's globals.css.
-			"ignoreDependencies": ["tailwindcss"]
+			// pdfkit is pre-bundled via optimizeDeps.include in vite.config.ts
+			// (SSR cold-start fix) — referenced by name, never imported here.
+			"ignoreDependencies": ["tailwindcss", "pdfkit"]
 		},
 		"packages/db": {
 			"entry": ["scripts/**/*.mjs"]
