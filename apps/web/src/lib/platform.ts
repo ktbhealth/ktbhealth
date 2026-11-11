@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 
-import { setServerRuntime } from "@ktb/server-fns";
+import { setServerRuntime, getTenantSelector } from "@ktb/server-fns";
+import type { TenantSelector } from "@ktb/tenant/selector";
+import type * as Effect from "effect/Effect";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
@@ -27,7 +29,6 @@ export const {
 	BindingLive,
 	CaptchaLive,
 	run,
-	runAs,
 	correctTranscript,
 	db,
 	auth,
@@ -37,6 +38,35 @@ export const {
 	// be imported by client-reachable module scope.
 	plugins: serverPlugins,
 } = app;
+
+/**
+ * `runAs` with tenant-selector extraction (P-053): when the caller does
+ * not pass a selector, the request's tenant headers
+ * (`x-tenant-id`/`x-tenant-slug`/`x-tenant-kind`/`x-tenant`) are read and
+ * forwarded to the app's TenantResolver, which binds `Tenant` inside
+ * the per-request effect scope. An explicit `null` selector skips
+ * extraction; extraction failures outside a request context (tests,
+ * non-HTTP invocations) degrade to `null` — ambient tenant is never
+ * inherited into background work.
+ */
+export const runAs = <A, E>(
+	user: { readonly id: string; readonly email?: string },
+	effect: Effect.Effect<A, E, unknown>,
+	tenantSelector?: TenantSelector | null,
+): Promise<A> => {
+	if (tenantSelector !== undefined) {
+		return app.runAs(user, effect, tenantSelector);
+	}
+	return (async () => {
+		let selector: TenantSelector | null = null;
+		try {
+			selector = await getTenantSelector();
+		} catch {
+			// No request context — personal scope.
+		}
+		return app.runAs(user, effect, selector);
+	})();
+};
 
 /** Fallback transcription model when AUDIO_TRANSCRIBE_MODEL is unset —
  * deploy glue owns provider defaults; ports carry no provider literals. */

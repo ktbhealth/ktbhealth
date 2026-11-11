@@ -207,6 +207,73 @@ const runProgramRule = (ruleName, filename, body) => {
 	check("driver-contract accepts typed driver descriptors", typed.length === 0);
 }
 
+// tenant-scope: tables declared via tenantTable() may not be queried
+// raw — .from()/.insert()/.update()/.delete()/joins/db.query.* are
+// reserved for scopedRepo(). Resolution spans schema module → importer.
+{
+	const memberCall = (method, argName) => ({
+		type: "CallExpression",
+		callee: {
+			type: "MemberExpression",
+			computed: false,
+			property: id(method),
+		},
+		arguments: argName === null ? [] : [id(argName)],
+	});
+
+	// Schema module declares + exports a tenant table.
+	const schemaCtx = makeContext("/repo/plugins/demo/src/schema.ts");
+	plugin.rules["tenant-scope"]
+		.create(schemaCtx)
+		.Program(
+			program([
+				importDecl("@ktb/tenant", ["tenantTable"]),
+				exportConst("docs", callExpr("tenantTable")),
+			]),
+		);
+	check("tenant-scope records tenantTable exports", schemaCtx.reports.length === 0);
+
+	// Service module imports the table and queries it raw.
+	const svcCtx = makeContext("/repo/plugins/demo/src/service.ts");
+	const svcVisitor = plugin.rules["tenant-scope"].create(svcCtx);
+	svcVisitor.Program(program([importDecl("./schema.ts", ["docs"])]));
+	svcVisitor.CallExpression(memberCall("from", "docs"));
+	svcVisitor.CallExpression(memberCall("insert", "docs"));
+	check("tenant-scope flags raw queries on imported tenant tables", svcCtx.reports.length === 2);
+
+	// db.query.docs relational API is flagged too.
+	const relCtx = makeContext("/repo/plugins/demo/src/rel.ts");
+	const relVisitor = plugin.rules["tenant-scope"].create(relCtx);
+	relVisitor.Program(program([importDecl("./schema.ts", ["docs"])]));
+	relVisitor.MemberExpression({
+		type: "MemberExpression",
+		computed: false,
+		property: id("docs"),
+		object: {
+			type: "MemberExpression",
+			computed: false,
+			property: id("query"),
+			object: id("db"),
+		},
+	});
+	check("tenant-scope flags db.query.<tenantTable>", relCtx.reports.length === 1);
+
+	// Non-tenant tables and unrelated identifiers pass.
+	const okCtx = makeContext("/repo/plugins/demo/src/ok.ts");
+	const okVisitor = plugin.rules["tenant-scope"].create(okCtx);
+	okVisitor.Program(program([importDecl("./schema.ts", ["docs"])]));
+	okVisitor.CallExpression(memberCall("from", "otherTable"));
+	okVisitor.CallExpression(memberCall("delete", "docs"));
+	check("tenant-scope flags .delete(tenantTable) but not other tables", okCtx.reports.length === 1);
+
+	// Test files are exempt (fixtures seed directly).
+	const testCtx = makeContext("/repo/plugins/demo/src/service.test.ts");
+	const testVisitor = plugin.rules["tenant-scope"].create(testCtx);
+	testVisitor.Program(program([importDecl("./schema.ts", ["docs"])]));
+	testVisitor.CallExpression(memberCall("from", "docs"));
+	check("tenant-scope exempts test files", testCtx.reports.length === 0);
+}
+
 if (failures > 0) {
 	console.error(`\n${failures} arch-policy check(s) failed`);
 	process.exit(1);

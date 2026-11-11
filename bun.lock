@@ -43,6 +43,7 @@
         "@ktb/platform-header": "workspace:*",
         "@ktb/platform-sidebar": "workspace:*",
         "@ktb/server-fns": "workspace:*",
+        "@ktb/tenant": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
         "@tanstack/react-devtools": "0.10.14",
         "@tanstack/react-router": "1.170.46",
@@ -129,6 +130,7 @@
         "@ktb/driver-framework": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
+        "@ktb/tenant": "workspace:*",
         "effect": "4.1.2",
       },
       "devDependencies": {
@@ -212,6 +214,7 @@
         "@ktb/groups": "workspace:*",
         "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
+        "@ktb/rbac": "workspace:*",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
       },
@@ -290,13 +293,37 @@
         "react": "^19.2.0",
       },
     },
+    "packages/rbac": {
+      "name": "@ktb/rbac",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+      },
+      "devDependencies": {
+        "@types/better-sqlite3": "^9.6.0",
+        "better-sqlite3": "^13.0.3",
+        "vitest": "5.1.0",
+      },
+    },
     "packages/server-fns": {
       "name": "@ktb/server-fns",
       "dependencies": {
         "@ktb/auth": "workspace:*",
         "@ktb/interop": "workspace:*",
+        "@ktb/tenant": "workspace:*",
         "@tanstack/react-start": "1.169.5",
         "effect": "4.1.2",
+      },
+    },
+    "packages/tenant": {
+      "name": "@ktb/tenant",
+      "dependencies": {
+        "@ktb/db": "workspace:*",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "permix": "^4.4.1",
       },
     },
     "packages/transcription": {
@@ -384,6 +411,8 @@
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
+        "@ktb/rbac": "workspace:*",
+        "@ktb/rbac-plugin": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
@@ -514,6 +543,34 @@
         "@ktb/platform": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
         "@tanstack/react-router": "1.170.46",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/rbac": {
+      "name": "@ktb/rbac-plugin",
+      "dependencies": {
+        "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/auth": "workspace:*",
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/rbac": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
         "lucide-react": "0.544.0",
       },
       "devDependencies": {
@@ -964,7 +1021,13 @@
 
     "@ktb/platform-sidebar": ["@ktb/platform-sidebar@workspace:plugins/platform-sidebar"],
 
+    "@ktb/rbac": ["@ktb/rbac@workspace:packages/rbac"],
+
+    "@ktb/rbac-plugin": ["@ktb/rbac-plugin@workspace:plugins/rbac"],
+
     "@ktb/server-fns": ["@ktb/server-fns@workspace:packages/server-fns"],
+
+    "@ktb/tenant": ["@ktb/tenant@workspace:packages/tenant"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
 

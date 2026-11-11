@@ -36,6 +36,13 @@
       "when": 1794206989690,
       "tag": "0004_melted_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794357656398,
+      "tag": "0005_white_boom_boom",
+      "breakpoints": true
     }
   ]
 }

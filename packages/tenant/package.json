@@ -1,0 +1,16 @@
+{
+	"name": "@ktb/tenant",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./selector": "./src/selector.ts",
+		"./testing": "./src/testing.ts"
+	},
+	"dependencies": {
+		"@ktb/db": "workspace:*",
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.1.2",
+		"permix": "^4.4.1"
+	}
+}

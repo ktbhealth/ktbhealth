@@ -30,6 +30,9 @@ const PORT_PACKAGE_NAMES = [
 	"interop",
 	"db",
 	"driver-framework",
+	// Tenancy ports/helpers — platform capability, not an adapter.
+	"tenant",
+	"rbac",
 	// The server-fn runtime registry is port infrastructure, not an adapter.
 	"server-fns",
 ];

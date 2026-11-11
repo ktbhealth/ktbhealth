@@ -1,5 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
+import type { TenantSelector } from "@ktb/tenant/selector";
 
 /** The slice of R2 needed to drop objects — the real R2Bucket satisfies this. */
 export interface AudioDeleter {
@@ -54,10 +55,14 @@ export interface AiRunner {
 export interface ServerRuntime {
 	/** Run an Effect program against the composed app runtime (system paths). */
 	readonly run: <A, E>(effect: Effect.Effect<A, E, unknown>) => Promise<A>;
-	/** Run an Effect program as an authenticated user (Principal + Authz bound). */
+	/** Run an Effect program as an authenticated user (Principal + Authz +
+	 * resolved Tenant bound). `tenantSelector` is the opaque request
+	 * selector forwarded to the app's TenantResolver — omit for the
+	 * resolver's default path. */
 	readonly runAs: <A, E>(
 		user: { readonly id: string; readonly email?: string },
 		effect: Effect.Effect<A, E, unknown>,
+		tenantSelector?: TenantSelector | null,
 	) => Promise<A>;
 	/** Audio object storage for upload/download routes and best-effort
 	 * purge; undefined when unbound. */
@@ -106,7 +111,8 @@ export const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
 export const runAs = <A, E>(
 	user: { readonly id: string; readonly email?: string },
 	effect: Effect.Effect<A, E, unknown>,
-): Promise<A> => getServerRuntime().runAs(user, effect);
+	tenantSelector?: TenantSelector | null,
+): Promise<A> => getServerRuntime().runAs(user, effect, tenantSelector);
 
 /** Active locale for the current request (SSR ALS / client cookie). */
 export const getLocale = (): string => getServerRuntime().getLocale();

@@ -1,11 +1,14 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import { and, count, desc, eq } from "drizzle-orm";
 import { BoxesIcon } from "lucide-react";
 
 import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
+import { PermissionInvalidator } from "@ktb/rbac";
+import { rbacServicesPlugin } from "@ktb/rbac-plugin";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import { Query } from "@effect-server-utils/cqrs";
@@ -178,6 +181,13 @@ export const GroupsLive = Layer.effect(
 	Effect.gen(function* () {
 		const db = yield* Db;
 		const platformAdmin = yield* PlatformAdmin;
+		// Optional: present only when the rbac plugin is deployed — its
+		// absence must not break group writes (optionalDeps orders it
+		// first when present).
+		const invalidator = yield* Effect.serviceOption(PermissionInvalidator);
+		const invalidatePermissions = Option.isSome(invalidator)
+			? invalidator.value.invalidate
+			: undefined;
 		return Groups.of({
 			create: Effect.fn("Groups.create")(function* (input: CreateGroupInput) {
 				yield* platformAdmin.requireAdmin();
@@ -196,11 +206,17 @@ export const GroupsLive = Layer.effect(
 			}),
 			addMember: Effect.fn("Groups.addMember")(function* (input: AddGroupMemberInput) {
 				yield* platformAdmin.requireAdmin();
-				return yield* Effect.promise(() => addMember(db, input));
+				const member = yield* Effect.promise(() => addMember(db, input));
+				// Membership feeds RBAC group-derived grants (P-054) — bump
+				// the permission epoch so cached grant sets re-resolve.
+				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				return member;
 			}),
 			removeMember: Effect.fn("Groups.removeMember")(function* (input: RemoveGroupMemberInput) {
 				yield* platformAdmin.requireAdmin();
-				return yield* Effect.promise(() => removeMember(db, input));
+				const member = yield* Effect.promise(() => removeMember(db, input));
+				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				return member;
 			}),
 			members: Effect.fn("Groups.members")(function* (groupId: number) {
 				yield* platformAdmin.requireAdmin();
@@ -260,6 +276,9 @@ export const groupsServicesPlugin = definePlugin({
 	// Admin ops consume the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
+	// Membership writes invalidate RBAC grants when the rbac plugin is
+	// deployed — ordering hint only; absence is legal (serviceOption).
+	optionalDeps: [rbacServicesPlugin.id],
 	services: Layer.mergeAll(GroupsLive, GroupsQueriesLive),
 });
 

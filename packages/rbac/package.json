@@ -1,0 +1,21 @@
+{
+	"name": "@ktb/rbac",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./schema": "./src/schema.ts",
+		"./vocabulary": "./src/vocabulary.ts"
+	},
+	"dependencies": {
+		"@ktb/authz": "workspace:*",
+		"@ktb/db": "workspace:*",
+		"drizzle-orm": "^0.45.1",
+		"effect": "4.1.2"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "^9.6.0",
+		"better-sqlite3": "^13.0.3",
+		"vitest": "5.1.0"
+	}
+}

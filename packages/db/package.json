@@ -16,6 +16,7 @@
 		"@ktb/groups": "workspace:*",
 		"@ktb/notifications": "workspace:*",
 		"@ktb/patients": "workspace:*",
+		"@ktb/rbac": "workspace:*",
 		"drizzle-orm": "^0.45.1",
 		"effect": "4.1.2"
 	},

@@ -7,13 +7,14 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { Binding, Db, DbLive, makeDb, type DbClient, type SqlDatabase } from "@ktb/db";
+import { Binding, DbLive, makeDb, type SqlDatabase } from "@ktb/db";
 import { makeAuth } from "@ktb/auth-better";
 import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
 import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
 import { Auth } from "@ktb/auth";
 import { AuthzLive, Principal } from "@ktb/authz";
+import { Tenant, TenantResolver, type TenantResolverShape, type TenantSelector } from "@ktb/tenant";
 import { AnamnesisEngine } from "@ktb/anamnesis/services";
 import type { LlmConfig } from "@ktb/anamnesis-llm/services";
 import { llmDrivers } from "@ktb/anamnesis-llm/drivers";
@@ -99,12 +100,24 @@ export const assertCaptchaConfigured = (
 	}
 };
 
+export interface AppOptions {
+	/**
+	 * Optional tenant resolver (P-053): when provided, `runAs` resolves
+	 * the request's tenant selector through it inside the per-request
+	 * effect scope and binds `Tenant` next to `Principal`. Apps build it
+	 * with `makeTenantResolver`/`TenantResolverLive` from @ktb/tenant.
+	 * Absent → the default resolver yields `null` (personal scope) and
+	 * `runAs` behaves exactly as before.
+	 */
+	readonly tenantResolver?: TenantResolverShape;
+}
+
 /**
  * Composition root: wires the plugin registry, platform bindings, and
  * impl layers into a runnable app. Deploy targets (apps/web) call this
  * once with their env and re-export the pieces they need.
  */
-export const createApp = <E extends AppEnv>(env: E) => {
+export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	// import.meta.env.PROD is statically replaced by the Vite build:
 	// true for `vp build`/`vp preview` output (prod deploy), false for
 	// dev servers and vitest. Same convention as the stub-bot guard in
@@ -200,6 +213,13 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		PlatformAdmin,
 		makePlatformAdminGate(parsePlatformAdminEmails(env.PLATFORM_ADMIN_EMAILS)),
 	);
+	// Tenant resolution is opt-in: the app supplies a TenantResolverShape
+	// (usually makeTenantResolver over its TenantDirectory adapter). When
+	// absent the Reference default resolves null — personal scope.
+	const TenantResolverLive =
+		options?.tenantResolver === undefined
+			? []
+			: [Layer.succeed(TenantResolver, options.tenantResolver)];
 	const core = Layer.mergeAll(
 		BotLive,
 		CaptchaLive,
@@ -210,6 +230,7 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		// Cross-plugin event bus — plugins publish/subscribe via EventBus
 		// inside their service layers (CQRS event surface).
 		makeEventBus(),
+		...TenantResolverLive,
 	);
 	// App-wide CQRS buses (P-049): each group's dispatcher is built once,
 	// wrapped in shared middleware, folded into an erased DispatchTable,
@@ -287,20 +308,35 @@ export const createApp = <E extends AppEnv>(env: E) => {
 		runtime.runPromise(effect);
 
 	/**
-	 * Run an Effect program as an authenticated user: binds `Principal`
-	 * and the user's `Authz` rules for the duration of the effect, so
-	 * domain services enforce authorization themselves (defense in
-	 * depth — handlers no longer need per-call `requireCan`).
+	 * Run an Effect program as an authenticated user: binds `Principal`,
+	 * the user's `Authz` rules and the resolved `Tenant` for the duration
+	 * of the effect, so domain services enforce authorization and tenant
+	 * scoping themselves (defense in depth — handlers no longer need
+	 * per-call `requireCan`/`scopedRepo` bypasses).
+	 *
+	 * `tenantSelector` is the opaque selector the route layer extracted
+	 * from the request (see `tenantSelectorFromHeaders` in @ktb/tenant);
+	 * it is resolved through the bound `TenantResolver` INSIDE the
+	 * per-request effect scope — never cached across requests. Omit it
+	 * (or pass `null`) for the resolver's default path; when no resolver
+	 * is configured the tenant stays `null` (personal scope), preserving
+	 * the pre-tenancy behavior.
 	 */
 	const runAs = <A, E>(
 		user: { readonly id: string; readonly email?: string },
 		effect: Effect.Effect<A, E, unknown>,
+		tenantSelector?: TenantSelector | null,
 	): Promise<A> =>
 		runtime.runPromise(
-			effect.pipe(
-				Effect.provideService(Principal, { userId: user.id, email: user.email }),
-				Effect.provide(AuthzLive(user.id)),
-			),
+			Effect.gen(function* () {
+				const resolver = yield* TenantResolver;
+				const tenant = yield* resolver.resolve(tenantSelector ?? null, user.id);
+				return yield* effect.pipe(
+					Effect.provideService(Principal, { userId: user.id, email: user.email }),
+					Effect.provideService(Tenant, tenant),
+					Effect.provide(AuthzLive(user.id)),
+				);
+			}),
 		);
 
 	/**

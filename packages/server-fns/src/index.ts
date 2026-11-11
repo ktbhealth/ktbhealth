@@ -18,5 +18,6 @@ export {
 	UnauthenticatedError,
 	ensureSessionUser,
 	getSessionUser,
+	getTenantSelector,
 	type SessionUser,
 } from "./session.ts";

@@ -92,6 +92,10 @@ export default defineConfig({
 						})),
 					],
 					"ktb-arch/provider-lockin": "error",
+					// Tenant-scoped tables (declared via tenantTable()) may only
+					// be queried through scopedRepo() — raw drizzle access
+					// bypasses tenant isolation (P-053).
+					"ktb-arch/tenant-scope": "error",
 				},
 			},
 			{
@@ -103,6 +107,9 @@ export default defineConfig({
 					"no-restricted-imports": ["error", { patterns: IMPL_IMPORT_PATTERNS }],
 					"no-restricted-globals": "off",
 					"ktb-arch/provider-lockin": "off",
+					// Fixtures seed tenant tables directly — the guard targets
+					// domain code, not test setup.
+					"ktb-arch/tenant-scope": "off",
 				},
 			},
 			{

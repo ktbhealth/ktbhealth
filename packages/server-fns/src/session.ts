@@ -1,5 +1,6 @@
 import { Auth } from "@ktb/auth";
 import type { SessionUser } from "@ktb/auth";
+import { tenantSelectorFromHeaders, type TenantSelector } from "@ktb/tenant/selector";
 import * as Effect from "effect/Effect";
 
 import { run } from "./runtime.ts";
@@ -52,4 +53,20 @@ export async function ensureSessionUser(headers?: Headers): Promise<SessionUser>
 	const user = await getSessionUser(headers);
 	if (!user) throw new UnauthenticatedError();
 	return user;
+}
+
+/**
+ * Tenant selector for the current request (P-053): reads the default
+ * header transport (`x-tenant-id`/`x-tenant-slug`/`x-tenant-kind`/
+ * `x-tenant`) via `tenantSelectorFromHeaders`. Pass the result as the
+ * third argument to `runAs` so the composition root's TenantResolver
+ * binds `Tenant` inside the request scope. Returns `null` when no
+ * tenant header is present.
+ */
+export async function getTenantSelector(headers?: Headers): Promise<TenantSelector | null> {
+	// Same lazy server-only import as getSessionUser — this module is
+	// reachable from client bundles through plugin index files.
+	const requestHeaders =
+		headers ?? (await import("@tanstack/react-start/server")).getRequestHeaders();
+	return tenantSelectorFromHeaders(requestHeaders);
 }
