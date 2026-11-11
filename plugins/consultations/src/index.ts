@@ -907,9 +907,9 @@ export const PatientRecordConsultationsLive = Query.handlersOf(PatientRecordCons
 			const rows = yield* Effect.promise(() => listConsultations(db, principal.userId, patientId));
 			return rows.map((r) => ({
 				id: r.id,
-				// Rows are filtered by patientId — the column is nullable
-				// in the schema but never null here.
-				patientId: r.patientId ?? patientId,
+				// Rows are filtered by patientId (the column is nullable in the
+				// schema but never null here), so it is the requested id.
+				patientId,
 				createdAt: r.createdAt,
 				status: r.status,
 				hasAnamnesis: r.hasAnamnesis,

@@ -50,10 +50,9 @@ const decodeAttachInput = (input: unknown) => {
 	if (
 		typeof input === "object" &&
 		input !== null &&
-		(input as Record<string, unknown>).patientId === null &&
-		typeof normalized === "object" &&
-		normalized !== null
+		(input as Record<string, unknown>).patientId === null
 	) {
+		// normalizePatientId returns a fresh object for any object input.
 		(normalized as Record<string, unknown>).patientId = null;
 	}
 	return Schema.decodeUnknownSync(AttachInput)(normalized);
