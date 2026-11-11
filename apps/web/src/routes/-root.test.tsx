@@ -40,6 +40,10 @@ vi.mock("#/plugins.ts", () => ({
 	},
 }));
 vi.mock("../styles.css?url", () => ({ default: "/styles.css" }));
+vi.mock("#/lib/persona-select.tsx", async () => {
+	const React = await import("react");
+	return { PersonaSelect: () => React.createElement("div", { "data-testid": "persona-select" }) };
+});
 
 import { Route } from "./__root.tsx";
 
@@ -62,6 +66,13 @@ afterEach(() => {
 });
 
 describe("root route", () => {
+	it("shows the persona picker only on the landing page", () => {
+		state.pathname = "/";
+		expect(render()).toContain('data-testid="persona-select"');
+		state.pathname = "/consultations";
+		expect(render()).not.toContain("persona-select");
+	});
+
 	it("loads the session, declares head tags and renders the not-found page", async () => {
 		await expect(opts.loader()).resolves.toBeNull();
 		const head = opts.head();

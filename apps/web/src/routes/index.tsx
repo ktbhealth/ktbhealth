@@ -17,18 +17,22 @@ import {
 import {
 	ArrowRightIcon,
 	AudioLinesIcon,
-	BotIcon,
+	BanIcon,
 	CheckIcon,
 	ClipboardCheckIcon,
+	ClipboardListIcon,
 	FileTextIcon,
 	LockIcon,
 	MicIcon,
+	PenLineIcon,
+	ServerIcon,
 	ShieldCheckIcon,
-	SparklesIcon,
 	StethoscopeIcon,
 } from "lucide-react";
 import * as m from "#/paraglide/messages.js";
+import { getLocale } from "#/paraglide/runtime.js";
 import { plugins } from "#/plugins.ts";
+import { docsHref, personaLabel, validatePersonaSearch, type Persona } from "#/lib/persona.ts";
 
 // A plugin may own the whole landing page (`landing.page`); the first
 // contribution in topo order wins, otherwise the built-in Home renders.
@@ -40,7 +44,11 @@ const pluginLanding = plugins.find((p) => p.landing !== undefined)?.landing?.pag
 // a LogicalExpression (`??`) inside createFileRoute.
 const Landing = pluginLanding ?? Home;
 
-export const Route = createFileRoute("/")({ component: Landing });
+export const Route = createFileRoute("/")({
+	component: Landing,
+	// ?persona=doctors|patients|developers|business — unknown or missing → doctors.
+	validateSearch: validatePersonaSearch,
+});
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
 	return (
@@ -144,17 +152,70 @@ function ProductMock() {
 	);
 }
 
-function Home() {
+type PersonaCopy = {
+	badge: string;
+	titleA: string;
+	titleB: string;
+	subtitle: string;
+	forYouTitle: string;
+	forYou: string[];
+};
+
+/** Hero and "for you" copy per audience; everything else is shared. */
+function personaCopy(): Record<Persona, PersonaCopy> {
+	return {
+		doctors: {
+			badge: m.hero_doctors_badge(),
+			titleA: m.hero_doctors_title_a(),
+			titleB: m.hero_doctors_title_b(),
+			subtitle: m.hero_doctors_subtitle(),
+			forYouTitle: m.foryou_doctors_title(),
+			forYou: [m.foryou_doctors_p1(), m.foryou_doctors_p2(), m.foryou_doctors_p3()],
+		},
+		patients: {
+			badge: m.hero_patients_badge(),
+			titleA: m.hero_patients_title_a(),
+			titleB: m.hero_patients_title_b(),
+			subtitle: m.hero_patients_subtitle(),
+			forYouTitle: m.foryou_patients_title(),
+			forYou: [m.foryou_patients_p1(), m.foryou_patients_p2(), m.foryou_patients_p3()],
+		},
+		developers: {
+			badge: m.hero_developers_badge(),
+			titleA: m.hero_developers_title_a(),
+			titleB: m.hero_developers_title_b(),
+			subtitle: m.hero_developers_subtitle(),
+			forYouTitle: m.foryou_developers_title(),
+			forYou: [m.foryou_developers_p1(), m.foryou_developers_p2(), m.foryou_developers_p3()],
+		},
+		business: {
+			badge: m.hero_business_badge(),
+			titleA: m.hero_business_title_a(),
+			titleB: m.hero_business_title_b(),
+			subtitle: m.hero_business_subtitle(),
+			forYouTitle: m.foryou_business_title(),
+			forYou: [m.foryou_business_p1(), m.foryou_business_p2(), m.foryou_business_p3()],
+		},
+	};
+}
+
+export function Home() {
+	const { persona } = Route.useSearch();
+	const copy = personaCopy()[persona];
+	const docs = docsHref(persona, getLocale());
 	const steps = [
 		{ icon: MicIcon, title: m.step1_title(), desc: m.step1_desc() },
-		{ icon: SparklesIcon, title: m.step2_title(), desc: m.step2_desc() },
-		{ icon: ClipboardCheckIcon, title: m.step3_title(), desc: m.step3_desc() },
+		{ icon: AudioLinesIcon, title: m.step2_title(), desc: m.step2_desc() },
+		{ icon: ClipboardListIcon, title: m.step3_title(), desc: m.step3_desc() },
+		{ icon: PenLineIcon, title: m.step4_title(), desc: m.step4_desc() },
 	];
+	// Sinsky et al., Annals of Internal Medicine 2016 — see home_stats_source.
 	const stats = [
-		{ value: "8", label: m.home_stats_1() },
-		{ value: "pt-BR", label: m.home_stats_2() },
-		{ value: "100%", label: m.home_stats_3() },
+		{ value: "27%", label: m.home_stats_1() },
+		{ value: "49%", label: m.home_stats_2() },
+		{ value: "~2h", label: m.home_stats_3() },
 	];
+	const never = [m.never_1(), m.never_2(), m.never_3(), m.never_4()];
 	const faq = [
 		{ q: m.faq1_q(), a: m.faq1_a() },
 		{ q: m.faq2_q(), a: m.faq2_a() },
@@ -166,7 +227,7 @@ function Home() {
 	const privacyItems = [
 		{ icon: MicIcon, t: m.feat_privacy_p1() },
 		{ icon: LockIcon, t: m.feat_privacy_p2() },
-		{ icon: BotIcon, t: m.feat_privacy_p3() },
+		{ icon: ServerIcon, t: m.feat_privacy_p3() },
 	];
 	const anamChips = [
 		{ t: m.mock_cc(), c: m.mock_conf_high_short(), cls: "border-l-primary" },
@@ -178,24 +239,41 @@ function Home() {
 			<section className="mx-auto max-w-6xl px-6 pt-16 text-center">
 				<Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1">
 					<span className="size-1.5 rounded-full bg-primary" />
-					{m.home_hero_badge()}
+					{copy.badge}
 				</Badge>
 				<h1 className="mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-					{m.home_hero_title_a()} <span className="text-primary">{m.home_hero_title_b()}</span>
+					{copy.titleA} <span className="text-primary">{copy.titleB}</span>
 				</h1>
 				<p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-					{m.home_hero_subtitle()}
+					{copy.subtitle}
 				</p>
 				<div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-					<Link to="/consultations/new" className={buttonVariants({ size: "lg" })}>
-						{m.home_cta_start()}
-						<ArrowRightIcon />
-					</Link>
-					<Link to="/consultations" className={buttonVariants({ variant: "outline", size: "lg" })}>
-						{m.home_cta_view()}
-					</Link>
+					{persona === "doctors" ? (
+						<>
+							<Link to="/consultations/new" className={buttonVariants({ size: "lg" })}>
+								{m.home_cta_start()}
+								<ArrowRightIcon />
+							</Link>
+							<Link
+								to="/consultations"
+								className={buttonVariants({ variant: "outline", size: "lg" })}
+							>
+								{m.home_cta_view()}
+							</Link>
+						</>
+					) : (
+						<>
+							<a href={docs} className={buttonVariants({ size: "lg" })}>
+								{m.hero_docs_cta()}
+								<ArrowRightIcon />
+							</a>
+							<a href="#how" className={buttonVariants({ variant: "outline", size: "lg" })}>
+								{m.hero_how_cta()}
+							</a>
+						</>
+					)}
 				</div>
-				<dl className="mx-auto mt-14 grid max-w-xl grid-cols-3 gap-6 border-t border-border pt-8">
+				<dl className="mx-auto mt-14 grid max-w-2xl grid-cols-3 gap-6 border-t border-border pt-8">
 					{stats.map((s) => (
 						<div key={s.label}>
 							<dt className="text-2xl font-bold tracking-tight">{s.value}</dt>
@@ -203,6 +281,34 @@ function Home() {
 						</div>
 					))}
 				</dl>
+				<p className="mx-auto mt-4 max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
+					{m.home_stats_source()}
+				</p>
+			</section>
+
+			{/* ---------- for you (persona) ---------- */}
+			<section className="mx-auto max-w-3xl px-6">
+				<div className="border-l-4 border-primary pl-6">
+					<span className="text-xs font-semibold tracking-wide text-primary uppercase">
+						{m.foryou_eyebrow()} · {personaLabel(persona)}
+					</span>
+					<h2 className="mt-2 text-2xl font-bold tracking-tight">{copy.forYouTitle}</h2>
+					<ul className="mt-4 space-y-2">
+						{copy.forYou.map((point) => (
+							<li key={point} className="flex items-start gap-2 text-sm text-muted-foreground">
+								<CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+								{point}
+							</li>
+						))}
+					</ul>
+					<a
+						href={docs}
+						className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+					>
+						{m.hero_docs_cta()}
+						<ArrowRightIcon className="size-4" />
+					</a>
+				</div>
 			</section>
 
 			{/* product mock, full width */}
@@ -214,17 +320,19 @@ function Home() {
 			</section>
 
 			{/* ---------- how it works ---------- */}
-			<section className="border-t border-border bg-muted/40 py-16">
+			<section id="how" className="scroll-mt-20 border-t border-border bg-muted/40 py-16">
 				<div className="mx-auto max-w-6xl px-6">
 					<SectionHeading eyebrow={m.home_steps_eyebrow()} title={m.home_steps_title()} />
-					<ol className="relative mt-12 grid gap-8 sm:grid-cols-3">
+					<ol className="relative mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
 						<span
 							aria-hidden
-							className="absolute top-5 right-[16%] left-[16%] hidden border-t border-dashed border-border sm:block"
+							className="absolute top-5 right-[12%] left-[12%] hidden border-t border-dashed border-border lg:block"
 						/>
 						{steps.map((s, i) => (
 							<li key={s.title} className="relative">
-								<span className="flex size-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+								<span
+									className={`flex size-10 items-center justify-center rounded-full text-sm font-bold ${i === steps.length - 1 ? "bg-primary text-primary-foreground" : "bg-primary/15 text-primary"}`}
+								>
 									{i + 1}
 								</span>
 								<Card className="mt-4 h-full">
@@ -352,6 +460,23 @@ function Home() {
 					<StethoscopeIcon className="size-4 shrink-0" />
 					{m.home_context_note()}
 				</p>
+			</section>
+
+			{/* ---------- what it never does ---------- */}
+			<section className="mx-auto max-w-3xl px-6">
+				<SectionHeading eyebrow={m.never_eyebrow()} title={m.never_title()} />
+				<ul className="mx-auto mt-10 grid max-w-2xl gap-3 sm:grid-cols-2">
+					{never.map((item) => (
+						<li key={item} className="flex items-center gap-2.5 text-base">
+							<BanIcon className="size-4 shrink-0 text-primary" />
+							{item}
+						</li>
+					))}
+				</ul>
+				<div className="mx-auto mt-10 max-w-2xl border-l-4 border-primary pl-6">
+					<p className="text-xl font-semibold leading-snug">{m.never_quote_a()}</p>
+					<p className="text-xl font-semibold leading-snug text-primary">{m.never_quote_b()}</p>
+				</div>
 			</section>
 
 			{/* ---------- FAQ ---------- */}
