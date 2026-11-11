@@ -129,7 +129,7 @@ describe("router integration", () => {
 		const router = getRouter();
 		await router.load();
 		render(createElement(RouterProvider, { router }));
-		await waitFor(() => expect(document.body.textContent).toContain("documented"));
+		await waitFor(() => expect(document.body.textContent).toContain("The doctor decides."));
 		// sign-in link present (anonymous)
 		expect(screen.getByText("Sign in")).toBeTruthy();
 		// nav links from plugin manifests
