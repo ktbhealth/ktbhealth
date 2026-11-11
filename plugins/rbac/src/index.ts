@@ -495,31 +495,36 @@ export const rbacPanelPlugin = definePlugin({
 				// PlatformAdmin gate; Forbidden collapses to the empty
 				// console like the other admin pages.
 				loader: () =>
-					Effect.gen(function* () {
-						const queries = yield* Query.dispatcher(RbacQueries);
-						const empty: AdminRbacPageData = {
-							roles: [],
-							details: [],
-							assignments: [],
-							catalog: [],
-						};
-						return yield* Effect.gen(function* () {
-							const [roles, assignments, catalog] = yield* Effect.all([
-								queries["rbac.roles"]({}),
-								queries["rbac.assignments"]({}),
-								queries["rbac.catalog"]({}),
-							]);
-							const details = yield* Effect.forEach(roles, (r) =>
-								queries["rbac.role"]({ id: r.id }),
-							);
-							return {
-								roles,
-								details: details.filter((d) => d !== null),
-								assignments,
-								catalog,
+					// `Query.dispatcher` requires `Scope` — `runAs` does not
+					// provide one, so the dispatch surface is built inside a
+					// scoped region like the server fns do.
+					Effect.scoped(
+						Effect.gen(function* () {
+							const queries = yield* Query.dispatcher(RbacQueries);
+							const empty: AdminRbacPageData = {
+								roles: [],
+								details: [],
+								assignments: [],
+								catalog: [],
 							};
-						}).pipe(Effect.catchTag("Forbidden", () => Effect.succeed(empty)));
-					}),
+							return yield* Effect.gen(function* () {
+								const [roles, assignments, catalog] = yield* Effect.all([
+									queries["rbac.roles"]({}),
+									queries["rbac.assignments"]({}),
+									queries["rbac.catalog"]({}),
+								]);
+								const details = yield* Effect.forEach(roles, (r) =>
+									queries["rbac.role"]({ id: r.id }),
+								);
+								return {
+									roles,
+									details: details.filter((d) => d !== null),
+									assignments,
+									catalog,
+								};
+							}).pipe(Effect.catchTag("Forbidden", () => Effect.succeed(empty)));
+						}),
+					),
 			},
 		],
 	},
