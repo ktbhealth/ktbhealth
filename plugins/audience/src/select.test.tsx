@@ -32,7 +32,7 @@ vi.mock("@ktbhealth/ui/components/select", () => ({
 			createElement(
 				"select",
 				{
-					"data-testid": "persona",
+					"data-testid": "audience",
 					value,
 					onChange: (e: { target: { value: string } }) => onValueChange(e.target.value),
 				},
@@ -51,7 +51,10 @@ vi.mock("@ktbhealth/ui/components/select", () => ({
 		createElement("li", { "data-value": value }, children),
 }));
 
-import { PersonaSelect } from "./persona-select.tsx";
+import { audienceMessages } from "./i18n.ts";
+import { AudienceSelect } from "./select.tsx";
+
+const t = audienceMessages("en");
 
 afterEach(() => {
 	cleanup();
@@ -59,12 +62,12 @@ afterEach(() => {
 	state.navigate.mockReset();
 });
 
-const select = () => screen.getByTestId("persona") as unknown as HTMLSelectElement;
+const select = () => screen.getByTestId("audience") as unknown as HTMLSelectElement;
 
-describe("PersonaSelect", () => {
-	it("shows the persona from the URL and lists every audience", () => {
-		state.search = { persona: "patients" };
-		render(createElement(PersonaSelect));
+describe("AudienceSelect", () => {
+	it("shows the audience from the URL and lists every audience", () => {
+		state.search = { audience: "patients" };
+		render(createElement(AudienceSelect, { t }));
 		expect(select().value).toBe("patients");
 		expect(screen.getByRole("button", { name: "View as" })).toBeTruthy();
 		expect(
@@ -77,18 +80,18 @@ describe("PersonaSelect", () => {
 		]);
 	});
 
-	it("falls back to doctors for an unknown persona", () => {
-		state.search = { persona: "admins" };
-		render(createElement(PersonaSelect));
+	it("falls back to doctors for an unknown audience", () => {
+		state.search = { audience: "admins" };
+		render(createElement(AudienceSelect, { t }));
 		expect(select().value).toBe("doctors");
 	});
 
-	it("writes the chosen persona to the URL, replacing the history entry", () => {
-		render(createElement(PersonaSelect));
+	it("writes the chosen audience to the URL, replacing the history entry", () => {
+		render(createElement(AudienceSelect, { t }));
 		fireEvent.change(select(), { target: { value: "business" } });
 		expect(state.navigate).toHaveBeenCalledWith({
 			to: "/",
-			search: { persona: "business" },
+			search: { audience: "business" },
 			replace: true,
 		});
 	});

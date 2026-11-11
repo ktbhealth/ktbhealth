@@ -26,7 +26,6 @@ import { getLocale, locales } from "#/paraglide/runtime.js";
 import { LanguageToggle } from "@ktbhealth/ui/components/language-toggle";
 import { changeLocale, localeName, pluginNavLabel } from "#/lib/i18n.ts";
 import { sessionFn } from "#/lib/fns.ts";
-import { PersonaSelect } from "#/lib/persona-select.tsx";
 import { plugins } from "#/plugins.ts";
 import appCss from "../styles.css?url";
 
@@ -145,9 +144,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										>
 											{m.nav_new_consultation()}
 										</Link>
-										<span className="mx-1.5 h-5 w-px bg-border" />
-										{/* Audience picker only makes sense on the landing page. */}
-										{pathname === "/" ? <PersonaSelect /> : null}
 										<LanguageToggle
 											locales={locales}
 											value={getLocale()}

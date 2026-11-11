@@ -116,12 +116,19 @@ export interface LandingNavPlugin extends PluginBase, ForbiddenContributions<"la
 	readonly landingNav: ReadonlyArray<LandingLink>;
 }
 
+/** Props the host injects into a contributed landing page — the active
+ * UI locale so the page resolves its own localized copy (plugins cannot
+ * import the host's i18n runtime). */
+export interface LandingPageProps {
+	readonly locale?: string;
+}
+
 /** Whole-page landing slot: the host renders the first landing plugin's
  * `page` at "/" in topo order instead of the built-in landing. At most
  * one landing plugin should exist — additional ones are ignored. */
 export interface LandingPlugin extends PluginBase, ForbiddenContributions<"landing"> {
 	readonly landing: {
-		readonly page: ComponentType;
+		readonly page: ComponentType<LandingPageProps>;
 	};
 }
 

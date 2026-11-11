@@ -17,6 +17,7 @@ export type {
 	LandingFooterPlugin,
 	LandingLink,
 	LandingNavPlugin,
+	LandingPageProps,
 	LandingPlugin,
 	MarkerPlugin,
 	PanelHeaderAction,

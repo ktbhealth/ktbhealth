@@ -29,6 +29,7 @@
 		"@inlang/paraglide-js": "2.29.3",
 		"@ktb/anamnesis": "workspace:*",
 		"@ktb/app-host": "workspace:*",
+		"@ktb/audience": "workspace:*",
 		"@ktb/auth": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/bot": "workspace:*",
