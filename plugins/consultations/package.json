@@ -29,7 +29,7 @@
 		"@ktb/transcription": "workspace:*",
 		"@ktb/transcription-webspeech": "workspace:*",
 		"@ktb/transcription-whisper": "workspace:*",
-		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
 		"@tanstack/react-router": "1.170.46",
 		"@tanstack/react-start": "1.169.5",
 		"@tanstack/virtual-file-routes": "1.162.0",

@@ -13,7 +13,7 @@
 		"@ktb/notifications": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
-		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
 		"effect": "4.1.2",
 		"lucide-react": "0.544.0"
 	},

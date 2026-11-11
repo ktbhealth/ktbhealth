@@ -7,7 +7,7 @@
 	},
 	"dependencies": {
 		"@ktb/kernel": "workspace:*",
-		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
 		"@tanstack/react-router": "1.170.46",
 		"lucide-react": "0.544.0"
 	},
