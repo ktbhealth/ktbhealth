@@ -6,3 +6,4 @@ export * from "@ktb/groups/schema";
 export * from "@ktb/notifications/schema";
 export * from "@ktb/auth/schema";
 export * from "@ktb/rbac/schema";
+export * from "@ktb/audit/schema";

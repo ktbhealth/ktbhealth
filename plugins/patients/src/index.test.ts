@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { user as userTable } from "@ktb/auth/schema";
@@ -42,6 +43,7 @@ CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NUL
 INSERT INTO "user" (id, name, email, email_verified, image, banned, created_at, updated_at) VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0, 0);
 INSERT INTO "user" (id, name, email, email_verified, image, banned, created_at, updated_at) VALUES ('u2', 'Dr B', 'b@x.com', 0, NULL, 0, 0, 0);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
+${AUDIT_TEST_DDL}
 `;
 
 describe("patients repo", () => {
@@ -120,7 +122,11 @@ describe("PatientsLive", () => {
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
 			makeEventBus(),
 		);
-		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provide(deps)));
+		// Provide the real audit service so adminCreate writes an
+		// admin_audit row (T-037); the "without a stored row" and tenant
+		// describes below intentionally omit it.
+		const allDeps = Layer.mergeAll(deps, AuditLive.pipe(Layer.provide(deps)));
+		runtime = ManagedRuntime.make(PatientsLive.pipe(Layer.provideMerge(allDeps)));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -320,6 +326,17 @@ describe("PatientsLive", () => {
 		);
 		expect(row?.ownerId).toBe("u2");
 		expect(row?.name).toBe("Admin Made");
+		// T-037: the audit row carries ids only — never patient fields.
+		const auditRows = await db.select().from(adminAudit);
+		const entry = auditRows.find(
+			(r) => r.action === "patients.create" && r.targetId === String(row!.id),
+		);
+		expect(entry).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "patient",
+		});
+		expect(entry?.detail).not.toContain("Admin Made");
 	});
 
 	it("adminCreate fails Forbidden for non-admin and null principal", async () => {

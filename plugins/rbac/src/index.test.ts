@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Command, Query } from "@effect-server-utils/cqrs";
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Principal } from "@ktb/authz";
 import { Db, makeDb, type DbClient } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
@@ -44,6 +45,7 @@ CREATE TABLE groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, s
 CREATE TABLE group_members (id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE, member_kind TEXT NOT NULL, member_id TEXT NOT NULL, role TEXT, created_at INTEGER NOT NULL);
 INSERT INTO groups (id, name, slug, kind, meta, created_at, updated_at) VALUES (7, 'Clinic', 'clinic', 'clinic', NULL, 1, 1);
 INSERT INTO group_members (group_id, member_kind, member_id, role, created_at) VALUES (7, 'user', 'u1', NULL, 1), (7, 'patient', 'p1', NULL, 1);
+${AUDIT_TEST_DDL}
 `;
 
 const ADMIN = { userId: "admin@x.com", email: "admin@x.com" };
@@ -284,11 +286,19 @@ describe("rbac services + CQRS", () => {
 		db = makeDb(makeD1(DDL));
 		await db.insert(rolesTable).values({ name: "auditor", description: null, meta: null });
 		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, adminGate));
+		// Provide the real audit service so admin commands write
+		// admin_audit rows (T-037); the empty-driver describes below
+		// intentionally omit it to cover the optional-absent path.
+		const envWithAudit = Layer.mergeAll(env, AuditLive.pipe(Layer.provide(env)));
 		// The plugin's services layer is type-erased (Layer.Any) — same
 		// treatment the composition root gives it.
 		const services = rbacServicesPlugin.services as Layer.Layer<unknown, unknown, unknown>;
 		runtime = ManagedRuntime.make(
-			services.pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+			services.pipe(Layer.provideMerge(envWithAudit)) as unknown as Layer.Layer<
+				unknown,
+				never,
+				never
+			>,
 		);
 	});
 
@@ -346,6 +356,66 @@ describe("rbac services + CQRS", () => {
 		expect(out.catalog.some((c) => c.key === "patient.read")).toBe(true);
 		// Writes bumped the epoch.
 		expect(await readEpoch(db)).toBeGreaterThan(0);
+	});
+
+	it("admin commands write audit rows for the full lifecycle", async () => {
+		const out = await asUser(
+			ADMIN,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const commands = yield* Command.dispatcher(RbacCommands);
+					const role = yield* commands["rbac.createRole"]({ name: "audited-role" });
+					yield* commands["rbac.updateRole"]({ id: role.id, description: "Audited" });
+					yield* commands["rbac.setRolePermission"]({
+						roleId: role.id,
+						resource: "patient",
+						action: "read",
+						effect: "allow",
+					});
+					const assignment = yield* commands["rbac.assignSubject"]({
+						subjectKind: "user",
+						subjectId: "u-audit",
+						roleId: role.id,
+						tenantId: "7",
+					});
+					yield* commands["rbac.revokeRolePermission"]({
+						roleId: role.id,
+						resource: "patient",
+						action: "read",
+					});
+					yield* commands["rbac.unassignSubject"]({ id: assignment.id });
+					yield* commands["rbac.deleteRole"]({ id: role.id });
+					return { roleId: role.id, assignmentId: assignment.id };
+				}),
+			),
+		);
+		const rows = await db.select().from(adminAudit);
+		const byAction = (action: string) => rows.filter((r) => r.action === action);
+		// Earlier tests in this describe also write audit rows — scope
+		// every count to this test's role/assignment.
+		const forRole = (action: string) =>
+			byAction(action).filter((r) => r.targetId === String(out.roleId));
+		expect(forRole("rbac.role.create")).toHaveLength(1);
+		expect(forRole("rbac.role.update")).toHaveLength(1);
+		expect(forRole("rbac.permission.set")).toHaveLength(1);
+		expect(forRole("rbac.permission.revoke")).toHaveLength(1);
+		expect(forRole("rbac.role.delete")).toHaveLength(1);
+		expect(byAction("rbac.subject.assign").map((r) => r.targetId)).toContain(
+			String(out.assignmentId),
+		);
+		expect(byAction("rbac.subject.unassign").map((r) => r.targetId)).toContain(
+			String(out.assignmentId),
+		);
+		const created = forRole("rbac.role.create")[0]!;
+		expect(created).toMatchObject({
+			actorUserId: "admin@x.com",
+			actorEmail: "admin@x.com",
+			targetType: "role",
+		});
+		const assigned = byAction("rbac.subject.assign").find(
+			(r) => r.targetId === String(out.assignmentId),
+		)!;
+		expect(assigned.tenantId).toBe(7);
 	});
 
 	it("denies commands for unknown roles and non-admins", async () => {

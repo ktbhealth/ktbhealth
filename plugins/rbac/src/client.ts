@@ -38,6 +38,8 @@ export const plugins: readonly Plugin[] = [
 	definePlugin({
 		id: "rbac.services",
 		requiredDeps: ["platform.admin"],
+		// Mirrors rbacServicesPlugin.optionalDeps (server index.ts).
+		optionalDeps: ["audit.services"],
 	}),
 	rbacPanelPlugin,
 ];

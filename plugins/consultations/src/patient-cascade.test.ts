@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Forbidden, Principal } from "@ktb/authz";
@@ -34,6 +35,7 @@ INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
 INSERT INTO "user" VALUES ('u2', 'Dr B', 'b@x.com', 0, NULL, 0, 0);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
+${AUDIT_TEST_DDL}
 `;
 
 const fields = (name: string) => {
@@ -47,7 +49,7 @@ describe("patients.* CQRS surface", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<unknown, never>;
 
 	const run = <A, E, R>(
-		principal: { userId: string } | null,
+		principal: { userId: string; email?: string } | null,
 		effect: Effect.Effect<A, E, R>,
 		tenant?: TenantScope | null,
 	) => {
@@ -73,9 +75,14 @@ describe("patients.* CQRS surface", () => {
 			tenant,
 		);
 
-	const deleteCascade = (patientId: number, userId: string | null, tenant?: TenantScope) =>
+	const deleteCascade = (
+		patientId: number,
+		userId: string | null,
+		tenant?: TenantScope,
+		email?: string,
+	) =>
 		run(
-			userId === null ? null : { userId },
+			userId === null ? null : { userId, email },
 			Effect.gen(function* () {
 				const commands = yield* Command.dispatcher(PatientCascadeCommands);
 				return yield* commands["patients.deleteCascade"]({ patientId });
@@ -107,9 +114,12 @@ describe("patients.* CQRS surface", () => {
 		const patientsHandlers = Layer.mergeAll(PatientsQueriesLive, PatientsCommandsLive).pipe(
 			Layer.provide(infra),
 		);
-		const live = Layer.mergeAll(PatientRecordConsultationsLive, PatientDeleteCascadeLive).pipe(
-			Layer.provide(Layer.mergeAll(infra, patientsHandlers)),
-		);
+		const live = Layer.mergeAll(
+			PatientRecordConsultationsLive,
+			PatientDeleteCascadeLive,
+			// T-037: the admin patient-delete path writes admin_audit.
+			AuditLive.pipe(Layer.provide(infra)),
+		).pipe(Layer.provide(Layer.mergeAll(infra, patientsHandlers)));
 		runtime = ManagedRuntime.make(live as Layer.Layer<unknown, never, never>);
 	});
 
@@ -191,6 +201,33 @@ describe("patients.* CQRS surface", () => {
 			const patient = (await createPatient(db, "u1", fields("Cascade Ownerless")))!;
 			await linkedConsultation(patient.id, null);
 			await expect(deleteCascade(patient.id, "u1")).rejects.toBeInstanceOf(Forbidden);
+		});
+
+		it("records a patients.delete audit row for platform-admin deletes only", async () => {
+			const patient = (await createPatient(db, "u1", fields("Cascade Admin")))!;
+			await linkedConsultation(patient.id, "u1");
+
+			// Owner path — not an admin action, no audit row.
+			await deleteCascade(patient.id, "u1");
+			let rows = await db.select().from(adminAudit);
+			expect(rows.filter((r) => r.action === "patients.delete")).toHaveLength(0);
+
+			// Admin path — cross-owner delete is audited with ids/counts.
+			const adminPatient = (await createPatient(db, "u1", fields("Cascade Admin 2")))!;
+			await linkedConsultation(adminPatient.id, "u1");
+			await linkedConsultation(adminPatient.id, "u2");
+			await deleteCascade(adminPatient.id, "admin@x.com", undefined, "admin@x.com");
+			rows = await db.select().from(adminAudit);
+			const entry = rows.find(
+				(r) => r.action === "patients.delete" && r.targetId === String(adminPatient.id),
+			);
+			expect(entry).toMatchObject({
+				actorUserId: "admin@x.com",
+				actorEmail: "admin@x.com",
+				targetType: "patient",
+			});
+			expect(entry?.detail).toContain('"ownerId":"u1"');
+			expect(entry?.detail).toContain('"consultations":2');
 		});
 	});
 

@@ -8,6 +8,7 @@ import { and, count, desc, eq, inArray, isNotNull, ne, or, type SQL } from "driz
 import { physical } from "@tanstack/virtual-file-routes";
 
 import { user as users } from "@ktb/auth/schema";
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import {
@@ -952,6 +953,14 @@ export const ConsultationsLive = Layer.effect(
 						tenantId,
 					}),
 				]);
+				// T-037: covers the /platform/ops audio-job retry, which
+				// re-enqueues then lands here.
+				yield* audit({
+					action: "consultations.audio.requeue",
+					targetType: "consultation",
+					targetId: id,
+					tenantId,
+				});
 				return true;
 			}),
 			adminCreate: Effect.fn("Consultations.adminCreate")(function* (fields: {
@@ -989,6 +998,19 @@ export const ConsultationsLive = Layer.effect(
 							tenantId,
 						}),
 					]);
+					// T-037: admin-created consultation — ids/source only,
+					// never the transcript (PHI stays out of the audit log).
+					yield* audit({
+						action: "consultations.create",
+						targetType: "consultation",
+						targetId: id,
+						tenantId,
+						detail: {
+							userId: fields.userId,
+							patientId: fields.patientId ?? null,
+							source: fields.source,
+						},
+					});
 				}
 				return id;
 			}),
@@ -996,10 +1018,20 @@ export const ConsultationsLive = Layer.effect(
 				yield* platformAdmin.requireAdmin();
 				yield* Effect.annotateCurrentSpan({ consultationId: id, adminDelete: true });
 				yield* Effect.logInfo("consultation admin delete", { consultationId: id });
+				// Read the tenant scope before the row is gone — the audit
+				// entry keeps it (same rule as adminRequeueAudio).
+				const tenantId = yield* Effect.promise(() => consultationTenantId(db, id));
 				const audioKey = yield* Effect.promise(() => deleteConsultationRow(db, id));
 				// Missing row → nothing was deleted; report null so the
 				// caller can answer "not found" like the owner paths do.
 				if (audioKey === undefined) return null;
+				yield* audit({
+					action: "consultations.delete",
+					targetType: "consultation",
+					targetId: id,
+					tenantId,
+					detail: { hadAudio: audioKey !== null },
+				});
 				return { audioKey };
 			}),
 			get: Effect.fn("Consultations.get")(function* (id: number, userId: string) {
@@ -1227,6 +1259,17 @@ export const PatientDeleteCascadeLive = Command.handlersOf(PatientCascadeCommand
 			const scope = admin ? undefined : yield* consultationScope(principal.userId);
 			yield* Effect.promise(() => deletePatientConsultations(db, patientId, scope));
 			yield* patientCommands["patients.delete"]({ id: patientId });
+			if (admin) {
+				// T-037: platform-admin patient delete (the owner path
+				// stays unaudited — this log is for admin actions).
+				yield* audit({
+					action: "patients.delete",
+					targetType: "patient",
+					targetId: patientId,
+					tenantId: owner.tenantId,
+					detail: { ownerId: owner.ownerId, consultations: rows.length },
+				});
+			}
 			return {
 				consultations: rows.length,
 				audioKeys: rows.flatMap((r) => (r.audioKey ? [r.audioKey] : [])),
@@ -1237,6 +1280,9 @@ export const PatientDeleteCascadeLive = Command.handlersOf(PatientCascadeCommand
 export const consultationsServicesPlugin = definePlugin({
 	id: "consultations.services",
 	requiredDeps: [patientsServicesPlugin.id, platformAdminPlugin.id],
+	// Audit writes resolve the Audit service via serviceOption — the dep
+	// edge is an ordering hint only; absence is legal.
+	optionalDeps: [auditServicesPlugin.id],
 	services: Layer.mergeAll(
 		ConsultationsLive,
 		ConsultationsQueriesLive,

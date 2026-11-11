@@ -35,6 +35,10 @@ export const plugins: readonly Plugin[] = [
 	definePlugin({
 		id: "users.services",
 		requiredDeps: ["platform.admin"],
+		// Mirrors usersServicesPlugin.optionalDeps (server index.ts) —
+		// literal id: importing @ktb/audit would pull the server graph
+		// into the client bundle.
+		optionalDeps: ["audit.services"],
 	}),
 	usersPanelPlugin,
 ];

@@ -210,6 +210,7 @@
     "packages/db": {
       "name": "@ktb/db",
       "dependencies": {
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/consultations": "workspace:*",
         "@ktb/groups": "workspace:*",
@@ -360,11 +361,38 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/audit": {
+      "name": "@ktb/audit",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/groups": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/tenant": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/consultations": {
       "name": "@ktb/consultations",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
         "@ktb/anamnesis": "workspace:*",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -427,6 +455,7 @@
       "name": "@ktb/groups",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -517,6 +546,7 @@
       "name": "@ktb/patients",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -585,6 +615,7 @@
       "name": "@ktb/rbac-plugin",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -640,6 +671,7 @@
       "name": "@ktb/users",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/consultations": "workspace:*",
@@ -1024,6 +1056,8 @@
     "@ktb/app-host": ["@ktb/app-host@workspace:packages/app-host"],
 
     "@ktb/audience": ["@ktb/audience@workspace:plugins/audience"],
+
+    "@ktb/audit": ["@ktb/audit@workspace:plugins/audit"],
 
     "@ktb/auth": ["@ktb/auth@workspace:packages/auth"],
 

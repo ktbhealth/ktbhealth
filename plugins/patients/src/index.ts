@@ -6,6 +6,7 @@ import { physical } from "@tanstack/virtual-file-routes";
 import { UsersIcon } from "lucide-react";
 
 import { user as users } from "@ktb/auth/schema";
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
@@ -308,6 +309,15 @@ export const PatientsLive = Layer.effect(
 							tenantId: tenantScopeId(tenant),
 						}),
 					]);
+					// T-037: admin-created patient — ids only, never the
+					// record fields (PHI stays out of the audit log).
+					yield* audit({
+						action: "patients.create",
+						targetType: "patient",
+						targetId: row.id,
+						tenantId: tenantScopeId(tenant),
+						detail: { ownerId },
+					});
 				}
 				return row;
 			}),
@@ -361,6 +371,9 @@ export const patientsServicesPlugin = definePlugin({
 	// adminList consumes the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
+	// Audit writes resolve the Audit service via serviceOption — the dep
+	// edge is an ordering hint only; absence is legal.
+	optionalDeps: [auditServicesPlugin.id],
 	services: Layer.mergeAll(PatientsLive, PatientsQueriesLive, PatientsCommandsLive),
 });
 

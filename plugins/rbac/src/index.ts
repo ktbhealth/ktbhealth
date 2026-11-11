@@ -4,6 +4,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { ShieldCheckIcon } from "lucide-react";
 
 import { Forbidden, Principal } from "@ktb/authz";
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
@@ -248,6 +249,13 @@ export async function unassignSubject(db: DbClient, id: number): Promise<void> {
 	await db.delete(subjectRoles).where(eq(subjectRoles.id, id));
 }
 
+/** Single assignment lookup by row id — the audit path reads the row
+ * before `unassignSubject` deletes it. */
+export async function getSubjectRole(db: DbClient, id: number): Promise<SubjectRole | null> {
+	const rows = await db.select().from(subjectRoles).where(eq(subjectRoles.id, id));
+	return rows[0] ?? null;
+}
+
 /**
  * Group ids a user belongs to, read straight off the groups plugin's
  * `group_members` table over raw SQL — plugins never import each
@@ -374,6 +382,12 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 			if (row === null) {
 				return yield* Effect.fail(new Forbidden({ path: "rbac.createRole" }));
 			}
+			yield* audit({
+				action: "rbac.role.create",
+				targetType: "role",
+				targetId: row.id,
+				detail: { name: row.name },
+			});
 			return toRoleRow(row);
 		}),
 	"rbac.updateRole": ({ id, name, description, meta }) =>
@@ -383,6 +397,16 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 			const row = yield* withEpoch(
 				Effect.promise(() => updateRole(db, { id, name, description, meta })),
 			);
+			if (row !== null) {
+				// Only the provided fields land in detail — JSON.stringify
+				// drops the undefined keys.
+				yield* audit({
+					action: "rbac.role.update",
+					targetType: "role",
+					targetId: id,
+					detail: { name, description, meta },
+				});
+			}
 			return row === null ? null : toRoleRow(row);
 		}),
 	"rbac.deleteRole": ({ id }) =>
@@ -390,6 +414,7 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 			yield* requireAdmin;
 			const db = yield* Db;
 			yield* withEpoch(Effect.promise(() => deleteRole(db, id)));
+			yield* audit({ action: "rbac.role.delete", targetType: "role", targetId: id });
 		}),
 	"rbac.setRolePermission": ({ roleId, resource, action, effect }) =>
 		Effect.gen(function* () {
@@ -403,6 +428,12 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 			yield* withEpoch(
 				Effect.promise(() => setRolePermission(db, { roleId, resource, action, effect })),
 			);
+			yield* audit({
+				action: "rbac.permission.set",
+				targetType: "role",
+				targetId: roleId,
+				detail: { resource, action, effect },
+			});
 		}),
 	"rbac.revokeRolePermission": ({ roleId, resource, action }) =>
 		Effect.gen(function* () {
@@ -411,6 +442,12 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 			yield* withEpoch(
 				Effect.promise(() => revokeRolePermission(db, { roleId, resource, action })),
 			);
+			yield* audit({
+				action: "rbac.permission.revoke",
+				targetType: "role",
+				targetId: roleId,
+				detail: { resource, action },
+			});
 		}),
 	"rbac.assignSubject": ({ subjectKind, subjectId, roleId, tenantId, expiresAt }) =>
 		Effect.gen(function* () {
@@ -436,6 +473,18 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 			if (row === null) {
 				return yield* Effect.fail(new Forbidden({ path: "rbac.assignSubject" }));
 			}
+			yield* audit({
+				action: "rbac.subject.assign",
+				targetType: "subject_role",
+				targetId: row.id,
+				tenantId: row.tenantId,
+				detail: {
+					subjectKind: row.subjectKind,
+					subjectId: row.subjectId,
+					roleId: row.roleId,
+					roleName: row.roleName,
+				},
+			});
 			return {
 				id: row.id,
 				subjectKind: row.subjectKind as SubjectKind,
@@ -451,7 +500,23 @@ export const RbacCommandsLive = Command.handlersOf(RbacCommands, {
 		Effect.gen(function* () {
 			yield* requireAdmin;
 			const db = yield* Db;
+			// Read before delete — the audit detail names what was revoked.
+			const before = yield* Effect.promise(() => getSubjectRole(db, id));
 			yield* withEpoch(Effect.promise(() => unassignSubject(db, id)));
+			yield* audit({
+				action: "rbac.subject.unassign",
+				targetType: "subject_role",
+				targetId: id,
+				tenantId: before?.tenantId ?? null,
+				detail:
+					before === null
+						? null
+						: {
+								subjectKind: before.subjectKind,
+								subjectId: before.subjectId,
+								roleId: before.roleId,
+							},
+			});
 		}),
 });
 
@@ -460,6 +525,9 @@ export const rbacServicesPlugin = definePlugin({
 	// Admin ops consume the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
+	// Audit writes resolve the Audit service via serviceOption — the dep
+	// edge is an ordering hint only; absence is legal.
+	optionalDeps: [auditServicesPlugin.id],
 	services: Layer.mergeAll(
 		RbacPermissionsLive,
 		GroupMembershipLive,

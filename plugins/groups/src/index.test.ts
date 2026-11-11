@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Query } from "@effect-server-utils/cqrs";
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb, type DbClient } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Forbidden, Principal } from "@ktb/authz";
@@ -45,6 +46,7 @@ INSERT INTO group_members (group_id, member_kind, member_id, role, created_at) V
   (1, 'user', 'u1', 'admin', 1000),
   (1, 'user', 'u2', NULL, 1000),
   (2, 'patient', 'p1', 'member', 1000);
+${AUDIT_TEST_DDL}
 `;
 
 describe("groups repo", () => {
@@ -197,14 +199,19 @@ describe("groups repo — empty driver results", () => {
 
 describe("GroupsLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Groups, never>;
+	let db: ReturnType<typeof makeDb>;
 
 	beforeAll(() => {
-		const db = makeDb(makeD1(DDL));
+		db = makeDb(makeD1(DDL));
 		const deps = Layer.merge(
 			Layer.succeed(Db, db),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
 		);
-		runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+		// Provide the real audit service so admin mutations write
+		// admin_audit rows (T-037); the "PermissionInvalidator" describe
+		// below intentionally omits it to cover the optional-absent path.
+		const allDeps = Layer.merge(deps, AuditLive.pipe(Layer.provide(deps)));
+		runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provideMerge(allDeps)));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -394,6 +401,54 @@ describe("GroupsLive", () => {
 				"doc@x.com",
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+	});
+
+	it("admin mutations write audit rows", async () => {
+		const group = await asUser(
+			"u1",
+			call((p) => p.create({ name: "Audited", slug: "audited", kind: "custom" })),
+			"admin@x.com",
+		);
+		const gid = group!.id;
+		await asUser(
+			"u1",
+			call((p) => p.addMember({ groupId: gid, memberKind: "user", memberId: "u8", role: "mod" })),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) =>
+				p.updateMemberRole({ groupId: gid, memberKind: "user", memberId: "u8", role: "lead" }),
+			),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) => p.removeMember({ groupId: gid, memberKind: "user", memberId: "u8" })),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) => p.delete(gid)),
+			"admin@x.com",
+		);
+		const rows = await db.select().from(adminAudit);
+		// Other tests in this describe also mutate groups — scope every
+		// assertion to the group this test created.
+		const mine = rows.filter((r) => r.targetId === String(gid));
+		const byAction = (action: string) => mine.filter((r) => r.action === action);
+		expect(byAction("groups.create")).toHaveLength(1);
+		expect(byAction("groups.member.add")).toHaveLength(1);
+		expect(byAction("groups.member.setRole")).toHaveLength(1);
+		expect(byAction("groups.member.remove")).toHaveLength(1);
+		expect(byAction("groups.delete")).toHaveLength(1);
+		const created = byAction("groups.create")[0]!;
+		expect(created).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "group",
+			tenantId: gid,
+		});
 	});
 
 	it("requireMember fails Forbidden when the bound user has no membership row", async () => {

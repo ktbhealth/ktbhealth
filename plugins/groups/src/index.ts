@@ -5,6 +5,7 @@ import * as Option from "effect/Option";
 import { and, count, desc, eq } from "drizzle-orm";
 import { BoxesIcon } from "lucide-react";
 
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
 import { PermissionInvalidator } from "@ktb/rbac";
@@ -233,7 +234,19 @@ export const GroupsLive = Layer.effect(
 		return Groups.of({
 			create: Effect.fn("Groups.create")(function* (input: CreateGroupInput) {
 				yield* platformAdmin.requireAdmin();
-				return yield* Effect.promise(() => createGroup(db, input));
+				const row = yield* Effect.promise(() => createGroup(db, input));
+				if (row !== null) {
+					// T-037: groups double as tenants — the new row's id is
+					// both target and tenant scope.
+					yield* audit({
+						action: "groups.create",
+						targetType: "group",
+						targetId: row.id,
+						tenantId: row.id,
+						detail: { slug: row.slug, kind: row.kind },
+					});
+				}
+				return row;
 			}),
 			list: Effect.fn("Groups.list")(function* () {
 				yield* platformAdmin.requireAdmin();
@@ -252,6 +265,14 @@ export const GroupsLive = Layer.effect(
 				// Cascaded memberships feed RBAC group-derived grants — bump
 				// the permission epoch like the member mutations do.
 				if (deleted && invalidatePermissions !== undefined) yield* invalidatePermissions();
+				if (deleted) {
+					yield* audit({
+						action: "groups.delete",
+						targetType: "group",
+						targetId: id,
+						tenantId: id,
+					});
+				}
 				return deleted;
 			}),
 			addMember: Effect.fn("Groups.addMember")(function* (input: AddGroupMemberInput) {
@@ -260,12 +281,40 @@ export const GroupsLive = Layer.effect(
 				// Membership feeds RBAC group-derived grants (P-054) — bump
 				// the permission epoch so cached grant sets re-resolve.
 				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				if (member !== null) {
+					// Tenant member adds flow through here (Tenants facade)
+					// — memberKind distinguishes user vs patient members.
+					yield* audit({
+						action: "groups.member.add",
+						targetType: "group",
+						targetId: input.groupId,
+						tenantId: input.groupId,
+						detail: {
+							memberKind: input.memberKind,
+							memberId: input.memberId,
+							role: input.role ?? null,
+						},
+					});
+				}
 				return member;
 			}),
 			removeMember: Effect.fn("Groups.removeMember")(function* (input: RemoveGroupMemberInput) {
 				yield* platformAdmin.requireAdmin();
 				const member = yield* Effect.promise(() => removeMember(db, input));
 				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				if (member !== null) {
+					yield* audit({
+						action: "groups.member.remove",
+						targetType: "group",
+						targetId: input.groupId,
+						tenantId: input.groupId,
+						detail: {
+							memberKind: input.memberKind,
+							memberId: input.memberId,
+							role: member.role,
+						},
+					});
+				}
 				return member;
 			}),
 			updateMemberRole: Effect.fn("Groups.updateMemberRole")(function* (
@@ -277,6 +326,19 @@ export const GroupsLive = Layer.effect(
 				// bump as add/remove (P-054).
 				if (member !== null && invalidatePermissions !== undefined) {
 					yield* invalidatePermissions();
+				}
+				if (member !== null) {
+					yield* audit({
+						action: "groups.member.setRole",
+						targetType: "group",
+						targetId: input.groupId,
+						tenantId: input.groupId,
+						detail: {
+							memberKind: input.memberKind,
+							memberId: input.memberId,
+							role: input.role,
+						},
+					});
 				}
 				return member;
 			}),
@@ -340,7 +402,7 @@ export const groupsServicesPlugin = definePlugin({
 	requiredDeps: [platformAdminPlugin.id],
 	// Membership writes invalidate RBAC grants when the rbac plugin is
 	// deployed — ordering hint only; absence is legal (serviceOption).
-	optionalDeps: [rbacServicesPlugin.id],
+	optionalDeps: [rbacServicesPlugin.id, auditServicesPlugin.id],
 	services: Layer.mergeAll(GroupsLive, GroupsQueriesLive),
 });
 

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Query } from "@effect-server-utils/cqrs";
 
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Auth } from "@ktb/auth";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
@@ -35,6 +36,7 @@ CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT N
 INSERT INTO patients (owner_id, name, created_at) VALUES ('u2', 'Ana', 0), ('u2', 'Bia', 0);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, status TEXT);
 INSERT INTO consultations (user_id, status) VALUES ('u2', 'done'), ('u1', 'live');
+${AUDIT_TEST_DDL}
 `;
 
 describe("users repo", () => {
@@ -75,16 +77,20 @@ CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT N
 
 describe("UsersLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Users, never>;
+	let db: ReturnType<typeof makeDb>;
 	const setUserBanned = vi.fn(async (_userId: string, _banned: boolean) => {});
 
 	beforeAll(() => {
-		const db = makeDb(makeD1(DDL));
+		db = makeDb(makeD1(DDL));
 		const deps = Layer.mergeAll(
 			Layer.succeed(Db, db),
 			Layer.succeed(Auth, { getSession: async () => null, setUserBanned }),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
 		);
-		runtime = ManagedRuntime.make(UsersLive.pipe(Layer.provide(deps)));
+		// The audit plugin is optional — provide the real AuditLive over
+		// the same db so mutations write admin_audit rows (T-037).
+		const allDeps = Layer.mergeAll(deps, AuditLive.pipe(Layer.provide(deps)));
+		runtime = ManagedRuntime.make(UsersLive.pipe(Layer.provideMerge(allDeps)));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -142,6 +148,33 @@ describe("UsersLive", () => {
 		);
 		expect(setUserBanned).toHaveBeenCalledWith("u2", false);
 		expect(setUserBanned).toHaveBeenCalledTimes(2);
+	});
+
+	it("adminSetSuspended writes suspend/reactivate audit rows", async () => {
+		setUserBanned.mockClear();
+		await asUser(
+			"u1",
+			call((p) => p.adminSetSuspended("u3", true)),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) => p.adminSetSuspended("u3", false)),
+			"admin@x.com",
+		);
+		const rows = await db.select().from(adminAudit);
+		// The delegate test above also audits u2 — scope to u3.
+		const mine = rows.filter((r) => r.targetId === "u3");
+		const suspend = mine.find((r) => r.action === "users.suspend")!;
+		const reactivate = mine.find((r) => r.action === "users.reactivate")!;
+		for (const row of [suspend, reactivate]) {
+			expect(row).toMatchObject({
+				actorUserId: "u1",
+				actorEmail: "admin@x.com",
+				targetType: "user",
+				targetId: "u3",
+			});
+		}
 	});
 
 	it("adminSetSuspended fails Forbidden for non-admin email and null principal", async () => {

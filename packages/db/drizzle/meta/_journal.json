@@ -57,6 +57,13 @@
       "when": 1794421512588,
       "tag": "0007_bizarre_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794425226253,
+      "tag": "0008_material_rafael_vega",
+      "breakpoints": true
     }
   ]
 }

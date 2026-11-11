@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb } from "@ktb/db";
 import { user as userTable } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
@@ -58,6 +59,7 @@ CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NUL
 INSERT INTO "user" (id, name, email, email_verified, image, banned, created_at, updated_at) VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0, 0);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
+${AUDIT_TEST_DDL}
 `;
 
 // ConsultationsLive requires PlatformAdmin (adminList) — every runtime
@@ -73,6 +75,10 @@ const liveDeps = (
 	);
 	return Layer.mergeAll(
 		infra,
+		// Provide the real audit service so admin mutations write
+		// admin_audit rows (T-037); fake-db tests degrade to a no-op
+		// insert and the absent-service path stays covered elsewhere.
+		AuditLive.pipe(Layer.provide(infra)),
 		// ConsultationsLive dispatches `patients.ownerOf` / `patients.delete`
 		// — register the real handlers against the test db (same impls the
 		// patients plugin ships).
@@ -195,7 +201,7 @@ describe("ConsultationsLive", () => {
 
 	beforeAll(() => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -391,6 +397,17 @@ describe("ConsultationsLive", () => {
 			.from(consultationsTable)
 			.where(eq(consultationsTable.id, id!));
 		expect(rows[0]).toMatchObject({ userId: "u2", transcript: "admin note", source: "manual" });
+		// T-037: the audit row carries ids/source only — never the transcript.
+		const auditRows = await testDb.select().from(adminAudit);
+		const entry = auditRows.find(
+			(r) => r.action === "consultations.create" && r.targetId === String(id),
+		);
+		expect(entry).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "consultation",
+		});
+		expect(entry?.detail).not.toContain("admin note");
 	});
 
 	it("adminCreate links an existing patient and rejects unknown ones", async () => {
@@ -455,13 +472,25 @@ describe("ConsultationsLive", () => {
 			.from(consultationsTable)
 			.where(eq(consultationsTable.id, id!));
 		expect(rows).toEqual([]);
+		// T-037: delete is audited with hadAudio only — never the audio key.
+		const auditRows = await testDb.select().from(adminAudit);
+		const entry = auditRows.find(
+			(r) => r.action === "consultations.delete" && r.targetId === String(id),
+		);
+		expect(entry).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "consultation",
+		});
+		expect(entry?.detail).toContain('"hadAudio":true');
+		expect(entry?.detail).not.toContain("audios/x.webm");
 	});
 
 	it("adminCreate returns null when the insert yields no row", async () => {
 		const stub = {
 			insert: () => ({ values: () => ({ returning: async () => [] }) }),
 		} as unknown as ReturnType<typeof makeDb>;
-		const runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(stub))));
+		const runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(stub))));
 		try {
 			const id = await runtime.runPromise(
 				Effect.provideService(
@@ -626,7 +655,7 @@ describe("audio pipeline", () => {
 
 	beforeAll(() => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -800,7 +829,7 @@ describe("audio pipeline", () => {
 		const busRuntime = ManagedRuntime.make(makeEventBus());
 		const bus = await busRuntime.runPromise(EventBus);
 		const rt = ManagedRuntime.make(
-			ConsultationsLive.pipe(Layer.provide(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
+			ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
 		);
 		const seen: { consultationId: number; audioStatus: string; tenantId?: number | null }[] = [];
 		await Effect.runPromise(
@@ -831,6 +860,16 @@ describe("audio pipeline", () => {
 			});
 			expect(full?.audioError).toBeNull();
 			expect(seen).toContainEqual({ consultationId: id, audioStatus: "queued", tenantId: null });
+			// T-037: the requeue is audited (this is the /platform/ops retry).
+			const auditRows = await testDb.select().from(adminAudit);
+			const entry = auditRows.find(
+				(r) => r.action === "consultations.audio.requeue" && r.targetId === String(id),
+			);
+			expect(entry).toMatchObject({
+				actorUserId: "u1",
+				actorEmail: "admin@x.com",
+				targetType: "consultation",
+			});
 			// Second call: status already "queued" — not retryable → false.
 			const again = await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)));
 			expect(again).toBe(false);
@@ -895,7 +934,7 @@ describe("Consultations.history", () => {
 
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 		const [p] = await testDb
 			.insert(patientsTable)
 			.values({ ownerId: "u1", name: "Maria", createdAt: new Date() })
@@ -1052,7 +1091,7 @@ describe("patientId ownership on save/attach", () => {
 
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 		await testDb.insert(userTable).values({
 			id: "u2",
 			name: "Dr B",
@@ -1172,7 +1211,7 @@ describe("consultations.audioJobs query", () => {
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
 		runtime = ManagedRuntime.make(
-			ConsultationsQueriesLive.pipe(Layer.provide(liveDeps(testDb))),
+			ConsultationsQueriesLive.pipe(Layer.provideMerge(liveDeps(testDb))),
 		) as ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
 		const [p] = await testDb
 			.insert(patientsTable)
@@ -1344,7 +1383,7 @@ describe("ConsultationsLive tenant scope (P-053)", () => {
 		busRuntime = ManagedRuntime.make(makeEventBus());
 		bus = await busRuntime.runPromise(EventBus);
 		runtime = ManagedRuntime.make(
-			ConsultationsLive.pipe(Layer.provide(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
+			ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
 		);
 	});
 

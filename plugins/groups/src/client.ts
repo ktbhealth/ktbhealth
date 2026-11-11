@@ -41,7 +41,7 @@ export const plugins: readonly Plugin[] = [
 		// Mirrors groupsServicesPlugin.optionalDeps (server index.ts) —
 		// literal id: importing @ktb/rbac-plugin would pull the server
 		// graph into the client bundle.
-		optionalDeps: ["rbac.services"],
+		optionalDeps: ["rbac.services", "audit.services"],
 	}),
 	groupsPanelPlugin,
 ];
