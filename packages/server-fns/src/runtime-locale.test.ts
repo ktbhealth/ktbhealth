@@ -10,6 +10,7 @@ describe("getLocale", () => {
 			run: () => Promise.reject(new Error("unused")),
 			runAs: () => Promise.reject(new Error("unused")),
 			getLocale: () => "pt-BR",
+			audioTranscribeModel: "test-model",
 		});
 		expect(getLocale()).toBe("pt-BR");
 	});

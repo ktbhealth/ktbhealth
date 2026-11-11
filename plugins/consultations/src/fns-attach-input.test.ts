@@ -41,6 +41,7 @@ beforeAll(() => {
 		run: (effect) => runtime.runPromise(effect as never),
 		runAs: (_user, effect) => runtime.runPromise(effect as never),
 		getLocale: () => "en",
+		audioTranscribeModel: "test-model",
 	});
 });
 afterAll(async () => {

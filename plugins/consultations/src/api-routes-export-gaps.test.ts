@@ -49,6 +49,7 @@ beforeAll(() => {
 				) as Effect.Effect<never, never, never>,
 			),
 		getLocale: () => "en",
+		audioTranscribeModel: "test-model",
 	});
 });
 afterAll(async () => {

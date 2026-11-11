@@ -47,5 +47,8 @@ describe("recallDriver", () => {
 
 	it("provides a recall-backed Bot layer", () => {
 		expect(recallDriver.provides({ RECALL_API_KEY: "k" })).toBeDefined();
+		// `when` gates eligibility, but `provides` still tolerates a missing
+		// key (empty-string fallback) if invoked directly.
+		expect(recallDriver.provides({})).toBeDefined();
 	});
 });

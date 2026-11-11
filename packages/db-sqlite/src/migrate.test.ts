@@ -56,6 +56,14 @@ describe("listMigrations", () => {
 		const dir = makeMigrationsDir({ "0001_b.sql": "", "0000_a.sql": "" }, true);
 		expect(listMigrations(dir)).toEqual(["0001_b.sql", "0000_a.sql"]);
 	});
+
+	it("treats a journal without entries as empty", () => {
+		const dir = join(tmpDir(), "migrations");
+		mkdirSync(join(dir, "meta"), { recursive: true });
+		writeFileSync(join(dir, "meta", "_journal.json"), JSON.stringify({ version: "7" }));
+		writeFileSync(join(dir, "0000_a.sql"), "");
+		expect(listMigrations(dir)).toEqual([]);
+	});
 });
 
 describe("migrateSqliteFile / makeSqliteDatabase migrate option", () => {
@@ -123,6 +131,22 @@ describe("runMigrations (provider-neutral)", () => {
 			expect(await runMigrations(db, migrations)).toEqual([]);
 			const row = await db.prepare("SELECT name FROM sqlite_master WHERE name = 'u'").first();
 			expect(row).not.toBeNull();
+		} finally {
+			db.close();
+		}
+	});
+
+	it("migrateSqliteFile accepts :memory: (no mkdir needed)", () => {
+		const migrations = makeMigrationsDir({ "0000_init.sql": "CREATE TABLE t (id INTEGER)" });
+		expect(migrateSqliteFile(":memory:", migrations)).toEqual(["0000_init.sql"]);
+	});
+
+	it("refuses a database with tables but no migration records", async () => {
+		const migrations = makeMigrationsDir({ "0000_init.sql": "CREATE TABLE t (id INTEGER)" });
+		const db = makeSqliteDatabase(":memory:");
+		try {
+			await db.exec("CREATE TABLE manual (id INTEGER)");
+			await expect(runMigrations(db, migrations)).rejects.toThrow(/no __ktb_migrations records/);
 		} finally {
 			db.close();
 		}
