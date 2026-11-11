@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -82,6 +83,46 @@ describe("node-cloudflare-workers env", () => {
 		});
 	});
 
+	it("loads apps/web/.dev.vars at boot and logs key names only", async () => {
+		// The module merges ../../.dev.vars (relative to src/lib) into
+		// process.env once, at evaluation. Back up any real file first —
+		// devs may have secrets there.
+		const devVarsPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../.dev.vars");
+		const hadFile = existsSync(devVarsPath);
+		const backup = hadFile ? readFileSync(devVarsPath) : undefined;
+		writeFileSync(devVarsPath, 'KT_DEVVARS_FROM_FILE="loaded"\n', { mode: 0o600 });
+		delete process.env.KT_DEVVARS_FROM_FILE;
+		try {
+			process.env.DATABASE_URL = ":memory:";
+			vi.stubEnv("KTB_DEV_QUEUE_DB", ":memory:");
+			const info = vi.spyOn(console, "info").mockImplementation(() => {});
+			const env = await loadEnv();
+			expect(process.env.KT_DEVVARS_FROM_FILE).toBe("loaded");
+			expect(info).toHaveBeenCalledWith("[dev:node] loaded .dev.vars (1 keys)");
+			expect(typeof env.DB.prepare).toBe("function");
+		} finally {
+			delete process.env.KT_DEVVARS_FROM_FILE;
+			if (backup === undefined) rmSync(devVarsPath, { force: true });
+			else writeFileSync(devVarsPath, backup);
+		}
+	});
+
+	it("defaults the queue db to ./data/queue.db when KTB_DEV_QUEUE_DB is unset", async () => {
+		process.env.DATABASE_URL = ":memory:";
+		vi.stubEnv("KTB_DEV_QUEUE_DB", undefined);
+		audioDir = mkdtempSync(join(tmpdir(), "ktb-node-env-"));
+		process.env.AUDIO_BUCKET_DIR = audioDir;
+
+		// The default path is apps/web/data/queue.db (gitignored) — the
+		// same file `dev:node` opens. Remove the sqlite sidecars after.
+		const queueDb = resolve(dirname(fileURLToPath(import.meta.url)), "../../data/queue.db");
+		const env = await loadEnv();
+		expect(typeof env.AUDIO_QUEUE.send).toBe("function");
+		for (const suffix of ["", "-wal", "-shm"]) {
+			rmSync(`${queueDb}${suffix}`, { force: true });
+		}
+	});
+
 	it("AUDIO_QUEUE.send dispatches to the audio job consumer", async () => {
 		// DATABASE_URL deliberately unset → covers the ./data/app.db
 		// default (the same file `dev:node` opens; migrations are
@@ -105,5 +146,5 @@ describe("node-cloudflare-workers env", () => {
 				}),
 			{ timeout: 10000 },
 		);
-	});
+	}, 15000);
 });

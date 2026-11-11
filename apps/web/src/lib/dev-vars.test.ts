@@ -67,6 +67,12 @@ describe("parseDevVars", () => {
 		expect(vars.KT_DEVVARS_A).toBe("second");
 		expect(vars.KT_DEVVARS_B).toBe('"unclosed');
 	});
+
+	it("double-quoted values that are not valid JSON fall back to stripped quotes", () => {
+		// `""x""` starts and ends with a quote but JSON.parse rejects it.
+		const vars = parseDevVars('KT_DEVVARS_A=""x""');
+		expect(vars.KT_DEVVARS_A).toBe('"x"');
+	});
 });
 
 describe("loadDevVars", () => {
@@ -83,5 +89,10 @@ describe("loadDevVars", () => {
 		expect(applied).toEqual(["KT_DEVVARS_B"]);
 		expect(process.env.KT_DEVVARS_A).toBe("from-env");
 		expect(process.env.KT_DEVVARS_B).toBe("from file");
+	});
+
+	it("returns [] when the path exists but cannot be read as a file", () => {
+		// A directory passes existsSync but readFileSync throws (EISDIR).
+		expect(loadDevVars(tmpdir())).toEqual([]);
 	});
 });

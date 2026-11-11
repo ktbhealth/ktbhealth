@@ -24,6 +24,7 @@ describe("sqliteFilename", () => {
 		expect(sqliteFilename(":memory:")).toBe(":memory:");
 		expect(sqliteFilename("./data/app.db")).toBe("./data/app.db");
 		expect(sqliteFilename("sqlite:./x.db")).toBe("./x.db");
+		expect(sqliteFilename("sqlite://./x.db")).toBe("./x.db");
 		expect(sqliteFilename("sqlite::memory:")).toBe(":memory:");
 		expect(sqliteFilename("file:./x.db")).toBe("./x.db");
 		expect(sqliteFilename("file:///tmp/x.db")).toBe("/tmp/x.db");
@@ -56,19 +57,84 @@ describe("makeSqliteDatabase", () => {
 		const col = await db.prepare("SELECT v FROM t WHERE id = ?").bind(1).first("v");
 		expect(col).toBe("hello");
 
+		// A missing column name resolves to null via `?? null`.
+		expect(await db.prepare("SELECT v FROM t WHERE id = ?").bind(1).first("nope")).toBeNull();
+
 		expect(await db.prepare("SELECT * FROM t WHERE id = ?").bind(999).first()).toBeNull();
 
 		const raw = await db.prepare("SELECT v FROM t").raw<[string]>();
 		expect(raw).toEqual([["hello"]]);
 	});
 
-	it("maps undefined binds to null and booleans to 1/0", async () => {
+	it("maps undefined/null binds to null and booleans to 1/0", async () => {
 		db = makeSqliteDatabase(":memory:");
-		await db.exec("CREATE TABLE t (a TEXT, b INTEGER)");
-		await db.prepare("INSERT INTO t VALUES (?, ?)").bind(undefined, true).run();
-		const row = await db.prepare("SELECT a, b FROM t").first<{ a: unknown; b: number }>();
-		expect(row?.a).toBeNull();
-		expect(row?.b).toBe(1);
+		await db.exec("CREATE TABLE t (a TEXT, b INTEGER, c INTEGER)");
+		await db.prepare("INSERT INTO t VALUES (?, ?, ?)").bind(undefined, true, false).run();
+		await db.prepare("INSERT INTO t VALUES (?, ?, ?)").bind(null, false, true).run();
+		const rows = await db.prepare("SELECT a, b, c FROM t ORDER BY c").all<{
+			a: unknown;
+			b: number;
+			c: number;
+		}>();
+		// ORDER BY c: the (undefined, true, false) row sorts first.
+		expect(rows.results).toEqual([
+			{ a: null, b: 1, c: 0 },
+			{ a: null, b: 0, c: 1 },
+		]);
+	});
+
+	it("defaults to :memory: when options carry no filename", () => {
+		db = makeSqliteDatabase({ busyTimeout: 1 });
+	});
+
+	it("honors foreignKeys: false (PRAGMA OFF)", async () => {
+		db = makeSqliteDatabase({ filename: ":memory:", foreignKeys: false });
+		await db.exec(
+			"CREATE TABLE p (id INTEGER PRIMARY KEY);" +
+				"CREATE TABLE c (id INTEGER PRIMARY KEY, pid INTEGER REFERENCES p(id));",
+		);
+		// With FK enforcement off the orphan insert succeeds.
+		await db.prepare("INSERT INTO c (pid) VALUES (?)").bind(42).run();
+	});
+
+	it("runs writer statements through all/first/raw with D1 semantics", async () => {
+		db = makeSqliteDatabase(":memory:");
+		await db.exec("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)");
+
+		// D1 executes non-reader statements and returns an empty result set.
+		const all = await db.prepare("INSERT INTO t (v) VALUES (?)").bind("w").all();
+		expect(all.results).toEqual([]);
+		expect(all.meta.changes).toBe(1);
+
+		expect(await db.prepare("INSERT INTO t (v) VALUES ('x')").first()).toBeNull();
+		expect(await db.prepare("INSERT INTO t (v) VALUES ('y')").raw()).toEqual([]);
+	});
+
+	it("batch falls back to sequential execution for foreign statements", async () => {
+		db = makeSqliteDatabase(":memory:");
+		await db.exec("CREATE TABLE t (id INTEGER PRIMARY KEY)");
+
+		// Statements minted by another SqlDatabase impl carry no bound
+		// params — batch() runs them via their own all()/run().
+		const foreign = [
+			{
+				reader: true,
+				all: async () => ({ success: true, results: [{ n: 1 }], meta: {} }),
+				run: async () => ({ success: true, results: [], meta: {} }),
+			},
+			{
+				all: async () => ({ success: true, results: [], meta: {} }),
+				run: async () => ({
+					success: true,
+					results: [],
+					meta: { changes: 1 },
+				}),
+			},
+		] as never;
+		const results = await db.batch(foreign);
+		expect(results).toHaveLength(2);
+		expect(results[0]?.results).toEqual([{ n: 1 }]);
+		expect(results[1]?.meta.changes).toBe(1);
 	});
 
 	it("batch executes atomically inside a transaction", async () => {
