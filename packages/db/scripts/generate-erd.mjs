@@ -201,14 +201,22 @@ function renderTarget(root, locale, existingBase) {
 		mkdirSync(refDir, { recursive: true });
 		mkdirSync(howToDir, { recursive: true });
 
-		// Plugin landing pages are hand-written: list index first when the
-		// file exists so it shows in nav; how-to pages are preserved below.
+		// Plugin landing pages and quadrant dirs are hand-written: list
+		// index first when present, then every quadrant that exists (in
+		// Diátaxis order). reference/ and how-to/ always exist.
+		const QUADRANTS = ["tutorials", "how-to", "explanation", "reference"];
 		const hasIndex =
 			existingBase !== undefined && existsSync(join(existingBase, d.id, "index.mdx"));
+		const quadrants = QUADRANTS.filter(
+			(q) =>
+				q === "reference" ||
+				q === "how-to" ||
+				(existingBase !== undefined && existsSync(join(existingBase, d.id, q))),
+		);
 		writeFileSync(
 			join(dir, "meta.json"),
 			JSON.stringify(
-				{ title: d.title, pages: [...(hasIndex ? ["index"] : []), "reference", "how-to"] },
+				{ title: d.title, pages: [...(hasIndex ? ["index"] : []), ...quadrants] },
 				null,
 				"\t",
 			) + "\n",
@@ -308,9 +316,11 @@ if (check) {
 			else if (readFileSync(act, "utf8") !== content) diffs.push(`content differs: ${rel}`);
 		}
 		for (const rel of actual.keys()) {
-			// hand-written content is not generated output: how-to guides
-			// (meta.json excepted — it is regenerated) and plugin index.mdx
-			if (rel.includes("/how-to/") && !rel.endsWith("/how-to/meta.json")) continue;
+			// hand-written content is not generated output: how-to/tutorials/
+			// explanation guides (their meta.json files are hand-maintained
+			// too — only how-to/meta.json is regenerated with preserved pages)
+			// and plugin index.mdx
+			if (/^[^/]+\/(tutorials|how-to|explanation)\//.test(rel) && rel !== `${rel.split("/")[0]}/how-to/meta.json`) continue;
 			if (/^[^/]+\/index\.mdx$/.test(rel)) continue;
 			if (!expected.has(rel)) diffs.push(`stale (not generated): ${rel}`);
 		}
