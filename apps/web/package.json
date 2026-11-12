@@ -13,7 +13,7 @@
 		"preview": "vp preview",
 		"test": "vp test",
 		"deploy": "bun run infra:deploy",
-		"cf-typegen": "wrangler types",
+		"cf-typegen": "wrangler types --env-file /dev/null",
 		"db:migrate": "wrangler d1 migrations apply ktb --remote",
 		"db:migrate:local": "wrangler d1 migrations apply ktb --local",
 		"infra:dev": "alchemy dev",
