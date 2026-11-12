@@ -201,9 +201,17 @@ function renderTarget(root, locale, existingBase) {
 		mkdirSync(refDir, { recursive: true });
 		mkdirSync(howToDir, { recursive: true });
 
+		// Plugin landing pages are hand-written: list index first when the
+		// file exists so it shows in nav; how-to pages are preserved below.
+		const hasIndex =
+			existingBase !== undefined && existsSync(join(existingBase, d.id, "index.mdx"));
 		writeFileSync(
 			join(dir, "meta.json"),
-			JSON.stringify({ title: d.title, pages: ["reference", "how-to"] }, null, "\t") + "\n",
+			JSON.stringify(
+				{ title: d.title, pages: [...(hasIndex ? ["index"] : []), "reference", "how-to"] },
+				null,
+				"\t",
+			) + "\n",
 		);
 		writeFileSync(
 			join(refDir, "meta.json"),
@@ -300,8 +308,10 @@ if (check) {
 			else if (readFileSync(act, "utf8") !== content) diffs.push(`content differs: ${rel}`);
 		}
 		for (const rel of actual.keys()) {
-			// hand-written how-to guides are not generated output
+			// hand-written content is not generated output: how-to guides
+			// (meta.json excepted — it is regenerated) and plugin index.mdx
 			if (rel.includes("/how-to/") && !rel.endsWith("/how-to/meta.json")) continue;
+			if (/^[^/]+\/index\.mdx$/.test(rel)) continue;
 			if (!expected.has(rel)) diffs.push(`stale (not generated): ${rel}`);
 		}
 		if (diffs.length) {
