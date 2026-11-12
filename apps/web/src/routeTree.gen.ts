@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as indexRouteImport } from './routes/index'
 import { Route as splatRouteImport } from './routes/$'
 import { Route as captureTestRouteImport } from './routes/capture-test'
-import { Route as loginRouteImport } from './routes/login'
+import { Route as DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport } from './../../../plugins/auth/src/routes/login'
 import { Route as platformRouteImport } from './routes/platform'
 import { Route as ApiBotsRouteImport } from './routes/api/bots'
 import { Route as ApiJobsRouteImport } from './../../../plugins/jobs/src/api-routes/jobs'
@@ -25,7 +25,7 @@ import { Route as PatientsIndexRouteImport } from './../../../plugins/patients/s
 import { Route as PatientsNewRouteImport } from './../../../plugins/patients/src/routes/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
 import { Route as SplatRouteImport } from './routes/platform/$'
-import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
+import { Route as ApiAuthDotsplatRouteImport } from './../../../plugins/auth/src/api-routes/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
 import { Route as PatientsIdIndexRouteImport } from './../../../plugins/patients/src/routes/$id/index'
@@ -49,11 +49,12 @@ const captureTestRoute = captureTestRouteImport.update({
   path: '/capture-test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const loginRoute = loginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute =
+  DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport.update({
+    id: '/login',
+    path: '/login',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const platformRoute = platformRouteImport.update({
   id: '/platform',
   path: '/platform',
@@ -162,7 +163,7 @@ export interface FileRoutesByFullPath {
   '/': typeof indexRoute
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
-  '/login': typeof loginRoute
+  '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/jobs': typeof ApiJobsRoute
@@ -188,7 +189,7 @@ export interface FileRoutesByTo {
   '/': typeof indexRoute
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
-  '/login': typeof loginRoute
+  '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/jobs': typeof ApiJobsRoute
   '/api/notifications': typeof ApiNotificationsRoute
@@ -214,7 +215,7 @@ export interface FileRoutesById {
   '/': typeof indexRoute
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
-  '/login': typeof loginRoute
+  '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/jobs': typeof ApiJobsRoute
@@ -320,7 +321,7 @@ export interface RootRouteChildren {
   indexRoute: typeof indexRoute
   splatRoute: typeof splatRoute
   captureTestRoute: typeof captureTestRoute
-  loginRoute: typeof loginRoute
+  DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute: typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   platformRoute: typeof platformRouteWithChildren
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
   ApiJobsRoute: typeof ApiJobsRoute
@@ -367,7 +368,7 @@ declare module '@tanstack/react-router' {
       id: '/login'
       path: '/login'
       fullPath: '/login'
-      preLoaderRoute: typeof loginRouteImport
+      preLoaderRoute: typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/platform': {
@@ -542,7 +543,8 @@ const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
   splatRoute: splatRoute,
   captureTestRoute: captureTestRoute,
-  loginRoute: loginRoute,
+  DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute:
+    DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute,
   platformRoute: platformRouteWithChildren,
   ApiBotsRoute: ApiBotsRouteWithChildren,
   ApiJobsRoute: ApiJobsRoute,

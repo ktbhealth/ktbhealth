@@ -27,6 +27,7 @@ declare module "@ktb/kernel" {
 		"v.other": true;
 		"v.config": true;
 		"v.rich": true;
+		"v.sys": true;
 	}
 }
 
@@ -97,6 +98,23 @@ describe("PluginsPage", () => {
 		expect(screen.getAllByText("v.base").length).toBeGreaterThan(0);
 		expect(screen.getByText("Configurable")).toBeTruthy();
 		expect(screen.getAllByText("Enabled").length).toBe(plugins.length);
+	});
+
+	it("locks system plugins: disabled toggle, System badge and hint", async () => {
+		const user = userEvent.setup();
+		const sys = definePlugin({ id: "v.sys", system: true });
+		const states = statesOf({ "v.sys": { enabled: true } });
+		render(<PluginsPage plugins={[sys]} states={states} locale="en" />);
+		expect(screen.getByText("System")).toBeTruthy();
+		expect(screen.getByText(/always enabled and cannot be disabled/)).toBeTruthy();
+		const toggle = screen.getByRole("switch");
+		// Base UI marks disabled controls with data-disabled (no native
+		// `disabled` property on the rendered element).
+		expect(
+			toggle.hasAttribute("data-disabled") || toggle.getAttribute("aria-disabled") === "true",
+		).toBe(true);
+		await user.click(toggle);
+		expect(fns.setPluginEnabledFn).not.toHaveBeenCalled();
 	});
 
 	it("shows disabled state from the loader map", () => {

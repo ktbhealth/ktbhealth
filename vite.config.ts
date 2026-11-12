@@ -188,7 +188,8 @@ export default defineConfig({
 				// impl adapters are wired exclusively in the composition root
 				// (lib/platform.ts, lib/plugins.ts — excepted below) and in
 				// documented client-side injection points (new.tsx,
-				// whisper-prefetch.ts, login.tsx, __root.tsx). Tests may mock
+				// whisper-prefetch.ts, __root.tsx — the auth plugin's login
+				// view took over login.tsx's role in P-062). Tests may mock
 				// impls freely.
 				files: ["apps/web/src/{lib,components,routes}/**/*.{ts,tsx}"],
 				rules: {
@@ -241,18 +242,20 @@ export default defineConfig({
 				//   the model on consultations pages (whisper-prefetch.ts)
 				//   — the same documented injection points the host route
 				//   files had before the P-033 route migration.
-				// - login.tsx / __root.tsx / platform.tsx use the better-auth
-				//   client SDK, which is inherently impl-bound.
+				// - plugins/auth's login view uses the better-auth client
+				//   SDK (moved from the host's login.tsx in P-062), which is
+				//   inherently impl-bound — same exception the host route
+				//   files had. __root.tsx / platform.tsx keep theirs.
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
 					"apps/web/src/lib/registry.ts",
 					"apps/web/src/lib/node-cloudflare-workers.ts",
 					"apps/web/src/plugins.ts",
-					"apps/web/src/routes/login.tsx",
 					"apps/web/src/routes/__root.tsx",
 					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
+					"plugins/auth/src/views/LoginPage.tsx",
 					"plugins/consultations/src/routes/new.tsx",
 					"plugins/consultations/src/backend.ts",
 					"plugins/consultations/src/whisper-prefetch.ts",

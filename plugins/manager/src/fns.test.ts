@@ -20,6 +20,7 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 
+import { definePlugin } from "@ktb/kernel";
 import { Auth } from "@ktb/auth";
 import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
@@ -58,9 +59,19 @@ CREATE TABLE plugin_state (
 );
 `;
 
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		"test.toggle": true;
+	}
+}
+
+// Every platform/manager plugin is `system: true` (P-062) — the toggle
+// tests need one ordinary disableable plugin in the registry.
+const togglePlugin = definePlugin({ id: "test.toggle" });
+
 // The manager plugins require platform.panel/platform.routes — the test
 // registry includes them so the dep invariant holds.
-const registry = [platformRoutesPlugin, platformPanelPlugin, ...plugins];
+const registry = [platformRoutesPlugin, platformPanelPlugin, togglePlugin, ...plugins];
 
 const sessionFor = (email: string | null) =>
 	email === null
@@ -144,16 +155,24 @@ describe("manager fns", () => {
 		expect(entries?.map((e) => e.pluginId)).toEqual([
 			"platform.routes",
 			"platform.panel",
+			"test.toggle",
 			"manager.chrome",
 			"manager.panel",
 		]);
+		// System plugins surface their flag; ordinary plugins report false.
+		expect(entries?.find((e) => e.pluginId === "platform.panel")).toMatchObject({
+			enabled: true,
+			system: true,
+		});
+		expect(entries?.find((e) => e.pluginId === "test.toggle")).toMatchObject({
+			enabled: true,
+			system: false,
+		});
 
-		// Disable the chrome plugin — no dependents, single id.
-		expect(await setPluginEnabledFn({ data: { ids: ["manager.chrome"], enabled: false } })).toBe(
-			true,
-		);
+		// Disable the toggle plugin — no dependents, single id.
+		expect(await setPluginEnabledFn({ data: { ids: ["test.toggle"], enabled: false } })).toBe(true);
 		const after = await listPluginStatesFn();
-		expect(after?.find((e) => e.pluginId === "manager.chrome")?.enabled).toBe(false);
+		expect(after?.find((e) => e.pluginId === "test.toggle")?.enabled).toBe(false);
 		expect(await getPluginConfigFn({ data: "manager.panel" })).toEqual({ cascadeConfirm: true });
 
 		// Config write merges defaults; invalid input rejects.
@@ -177,11 +196,15 @@ describe("manager fns", () => {
 		await expect(
 			setPluginEnabledFn({ data: { ids: ["nope"], enabled: false } }),
 		).rejects.toMatchObject({ _tag: "UnknownPlugin" });
-		// platform.panel is required by both manager plugins — disabling
-		// it alone orphans them.
+		// platform.panel is a system plugin — disabling it is rejected
+		// before the dep invariant is even consulted (P-062).
 		await expect(
 			setPluginEnabledFn({ data: { ids: ["platform.panel"], enabled: false } }),
-		).rejects.toMatchObject({ _tag: "PluginDepsUnsatisfied" });
+		).rejects.toMatchObject({ _tag: "PluginSystemLocked" });
+		// Same for the manager's own entries.
+		await expect(
+			setPluginEnabledFn({ data: { ids: ["manager.chrome"], enabled: false } }),
+		).rejects.toMatchObject({ _tag: "PluginSystemLocked" });
 	});
 
 	it("propagates unexpected service errors instead of mapping them", async () => {

@@ -24,6 +24,8 @@ CREATE TABLE plugin_state (
 describe("manager plugins", () => {
 	it("declares the sidebar chrome and the /platform/plugins page", () => {
 		expect(managerChromePlugin.id).toBe("manager.chrome");
+		// The manager is the only re-enable UI — both entries are system plugins.
+		expect(managerChromePlugin.system).toBe(true);
 		expect(managerChromePlugin.chrome).toHaveLength(1);
 		expect(managerChromePlugin.chrome[0]).toMatchObject({
 			region: "console.sidebar",
@@ -33,6 +35,7 @@ describe("manager plugins", () => {
 			},
 		});
 		expect(managerPanelPlugin.id).toBe("manager.panel");
+		expect(managerPanelPlugin.system).toBe(true);
 		expect(managerPanelPlugin.panel?.pages?.[0]).toMatchObject({
 			id: "manager.plugins",
 			path: "/platform/plugins",
@@ -77,8 +80,13 @@ describe("manager page loader", () => {
 			);
 			expect(data).toEqual({
 				states: [
-					{ pluginId: "manager.chrome", enabled: true, config: null },
-					{ pluginId: "manager.panel", enabled: true, config: { cascadeConfirm: true } },
+					{ pluginId: "manager.chrome", enabled: true, system: true, config: null },
+					{
+						pluginId: "manager.panel",
+						enabled: true,
+						system: true,
+						config: { cascadeConfirm: true },
+					},
 				],
 			});
 		} finally {

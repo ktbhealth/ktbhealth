@@ -16,6 +16,7 @@ import { managerConfig } from "./config.tsx";
  */
 export const managerChromePlugin = definePlugin({
 	id: "manager.chrome",
+	system: true,
 	requiredDeps: ["platform.panel"],
 	meta: {
 		name: "Plugin manager",
@@ -41,6 +42,7 @@ export const managerChromePlugin = definePlugin({
 
 export const managerPanelPlugin = definePlugin({
 	id: "manager.panel",
+	system: true,
 	requiredDeps: ["platform.panel"],
 	meta: {
 		name: "Plugin manager",

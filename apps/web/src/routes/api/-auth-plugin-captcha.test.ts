@@ -10,7 +10,11 @@ vi.mock("@tanstack/react-start/server", () => ({
 // the captcha driver is selected once, at layer build time.
 env.TURNSTILE_SECRET_KEY = "test-turnstile-secret";
 
-const { Route } = await import("./auth.$.ts");
+// The route module lives in plugins/auth (P-062); importing platform.ts
+// composes the app runtime (authHandler capability + Captcha layer) the
+// route reaches through @ktb/server-fns.
+const { Route } = await import("@ktb/auth-plugin/api-route");
+await import("#/lib/platform.ts");
 
 const handlersOf = (r: unknown) =>
 	(r as { options: { server: { handlers: Record<string, (a: never) => Promise<Response>> } } })
@@ -23,7 +27,7 @@ const post = (body: unknown) =>
 		body: JSON.stringify(body),
 	});
 
-describe("auth route captcha", () => {
+describe("auth plugin route captcha", () => {
 	beforeAll(() => {
 		vi.stubGlobal(
 			"fetch",

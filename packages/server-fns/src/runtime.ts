@@ -172,6 +172,15 @@ export interface ServerRuntime {
 	 * is inert — there is no plugin_state store to consult anyway.
 	 */
 	readonly pluginEnabled?: (pluginId: string) => Promise<boolean>;
+	/**
+	 * Credential-provider request handler for the auth plugin's
+	 * `/api/auth/*` catch-all (P-062): the composition root owns the
+	 * provider instance (apps/web deliberately builds it outside the
+	 * driver registry — see @ktb/app-host), so plugin routes reach it
+	 * through this capability instead of importing the adapter. Absent
+	 * outside the composed app — the route answers 500.
+	 */
+	readonly authHandler?: (request: Request) => Promise<Response>;
 }
 
 let runtime: ServerRuntime | undefined;

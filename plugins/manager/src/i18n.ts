@@ -19,6 +19,8 @@ export interface ManagerMessages {
 	readonly statusEnabled: string;
 	readonly statusDisabled: string;
 	readonly statusBlocked: string;
+	readonly statusSystem: string;
+	readonly systemHint: string;
 	readonly blockedHint: (deps: string) => string;
 	readonly enable: string;
 	readonly disable: string;
@@ -44,6 +46,8 @@ const en: ManagerMessages = {
 	statusEnabled: "Enabled",
 	statusDisabled: "Disabled",
 	statusBlocked: "Blocked",
+	statusSystem: "System",
+	systemHint: "System plugin — always enabled and cannot be disabled.",
 	blockedHint: (deps) => `Requires ${deps} to be enabled first.`,
 	enable: "Enable",
 	disable: "Disable",
@@ -70,6 +74,8 @@ const ptBR: ManagerMessages = {
 	statusEnabled: "Ativo",
 	statusDisabled: "Inativo",
 	statusBlocked: "Bloqueado",
+	statusSystem: "Sistema",
+	systemHint: "Plugin do sistema — sempre ativo e não pode ser desativado.",
 	blockedHint: (deps) => `Requer ${deps} ativado primeiro.`,
 	enable: "Ativar",
 	disable: "Desativar",
@@ -96,6 +102,8 @@ const es: ManagerMessages = {
 	statusEnabled: "Activo",
 	statusDisabled: "Inactivo",
 	statusBlocked: "Bloqueado",
+	statusSystem: "Sistema",
+	systemHint: "Plugin del sistema — siempre activo y no se puede desactivar.",
 	blockedHint: (deps) => `Requiere ${deps} activado primero.`,
 	enable: "Activar",
 	disable: "Desactivar",

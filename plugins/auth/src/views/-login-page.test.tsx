@@ -21,9 +21,9 @@ vi.mock("@ktb/auth-better/client", () => ({
 	},
 }));
 
-import { Route } from "./login.tsx";
+import { LoginPage } from "../views/LoginPage.tsx";
 
-const Page = (Route as unknown as { options: { component: () => ReactElement } }).options.component;
+const Page = () => createElement(LoginPage, { locale: "en" }) as ReactElement;
 
 async function fillAndSubmit() {
 	fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
@@ -130,7 +130,6 @@ describe("sign-in page", () => {
 
 	it("ignores submit while pending or empty", async () => {
 		render(createElement(Page));
-		// empty submit: button disabled? form onSubmit guards
 		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 		expect(signInEmail).not.toHaveBeenCalled();
 	});
@@ -145,14 +144,11 @@ describe("sign-in page", () => {
 		);
 		const { container } = render(createElement(Page));
 		const form = container.querySelector("form")!;
-		// empty email+password → guard returns before pending matters
 		fireEvent.submit(form);
 		expect(signInEmail).not.toHaveBeenCalled();
-		// valid email, empty password → second guard operand
 		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
 		fireEvent.submit(form);
 		expect(signInEmail).not.toHaveBeenCalled();
-		// valid fields → pending starts; submit again while pending → third operand
 		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
 		fireEvent.submit(form);
 		await waitFor(() => expect(signInEmail).toHaveBeenCalledTimes(1));

@@ -62,6 +62,14 @@ export interface PluginBase {
 	 * type-erased (`Layer.Any`), so this is a documented contract, not a
 	 * statically enforced one. */
 	readonly optionalDeps?: readonly PluginId[];
+	/** System plugin (P-062): host infrastructure that can never be
+	 * disabled — `PluginStates.isEnabled` short-circuits true and
+	 * `setEnabled(…, false)` is rejected server-side, so a stale
+	 * `plugin_state` row can never turn it off. Config writes stay
+	 * allowed (config ≠ enablement). Must reach BOTH registries: the
+	 * client mirror declares it too so the manager UI can render the
+	 * locked state (parity is asserted by apps/web plugins.test.ts). */
+	readonly system?: boolean;
 }
 
 type ContributionField =

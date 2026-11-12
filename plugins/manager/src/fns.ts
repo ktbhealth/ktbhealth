@@ -39,6 +39,8 @@ const asAdmin = <A, E>(
 export interface PluginStateWire {
 	readonly pluginId: string;
 	readonly enabled: boolean;
+	/** `system: true` manifest flag — the plugin can never be disabled. */
+	readonly system: boolean;
 	readonly config: any;
 }
 

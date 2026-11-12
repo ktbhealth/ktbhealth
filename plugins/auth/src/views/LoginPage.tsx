@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
@@ -15,14 +14,18 @@ import { Label } from "@ktbhealth/ui/components/label";
 import { Spinner } from "@ktbhealth/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { Turnstile } from "@ktbhealth/ui/components/turnstile";
-import * as m from "#/paraglide/messages.js";
 
-export const Route = createFileRoute("/login")({
-	head: () => ({ meta: [{ title: m.login_meta_title() }] }),
-	component: SignInPage,
-});
+import { authMessages } from "../i18n.ts";
 
-function SignInPage() {
+/**
+ * Sign-in / create-account page (moved from apps/web/src/routes/login.tsx,
+ * P-062). `locale` arrives via the route loader (localeFn) — plugins
+ * cannot import the host's Paraglide runtime. The better-auth client is
+ * inherently impl-bound (documented vite.config exception, same role the
+ * host route files had).
+ */
+export function LoginPage({ locale }: { readonly locale: string }) {
+	const t = authMessages(locale);
 	const [mode, setMode] = useState<"in" | "up">("in");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -35,7 +38,7 @@ function SignInPage() {
 		e.preventDefault();
 		if (!email.trim() || !password || pending) return;
 		if (mode === "up" && confirmPassword !== password) {
-			setError(m.login_error_password_mismatch());
+			setError(t.errorPasswordMismatch);
 			return;
 		}
 		setPending(true);
@@ -54,7 +57,7 @@ function SignInPage() {
 					);
 		setPending(false);
 		if (res.error) {
-			setError(res.error.message ?? m.login_error_fallback());
+			setError(res.error.message ?? t.errorFallback);
 			return;
 		}
 		window.location.assign("/");
@@ -64,8 +67,8 @@ function SignInPage() {
 		<div className="flex min-h-[60vh] items-center justify-center">
 			<Card className="w-full max-w-sm">
 				<CardHeader>
-					<CardTitle>{mode === "in" ? m.login_heading_in() : m.login_heading_up()}</CardTitle>
-					<CardDescription>{mode === "in" ? m.login_desc_in() : m.login_desc_up()}</CardDescription>
+					<CardTitle>{mode === "in" ? t.headingIn : t.headingUp}</CardTitle>
+					<CardDescription>{mode === "in" ? t.descIn : t.descUp}</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<Tabs
@@ -78,13 +81,13 @@ function SignInPage() {
 						className="mb-4"
 					>
 						<TabsList className="w-full">
-							<TabsTrigger value="in">{m.login_tab_in()}</TabsTrigger>
-							<TabsTrigger value="up">{m.login_tab_up()}</TabsTrigger>
+							<TabsTrigger value="in">{t.tabIn}</TabsTrigger>
+							<TabsTrigger value="up">{t.tabUp}</TabsTrigger>
 						</TabsList>
 					</Tabs>
 					<form onSubmit={submit} className="flex flex-col gap-4">
 						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="email">{m.login_email()}</Label>
+							<Label htmlFor="email">{t.email}</Label>
 							<Input
 								id="email"
 								type="email"
@@ -95,7 +98,7 @@ function SignInPage() {
 							/>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="password">{m.login_password()}</Label>
+							<Label htmlFor="password">{t.password}</Label>
 							<Input
 								id="password"
 								type="password"
@@ -108,7 +111,7 @@ function SignInPage() {
 						</div>
 						{mode === "up" ? (
 							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="confirm-password">{m.login_confirm_password()}</Label>
+								<Label htmlFor="confirm-password">{t.confirmPassword}</Label>
 								<Input
 									id="confirm-password"
 									type="password"
@@ -128,11 +131,7 @@ function SignInPage() {
 						) : null}
 						<Button type="submit" disabled={pending} className="w-full">
 							{pending ? <Spinner /> : null}
-							{pending
-								? m.login_pending()
-								: mode === "in"
-									? m.login_submit_in()
-									: m.login_submit_up()}
+							{pending ? t.pending : mode === "in" ? t.submitIn : t.submitUp}
 						</Button>
 					</form>
 				</CardContent>

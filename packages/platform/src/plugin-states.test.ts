@@ -16,6 +16,7 @@ import {
 	pluginConfigDefaults,
 	PluginDepsUnsatisfied,
 	PluginStates,
+	PluginSystemLocked,
 	pluginEnabled,
 	UnknownPlugin,
 	validatePluginConfig,
@@ -38,6 +39,7 @@ declare module "@ktb/kernel" {
 		"test.main": true;
 		"test.other": true;
 		"test.weird": true;
+		"test.sys": true;
 	}
 }
 
@@ -69,8 +71,10 @@ const mainPlugin = definePlugin({
 	configSchema: mainConfigSchema,
 });
 const otherPlugin = definePlugin({ id: "test.other" });
+// `system: true` (P-062): always enabled, disable writes rejected.
+const sysPlugin = definePlugin({ id: "test.sys", system: true });
 
-const testPlugins = [depPlugin, mainPlugin, otherPlugin];
+const testPlugins = [depPlugin, mainPlugin, otherPlugin, sysPlugin];
 
 const makeRuntime = () => {
 	const layer = makePluginStatesLive(testPlugins).pipe(
@@ -98,7 +102,7 @@ describe("PluginStatesLive", () => {
 				runtime,
 				Effect.flatMap(PluginStates, (s) => s.enabledIds()),
 			);
-			expect([...enabled].sort()).toEqual(["test.dep", "test.main", "test.other"]);
+			expect([...enabled].sort()).toEqual(["test.dep", "test.main", "test.other", "test.sys"]);
 			const config = await withStates(
 				runtime,
 				Effect.flatMap(PluginStates, (s) => s.config("test.main")),
@@ -257,9 +261,13 @@ describe("PluginStatesLive", () => {
 				"test.dep",
 				"test.main",
 				"test.other",
+				"test.sys",
 			]);
 			const other = entries.find((e) => e.pluginId === "test.other");
 			expect(other?.enabled).toBe(false);
+			expect(other?.system).toBe(false);
+			const sys = entries.find((e) => e.pluginId === "test.sys");
+			expect(sys).toMatchObject({ enabled: true, system: true });
 			const main = entries.find((e) => e.pluginId === "test.main");
 			expect(main?.config).toEqual({ retries: 3, verbose: false, mode: "fast" });
 		} finally {
@@ -295,6 +303,77 @@ describe("PluginStatesLive", () => {
 				Effect.flatMap(PluginStates, (s) => s.setConfig("test.main", undefined)).pipe(Effect.flip),
 			);
 			expect(empty).toBeInstanceOf(InvalidPluginConfig);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("system plugins stay enabled regardless of rows and reject disables", async () => {
+		const db = makeDb(makeD1(DDL));
+		const runtime = ManagedRuntime.make(
+			makePluginStatesLive(testPlugins).pipe(Layer.provide(Layer.succeed(Db, db))),
+		);
+		try {
+			// A stale disabled row (e.g. written before the plugin became
+			// system) is dead data — every read path ignores it.
+			await db.insert(pluginState).values({
+				pluginId: "test.sys",
+				enabled: false,
+				config: null,
+				updatedAt: new Date(),
+			});
+			await expect(
+				withStates(
+					runtime,
+					Effect.flatMap(PluginStates, (s) => s.isEnabled("test.sys")),
+				),
+			).resolves.toBe(true);
+			const enabled = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.enabledIds()),
+			);
+			expect(enabled.has("test.sys")).toBe(true);
+			const entries = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.entries()),
+			);
+			expect(entries.find((e) => e.pluginId === "test.sys")).toMatchObject({
+				enabled: true,
+				system: true,
+			});
+			// Unknown ids still read as enabled (documented isEnabled
+			// semantics) — exercises the non-registry branch.
+			await expect(
+				withStates(
+					runtime,
+					Effect.flatMap(PluginStates, (s) => s.isEnabled("nope")),
+				),
+			).resolves.toBe(true);
+			// Disabling a system plugin fails — alone or inside a cascade.
+			const locked = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setEnabled(["test.sys"], false)).pipe(Effect.flip),
+			);
+			expect(locked).toBeInstanceOf(PluginSystemLocked);
+			const mixed = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setEnabled(["test.sys", "test.other"], false)).pipe(
+					Effect.flip,
+				),
+			);
+			expect(mixed).toBeInstanceOf(PluginSystemLocked);
+			// The rejected writes touched nothing.
+			await expect(
+				withStates(
+					runtime,
+					Effect.flatMap(PluginStates, (s) => s.isEnabled("test.other")),
+				),
+			).resolves.toBe(true);
+			// Re-enabling a system plugin is allowed (harmless upsert).
+			await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setEnabled(["test.sys"], true)),
+			);
 		} finally {
 			await runtime.dispose();
 		}
