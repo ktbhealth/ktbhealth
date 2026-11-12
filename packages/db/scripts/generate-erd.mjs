@@ -169,14 +169,15 @@ for (const d of DOMAINS) {
 }
 
 // 3. Render one target tree into `root` (used for both write and --check).
+//    `root` is the plugins/ docs dir; each domain becomes plugins/<id>/.
 function renderTarget(root) {
-	const base = join(root, "database");
+	const base = root;
 	mkdirSync(base, { recursive: true });
 
 	writeFileSync(
 		join(base, "meta.json"),
 		JSON.stringify(
-			{ title: "Database", pages: ["index", ...DOMAINS.map((d) => d.id)] },
+			{ title: "Plugins", pages: ["index", ...DOMAINS.map((d) => d.id)] },
 			null,
 			"\t",
 		) + "\n",
@@ -223,11 +224,11 @@ function renderTarget(root) {
 }
 
 // 4. Render each target into staging, then copy into the docs repo or diff.
-//    A target is the dir that contains `database/` (…/plugins/reference).
-//    --out DIR uses the same semantics: the dir that will contain database/.
+//    A target is the plugins/ dir that receives the per-plugin sections.
+//    --out DIR uses the same semantics.
 const targets = outOverride
 	? [outOverride]
-	: LOCALES.map((l) => join(DOCS_REPO, "content/docs", l, "developers/plugins/reference"));
+	: LOCALES.map((l) => join(DOCS_REPO, "content/docs", l, "developers/plugins"));
 
 function collectFiles(dir, prefix = "") {
 	const out = new Map();
@@ -250,10 +251,10 @@ const staged = targets.map((checkBase, i) => {
 let drift = false;
 if (check) {
 	for (const { checkBase, renderRoot } of staged) {
-		const expected = collectFiles(renderRoot); // keys: database/...
-		// scope actual to the database/ subtree; index.mdx is hand-written
-		const actual = collectFiles(join(checkBase, "database"), "database");
-		actual.delete("database/index.mdx");
+		const expected = collectFiles(renderRoot);
+		// scope actual to generated names; index.mdx is hand-written
+		const actual = collectFiles(checkBase);
+		actual.delete("index.mdx");
 		const diffs = [];
 		for (const [rel, content] of expected) {
 			const act = join(checkBase, rel);
@@ -265,7 +266,7 @@ if (check) {
 		}
 		if (diffs.length) {
 			drift = true;
-			console.log(`[${checkBase}/database] drift detected:`);
+			console.log(`[${checkBase}] drift detected:`);
 			for (const d of diffs) console.log(`  ${d}`);
 		}
 	}
@@ -276,17 +277,15 @@ if (check) {
 	console.log("check passed: generated docs are up to date.");
 } else {
 	for (const { checkBase, renderRoot } of staged) {
-		const genDir = join(checkBase, "database");
-		mkdirSync(genDir, { recursive: true });
-		// wipe generated content, keep hand-written database/index.mdx
-		for (const e of readdirSync(genDir, { withFileTypes: true })) {
-			if (e.name !== "index.mdx") rmSync(join(genDir, e.name), { recursive: true, force: true });
+		// wipe only generated artifacts; hand-written files
+		// (plugins/index.mdx etc.) are left alone
+		for (const name of ["schema.mmd", "meta.json", ...DOMAINS.map((d) => d.id)]) {
+			rmSync(join(checkBase, name), { recursive: true, force: true });
 		}
-		const src = join(renderRoot, "database");
-		for (const e of readdirSync(src, { withFileTypes: true })) {
-			execFileSync("cp", ["-r", join(src, e.name), join(genDir, e.name)]);
+		for (const e of readdirSync(renderRoot, { withFileTypes: true })) {
+			execFileSync("cp", ["-r", join(renderRoot, e.name), join(checkBase, e.name)]);
 		}
-		console.log(`wrote database docs → ${genDir}`);
+		console.log(`wrote plugin ERD docs → ${checkBase}`);
 	}
 }
 
