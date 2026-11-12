@@ -7,6 +7,10 @@ consultation audio, transcribes it, and drafts a structured clinical
 anamnesis. The physician reviews, edits, and approves — KTB never
 diagnoses or recommends treatment.
 
+Two audiences: doctors work in the consult flow today; patients get
+their own read-only surfaces (visit summaries, shared history) as
+those features land.
+
 ## Problem
 
 Doctors spend ~40% of a consult documenting instead of listening.
