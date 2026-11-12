@@ -34,6 +34,21 @@ export default defineConfig({
 				command:
 					"bun run gen:db-schema && git add -N packages/db/src && git diff --exit-code -- packages/db/src/schema.gen.ts",
 			},
+			// Regenerate drizzle migrations (packages/db/drizzle + the
+			// alchemy-migrations copy produced by sync-alchemy-migrations)
+			// and fail on drift. No build needed — drizzle-kit is a pure
+			// schema scan.
+			"ci:db-migrations": {
+				command:
+					"bun run db:generate && git add -N packages/db && git diff --exit-code -- packages/db/drizzle packages/db/alchemy-migrations",
+			},
+			// Regenerate apps/web/worker-configuration.d.ts (wrangler
+			// types) and fail on drift. No build needed — reads
+			// wrangler.jsonc offline.
+			"ci:worker-types": {
+				command:
+					"bun run cf-typegen && git add -N apps/web && git diff --exit-code -- apps/web/worker-configuration.d.ts",
+			},
 			// Unused-code/dependency gate (knip.json is the config).
 			"ci:knip": { command: "bun run knip" },
 			// Fast smoke test proving the ktb-arch rules still fire
