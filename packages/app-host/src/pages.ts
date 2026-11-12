@@ -105,3 +105,29 @@ export const collectPages = (registry: readonly Plugin[]): PageRegistry => {
 	}
 	return { pages, appPages, consolePages };
 };
+
+/**
+ * Resolve the page entry for a request path: exact-path descriptors win;
+ * failing that, wildcard entries — keys ending in "/*" (same syntax as
+ * chrome `when` paths) whose base prefixes `path` — are considered, and
+ * the LONGEST matching base wins. Ties keep the first entry in map
+ * (topo) order. This is what lets a single DB-backed descriptor (e.g.
+ * the custom-pages plugin's "/*") serve every path it resolves.
+ */
+export const findPage = <V>(map: ReadonlyMap<string, V>, path: string): V | undefined => {
+	const exact = map.get(path);
+	if (exact !== undefined) return exact;
+	let best: V | undefined;
+	let bestBase = -1;
+	for (const [key, entry] of map) {
+		if (!key.endsWith("/*")) continue;
+		const base = key.slice(0, -2);
+		const matches =
+			base === "" ? path.startsWith("/") : path === base || path.startsWith(`${base}/`);
+		if (matches && base.length > bestBase) {
+			best = entry;
+			bestBase = base.length;
+		}
+	}
+	return best;
+};

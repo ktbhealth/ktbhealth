@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
-// package workspace cycle — consumers import this from `@ktb/db/schema`.
+// Plugin-owned table definitions (P-061): aggregated into the drizzle
+// schema by the generated packages/db/src/schema.gen.ts — consumers
+// keep importing them from `@ktb/db/schema` (or `@ktb/rbac-plugin/schema`).
 
 /**
  * Dynamic roles (P-054): named, runtime-managed bundles of

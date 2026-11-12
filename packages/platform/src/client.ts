@@ -1,9 +1,10 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
 
 /**
- * Client-safe mirror of ./index.ts — discovered by the browser bundle
- * through `@ktb/app-host/client` (import.meta.glob on
- * `plugins/<name>/src/client.ts`). None of the platform entries carry
+ * Client-safe mirror of ./index.ts — registered explicitly by
+ * `@ktb/app-host/client` via the `@ktb/platform/client` subpath (this
+ * package lives below the plugin system, so the plugins/* filesystem
+ * glob does not reach it). None of the platform entries carry
  * client-consumed contributions the host reads at runtime (the routes
  * contribution is only consumed by route typegen), so every entry is a
  * marker preserving id and dep edges for topo order and feature checks.

@@ -4,6 +4,7 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./schema": "./src/schema.ts",
 		"./api": "./src/api.ts",
 		"./fns": "./src/fns.ts",
 		"./i18n": "./src/i18n.ts",

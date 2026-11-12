@@ -287,6 +287,17 @@
         "react": "^19.2.0",
       },
     },
+    "packages/platform": {
+      "name": "@ktb/platform",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@tanstack/virtual-file-routes": "1.162.0",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+      },
+    },
     "packages/rbac": {
       "name": "@ktb/rbac",
       "dependencies": {
@@ -554,6 +565,32 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/pages": {
+      "name": "@ktb/pages",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@ktb/auth": "workspace:*",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/patients": {
       "name": "@ktb/patients",
       "dependencies": {
@@ -584,17 +621,6 @@
       },
       "peerDependencies": {
         "react": "^19.2.0",
-      },
-    },
-    "plugins/platform": {
-      "name": "@ktb/platform",
-      "dependencies": {
-        "@ktb/authz": "workspace:*",
-        "@ktb/db": "workspace:*",
-        "@ktb/kernel": "workspace:*",
-        "@tanstack/virtual-file-routes": "1.162.0",
-        "drizzle-orm": "^0.45.1",
-        "effect": "4.1.2",
       },
     },
     "plugins/platform-header": {
@@ -1150,9 +1176,11 @@
 
     "@ktb/notifications": ["@ktb/notifications@workspace:plugins/notifications"],
 
+    "@ktb/pages": ["@ktb/pages@workspace:plugins/pages"],
+
     "@ktb/patients": ["@ktb/patients@workspace:plugins/patients"],
 
-    "@ktb/platform": ["@ktb/platform@workspace:plugins/platform"],
+    "@ktb/platform": ["@ktb/platform@workspace:packages/platform"],
 
     "@ktb/platform-header": ["@ktb/platform-header@workspace:plugins/platform-header"],
 

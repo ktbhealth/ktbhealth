@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { createFileRoute, getRouteApi, notFound } from "@tanstack/react-router";
 
 import { platformPageDataFn, pluginStatesFn } from "#/lib/fns.ts";
-import { consolePages, enabledIdSet } from "#/lib/registry.ts";
+import { consolePages, enabledIdSet, findPage } from "#/lib/registry.ts";
 import { plugins } from "#/plugins.ts";
 import { getLocale } from "#/paraglide/runtime.js";
 
@@ -18,7 +18,7 @@ const rootApi = getRouteApi("__root__");
 // renders the contributed component with `{ data, ctx: { plugins } }`.
 export const Route = createFileRoute("/platform/")({
 	loader: async () => {
-		const entry = consolePages.get(PATH);
+		const entry = findPage(consolePages, PATH);
 		if (entry === undefined) throw notFound();
 		const states = await pluginStatesFn();
 		if (!enabledIdSet(states).has(entry.pluginId)) throw notFound();
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/platform/")({
 	component: function PlatformIndexRoute() {
 		const data = Route.useLoaderData();
 		const { user } = rootApi.useLoaderData();
-		const entry = consolePages.get(PATH);
+		const entry = findPage(consolePages, PATH);
 		if (entry === undefined) return null;
 		// ctx.plugins is the FULL discovered registry — see platform/$.
 		return createElement(entry.page.component, {

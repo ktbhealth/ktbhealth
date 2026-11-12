@@ -27,6 +27,7 @@
 		"db:erd": "bun packages/db/scripts/generate-erd.mjs",
 		"knip": "knip",
 		"gen:route-types": "bun tools/gen-plugin-route-types.mjs",
+		"gen:db-schema": "bun tools/gen-db-schema.mjs",
 		"check:arch": "bun tools/check-arch.mjs"
 	},
 	"devDependencies": {

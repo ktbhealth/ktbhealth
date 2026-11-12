@@ -1,6 +1,11 @@
 import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
-import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
+import {
+	makePlatformAdminGate,
+	parsePlatformAdminEmails,
+	PlatformAdmin,
+	plugins as platformPlugins,
+} from "@ktb/platform";
 import { makePluginStatesLive, PluginDisabled, PluginStates } from "@ktb/platform/plugin-states";
 import { Bot, stubBotDriver } from "@ktb/bot";
 import { recallDriver } from "@ktb/bot-recall";
@@ -35,13 +40,21 @@ import {
 
 /**
  * Plugin registry discovered from the filesystem: every module under
- * packages/plugins/* exporting `plugins` (single-concern Plugin objects)
+ * plugins/* exporting `plugins` (single-concern Plugin objects)
  * is registered, topo-sorted by `requiredDeps`/`optionalDeps`.
  * import.meta.glob is a build-time transform — Vite emits static imports,
  * so workerd bundling and type safety are preserved.
+ *
+ * @ktb/platform (packages/platform) is host infrastructure below the
+ * plugin system, but its manifest still joins the registry — it is
+ * registered explicitly here since the plugins/* glob no longer reaches
+ * it (T-088).
  */
 export const plugins: readonly Plugin[] = orderPlugins(
-	discoverPlugins(import.meta.glob("../../../plugins/*/src/index.ts", { eager: true })),
+	discoverPlugins({
+		...import.meta.glob("../../../plugins/*/src/index.ts", { eager: true }),
+		"@ktb/platform": { plugins: platformPlugins },
+	}),
 );
 
 /**

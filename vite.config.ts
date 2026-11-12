@@ -27,6 +27,13 @@ export default defineConfig({
 				command: "bun run gen:route-types && git add -N plugins && git diff --exit-code -- plugins",
 				dependsOn: ["ci:build"],
 			},
+			// Regenerate packages/db/src/schema.gen.ts from
+			// plugins/*/src/schema.ts and fail on drift. No build needed —
+			// the aggregator is a pure filesystem scan.
+			"ci:db-schema": {
+				command:
+					"bun run gen:db-schema && git add -N packages/db/src && git diff --exit-code -- packages/db/src/schema.gen.ts",
+			},
 			// Unused-code/dependency gate (knip.json is the config).
 			"ci:knip": { command: "bun run knip" },
 			// Fast smoke test proving the ktb-arch rules still fire
@@ -39,6 +46,7 @@ export default defineConfig({
 		useTabs: true,
 		ignorePatterns: [
 			"**/routeTree.gen.ts",
+			"**/schema.gen.ts",
 			"**/worker-configuration.d.ts",
 			"**/.alchemy/**",
 			"**/drizzle/meta/**",

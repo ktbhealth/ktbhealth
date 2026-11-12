@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { createFileRoute, getRouteApi, notFound } from "@tanstack/react-router";
 
 import { appPageDataFn, pluginStatesFn } from "#/lib/fns.ts";
-import { appPages, enabledIdSet, enabledPlugins } from "#/lib/registry.ts";
+import { appPages, enabledIdSet, enabledPlugins, findPage } from "#/lib/registry.ts";
 import { plugins } from "#/plugins.ts";
 import { getLocale } from "#/paraglide/runtime.js";
 
@@ -23,7 +23,9 @@ const rootApi = getRouteApi("__root__");
 export const Route = createFileRoute("/$")({
 	loader: async ({ params }) => {
 		const path = `/${params._splat ?? ""}`;
-		const entry = appPages.get(path);
+		// findPage: exact descriptors win; "/*" wildcards (DB-backed
+		// pages) resolve by longest matching base.
+		const entry = findPage(appPages, path);
 		if (entry === undefined) throw notFound();
 		// Client-side early gate: a disabled plugin's page 404s before the
 		// server fn round-trip (appPageDataFn re-checks server-side).
@@ -37,7 +39,7 @@ export const Route = createFileRoute("/$")({
 		const { _splat } = Route.useParams();
 		const { data, pluginStates } = Route.useLoaderData();
 		const { user } = rootApi.useLoaderData();
-		const entry = appPages.get(`/${_splat ?? ""}`);
+		const entry = findPage(appPages, `/${_splat ?? ""}`);
 		if (entry === undefined) return null;
 		return createElement(entry.page.component, {
 			data,

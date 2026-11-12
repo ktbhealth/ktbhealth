@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Page, Plugin } from "@ktb/kernel";
 
-import { collectPages, defaultPageContext, isConsolePath } from "./pages.ts";
+import { collectPages, defaultPageContext, findPage, isConsolePath } from "./pages.ts";
 
 const Page = () => null;
 
@@ -111,5 +111,48 @@ describe("collectPages", () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+});
+
+describe("findPage", () => {
+	const map = new Map<string, string>([
+		["/exact", "exact-entry"],
+		["/docs/*", "docs-wildcard"],
+		["/*", "catch-all"],
+	]);
+
+	it("returns exact-path entries before any wildcard", () => {
+		expect(findPage(map, "/exact")).toBe("exact-entry");
+		// An exact entry beats a wildcard that would also match.
+		expect(findPage(map, "/docs")).toBe("docs-wildcard");
+	});
+
+	it("resolves wildcard entries by longest matching base", () => {
+		expect(findPage(map, "/docs/guide")).toBe("docs-wildcard");
+		expect(findPage(map, "/docs")).toBe("docs-wildcard");
+		expect(findPage(map, "/anything/else")).toBe("catch-all");
+		expect(findPage(map, "/")).toBe("catch-all");
+	});
+
+	it("does not match wildcard bases partially", () => {
+		// "/docs/*" must not claim "/docsify" or "/doc".
+		expect(findPage(map, "/docsify")).toBe("catch-all");
+		expect(findPage(map, "/doc")).toBe("catch-all");
+	});
+
+	it("resolves wildcard pages contributed through collectPages", () => {
+		const reg = collectPages([
+			pagePlugin("db.pages", [{ id: "db.catch", path: "/*", component: Page, context: "app" }]),
+			pagePlugin("exact", [{ id: "e", path: "/about", component: Page }]),
+		]);
+		expect(reg.appPages.get("/*")?.pluginId).toBe("db.pages");
+		expect(findPage(reg.appPages, "/about")?.pluginId).toBe("exact");
+		expect(findPage(reg.appPages, "/anything")?.pluginId).toBe("db.pages");
+	});
+
+	it("returns undefined when nothing matches", () => {
+		const exactOnly = new Map<string, string>([["/only", "v"]]);
+		expect(findPage(exactOnly, "/nope")).toBeUndefined();
+		expect(findPage(exactOnly, "/only")).toBe("v");
 	});
 });

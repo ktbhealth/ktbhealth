@@ -6,6 +6,7 @@ import {
 	appPages,
 	consolePages,
 	defaultPageContext,
+	findPage,
 	type PageShell,
 	type PluginStatesResult,
 } from "#/lib/registry.ts";
@@ -106,7 +107,11 @@ const serverPageMap = (): ReadonlyMap<string, Page | PanelPage> => {
  * `{ status: "ok", data: null }`.
  */
 const pageData = async (path: string, shell: PageShell): Promise<PageDataResult> => {
-	const entry = (shell === "console" ? consolePages : appPages).get(path);
+	// findPage resolves exact paths first, then the longest matching
+	// "/*" wildcard subtree — DB-backed pages (custom-pages plugin)
+	// register one wildcard descriptor that serves every path its
+	// guard/loader resolves.
+	const entry = findPage(shell === "console" ? consolePages : appPages, path);
 	if (entry === undefined) return { status: "notfound" };
 	// Entries injected by tests may predate the `context` field — derive
 	// it from the path the same way collectPages does.
@@ -129,7 +134,11 @@ const pageData = async (path: string, shell: PageShell): Promise<PageDataResult>
 	// server-side on the @ktb/app-host plugin objects and never reach
 	// the browser bundle. A descriptor's own handlers win when present —
 	// tests inject full pages directly.
-	const serverPage = serverPageMap().get(path);
+	// Look the server descriptor up by the ENTRY's registered path, not
+	// the request path: wildcard descriptors ("/*") would otherwise
+	// claim every unmatched request and their guard/loader would run
+	// for pages they don't own.
+	const serverPage = serverPageMap().get(entry.page.path);
 	const page = entry.page;
 	const guard = page.guard ?? serverPage?.guard;
 	const loader = page.loader ?? serverPage?.loader;
@@ -137,11 +146,11 @@ const pageData = async (path: string, shell: PageShell): Promise<PageDataResult>
 	// loader; `false` — or a failure — hides the page exactly like an
 	// unknown path.
 	if (guard !== undefined) {
-		const allowed = await runEffect(guard()).catch(() => false);
+		const allowed = await runEffect(guard(path)).catch(() => false);
 		if (!allowed) return { status: "notfound" };
 	}
 	if (loader === undefined) return { status: "ok", data: null };
-	return { status: "ok", data: await runEffect(loader()) };
+	return { status: "ok", data: await runEffect(loader(path)) };
 };
 
 /**

@@ -11,6 +11,7 @@ export {
 	defaultPageContext,
 	enabledIdSet,
 	enabledPlugins,
+	findPage,
 	KNOWN_CHROME_REGIONS,
 	packageEnabled,
 	warnUnknownChromeRegions,

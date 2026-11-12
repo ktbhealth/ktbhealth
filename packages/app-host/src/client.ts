@@ -1,5 +1,6 @@
 import { discoverPlugins, orderPlugins } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
+import { plugins as platformClientPlugins } from "@ktb/platform/client";
 
 import { collectPages } from "./pages.ts";
 
@@ -11,9 +12,16 @@ import { collectPages } from "./pages.ts";
  * what the browser bundle may see (nav/panel/landing contributions; no
  * tables, services, Layers, CQRS groups or page loader/guard Effects).
  * import.meta.glob is a build-time transform — Vite emits static imports.
+ *
+ * @ktb/platform's client manifest (@ktb/platform/client) is registered
+ * explicitly alongside the plugins/* glob — packages/platform lives below
+ * the plugin system but still contributes registry entries (T-088).
  */
 export const plugins: readonly Plugin[] = orderPlugins(
-	discoverPlugins(import.meta.glob("../../../plugins/*/src/client.ts", { eager: true })),
+	discoverPlugins({
+		...import.meta.glob("../../../plugins/*/src/client.ts", { eager: true }),
+		"@ktb/platform/client": { plugins: platformClientPlugins },
+	}),
 );
 
 // Registry-derived collections (P-058/P-059/P-060): pure helpers over the

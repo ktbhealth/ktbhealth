@@ -1,18 +1,27 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { groups } from "./groups.ts";
-import { patients } from "./patients.ts";
+// Relative imports on purpose: drizzle-kit loads the composed schema
+// through a CJS resolver that cannot follow `@ktb/*` package
+// specifiers, and the generated packages/db/src/schema.gen.ts reaches
+// plugin sources by relative path anyway — keep the FK targets on the
+// same module resolution.
+import { groups } from "../../groups/src/schema.ts";
+import { patients } from "../../patients/src/schema.ts";
 
 // `tenantId` (P-053): NULL = personal row scoped by `userId`; a
 // `groups.id` = tenant-owned row readable/operable by that tenant's
 // members. `userId` stays the creator/owner attribution either way.
 // Same `sqliteTable` (not `tenantTable`) rationale as the patients
-// table — see ./patients.ts. SET NULL keeps the record if the clinic
-// group is deleted. The column is declared inline (`integer("tenant_id")`,
-// same shape as `@ktb/tenant`'s `tenantIdColumn`) because @ktb/tenant
-// depends on @ktb/db — importing it here would create a workspace cycle.
-// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
-// plugin workspace cycle — plugins import this from `@ktb/db/schema`.
+// table — see @ktb/patients/schema. SET NULL keeps the record if the
+// clinic group is deleted. The column is declared inline
+// (`integer("tenant_id")`, same shape as `@ktb/tenant`'s
+// `tenantIdColumn`) because @ktb/tenant depends on @ktb/db — importing
+// it here would create a workspace cycle.
+//
+// Plugin-owned table definition (P-061): aggregated into the drizzle
+// schema by the generated packages/db/src/schema.gen.ts — consumers
+// keep importing it from `@ktb/db/schema` (or
+// `@ktb/consultations/schema`).
 export const consultations = sqliteTable(
 	"consultations",
 	{

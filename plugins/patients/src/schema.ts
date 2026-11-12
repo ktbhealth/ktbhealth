@@ -1,13 +1,19 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-import { groups } from "./groups.ts";
+// Relative import on purpose: drizzle-kit loads the composed schema
+// through a CJS resolver that cannot follow `@ktb/*` package
+// specifiers, and the generated packages/db/src/schema.gen.ts reaches
+// plugin sources by relative path anyway — keep the FK target on the
+// same module resolution.
+import { groups } from "../../groups/src/schema.ts";
 
 // FHIR R4 Patient + RNDS/BR Core extensions; codes and labels live in
 // @ktb/patients/record. Everything beyond `name` is nullable so
 // pre-existing name-only patients stay valid until the doctor completes
-// the record. Host-owned by @ktb/db (not a plugin slice) to break the
-// @ktb/db ↔ plugin workspace cycle — plugins import this from
-// `@ktb/db/schema`.
+// the record. Plugin-owned table definition (P-061): aggregated into
+// the drizzle schema by the generated packages/db/src/schema.gen.ts —
+// consumers keep importing it from `@ktb/db/schema` (or
+// `@ktb/patients/schema`).
 //
 // `tenantId` (P-053): NULL = personal row scoped by `ownerId`; a
 // `groups.id` = tenant-owned row readable/operable by that tenant's

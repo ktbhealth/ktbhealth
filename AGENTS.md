@@ -64,9 +64,11 @@ old URLs redirect).
   needs registry contributions or plugin-graph deps → `plugins/`;
   reusable infra → `packages/`. A package may get a thin `plugins/`
   wrapper when it needs registry contributions (see `packages/rbac` vs
-  `plugins/rbac`). Known exception: `plugins/platform` is host
-  infrastructure (admin gate, console shell, plugin_state) — candidate
-  to move to `packages/platform` (T-087).
+  `plugins/rbac`). `packages/platform` (`@ktb/platform`) is host
+  infrastructure (admin gate, console shell, plugin_state) that lives
+  below the plugin system but still contributes registry entries —
+  `@ktb/app-host` registers its `plugins` manifests explicitly next to
+  the `plugins/*` filesystem glob (T-088).
 - Apps are composition roots: `apps/web/src/lib/` holds only
   app-bound wiring (i18n, server fns, runtime registration, deploy
   adapters). Generic logic belongs in packages — currently

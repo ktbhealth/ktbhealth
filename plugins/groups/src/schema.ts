@@ -1,12 +1,13 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-// Host-owned by @ktb/db (not a plugin slice) to break the @ktb/db ↔
-// plugin workspace cycle — plugins import this from `@ktb/db/schema`.
-
 /**
  * Generic groups: clinics, orgs, cohorts or any custom grouping. `kind`
  * is free-form; `meta` is an optional JSON payload stored as text.
+ *
+ * Plugin-owned table definition (P-061): aggregated into the drizzle
+ * schema by the generated packages/db/src/schema.gen.ts, so consumers
+ * keep importing it from `@ktb/db/schema` (or `@ktb/groups/schema`).
  */
 export const groups = sqliteTable("groups", {
 	id: integer().primaryKey({ autoIncrement: true }),

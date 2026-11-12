@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { createFileRoute, getRouteApi, notFound } from "@tanstack/react-router";
 
 import { platformPageDataFn, pluginStatesFn } from "#/lib/fns.ts";
-import { consolePages, enabledIdSet } from "#/lib/registry.ts";
+import { consolePages, enabledIdSet, findPage } from "#/lib/registry.ts";
 import { plugins } from "#/plugins.ts";
 import { getLocale } from "#/paraglide/runtime.js";
 
@@ -19,7 +19,9 @@ const rootApi = getRouteApi("__root__");
 export const Route = createFileRoute("/platform/$")({
 	loader: async ({ params }) => {
 		const path = `/platform/${params._splat ?? ""}`;
-		const entry = consolePages.get(path);
+		// findPage: exact descriptors win; "/*" wildcards (DB-backed
+		// pages) resolve by longest matching base.
+		const entry = findPage(consolePages, path);
 		if (entry === undefined) throw notFound();
 		// Client-side early gate: a disabled plugin's page 404s before the
 		// server fn round-trip (platformPageDataFn re-checks server-side).
@@ -33,7 +35,7 @@ export const Route = createFileRoute("/platform/$")({
 		const { _splat } = Route.useParams();
 		const data = Route.useLoaderData();
 		const { user } = rootApi.useLoaderData();
-		const entry = consolePages.get(`/platform/${_splat ?? ""}`);
+		const entry = findPage(consolePages, `/platform/${_splat ?? ""}`);
 		if (entry === undefined) return null;
 		// ctx.plugins is the FULL discovered registry (P-058): the
 		// /platform/plugins manager needs disabled plugins too; enabled

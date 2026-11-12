@@ -71,6 +71,13 @@
       "when": 1794431960923,
       "tag": "0009_burly_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1794443983943,
+      "tag": "0010_purple_wraith",
+      "breakpoints": true
     }
   ]
 }

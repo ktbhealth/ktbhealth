@@ -78,13 +78,15 @@ export interface PanelPageContext extends PageContext {}
  * `guard` (optional) is an Effect run server-side under the same
  * principal BEFORE `loader`; a `false` result makes the host treat the
  * page as not found — use it for feature flags / entitlement checks.
- * Hard authorization stays inside the loader/service layer. */
+ * Hard authorization stays inside the loader/service layer.
+ * `guard`/`loader` receive the request path — exact-path pages ignore
+ * it; wildcard pages (see `Page.path`) need it to resolve their data. */
 export interface PanelPage {
 	readonly id: string;
 	readonly path: string;
 	readonly component: ComponentType<{ data: unknown; ctx: PanelPageContext }>;
-	readonly loader?: () => Effect.Effect<unknown, unknown, unknown>;
-	readonly guard?: () => Effect.Effect<boolean, unknown, unknown>;
+	readonly loader?: (path: string) => Effect.Effect<unknown, unknown, unknown>;
+	readonly guard?: (path: string) => Effect.Effect<boolean, unknown, unknown>;
 }
 
 /** A page contributed via `pages` (P-059): the host mounts a generic
@@ -102,13 +104,22 @@ export interface PanelPage {
  * inside the marketing shell and may be public. Defaults to "console"
  * for /platform* paths and "app" otherwise — an app-context page
  * claiming a /platform* path is a contract violation (the host warns
- * and ignores it). */
+ * and ignores it).
+ * `path` may also end in "/*" to claim a whole path subtree (same
+ * syntax as chrome `when` paths): exact-path descriptors always win;
+ * among wildcard entries the LONGEST matching base wins, ties break by
+ * plugin topo order. This is the seam runtime/DB-driven pages use —
+ * one wildcard descriptor serves every path its loader resolves (e.g.
+ * the custom-pages plugin's "/*" backed by a DB lookup). `guard` and
+ * `loader` receive the REQUESTED path so the descriptor can resolve
+ * which entity the path names; signatures taking no argument remain
+ * valid (the argument is simply ignored). */
 export interface Page {
 	readonly id: string;
 	readonly path: string;
 	readonly component: ComponentType<{ data: unknown; ctx: PageContext }>;
-	readonly loader?: () => Effect.Effect<unknown, unknown, unknown>;
-	readonly guard?: () => Effect.Effect<boolean, unknown, unknown>;
+	readonly loader?: (path: string) => Effect.Effect<unknown, unknown, unknown>;
+	readonly guard?: (path: string) => Effect.Effect<boolean, unknown, unknown>;
 	readonly context?: "app" | "console";
 }
 
