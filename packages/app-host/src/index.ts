@@ -57,6 +57,7 @@ const apiModules = import.meta.glob("../../../plugins/*/src/api.ts", { eager: tr
 // surface is live while ANY of its plugin ids is enabled (P-058).
 const apiEntries = Object.entries(apiModules).flatMap(([path, m]) => {
 	const pkg = /(?:^|\/)plugins\/([^/]+)\/src\/api\.ts$/.exec(path)?.[1];
+	/* v8 ignore next -- glob keys always match the plugins/<pkg>/src/api.ts shape */
 	return pkg === undefined
 		? []
 		: Object.values(m as Record<string, unknown>).map((value) => ({ pkg, value }));

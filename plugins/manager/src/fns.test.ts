@@ -30,7 +30,11 @@ import {
 	platformPanelPlugin,
 	platformRoutesPlugin,
 } from "@ktb/platform";
-import { makePluginStatesLive } from "@ktb/platform/plugin-states";
+import {
+	makePluginStatesLive,
+	PluginStates,
+	type PluginStatesShape,
+} from "@ktb/platform/plugin-states";
 import { Principal } from "@ktb/authz";
 import { resetServerRuntime, setServerRuntime } from "@ktb/server-fns";
 import * as Effect from "effect/Effect";
@@ -70,6 +74,26 @@ const sessionFor = (email: string | null) =>
 describe("manager fns", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<unknown, never>;
 	let currentEmail: string | null = null;
+	let auth: ReturnType<typeof Auth.of>;
+
+	// (Re)install the server-runtime registry against `rt` — the error
+	// propagation test swaps in a stub PluginStates and restores this.
+	const installRuntime = (rt: ManagedRuntime.ManagedRuntime<unknown, never>) => {
+		setServerRuntime({
+			run: (effect) => rt.runPromise(effect.pipe(Effect.provideService(Auth, auth))),
+			runAs: (user, effect) =>
+				rt.runPromise(
+					effect.pipe(
+						Effect.provideService(Principal, {
+							userId: user.id,
+							email: user.email,
+						}),
+					),
+				),
+			audioTranscribeModel: "test-model",
+			getLocale: () => "en",
+		});
+	};
 
 	beforeAll(async () => {
 		const db = makeDb(makeD1(DDL));
@@ -81,24 +105,11 @@ describe("manager fns", () => {
 		runtime = ManagedRuntime.make(
 			Layer.mergeAll(states.pipe(Layer.provide(env)), env) as Layer.Layer<unknown, never, never>,
 		);
-		const auth = Auth.of({
+		auth = Auth.of({
 			getSession: async () => sessionFor(currentEmail) as never,
 			setUserBanned: async () => {},
 		});
-		setServerRuntime({
-			run: (effect) => runtime.runPromise(effect.pipe(Effect.provideService(Auth, auth))),
-			runAs: (user, effect) =>
-				runtime.runPromise(
-					effect.pipe(
-						Effect.provideService(Principal, {
-							userId: user.id,
-							email: user.email,
-						}),
-					),
-				),
-			audioTranscribeModel: "test-model",
-			getLocale: () => "en",
-		});
+		installRuntime(runtime);
 	});
 
 	afterAll(() => {
@@ -109,6 +120,7 @@ describe("manager fns", () => {
 	it("rejects anonymous callers", async () => {
 		currentEmail = null;
 		expect(await listPluginStatesFn()).toBeNull();
+		expect(await getPluginConfigFn({ data: "manager.panel" })).toBeNull();
 		await expect(
 			setPluginEnabledFn({ data: { ids: ["manager.chrome"], enabled: false } }),
 		).rejects.toThrow("unauthenticated");
@@ -170,5 +182,62 @@ describe("manager fns", () => {
 		await expect(
 			setPluginEnabledFn({ data: { ids: ["platform.panel"], enabled: false } }),
 		).rejects.toMatchObject({ _tag: "PluginDepsUnsatisfied" });
+	});
+
+	it("propagates unexpected service errors instead of mapping them", async () => {
+		// A stub PluginStates whose every method fails with `failure` —
+		// the fns' catch blocks only translate Forbidden/UnknownPlugin;
+		// anything else (tagged or not) must reach the caller.
+		let failure: unknown = { _tag: "Other" };
+		const stubStates = PluginStates.of({
+			isEnabled: () => Effect.succeed(true),
+			enabledIds: () => Effect.succeed(new Set<string>()),
+			config: () => Effect.fail(failure),
+			setEnabled: () => Effect.fail(failure),
+			setConfig: () => Effect.fail(failure),
+			entries: () => Effect.fail(failure),
+		} as unknown as PluginStatesShape);
+		const rt = ManagedRuntime.make(
+			Layer.mergeAll(
+				Layer.succeed(
+					PlatformAdmin,
+					makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com")),
+				),
+				Layer.succeed(PluginStates, stubStates),
+			) as Layer.Layer<unknown, never, never>,
+		);
+		installRuntime(rt);
+		currentEmail = "admin@x.com";
+		const calls = [
+			() => listPluginStatesFn(),
+			() => getPluginConfigFn({ data: "manager.panel" }),
+			() => setPluginEnabledFn({ data: { ids: ["manager.chrome"], enabled: false } }),
+			() => setPluginConfigFn({ data: { pluginId: "manager.panel", config: {} } }),
+		];
+		try {
+			for (const failureValue of [
+				{ _tag: "Other" }, // tagged but not translatable
+				new Error("db gone"), // plain Error — no _tag
+				null, // null fails the object check
+				"string-failure", // non-object rejection
+			]) {
+				failure = failureValue;
+				for (const call of calls) {
+					let threw = false;
+					try {
+						await call();
+					} catch {
+						threw = true;
+					}
+					expect(threw).toBe(true);
+				}
+			}
+			// UnknownPlugin on the config read maps to null like Forbidden.
+			failure = { _tag: "UnknownPlugin" };
+			await expect(getPluginConfigFn({ data: "manager.panel" })).resolves.toBeNull();
+		} finally {
+			installRuntime(runtime);
+			await rt.dispose();
+		}
 	});
 });

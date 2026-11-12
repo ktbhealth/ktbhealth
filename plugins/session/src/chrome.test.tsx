@@ -41,6 +41,25 @@ describe("SessionMenu", () => {
 		expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
 	});
 
+	it("falls back to English labels and a placeholder avatar", async () => {
+		const signOut = vi.fn(async () => {});
+		render(
+			<SessionMenu
+				{...props({
+					// No `name` → avatar fallback; no `signOut` label → English.
+					user: { id: "u2", email: "noname@ktb.test" },
+					labels: {},
+					signOut,
+				})}
+			/>,
+		);
+		// The trigger renders the avatar fallback ("?") and an empty name.
+		fireEvent.click(screen.getByRole("button"));
+		const item = await screen.findByText("Sign out");
+		fireEvent.click(item);
+		await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+	});
+
 	it("shows the account menu for a signed-in user and signs out", async () => {
 		const signOut = vi.fn(async () => {});
 		render(

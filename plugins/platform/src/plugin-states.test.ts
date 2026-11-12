@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { Db, makeDb } from "@ktb/db";
+import { pluginState } from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { definePlugin } from "@ktb/kernel";
 import type { PluginConfigSchema, PluginId } from "@ktb/kernel";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
 
 import {
 	InvalidPluginConfig,
@@ -15,6 +16,7 @@ import {
 	pluginConfigDefaults,
 	PluginDepsUnsatisfied,
 	PluginStates,
+	pluginEnabled,
 	UnknownPlugin,
 	validatePluginConfig,
 } from "./plugin-states.ts";
@@ -35,6 +37,7 @@ declare module "@ktb/kernel" {
 		"test.dep": true;
 		"test.main": true;
 		"test.other": true;
+		"test.weird": true;
 	}
 }
 
@@ -263,6 +266,83 @@ describe("PluginStatesLive", () => {
 			await runtime.dispose();
 		}
 	});
+
+	it("pluginEnabled reads isEnabled through the service", async () => {
+		const runtime = makeRuntime();
+		try {
+			await expect(withStates(runtime, pluginEnabled("test.main"))).resolves.toBe(true);
+			await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setEnabled(["test.other"], false)),
+			);
+			await expect(withStates(runtime, pluginEnabled("test.other"))).resolves.toBe(false);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("setConfig rejects unknown ids and treats an absent config as {}", async () => {
+		const runtime = makeRuntime();
+		try {
+			const unknown = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setConfig("nope", {})).pipe(Effect.flip),
+			);
+			expect(unknown).toBeInstanceOf(UnknownPlugin);
+			// `undefined` config decodes as {} → the required `title` is missing.
+			const empty = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setConfig("test.main", undefined)).pipe(Effect.flip),
+			);
+			expect(empty).toBeInstanceOf(InvalidPluginConfig);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("reads degrade a corrupt stored config row to schema defaults", async () => {
+		const db = makeDb(makeD1(DDL));
+		const runtime = ManagedRuntime.make(
+			makePluginStatesLive(testPlugins).pipe(Layer.provide(Layer.succeed(Db, db))),
+		);
+		try {
+			await db.insert(pluginState).values({
+				pluginId: "test.main",
+				enabled: true,
+				config: "{not json",
+				updatedAt: new Date(),
+			});
+			const config = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.config("test.main")),
+			);
+			expect(config).toEqual({ retries: 3, verbose: false, mode: "fast" });
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("flattens empty-path pointers in config issues", async () => {
+		// A property literally named "" produces a Pointer whose joined
+		// path is "" — the formatter must not emit a leading ": ".
+		const weird = definePlugin({
+			id: "test.weird",
+			configSchema: Schema.Struct({ "": Schema.String }),
+		});
+		const runtime = ManagedRuntime.make(
+			makePluginStatesLive([weird]).pipe(Layer.provide(Layer.succeed(Db, makeDb(makeD1(DDL))))),
+		);
+		try {
+			const bad = await withStates(
+				runtime,
+				Effect.flatMap(PluginStates, (s) => s.setConfig("test.weird", { "": 1 })).pipe(Effect.flip),
+			);
+			expect(bad).toBeInstanceOf(InvalidPluginConfig);
+			expect((bad as InvalidPluginConfig).issues.join("\n")).not.toContain(": ");
+		} finally {
+			await runtime.dispose();
+		}
+	});
 });
 
 describe("pluginConfigDefaults", () => {
@@ -323,6 +403,22 @@ describe("validatePluginConfig", () => {
 		expect(out).toEqual({
 			ok: true,
 			value: { title: "T", retries: 3, verbose: false, mode: "fast" },
+		});
+	});
+
+	it("keeps only defaults when the schema decodes to a non-object", () => {
+		// A configSchema may transform the object into a scalar — the
+		// decoded success is then not a plain object and contributes
+		// nothing beyond the defaults.
+		const scalar = Schema.Struct({ title: Schema.String }).pipe(
+			Schema.decodeTo(Schema.String, {
+				decode: SchemaGetter.transform((s) => s.title),
+				encode: SchemaGetter.transform((s) => ({ title: s })),
+			}),
+		);
+		expect(validatePluginConfig(scalar, {}, { title: "T" })).toEqual({
+			ok: true,
+			value: {},
 		});
 	});
 });

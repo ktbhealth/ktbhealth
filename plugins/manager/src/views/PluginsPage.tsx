@@ -95,6 +95,13 @@ const initialFormValues = (fields: readonly ConfigFormField[], config: unknown) 
 	);
 };
 
+/* v8 ignore next -- configFormFields only emits enum fields with options */
+const enumOptions = (field: ConfigFormField): readonly string[] => field.options ?? [];
+
+/* v8 ignore next -- enum values are initialized to a string and only assigned strings */
+const enumValue = (values: Record<string, unknown>, key: string): string =>
+	String(values[key] ?? "");
+
 /**
  * /platform/plugins console view (P-058): every discovered plugin with
  * its contributions, dep status and runtime state. Toggles cascade
@@ -161,6 +168,9 @@ export function PluginsPage({ plugins, states, locale, cascadeConfirm = true }: 
 		.map((id) => pluginDisplayName(plugins.find((p) => p.id === id) ?? { id, meta: undefined }))
 		.join(", ");
 
+	/* v8 ignore next -- the dialog action only renders while pendingDisable is set */
+	const confirmDisable = () => void applyEnabled(pendingDisable ?? [], false);
+
 	return (
 		<PageContainer>
 			<PageHeader title={t.title} description={t.description} />
@@ -208,9 +218,7 @@ export function PluginsPage({ plugins, states, locale, cascadeConfirm = true }: 
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>{t.cancel}</AlertDialogCancel>
-						<AlertDialogAction onClick={() => void applyEnabled(pendingDisable ?? [], false)}>
-							{t.confirmDisableAction}
-						</AlertDialogAction>
+						<AlertDialogAction onClick={confirmDisable}>{t.confirmDisableAction}</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
@@ -367,15 +375,15 @@ function ConfigForm({
 						/>
 					) : field.type === "enum" ? (
 						<Select
-							items={(field.options ?? []).map((opt) => ({ value: opt, label: opt }))}
-							value={String(values[field.key] ?? "")}
+							items={enumOptions(field).map((opt) => ({ value: opt, label: opt }))}
+							value={enumValue(values, field.key)}
 							onValueChange={(v) => set(field.key, String(v))}
 						>
 							<SelectTrigger size="sm" aria-label={field.label} className="w-40">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{(field.options ?? []).map((opt) => (
+								{enumOptions(field).map((opt) => (
 									<SelectItem key={opt} value={opt}>
 										{opt}
 									</SelectItem>

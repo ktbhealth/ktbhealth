@@ -87,6 +87,11 @@ describe("collectChrome", () => {
 		];
 		expect(collectChrome(tied, "r", "/").map((e) => e.id)).toEqual(["a.2", "a.1", "b.1"]);
 	});
+
+	it("tolerates plugins without a chrome contribution", () => {
+		const plugins = [{ id: "bare" } as Plugin, plugin("a", [entry("a.nav", "app.header.nav")])];
+		expect(collectChrome(plugins, "app.header.nav", "/").map((e) => e.id)).toEqual(["a.nav"]);
+	});
 });
 
 describe("unknownChromeRegions", () => {
@@ -99,6 +104,11 @@ describe("unknownChromeRegions", () => {
 			"also.bogus",
 			"bogus.region",
 		]);
+	});
+
+	it("ignores plugins without chrome", () => {
+		const plugins = [{ id: "bare" } as Plugin];
+		expect(unknownChromeRegions(plugins, new Set())).toEqual([]);
 	});
 
 	it("warns once per unknown region", () => {

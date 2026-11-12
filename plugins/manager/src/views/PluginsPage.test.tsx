@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +26,7 @@ declare module "@ktb/kernel" {
 		"v.child": true;
 		"v.other": true;
 		"v.config": true;
+		"v.rich": true;
 	}
 }
 
@@ -47,7 +48,6 @@ const plugins: readonly Plugin[] = [
 						title: Schema.String.annotate({ title: "Title" }),
 						retries: Schema.optionalKey(Schema.Finite).annotate({
 							title: "Retries",
-							default: 3,
 						}),
 						verbose: Schema.optionalKey(Schema.Boolean).annotate({
 							title: "Verbose",
@@ -250,5 +250,158 @@ describe("PluginsPage", () => {
 				config: { title: "T", retries: 3, verbose: false, mode: "b" },
 			},
 		});
+	});
+
+	it("surfaces a failure message when the enable write is refused or throws", async () => {
+		const user = userEvent.setup();
+		const toggle = async () => {
+			const switches = screen.getAllByRole("switch");
+			await user.click(switches[plugins.findIndex((p) => p.id === "v.other")]);
+		};
+		// Refused write (ok === false) → failed banner, no invalidate.
+		fns.setPluginEnabledFn.mockResolvedValueOnce(false);
+		const first = render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		await toggle();
+		expect(await screen.findByText("Could not save the configuration.")).toBeTruthy();
+		expect(invalidate).not.toHaveBeenCalled();
+		first.unmount();
+		// Thrown write → same banner.
+		fns.setPluginEnabledFn.mockRejectedValueOnce(new Error("boom"));
+		render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		await toggle();
+		expect(await screen.findByText("Could not save the configuration.")).toBeTruthy();
+	});
+
+	it("names cascade targets by id when they leave the registry mid-dialog", async () => {
+		const user = userEvent.setup();
+		const { rerender } = render(
+			<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />,
+		);
+		const switches = screen.getAllByRole("switch");
+		await user.click(switches[plugins.findIndex((p) => p.id === "v.base")]);
+		expect(screen.getByText(/This also disables/)).toBeTruthy();
+		// The dialog stays open while the plugin list shrinks — a pending
+		// id absent from `plugins` falls back to its raw id in the body.
+		rerender(
+			<PluginsPage
+				plugins={plugins.filter((p) => p.id !== "v.child")}
+				states={allEnabled()}
+				locale="en"
+			/>,
+		);
+		expect(screen.getByText(/v\.child, which depend/)).toBeTruthy();
+	});
+
+	it("closes the cascade dialog on cancel without writing", async () => {
+		const user = userEvent.setup();
+		render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		const switches = screen.getAllByRole("switch");
+		await user.click(switches[plugins.findIndex((p) => p.id === "v.base")]);
+		expect(screen.getByText(/This also disables/)).toBeTruthy();
+		await user.click(screen.getByText("Cancel"));
+		await waitFor(() => expect(screen.queryByText(/This also disables/)).toBeNull());
+		expect(fns.setPluginEnabledFn).not.toHaveBeenCalled();
+	});
+
+	it("toggles a boolean config field through its Switch and saves it", async () => {
+		const user = userEvent.setup();
+		render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		// The config form's boolean field is the last switch on the page
+		// (after the four row toggles).
+		const switches = screen.getAllByRole("switch");
+		await user.click(switches[switches.length - 1]!);
+		await user.click(screen.getByText("Save"));
+		expect(fns.setPluginConfigFn).toHaveBeenCalledWith({
+			data: {
+				pluginId: "v.config",
+				config: { title: "T", retries: 3, verbose: true, mode: "a" },
+			},
+		});
+	});
+
+	it("keeps the previous number on non-finite input and accepts digits", async () => {
+		const user = userEvent.setup();
+		render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		const retries = screen.getByRole("spinbutton", { name: /^Retries/ });
+		// A plain digit change takes the finite path.
+		fireEvent.input(retries, { target: { value: "7" } });
+		expect((retries as HTMLInputElement).value).toBe("7");
+		// jsdom sanitizes type=number `.value` to valid floats, so a
+		// non-finite intermediate ("1e" in a real browser) cannot arrive
+		// through the DOM — stub the property to simulate it. Number()
+		// of it is NaN → the field keeps its previous value (7).
+		Object.defineProperty(retries, "value", {
+			configurable: true,
+			get: () => "1e",
+			set: () => {},
+		});
+		fireEvent.input(retries);
+		await user.click(screen.getByText("Save"));
+		expect(fns.setPluginConfigFn).toHaveBeenCalledWith({
+			data: {
+				pluginId: "v.config",
+				config: { title: "T", retries: 7, verbose: false, mode: "a" },
+			},
+		});
+	});
+
+	it("falls back to defaults/empty when the stored config is missing or malformed", () => {
+		const states = allEnabled();
+		states.delete("v.config");
+		const { rerender } = render(<PluginsPage plugins={plugins} states={states} locale="en" />);
+		const title = screen.getByRole("textbox", { name: /^Title/ }) as HTMLInputElement;
+		const retries = screen.getByRole("spinbutton", { name: /^Retries/ }) as HTMLInputElement;
+		// No stored config: optional keys take schema defaults, the
+		// required string stays empty, the number field stays unset.
+		expect(title.value).toBe("");
+		expect(retries.value).toBe("");
+		// enum field takes its schema default ("a" — the trigger also
+		// renders the select chevron).
+		expect(screen.getByRole("combobox", { name: "Mode" }).textContent).toContain("a");
+		// A non-object stored config degrades the same way.
+		for (const config of [null, [1, 2, 3]]) {
+			const odd = allEnabled();
+			odd.set("v.config", { pluginId: "v.config", enabled: true, config });
+			rerender(<PluginsPage plugins={plugins} states={odd} locale="en" />);
+			expect(title.value).toBe("");
+		}
+	});
+
+	it("shows the empty state when no plugins are registered", () => {
+		render(<PluginsPage plugins={[]} states={new Map()} locale="en" />);
+		expect(screen.getByText("No plugins discovered.")).toBeTruthy();
+	});
+
+	it("surfaces a failure message when the config save is refused or throws", async () => {
+		const user = userEvent.setup();
+		const save = () => user.click(screen.getByText("Save"));
+		// Refused write (ok === false) → failed span inside the form.
+		fns.setPluginConfigFn.mockResolvedValueOnce(false);
+		const first = render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		await save();
+		expect(await screen.findByText("Could not save the configuration.")).toBeTruthy();
+		expect(invalidate).not.toHaveBeenCalled();
+		first.unmount();
+		// Thrown write (get or set) → same failure path.
+		fns.getPluginConfigFn.mockRejectedValueOnce(new Error("boom"));
+		render(<PluginsPage plugins={plugins} states={allEnabled()} locale="en" />);
+		await save();
+		expect(await screen.findByText("Could not save the configuration.")).toBeTruthy();
+	});
+
+	it("lists multiple contribution kinds and dashes for plugins with none", () => {
+		// The Plugin union allows one contribution field per plugin, but
+		// the view joins whatever kinds a descriptor carries — exercise
+		// the multi-kind path with a cast.
+		const rich = definePlugin({
+			id: "v.rich",
+			tables: {},
+			chrome: [],
+		} as unknown as Plugin);
+		const states = allEnabled();
+		states.set("v.rich", { pluginId: "v.rich", enabled: true, config: null });
+		render(<PluginsPage plugins={[...plugins, rich]} states={states} locale="en" />);
+		expect(screen.getByText("tables, chrome")).toBeTruthy();
+		expect(screen.getAllByText("—").length).toBeGreaterThan(0);
 	});
 });

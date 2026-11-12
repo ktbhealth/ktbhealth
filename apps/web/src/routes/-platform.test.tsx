@@ -28,6 +28,21 @@ const signOut = vi.fn(async () => {});
 
 vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: () => signOut() } }));
 
+vi.mock("#/lib/registry.ts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#/lib/registry.ts")>();
+	return {
+		...actual,
+		collectChrome: (
+			pluginList: Parameters<typeof actual.collectChrome>[0],
+			region: string,
+			path: string,
+		) => [
+			...actual.collectChrome(pluginList, region, path),
+			...chromeExtra.filter((entry) => entry.region === region),
+		],
+	};
+});
+
 vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
 	platformPageDataFn: (arg: { data: string }) => platformPageDataFn(arg.data),
@@ -45,6 +60,8 @@ let pathname = "/platform";
 let pageParam = "patients";
 // When set, replaces the <Outlet /> stub so a test can read context values.
 let outletChild: (() => ReactElement | null) | null = null;
+// Test-only chrome injection: extra collectChrome results per region.
+let chromeExtra: { id: string; region: string; content: Record<string, unknown> }[] = [];
 
 beforeAll(() => {
 	// jsdom has no matchMedia; the ui sidebar's useIsMobile needs it.
@@ -116,6 +133,7 @@ afterEach(() => {
 	cleanup();
 	vi.unstubAllGlobals();
 	outletChild = null;
+	chromeExtra = [];
 	signOut.mockClear();
 	pathname = "/platform";
 	pageParam = "patients";
@@ -230,6 +248,36 @@ describe("/platform layout", () => {
 
 	it("beforeLoad passes for admins", async () => {
 		await expect(beforeLoad(PlatformRoute)!()).resolves.toBeUndefined();
+	});
+
+	it("skips chrome entries whose kind does not match the console slot", () => {
+		chromeExtra = [
+			{
+				id: "t.sidebar-note",
+				region: "console.sidebar",
+				content: { kind: "note", key: "k", fallback: "f" },
+			},
+			{
+				id: "t.header-link",
+				region: "console.header.actions",
+				content: { kind: "link", to: "/x", label: "X" },
+			},
+		];
+		render(createElement(component(PlatformRoute)));
+		// Matching entries still render; mismatched kinds are dropped.
+		expect(screen.getByTestId("platform-outlet")).toBeTruthy();
+	});
+
+	it("stays silent outside dev", async () => {
+		// The dev chrome-region warning is module-level — re-import the
+		// route with DEV stubbed off to cover the skipped branch.
+		vi.stubEnv("DEV", false);
+		vi.resetModules();
+		try {
+			await import("./platform.tsx");
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });
 

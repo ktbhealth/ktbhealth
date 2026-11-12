@@ -171,6 +171,21 @@ describe("createPluginApiRoute", () => {
 		expect(inner).not.toHaveBeenCalled();
 	});
 
+	it("delegates inside { middleware, handler } entries when enabled", async () => {
+		setServerRuntime(stubRuntime(async () => true));
+		const middleware = vi.fn();
+		const inner = vi.fn(async () => new Response("inner", { status: 202 }));
+		const route = createApiRoute("demo.routes")("/api/demo")({
+			server: { handlers: { GET: { middleware: [middleware], handler: inner } } },
+		});
+		const entry = handlersOf(route).GET! as { handler: HandlerFn; middleware: unknown[] };
+		expect(entry.middleware).toEqual([middleware]);
+		const args = { request: new Request("http://x/"), params: {} };
+		const res = await entry.handler(args);
+		expect(res.status).toBe(202);
+		expect(inner).toHaveBeenCalledWith(args);
+	});
+
 	it("supports the ({ createHandlers }) => handlers factory form", async () => {
 		setServerRuntime(stubRuntime(async () => false));
 		const inner = vi.fn(async () => new Response("inner"));

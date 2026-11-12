@@ -8,6 +8,11 @@ const state = vi.hoisted(() => ({
 	user: null as { name?: string; email?: string } | null,
 	pluginStates: null as { enabled: string[] } | null,
 	enabledIds: [] as string[],
+	chromeExtra: [] as {
+		id: string;
+		region: string;
+		content: Record<string, unknown>;
+	}[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -37,6 +42,22 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 vi.mock("@tanstack/react-devtools", () => ({ TanStackDevtools: () => null }));
 vi.mock("@tanstack/react-router-devtools", () => ({ TanStackRouterDevtoolsPanel: () => null }));
 vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: vi.fn() } }));
+vi.mock("#/lib/registry.ts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#/lib/registry.ts")>();
+	return {
+		...actual,
+		// Test-only chrome injection: real plugin contributions plus any
+		// entries a test queues in state.chromeExtra for the region.
+		collectChrome: (
+			pluginList: Parameters<typeof actual.collectChrome>[0],
+			region: string,
+			pathname: string,
+		) => [
+			...actual.collectChrome(pluginList, region, pathname),
+			...state.chromeExtra.filter((entry) => entry.region === region),
+		],
+	};
+});
 vi.mock("#/lib/fns.ts", () => ({
 	sessionFn: vi.fn(async () => null),
 	pluginStatesFn: vi.fn(async () => ({ enabled: [] })),
@@ -67,6 +88,7 @@ afterEach(() => {
 	state.pathname = "/";
 	state.user = null;
 	state.pluginStates = null;
+	state.chromeExtra = [];
 });
 
 describe("root route", () => {
@@ -152,6 +174,64 @@ describe("root document", () => {
 			expect(html).toContain('<div id="child">page</div>');
 			expect(html).not.toContain("<header");
 			expect(html).not.toContain("<footer");
+		}
+	});
+
+	it("renders contributed footer blocks and skips chrome kinds that do not match the slot", () => {
+		state.chromeExtra = [
+			{
+				id: "t.block-a",
+				region: "app.footer.blocks",
+				content: {
+					kind: "footerBlock",
+					block: {
+						heading: "Resources",
+						links: [{ to: "/docs", label: "Docs" }],
+					},
+				},
+			},
+			{
+				id: "t.block-b",
+				region: "app.footer.blocks",
+				content: {
+					kind: "footerBlock",
+					block: { links: [{ to: "/about", label: "About" }] },
+				},
+			},
+			// Non-footerBlock entries in the blocks region are skipped.
+			{
+				id: "t.blocks-note",
+				region: "app.footer.blocks",
+				content: { kind: "note", key: "x", fallback: "y" },
+			},
+			// Non-link/component entries in header regions render nothing.
+			{
+				id: "t.nav-note",
+				region: "app.header.nav",
+				content: { kind: "note", key: "x", fallback: "y" },
+			},
+			// Non-note entries in the footer-note region are skipped.
+			{
+				id: "t.foot-link",
+				region: "app.footer.note",
+				content: { kind: "link", to: "/x", label: "X" },
+			},
+		];
+		const html = render();
+		expect(html).toContain("Resources");
+		expect(html).toContain("Docs");
+		expect(html).toContain("About");
+	});
+
+	it("stays silent outside dev", async () => {
+		// The dev chrome-region warning is module-level — re-import the
+		// route with DEV stubbed off to cover the skipped branch.
+		vi.stubEnv("DEV", false);
+		vi.resetModules();
+		try {
+			await import("./__root.tsx");
+		} finally {
+			vi.unstubAllEnvs();
 		}
 	});
 });

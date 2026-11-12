@@ -25,6 +25,7 @@ declare module "@ktb/kernel" {
 		"t.services": true;
 		"t.routes": true;
 		"t.landing": true;
+		"t.top": true;
 	}
 }
 
@@ -113,6 +114,25 @@ describe("requiredClosure", () => {
 		expect(requiredClosure(plugins, "t.c")).toEqual(["t.b", "t.a"]);
 		expect(requiredClosure(plugins, "t.a")).toEqual([]);
 	});
+
+	it("deduplicates shared ancestors in a diamond", () => {
+		// t.top requires both t.b and t.c; both require t.a — t.a must
+		// appear once even though it is reachable twice.
+		const diamond: readonly Plugin[] = [
+			dep("t.a"),
+			dep("t.b", ["t.a"]),
+			dep("t.c", ["t.a"]),
+			dep("t.top", ["t.b", "t.c"]),
+		];
+		expect(requiredClosure(diamond, "t.top")).toEqual(["t.b", "t.a", "t.c"]);
+	});
+
+	it("tolerates requiredDeps ids missing from the registry", () => {
+		// A dep that no plugin declares still joins the closure; the
+		// recursive visit finds no entry and stops.
+		const sparse: readonly Plugin[] = [dep("t.top", ["t.ghost"])];
+		expect(requiredClosure(sparse, "t.top")).toEqual(["t.ghost"]);
+	});
 });
 
 describe("configFormFields", () => {
@@ -161,6 +181,22 @@ describe("configFormFields", () => {
 					nested: { type: "object", properties: { a: { type: "string" } } },
 					list: { type: "array", items: { type: "string" } },
 					numEnum: { type: "number", enum: [1, 2] },
+				},
+			}),
+		);
+		expect(fields.map((f) => f.key)).toEqual(["ok"]);
+	});
+
+	it("skips non-object property entries", () => {
+		const fields = configFormFields(
+			doc({
+				type: "object",
+				properties: {
+					ok: { type: "string" },
+					// JSON-Schema allows boolean property schemas (`true` =
+					// anything) — they carry no renderable type.
+					anything: true,
+					nothing: null,
 				},
 			}),
 		);
