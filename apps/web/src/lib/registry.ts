@@ -6,18 +6,13 @@
 // #/plugins.ts plays for the raw registry).
 export {
 	appPages,
-	chromeWhenMatches,
 	collectChrome,
-	collectPages,
 	consolePages,
 	defaultPageContext,
 	enabledIdSet,
 	enabledPlugins,
-	isConsolePath,
 	KNOWN_CHROME_REGIONS,
 	packageEnabled,
-	pages,
-	unknownChromeRegions,
 	warnUnknownChromeRegions,
 } from "@ktb/app-host/client";
-export type { PageEntry, PageRegistry, PageShell, PluginStatesResult } from "@ktb/app-host/client";
+export type { PageShell, PluginStatesResult } from "@ktb/app-host/client";

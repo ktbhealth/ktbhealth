@@ -209,16 +209,9 @@ export {
 
 // ---------- plugin manager (P-058) ----------
 // Plugin-state server functions are owned by the manager plugin — its
-// /platform/plugins page and this host file share the implementations
-// through @ktb/manager/fns. Re-exported here so host callers keep their
-// import path. `pluginStatesFn` above stays host-side: the root loader
-// needs it even when the manager plugin itself is disabled.
-export {
-	getPluginConfigFn,
-	listPluginStatesFn,
-	setPluginConfigFn,
-	setPluginEnabledFn,
-} from "@ktb/manager/fns";
+// /platform/plugins page imports them from @ktb/manager/fns directly.
+// `pluginStatesFn` above stays host-side: the root loader needs it even
+// when the manager plugin itself is disabled.
 
 // ---------- notifications ----------
 
