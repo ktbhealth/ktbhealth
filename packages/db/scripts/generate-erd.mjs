@@ -176,7 +176,10 @@ const QUAD_TITLES = {
 // 3. Render one target tree into `root` (used for both write and --check).
 //    `root` is the plugins/ docs dir; each domain becomes
 //    plugins/<id>/{reference,how-to}/.
-function renderTarget(root, locale) {
+//    `existingBase` is the real docs dir (when known): how-to/ content is
+//    hand-written, so its meta.json `pages` list is preserved from the
+//    existing file and unknown pages are never wiped.
+function renderTarget(root, locale, existingBase) {
 	const qt = QUAD_TITLES[locale] ?? QUAD_TITLES.en;
 	const base = root;
 	mkdirSync(base, { recursive: true });
@@ -206,9 +209,22 @@ function renderTarget(root, locale) {
 			join(refDir, "meta.json"),
 			JSON.stringify({ title: qt.reference, pages: ["index", ...d.tables] }, null, "\t") + "\n",
 		);
+		// how-to guides are hand-written: keep the existing pages list so
+		// regen never drops them (and --check compares like-for-like).
+		let howToPages = [];
+		if (existingBase) {
+			const existing = join(existingBase, d.id, "how-to", "meta.json");
+			if (existsSync(existing)) {
+				try {
+					howToPages = JSON.parse(readFileSync(existing, "utf8")).pages ?? [];
+				} catch {
+					/* malformed — regenerate empty */
+				}
+			}
+		}
 		writeFileSync(
 			join(howToDir, "meta.json"),
-			JSON.stringify({ title: qt["how-to"], pages: [] }, null, "\t") + "\n",
+			JSON.stringify({ title: qt["how-to"], pages: howToPages }, null, "\t") + "\n",
 		);
 		writeFileSync(join(refDir, "schema.mmd"), domainMermaid[d.id] + "\n");
 		writeFileSync(
@@ -266,7 +282,7 @@ function collectFiles(dir, prefix = "") {
 
 const staged = targets.map(({ dir: checkBase, locale }, i) => {
 	const renderRoot = join(tmp, `target-${i}`);
-	renderTarget(renderRoot, locale);
+	renderTarget(renderRoot, locale, checkBase);
 	return { checkBase, renderRoot };
 });
 
@@ -284,6 +300,8 @@ if (check) {
 			else if (readFileSync(act, "utf8") !== content) diffs.push(`content differs: ${rel}`);
 		}
 		for (const rel of actual.keys()) {
+			// hand-written how-to guides are not generated output
+			if (rel.includes("/how-to/") && !rel.endsWith("/how-to/meta.json")) continue;
 			if (!expected.has(rel)) diffs.push(`stale (not generated): ${rel}`);
 		}
 		if (diffs.length) {
@@ -299,13 +317,28 @@ if (check) {
 	console.log("check passed: generated docs are up to date.");
 } else {
 	for (const { checkBase, renderRoot } of staged) {
-		// wipe only generated artifacts; hand-written files
-		// (plugins/index.mdx etc.) are left alone
-		for (const name of ["schema.mmd", "meta.json", ...DOMAINS.map((d) => d.id)]) {
-			rmSync(join(checkBase, name), { recursive: true, force: true });
+		// wipe only generated artifacts; hand-written files survive:
+		// plugins/index.mdx, and everything under plugins/<id>/how-to/
+		// (only its meta.json is regenerated, preserving the pages list).
+		rmSync(join(checkBase, "schema.mmd"), { force: true });
+		rmSync(join(checkBase, "meta.json"), { force: true });
+		for (const d of DOMAINS) {
+			rmSync(join(checkBase, d.id, "reference"), { recursive: true, force: true });
+			rmSync(join(checkBase, d.id, "meta.json"), { force: true });
 		}
 		for (const e of readdirSync(renderRoot, { withFileTypes: true })) {
-			execFileSync("cp", ["-r", join(renderRoot, e.name), join(checkBase, e.name)]);
+			const src = join(renderRoot, e.name);
+			const dest = join(checkBase, e.name);
+			if (e.isDirectory()) {
+				// merge contents — domain dirs may already exist (how-to/
+				// is hand-written and preserved), so copy `src/.` not `src`.
+				mkdirSync(dest, { recursive: true });
+				// `src/.` (not join — it strips the dot) merges contents into
+				// the existing dir instead of nesting src inside it.
+				execFileSync("cp", ["-r", `${src}/.`, dest]);
+			} else {
+				execFileSync("cp", [src, dest]);
+			}
 		}
 		console.log(`wrote plugin ERD docs → ${checkBase}`);
 	}
