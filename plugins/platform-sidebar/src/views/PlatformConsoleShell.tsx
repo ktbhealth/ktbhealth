@@ -28,13 +28,13 @@ import type { PanelSidebarItem } from "@ktb/kernel";
 import { consoleMessages } from "../i18n.ts";
 
 export interface PlatformConsoleShellProps {
-	/** Aggregated `panel.sidebar` items from every plugin, in topo order. */
+	/** Aggregated `console.sidebar` chrome items from every plugin, in topo order. */
 	readonly items: readonly PanelSidebarItem[];
 	readonly pathname: string;
 	readonly userEmail?: string;
 	/**
 	 * Optional right-side header widgets contributed by plugins via
-	 * `panel.headerActions` — rendered only when the host enables the
+	 * `console.header.actions` chrome — rendered only when the host enables the
 	 * `platform.header` extension point.
 	 */
 	readonly headerActions?: ReactNode;
@@ -50,7 +50,7 @@ const isItemActive = (pathname: string, item: PanelSidebarItem) =>
 
 /**
  * /platform console chrome: fixed sidebar aggregating every plugin's
- * `panel.sidebar` contribution in topo order (grouped by `group`,
+ * `console.sidebar` chrome contribution in topo order (grouped by `group`,
  * ungrouped pinned first), dense breadcrumb top bar, sign-out footer.
  * Purely presentational — the host route owns the admin guard and
  * injects items/pathname/user/sign-out.
@@ -80,7 +80,7 @@ export function PlatformConsoleShell({
 	);
 	const current = items.find((i) => isItemActive(pathname, i));
 	// Breadcrumb leaf: the matched sidebar item's label (the plugin
-	// provides it via panel.sidebar), else the last path segment.
+	// provides it via console.sidebar chrome), else the last path segment.
 	const leaf =
 		pathname === "/platform"
 			? t.overview

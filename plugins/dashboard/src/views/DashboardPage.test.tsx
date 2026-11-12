@@ -40,11 +40,23 @@ const consultation = (over: Partial<AdminConsultationRow>): AdminConsultationRow
 	ownerEmail: "d@x.com",
 	ownerName: "Dra",
 	patientName: null,
+	tenantId: null,
 	...over,
 });
 
 const plugin = (id: string, sidebar = 0): Plugin =>
-	sidebar ? { id, panel: { sidebar: [{ to: "/x", label: id }] } } : { id };
+	sidebar
+		? {
+				id,
+				chrome: [
+					{
+						id: `${id}.sidebar`,
+						region: "console.sidebar",
+						content: { kind: "sidebarItem", item: { to: "/x", label: id } },
+					},
+				],
+			}
+		: { id };
 
 const Landing = () => null;
 
@@ -78,7 +90,7 @@ describe("DashboardPage", () => {
 		expect(screen.getByText("live")).toBeTruthy();
 		expect(screen.getByText("bot")).toBeTruthy();
 		expect(screen.getByText("x.y")).toBeTruthy();
-		expect(screen.getByText("panel")).toBeTruthy();
+		expect(screen.getByText("chrome")).toBeTruthy();
 	});
 
 	it("hides the console-activity card when notifications are not provided", () => {
@@ -130,19 +142,23 @@ describe("DashboardPage", () => {
 		expect(screen.getByText("No notifications yet.")).toBeTruthy();
 	});
 
-	it("lists landing and landing-footer among a plugin's contributions", () => {
+	it("lists landing and panel pages among a plugin's contributions", () => {
+		const Page = () => null;
 		render(
 			<DashboardPage
 				patients={[]}
 				consultations={[]}
 				plugins={[
 					{ id: "site.landing", landing: { page: Landing } },
-					{ id: "site.footer", landingFooter: { blocks: [{ links: [{ to: "/a", label: "A" }] }] } },
+					{
+						id: "site.panel",
+						panel: { pages: [{ id: "p", path: "/platform/x", component: Page }] },
+					},
 				]}
 			/>,
 		);
 		expect(screen.getByText("landing")).toBeTruthy();
-		expect(screen.getByText("landing-footer")).toBeTruthy();
+		expect(screen.getByText("panel")).toBeTruthy();
 	});
 
 	it("falls back from the owner name to the email and then to a dash", () => {
@@ -160,15 +176,21 @@ describe("DashboardPage", () => {
 		expect(screen.getByText("—")).toBeTruthy();
 	});
 
-	it("lists routes, landing nav, tables and services among a plugin's contributions", () => {
+	it("lists routes, chrome, tables and services among a plugin's contributions", () => {
 		const everything = {
 			id: "full.stack",
 			routes: [{ path: "/x" }],
-			landingNav: [{ to: "/a", label: "A" }],
+			chrome: [
+				{
+					id: "c",
+					region: "app.header.nav",
+					content: { kind: "link", to: "/a", label: "A" },
+				},
+			],
 			tables: {},
 			services: {},
 		} as unknown as Plugin;
 		render(<DashboardPage patients={[]} consultations={[]} plugins={[everything]} />);
-		expect(screen.getByText("routes, landing-nav, tables, services")).toBeTruthy();
+		expect(screen.getByText("routes, chrome, tables, services")).toBeTruthy();
 	});
 });

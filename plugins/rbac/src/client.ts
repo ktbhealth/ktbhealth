@@ -9,18 +9,32 @@ import { RbacPlatformPage } from "./platform-page.tsx";
  * through `@ktb/app-host/client` (import.meta.glob on
  * `plugins/<name>/src/client.ts`). Every server entry keeps its id and dep
  * edges so topo order matches the server registry, but only
- * client-consumed contributions are carried: the panel sidebar entry
+ * client-consumed contributions are carried: the console.sidebar chrome entry
  * and page descriptor. `panel.pages` keep id/path/component only — the
  * loader Effect runs server-side and stays in ./index.ts.
  * tables/services degrade to markers. Dep ids are literals: importing
  * ./index.ts would pull the server graph into the client bundle. Keep
  * in sync — parity is asserted by apps/web/src/plugins.test.ts.
  */
+export const rbacChromePlugin = definePlugin({
+	id: "rbac.chrome",
+	requiredDeps: ["platform.panel"],
+	chrome: [
+		{
+			id: "rbac.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" },
+			},
+		},
+	],
+});
+
 export const rbacPanelPlugin = definePlugin({
 	id: "rbac.panel",
 	requiredDeps: ["platform.panel"],
 	panel: {
-		sidebar: [{ to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" }],
 		pages: [
 			{
 				id: "rbac.admin",
@@ -38,6 +52,9 @@ export const plugins: readonly Plugin[] = [
 	definePlugin({
 		id: "rbac.services",
 		requiredDeps: ["platform.admin"],
+		// Mirrors rbacServicesPlugin.optionalDeps (server index.ts).
+		optionalDeps: ["audit.services"],
 	}),
+	rbacChromePlugin,
 	rbacPanelPlugin,
 ];

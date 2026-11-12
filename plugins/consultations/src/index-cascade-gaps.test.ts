@@ -5,7 +5,7 @@ import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
 import { PatientCascadeCommands, PatientRecordConsultationsQueries } from "@ktb/patients/api";
-import { patients as patientsTable } from "@ktb/patients/schema";
+import { patients as patientsTable } from "@ktb/db/schema";
 import { PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
 import { Command, makeEventBus, Query } from "@effect-server-utils/cqrs";
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 
-import { consultations as consultationsTable } from "./schema.ts";
+import { consultations as consultationsTable } from "@ktb/db/schema";
 import {
 	PatientDeleteCascadeLive,
 	PatientRecordConsultationsLive,
@@ -27,8 +27,8 @@ import {
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
-CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
 `;
 
 type Registered = Query.Registered<typeof PatientRecordConsultationsQueries> &
@@ -42,6 +42,9 @@ describe("patient record query and delete cascade", () => {
 
 	const asUser = <A, E, R>(effect: Effect.Effect<A, E, R>, userId?: string) =>
 		userId === undefined ? effect : Effect.provideService(effect, Principal, { userId });
+
+	const asAdmin = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+		Effect.provideService(effect, Principal, { userId: "u2", email: "admin@x.com" });
 
 	const recordConsultations = (patientId: number, userId?: string) =>
 		runtime.runPromise(
@@ -130,6 +133,21 @@ describe("patient record query and delete cascade", () => {
 		it("fails Forbidden without a bound principal", async () => {
 			await expect(recordConsultations(ana)).rejects.toMatchObject({ _tag: "Forbidden" });
 		});
+
+		it("lets a platform admin read another owner's patient consultations", async () => {
+			const rows = (await runtime.runPromise(
+				asAdmin(
+					Effect.scoped(
+						Effect.gen(function* () {
+							const queries = yield* Query.dispatcher(PatientRecordConsultationsQueries);
+							return yield* queries["patients.recordConsultations"]({ patientId: ana });
+						}),
+					) as Effect.Effect<unknown, unknown, Registered>,
+				),
+			)) as { patientId: number; chiefComplaint: string | null }[];
+			expect(rows).toHaveLength(2);
+			expect(rows.every((r) => r.patientId === ana)).toBe(true);
+		});
 	});
 
 	describe("patients.deleteCascade", () => {
@@ -147,6 +165,25 @@ describe("patient record query and delete cascade", () => {
 				audioKeys: ["audio/u1/a.webm"],
 			});
 			await expect(recordConsultations(ana, "u1")).resolves.toEqual([]);
+		});
+
+		it("lets a platform admin cascade over ownerless and cross-owner rows", async () => {
+			// bia's only linked consultation has userId NULL — an owner
+			// principal is refused, an admin removes it.
+			await runtime
+				.runPromise(
+					asAdmin(
+						Effect.scoped(
+							Effect.gen(function* () {
+								const commands = yield* Command.dispatcher(PatientCascadeCommands);
+								return yield* commands["patients.deleteCascade"]({ patientId: bia });
+							}),
+						) as Effect.Effect<unknown, unknown, Registered>,
+					),
+				)
+				.then((res) => {
+					expect(res).toEqual({ consultations: 1, audioKeys: [] });
+				});
 		});
 	});
 });

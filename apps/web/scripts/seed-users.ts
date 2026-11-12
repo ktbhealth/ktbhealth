@@ -20,12 +20,11 @@ import { getPlatformProxy } from "wrangler";
 import { and, eq } from "drizzle-orm";
 
 import { makeDb, type DbClient } from "@ktb/db";
-import { user } from "@ktb/db/schema";
+import { patientAccess, patients, user } from "@ktb/db/schema";
 import { makeAuth } from "@ktb/auth-better";
 import { ensureDoctorProfile } from "@ktb/doctors";
 import { inviteSecretary } from "@ktb/secretaries";
-import { patientAccess, type PatientAccessRelation } from "@ktb/patient-access/schema";
-import { patients } from "@ktb/patients/schema";
+import type { PatientAccessRelation } from "@ktb/patient-access/schema";
 
 const PASSWORD = process.env.SEED_PASSWORD ?? "dev-password-123";
 const USERS = [

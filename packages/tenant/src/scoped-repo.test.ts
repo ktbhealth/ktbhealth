@@ -138,6 +138,24 @@ describe("scopedRepo reads", () => {
 		expect(row?.id).toBe(f.ids.b1);
 	});
 
+	it("findFirst returns null when the scope is empty", async () => {
+		// Only a tenant-B row and no personal rows: tenant A's scope
+		// (tenant_id IN (1) OR IS NULL) matches nothing.
+		const sql = makeD1(DDL);
+		await sql
+			.prepare("INSERT INTO test_notes (tenant_id, body) VALUES (?, ?)")
+			.bind(2, "b-only")
+			.run();
+		const f: Fixture = {
+			sql,
+			db: makeDb(sql),
+			live: Layer.succeed(Db, makeDb(sql)),
+			ids: { a1: 0, a2: 0, b1: 0, p1: 0 },
+		};
+		const row = await repo(f, tenantA, (r) => r.findFirst());
+		expect(row).toBeNull();
+	});
+
 	it("TenantAccess widens the visible set across tenants", async () => {
 		const f = await makeFixture();
 		const rows = await withTenant(
@@ -174,6 +192,23 @@ describe("scopedRepo writes", () => {
 		const f = await makeFixture();
 		const row = await repo(f, null, (r) => r.insert({ body: "new-p" }));
 		expect(row?.tenantId).toBeNull();
+	});
+
+	it("insert returns null when RETURNING yields no row", async () => {
+		// A driver that returns no rows from INSERT ... RETURNING: the
+		// repo degrades to null instead of throwing (same contract the
+		// groups plugin tests for its repo helpers).
+		const emptyInsert = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as DbClient;
+		const row = await Effect.runPromise(
+			scopedRepo(notes).pipe(
+				Effect.flatMap((r) => r.insert({ body: "ghost" })),
+				Effect.provide(Layer.succeed(Db, emptyInsert)),
+				Effect.provideService(Tenant, tenantA),
+			),
+		);
+		expect(row).toBeNull();
 	});
 
 	it("update cannot touch foreign-tenant rows", async () => {

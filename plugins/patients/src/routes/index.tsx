@@ -1,11 +1,13 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { PatientsPage } from "../views/index.ts";
 import { localeFn, listPatientsFn } from "../fns.ts";
 import { requireDoctor } from "../guard.ts";
 import { patientDeleteApi } from "../apis.ts";
 
-export const Route = createFileRoute("/patients/")({
+export const Route = createPluginFileRoute("patients.routes")("/patients/")({
 	beforeLoad: () => requireDoctor(),
 	loader: async () => {
 		const [patients, locale] = await Promise.all([listPatientsFn(), localeFn()]);

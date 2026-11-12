@@ -1,10 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
 import { Consultations } from "@ktb/consultations";
 import { PlatformAdmin } from "@ktb/platform";
-import { getDoctorUser, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/jobs — SSE feed of the consultation audio-pipeline rows behind
@@ -26,7 +25,7 @@ import { getDoctorUser, runAs } from "@ktb/server-fns";
  * "src/api-routes")); the session/runtime boundary is @ktb/server-fns,
  * so no host imports are needed (P-033).
  */
-export const Route = createFileRoute("/api/jobs")({
+export const Route = createPluginApiRoute("jobs.routes")("/api/jobs")({
 	server: {
 		handlers: {
 			GET: async () => {

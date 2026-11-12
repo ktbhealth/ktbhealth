@@ -11,10 +11,30 @@ import { Notifications, notificationsServicesPlugin } from "@ktb/notifications";
 import { Patients, patientsServicesPlugin } from "@ktb/patients";
 import type { Plugin } from "@ktb/kernel";
 
-import { dashboardPanelPlugin, plugins } from "./index.ts";
+import { dashboardChromePlugin, dashboardPanelPlugin, plugins } from "./index.ts";
 
-describe("dashboardPanelPlugin", () => {
-	it("declares the ungrouped /platform sidebar entry", () => {
+describe("dashboard plugins", () => {
+	it("declares the ungrouped /platform sidebar chrome entry", () => {
+		expect(dashboardChromePlugin.id).toBe("dashboard.chrome");
+		expect(dashboardChromePlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
+		expect(dashboardChromePlugin.chrome).toEqual([
+			{
+				id: "dashboard.sidebar",
+				region: "console.sidebar",
+				content: {
+					kind: "sidebarItem",
+					item: {
+						to: "/platform",
+						label: "Dashboard",
+						icon: LayoutDashboardIcon,
+						exact: true,
+					},
+				},
+			},
+		]);
+	});
+
+	it("declares the /platform page descriptor", () => {
 		expect(dashboardPanelPlugin.id).toBe("dashboard.panel");
 		expect(dashboardPanelPlugin.requiredDeps).toEqual([
 			platformPanelPlugin.id,
@@ -22,20 +42,13 @@ describe("dashboardPanelPlugin", () => {
 			consultationsServicesPlugin.id,
 		]);
 		expect(dashboardPanelPlugin.optionalDeps).toEqual([notificationsServicesPlugin.id]);
-		expect(dashboardPanelPlugin.panel?.sidebar).toEqual([
-			{
-				to: "/platform",
-				label: "Dashboard",
-				icon: LayoutDashboardIcon,
-				exact: true,
-			},
-		]);
+		expect(dashboardPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform");
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["dashboard.panel"]);
+		expect(plugins.map((p) => p.id)).toEqual(["dashboard.chrome", "dashboard.panel"]);
 		const p: Plugin = dashboardPanelPlugin;
-		expect("panel" in p && p.panel.sidebar?.[0]?.group).toBeUndefined();
+		expect("panel" in p && p.panel.pages?.[0]?.path).toBe("/platform");
 	});
 });
 

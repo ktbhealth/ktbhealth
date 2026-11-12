@@ -12,6 +12,7 @@ export default defineConfig({
 				"**/*.test.*",
 				"**/*.d.ts",
 				"**/routeTree.gen.ts",
+				"**/schema.gen.ts",
 				"**/worker-configuration.d.ts",
 				"**/paraglide/**",
 			],

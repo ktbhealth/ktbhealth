@@ -6,11 +6,10 @@ import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 
 import { PatientProfiles, type PatientProfile } from "@ktb/auth";
-import { user } from "@ktb/auth/schema";
 import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
+import { patients, user } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import { patients } from "@ktb/patients/schema";
 
 import {
 	PATIENT_ACCESS_RELATIONS,

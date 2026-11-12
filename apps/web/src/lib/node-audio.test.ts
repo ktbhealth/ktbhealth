@@ -105,4 +105,33 @@ describe("makeLocalAudioBucket", () => {
 		const object = await bucket.get("meta.bin");
 		expect(object!.httpMetadata?.contentType).toBeUndefined();
 	});
+
+	it("list() inventories object files, skips sidecars and sorts keys", async () => {
+		const bucket = makeLocalAudioBucket(bucketDir());
+		expect(await bucket.list()).toEqual({ objects: [], truncated: false });
+		await bucket.put("b/two.wav", new Uint8Array([1, 2]), {
+			httpMetadata: { contentType: "audio/wav" },
+		});
+		await bucket.put("a/one.wav", new Uint8Array([1, 2, 3]));
+		const result = await bucket.list();
+		expect(result.truncated).toBe(false);
+		expect(result.objects).toEqual([
+			{ key: "a/one.wav", size: 3 },
+			{ key: "b/two.wav", size: 2 },
+		]);
+	});
+
+	it("list() tolerates a missing store dir as zero objects", async () => {
+		const bucket = makeLocalAudioBucket(join(bucketDir(), "does-not-exist"));
+		expect(await bucket.list()).toEqual({ objects: [], truncated: false });
+	});
+
+	it("list() surfaces non-ENOENT walk errors", async () => {
+		// Rooting the bucket at a plain file makes readdir fail ENOTDIR —
+		// only ENOENT (missing store dir) is tolerated.
+		const root = join(bucketDir(), "not-a-dir");
+		writeFileSync(root, "x");
+		const bucket = makeLocalAudioBucket(root);
+		await expect(bucket.list()).rejects.toThrow(/ENOTDIR|not a directory/);
+	});
 });

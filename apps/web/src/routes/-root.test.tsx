@@ -6,7 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
 	pathname: "/",
 	user: null as { name?: string; email?: string; patientOnly?: boolean } | null,
-	plugins: [] as unknown[],
+	pluginStates: null as { enabled: string[] } | null,
+	enabledIds: [] as string[],
+	chromeExtra: [] as {
+		id: string;
+		region: string;
+		content: Record<string, unknown>;
+	}[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -16,7 +22,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		...actual,
 		createRootRoute: (opts: Record<string, unknown>) => ({
 			options: opts,
-			useLoaderData: () => state.user,
+			useLoaderData: () => ({
+				user: state.user,
+				pluginStates: state.pluginStates ?? { enabled: state.enabledIds },
+			}),
 		}),
 		useLocation: (opts?: { select?: (l: { pathname: string }) => unknown }) => {
 			const loc = { pathname: state.pathname };
@@ -30,38 +39,38 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		},
 	};
 });
-// The account menu renders closed (no items in static markup); swap in
-// passthroughs so the tests can see which entries an account is offered.
-vi.mock("@ktbhealth/ui/components/dropdown-menu", async () => {
-	const React = await import("react");
-	const passthrough =
-		(tag: string) =>
-		({ children }: { children?: ReactNode }) =>
-			React.createElement(tag, null, children);
-	return {
-		DropdownMenu: passthrough("div"),
-		DropdownMenuTrigger: passthrough("button"),
-		DropdownMenuContent: passthrough("div"),
-		DropdownMenuGroup: passthrough("div"),
-		DropdownMenuItem: passthrough("button"),
-		DropdownMenuLabel: passthrough("div"),
-		DropdownMenuSeparator: () => React.createElement("hr"),
-		DropdownMenuRadioGroup: passthrough("div"),
-		DropdownMenuRadioItem: passthrough("div"),
-	};
-});
 vi.mock("@tanstack/react-devtools", () => ({ TanStackDevtools: () => null }));
 vi.mock("@tanstack/react-router-devtools", () => ({ TanStackRouterDevtoolsPanel: () => null }));
 vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: vi.fn() } }));
-vi.mock("#/lib/fns.ts", () => ({ sessionFn: vi.fn(async () => null) }));
-vi.mock("#/plugins.ts", () => ({
-	get plugins() {
-		return state.plugins;
-	},
+vi.mock("#/lib/registry.ts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#/lib/registry.ts")>();
+	return {
+		...actual,
+		// Test-only chrome injection: real plugin contributions plus any
+		// entries a test queues in state.chromeExtra for the region.
+		collectChrome: (
+			pluginList: Parameters<typeof actual.collectChrome>[0],
+			region: string,
+			pathname: string,
+		) => [
+			...actual.collectChrome(pluginList, region, pathname),
+			...state.chromeExtra.filter((entry) => entry.region === region),
+		],
+	};
+});
+vi.mock("#/lib/fns.ts", () => ({
+	sessionFn: vi.fn(async () => null),
+	pluginStatesFn: vi.fn(async () => ({ enabled: [] })),
 }));
 vi.mock("../styles.css?url", () => ({ default: "/styles.css" }));
 
+import { plugins } from "#/plugins.ts";
 import { Route } from "./__root.tsx";
+
+// Populated after the registry import resolves — the react-router mock
+// reads it lazily inside useLoaderData (importing #/plugins.ts inside
+// the mock factory would deadlock on the circular client manifests).
+state.enabledIds = plugins.map((p) => p.id);
 
 type RootOpts = {
 	shellComponent: (p: { children: ReactNode }) => ReactElement;
@@ -78,12 +87,16 @@ const render = (children: ReactNode = createElement("div", { id: "child" }, "pag
 afterEach(() => {
 	state.pathname = "/";
 	state.user = null;
-	state.plugins = [];
+	state.pluginStates = null;
+	state.chromeExtra = [];
 });
 
 describe("root route", () => {
-	it("loads the session, declares head tags and renders the not-found page", async () => {
-		await expect(opts.loader()).resolves.toBeNull();
+	it("loads the session and enabled plugin ids, declares head tags and renders the not-found page", async () => {
+		await expect(opts.loader()).resolves.toEqual({
+			user: null,
+			pluginStates: { enabled: [] },
+		});
 		const head = opts.head();
 		expect(head.links).toEqual([{ rel: "stylesheet", href: "/styles.css" }]);
 		expect(head.meta).toContainEqual({ charSet: "utf-8" });
@@ -112,67 +125,68 @@ describe("root document", () => {
 		expect(html).toContain('<main class="');
 		expect(html).toContain('<div id="child">page</div>');
 		expect(html).toContain("<footer");
+	});
+
+	it("renders the plugin-owned chrome regions from the real registry", () => {
+		const html = render();
+		// site.chrome → app.header.brand
+		expect(html).toContain("KTB Health");
+		expect(html).toContain('href="/"');
+		// patients/consultations chrome → app.header.nav
+		expect(html).toContain('href="/patients"');
+		expect(html).toContain('href="/consultations"');
+		// consultations.chrome → app.header.actions (host-injected label)
+		expect(html).toContain('href="/consultations/new"');
+		expect(html).toContain("New consultation");
+		// session.chrome → app.header.session (anonymous → sign-in link)
 		expect(html).toContain('href="/login"');
+		expect(html).toContain("Sign in");
 	});
 
-	it("renders plugin footer blocks with and without a heading", () => {
-		state.plugins = [
-			{
-				landingFooter: {
-					blocks: [
-						{ heading: "Legal", links: [{ to: "/terms", label: "Terms" }] },
-						{ links: [{ to: "/status", label: "Status" }] },
-					],
-				},
-			},
-			{ landingNav: [{ to: "/nav-item", label: "Nav" }] },
-			{},
-		];
+	it("renders the plugin footer note through the i18n mapping", () => {
 		const html = render();
-		expect(html).toContain("Legal");
-		expect(html).toContain('href="/terms"');
-		expect(html).toContain("Terms");
-		expect(html).toContain('href="/status"');
-		expect(html).toContain("Status");
-		expect(html).toContain('href="/nav-item"');
-		// Only the headed block renders a heading element.
-		expect(html.match(/font-semibold text-foreground/g)).toHaveLength(1);
+		expect(html).toContain("documentation tool");
 	});
 
-	it("shows the account menu trigger for a signed-in user", () => {
-		state.user = { name: "Dra. Bia", email: "bia@ktb.test" };
+	it("shows the account menu instead of sign-in when a user is loaded", () => {
+		state.user = { name: "Ada Lovelace", email: "ada@x.com" };
 		const html = render();
-		expect(html).toContain("Dra. Bia");
+		// The trigger renders the name; the email/sign-out live inside the
+		// portaled dropdown content (covered by plugins/session tests).
+		expect(html).toContain("Ada Lovelace");
 		expect(html).not.toContain('href="/login"');
 	});
 
-	it("offers a doctor the doctor navigation and the profile menu", () => {
+	it("offers a doctor the doctor navigation", () => {
 		state.user = { name: "Dra. Bia", email: "bia@ktb.test", patientOnly: false };
-		state.plugins = [{ landingNav: [{ to: "/consultations", label: "Consultations" }] }];
 		const html = render();
+		// The profile shortcuts live inside the portaled account menu
+		// (covered by plugins/session tests).
+		expect(html).toContain('href="/patients"');
 		expect(html).toContain('href="/consultations"');
 		expect(html).toContain('href="/consultations/new"');
-		expect(html).toContain("Switch doctor");
-		expect(html).toContain("Secretaries");
-		expect(html).toContain("Patient portal");
+		expect(html).not.toContain('href="/portal"');
 		expect(html).not.toContain("My consultations");
 	});
 
-	it("narrows a patient account to the portal: no doctor navigation or profiles", () => {
+	it("narrows a patient account to the portal: no doctor navigation", () => {
 		state.user = { name: "Ana", email: "ana@ktb.test", patientOnly: true };
-		state.plugins = [{ landingNav: [{ to: "/consultations", label: "Consultations" }] }];
 		const html = render();
 		expect(html).toContain('href="/portal"');
 		expect(html).toContain("My consultations");
 		expect(html).not.toContain('href="/consultations"');
+		expect(html).not.toContain('href="/patients"');
 		expect(html).not.toContain('href="/consultations/new"');
-		expect(html).not.toContain("Switch doctor");
-		expect(html).not.toContain("Secretaries");
 	});
 
-	it("falls back to a placeholder initial when the user has no name", () => {
-		state.user = { email: "x@ktb.test" };
-		expect(render()).toContain("?");
+	it("hides a disabled plugin's chrome contributions (P-058)", () => {
+		state.pluginStates = {
+			enabled: plugins.filter((p) => p.id !== "patients.chrome").map((p) => p.id),
+		};
+		const html = render();
+		expect(html).not.toContain('href="/patients"');
+		// Other plugins' chrome still renders.
+		expect(html).toContain('href="/consultations"');
 	});
 
 	it("gives the /platform console the whole viewport", () => {
@@ -182,6 +196,64 @@ describe("root document", () => {
 			expect(html).toContain('<div id="child">page</div>');
 			expect(html).not.toContain("<header");
 			expect(html).not.toContain("<footer");
+		}
+	});
+
+	it("renders contributed footer blocks and skips chrome kinds that do not match the slot", () => {
+		state.chromeExtra = [
+			{
+				id: "t.block-a",
+				region: "app.footer.blocks",
+				content: {
+					kind: "footerBlock",
+					block: {
+						heading: "Resources",
+						links: [{ to: "/docs", label: "Docs" }],
+					},
+				},
+			},
+			{
+				id: "t.block-b",
+				region: "app.footer.blocks",
+				content: {
+					kind: "footerBlock",
+					block: { links: [{ to: "/about", label: "About" }] },
+				},
+			},
+			// Non-footerBlock entries in the blocks region are skipped.
+			{
+				id: "t.blocks-note",
+				region: "app.footer.blocks",
+				content: { kind: "note", key: "x", fallback: "y" },
+			},
+			// Non-link/component entries in header regions render nothing.
+			{
+				id: "t.nav-note",
+				region: "app.header.nav",
+				content: { kind: "note", key: "x", fallback: "y" },
+			},
+			// Non-note entries in the footer-note region are skipped.
+			{
+				id: "t.foot-link",
+				region: "app.footer.note",
+				content: { kind: "link", to: "/x", label: "X" },
+			},
+		];
+		const html = render();
+		expect(html).toContain("Resources");
+		expect(html).toContain("Docs");
+		expect(html).toContain("About");
+	});
+
+	it("stays silent outside dev", async () => {
+		// The dev chrome-region warning is module-level — re-import the
+		// route with DEV stubbed off to cover the skipped branch.
+		vi.stubEnv("DEV", false);
+		vi.resetModules();
+		try {
+			await import("./__root.tsx");
+		} finally {
+			vi.unstubAllEnvs();
 		}
 	});
 });

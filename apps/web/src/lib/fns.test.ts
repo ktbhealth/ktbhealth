@@ -22,15 +22,18 @@ vi.mock("@tanstack/react-start", () => ({
 
 import { env } from "cloudflare:workers";
 import * as Effect from "effect/Effect";
-import type { PanelPage } from "@ktb/kernel";
-import { platformPages } from "./platform-pages.ts";
+import type { Page, PanelPage } from "@ktb/kernel";
+import { appPages, consolePages } from "./registry.ts";
 import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/anamnesis";
 import { auth, db } from "./platform.ts";
 import { signUpDoctor } from "#/test/doctor.ts";
-import { consultations } from "@ktb/db/schema";
+import { consultations, pluginState } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
 import {
+	adminCreateConsultationFn,
+	adminCreatePatientFn,
+	adminDeleteConsultationFn,
 	adminListAudioJobsFn,
 	attachAnamnesisFn,
 	countMyUnreadNotificationsFn,
@@ -52,6 +55,7 @@ import {
 	patientHistoryFn,
 	platformAdminFn,
 	platformPageDataFn,
+	appPageDataFn,
 	recordConsentFn,
 	saveConsultationFn,
 	sessionFn,
@@ -85,7 +89,9 @@ const makeAnamnesis = (chiefComplaint: string): Anamnesis => ({
 let cookie = "";
 
 async function signIn(email: string) {
-	await signUpDoctor({ email, password: "senha-forte-123", name: "Dra" });
+	// Repeat sign-ins (e.g. the platform-admin user across tests) skip
+	// the signup — the account and its doctor profile already exist.
+	await signUpDoctor({ email, password: "senha-forte-123", name: "Dra" }).catch(() => {});
 	const res = await auth.handler(
 		new Request("http://localhost:3000/api/auth/sign-in/email", {
 			method: "POST",
@@ -534,11 +540,11 @@ describe("server fns", () => {
 		expect(await platformAdminFn()).toBe(false);
 		expect(await platformPageDataFn({ data: "/platform/patients" })).toEqual({
 			status: "ok",
-			data: [],
+			data: { patients: [], owners: [] },
 		});
 		expect(await platformPageDataFn({ data: "/platform/consultations" })).toEqual({
 			status: "ok",
-			data: [],
+			data: { consultations: [], owners: [], patients: [] },
 		});
 		expect(await adminListAudioJobsFn()).toEqual([]);
 		expect(await platformPageDataFn({ data: "/platform/users" })).toEqual({
@@ -560,18 +566,18 @@ describe("server fns", () => {
 			if (res.status !== "ok") throw new Error(`expected ok, got ${res.status}`);
 			return res.data;
 		};
-		const rows = (await pageData("/platform/patients")) as {
-			ownerEmail: string | null;
-		}[];
-		expect(rows.length).toBeGreaterThan(0);
-		expect(rows.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
+		const patientsData = (await pageData("/platform/patients")) as {
+			patients: { ownerEmail: string | null }[];
+		};
+		expect(patientsData.patients.length).toBeGreaterThan(0);
+		expect(patientsData.patients.some((r) => r.ownerEmail === "fns@x.com")).toBe(true);
 
 		// Same gate covers the consultations and users console listings.
-		const consultRows = (await pageData("/platform/consultations")) as {
-			ownerEmail?: string;
-		}[];
-		expect(Array.isArray(consultRows)).toBe(true);
-		expect(consultRows.every((r) => r.ownerEmail !== undefined)).toBe(true);
+		const consultData = (await pageData("/platform/consultations")) as {
+			consultations: { ownerEmail?: string }[];
+		};
+		expect(Array.isArray(consultData.consultations)).toBe(true);
+		expect(consultData.consultations.every((r) => r.ownerEmail !== undefined)).toBe(true);
 		const userRows = (await pageData("/platform/users")) as {
 			isAdmin: boolean;
 		}[];
@@ -598,6 +604,59 @@ describe("server fns", () => {
 		expect(typeof dashboard.unreadCount).toBe("number");
 	});
 
+	it("platform admin CRUD fns mutate cross-owner records; non-admins get ok:false", async () => {
+		const adminCookie = await signIn("platform-admin@ktb.test");
+		headers.current = new Headers({ cookie: adminCookie });
+		const admin = await getSessionUserFn();
+		expect(admin).not.toBeNull();
+
+		const created = await adminCreatePatientFn({
+			data: { ownerId: admin!.id, name: "Admin Pat", birthDate: "1990-01-01" },
+		});
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+
+		const consult = await adminCreateConsultationFn({
+			data: { userId: admin!.id, patientId: created.patient.id, transcript: "note" },
+		});
+		expect(consult).toEqual({ ok: true, id: expect.any(Number) });
+		if (!consult.ok) return;
+		expect(await adminDeleteConsultationFn({ data: consult.id })).toEqual({
+			ok: true,
+			orphanedAudio: 0,
+		});
+		// Missing row → ok:false.
+		expect(await adminDeleteConsultationFn({ data: consult.id })).toEqual({ ok: false });
+
+		// A stored recording is purged from R2 on delete.
+		const withAudio = await adminCreateConsultationFn({
+			data: { userId: admin!.id, transcript: "audio note" },
+		});
+		if (!withAudio.ok) throw new Error("expected ok");
+		await db
+			.update(consultations)
+			.set({ audioKey: "audios/admin.webm" })
+			.where(eq(consultations.id, withAudio.id));
+		expect((await adminDeleteConsultationFn({ data: withAudio.id })).ok).toBe(true);
+
+		headers.current = new Headers({ cookie });
+		expect(
+			await adminCreatePatientFn({
+				data: { ownerId: "u1", name: "Nope", birthDate: "1990-01-01" },
+			}),
+		).toEqual({ ok: false, errors: {} });
+		expect(await adminCreateConsultationFn({ data: { userId: "u1" } })).toEqual({
+			ok: false,
+		});
+		expect(await adminDeleteConsultationFn({ data: 1 })).toEqual({ ok: false });
+
+		// Invalid drafts surface field errors, not a generic failure.
+		expect(await adminCreatePatientFn({ data: { ownerId: admin!.id, name: "" } })).toMatchObject({
+			ok: false,
+			errors: expect.any(Object),
+		});
+	});
+
 	it("platform page guard: false reports notfound and skips the loader", async () => {
 		headers.current = new Headers({ cookie });
 		let loaderRan = false;
@@ -622,10 +681,11 @@ describe("server fns", () => {
 			guard: () => Effect.succeed(true),
 		};
 		// No shipped plugin uses `guard` yet — register throwaway
-		// descriptors directly on the (mutable) registry map.
-		const pages = platformPages as unknown as Map<string, PanelPage>;
-		pages.set(denied.path, denied);
-		pages.set(allowed.path, allowed);
+		// descriptors directly on the (mutable) registry map. The owner
+		// id must be a real enabled plugin for the P-058 gate.
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
+		pages.set(denied.path, { page: denied, pluginId: "platform.routes" });
+		pages.set(allowed.path, { page: allowed, pluginId: "platform.routes" });
 		try {
 			expect(await platformPageDataFn({ data: denied.path })).toEqual({ status: "notfound" });
 			expect(loaderRan).toBe(false);
@@ -637,6 +697,100 @@ describe("server fns", () => {
 		} finally {
 			pages.delete(denied.path);
 			pages.delete(allowed.path);
+		}
+	});
+
+	it("platform page data reports notfound for a disabled plugin (P-058)", async () => {
+		headers.current = new Headers({ cookie });
+		const page: PanelPage = {
+			id: "test.disabled",
+			path: "/platform/test-disabled",
+			component: () => null,
+			loader: () => Effect.succeed("never"),
+		};
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
+		pages.set(page.path, { page, pluginId: "platform.routes" });
+		// Direct row write: the dep invariant lives in PluginStates.setEnabled
+		// and would (correctly) refuse to disable platform.routes while
+		// platform.panel depends on it — the gate only reads the row.
+		await db
+			.insert(pluginState)
+			.values({ pluginId: "platform.routes", enabled: false, updatedAt: new Date() });
+		try {
+			expect(await platformPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
+		} finally {
+			pages.delete(page.path);
+			await db.delete(pluginState).where(eq(pluginState.pluginId, "platform.routes"));
+		}
+	});
+
+	it("app page data fn serves public pages to anonymous callers (P-059)", async () => {
+		headers.current = new Headers();
+		const page: Page = {
+			id: "test.app",
+			path: "/test-app-page",
+			component: () => null,
+			loader: () => Effect.succeed("public"),
+		};
+		const pages = appPages as unknown as Map<
+			string,
+			{ page: Page; pluginId: string; context?: string }
+		>;
+		pages.set(page.path, { page, pluginId: "platform.routes", context: "app" });
+		try {
+			expect(await appPageDataFn({ data: page.path })).toEqual({
+				status: "ok",
+				data: "public",
+			});
+			// Shell isolation: the console fn never serves app paths and
+			// the app fn never serves console paths.
+			expect(await platformPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
+			expect(await appPageDataFn({ data: "/platform/patients" })).toEqual({
+				status: "notfound",
+			});
+			// Signed-in callers get the same result — effects then run
+			// under runAs (Principal + Authz bound) instead of run.
+			headers.current = new Headers({ cookie });
+			expect(await appPageDataFn({ data: page.path })).toEqual({
+				status: "ok",
+				data: "public",
+			});
+			headers.current = new Headers();
+			// An entry whose context disagrees with the requested shell
+			// is refused even when the path is registered.
+			pages.set("/test-mismatch", {
+				page: { ...page, path: "/test-mismatch" },
+				pluginId: "platform.routes",
+				context: "console",
+			});
+			expect(await appPageDataFn({ data: "/test-mismatch" })).toEqual({ status: "notfound" });
+			pages.delete("/test-mismatch");
+		} finally {
+			pages.delete(page.path);
+		}
+	});
+
+	it("app page data fn reports notfound for a disabled plugin (P-058)", async () => {
+		headers.current = new Headers();
+		const page: Page = {
+			id: "test.app-disabled",
+			path: "/test-app-disabled",
+			component: () => null,
+			loader: () => Effect.succeed("never"),
+		};
+		const pages = appPages as unknown as Map<
+			string,
+			{ page: Page; pluginId: string; context?: string }
+		>;
+		pages.set(page.path, { page, pluginId: "platform.routes", context: "app" });
+		await db
+			.insert(pluginState)
+			.values({ pluginId: "platform.routes", enabled: false, updatedAt: new Date() });
+		try {
+			expect(await appPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
+		} finally {
+			pages.delete(page.path);
+			await db.delete(pluginState).where(eq(pluginState.pluginId, "platform.routes"));
 		}
 	});
 

@@ -37,8 +37,12 @@ CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT N
 
 const SESSION_USER = { id: "u-sse", email: "sse@x.com", name: "Dra SSE" };
 
+/** Mutable enable-state behind the route gate (createPluginApiRoute). */
+const pluginGate = { enabled: true };
+
 /** Cookie "session=sse" authenticates as SESSION_USER; anything else is anonymous. */
 const authStub = Auth.of({
+	setUserBanned: async () => {},
 	getSession: async (h: Headers) => {
 		const cookie = h.get("cookie") ?? "";
 		if (!cookie.includes("session=sse")) return null;
@@ -73,6 +77,7 @@ beforeAll(() => {
 			),
 		getLocale: () => "en",
 		audioTranscribeModel: "test-model",
+		pluginEnabled: async () => pluginGate.enabled,
 	});
 });
 
@@ -95,6 +100,23 @@ async function readUntil(body: ReadableStream<Uint8Array>, needle: string, ms = 
 }
 
 describe("GET /api/notifications", () => {
+	it("answers 404 when the notifications.routes plugin is disabled", async () => {
+		pluginGate.enabled = false;
+		try {
+			headers.current = new Headers({ cookie: "session=sse" });
+			const h = handlersOf(NotificationsRoute);
+			const res = await h.GET!({
+				request: new Request("http://x/api/notifications", {
+					headers: { cookie: "session=sse" },
+				}),
+			} as never);
+			expect(res.status).toBe(404);
+			expect(await res.json()).toEqual({ error: "not found" });
+		} finally {
+			pluginGate.enabled = true;
+		}
+	});
+
 	it("rejects unauthenticated requests", async () => {
 		const saved = headers.current;
 		headers.current = new Headers();

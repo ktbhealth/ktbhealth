@@ -15,6 +15,7 @@ describe("auth port", () => {
 
 		const ctx = Context.make(Auth, {
 			getSession: async () => mockSession,
+			setUserBanned: async () => {},
 		});
 
 		const authService = Context.get(ctx, Auth);

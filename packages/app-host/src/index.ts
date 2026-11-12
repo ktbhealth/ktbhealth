@@ -1,6 +1,12 @@
 import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
-import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
+import {
+	makePlatformAdminGate,
+	parsePlatformAdminEmails,
+	PlatformAdmin,
+	plugins as platformPlugins,
+} from "@ktb/platform";
+import { makePluginStatesLive, PluginDisabled, PluginStates } from "@ktb/platform/plugin-states";
 import { Bot, stubBotDriver } from "@ktb/bot";
 import { recallDriver } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
@@ -8,7 +14,7 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Binding, DbLive, makeDb, type SqlDatabase } from "@ktb/db";
-import { makeAuth } from "@ktb/auth-better";
+import { makeAuth, makeAuthService } from "@ktb/auth-better";
 import { Email, nullEmailDriver, type EmailMessage } from "@ktb/email";
 import { cloudflareEmailDriver } from "@ktb/email-cloudflare";
 import { stubEmailDriver } from "@ktb/email-stub";
@@ -37,13 +43,21 @@ import {
 
 /**
  * Plugin registry discovered from the filesystem: every module under
- * packages/plugins/* exporting `plugins` (single-concern Plugin objects)
+ * plugins/* exporting `plugins` (single-concern Plugin objects)
  * is registered, topo-sorted by `requiredDeps`/`optionalDeps`.
  * import.meta.glob is a build-time transform — Vite emits static imports,
  * so workerd bundling and type safety are preserved.
+ *
+ * @ktb/platform (packages/platform) is host infrastructure below the
+ * plugin system, but its manifest still joins the registry — it is
+ * registered explicitly here since the plugins/* glob no longer reaches
+ * it (T-088).
  */
 export const plugins: readonly Plugin[] = orderPlugins(
-	discoverPlugins(import.meta.glob("../../../plugins/*/src/index.ts", { eager: true })),
+	discoverPlugins({
+		...import.meta.glob("../../../plugins/*/src/index.ts", { eager: true }),
+		"@ktb/platform": { plugins: platformPlugins },
+	}),
 );
 
 /**
@@ -54,11 +68,22 @@ export const plugins: readonly Plugin[] = orderPlugins(
  * Events need no enumeration — `EventBus` is already app-wide.
  */
 const apiModules = import.meta.glob("../../../plugins/*/src/api.ts", { eager: true });
-const moduleExports = Object.values(apiModules).flatMap((m) =>
-	Object.values(m as Record<string, unknown>),
+// Each api module belongs to a plugin PACKAGE (`plugins/<pkg>/src/api.ts`);
+// the enabled-state gate below is package-granular — a package's CQRS
+// surface is live while ANY of its plugin ids is enabled (P-058).
+const apiEntries = Object.entries(apiModules).flatMap(([path, m]) => {
+	const pkg = /(?:^|\/)plugins\/([^/]+)\/src\/api\.ts$/.exec(path)?.[1];
+	/* v8 ignore next -- glob keys always match the plugins/<pkg>/src/api.ts shape */
+	return pkg === undefined
+		? []
+		: Object.values(m as Record<string, unknown>).map((value) => ({ pkg, value }));
+});
+const queryGroups = apiEntries.flatMap(({ pkg, value }) =>
+	Query.isGroup(value) ? [{ pkg, group: value }] : [],
 );
-const queryGroups = moduleExports.filter(Query.isGroup);
-const commandGroups = moduleExports.filter(Command.isGroup);
+const commandGroups = apiEntries.flatMap(({ pkg, value }) =>
+	Command.isGroup(value) ? [{ pkg, group: value }] : [],
+);
 
 /** Minimal binding surface the host needs. Any platform (workerd, bun,
  * future adapters) supplies these; the host never touches cloudflare:*. */
@@ -232,25 +257,9 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		);
 	// Infra layers are provided to plugin layers explicitly: mergeAll does
 	// not wire one sibling's outputs into another's requirements.
-	// Auth port backed by the same better-auth instance the routes use.
-	const AuthServiceLive = Layer.succeed(
-		Auth,
-		Auth.of({
-			getSession: async (headers) => {
-				const s = await auth.api.getSession({ headers });
-				if (!s) return null;
-				return {
-					user: {
-						id: s.user.id,
-						email: s.user.email,
-						name: s.user.name ?? null,
-					},
-					sessionId: s.session.id,
-					expiresAt: new Date(s.session.expiresAt),
-				};
-			},
-		}),
-	);
+	// Auth port backed by the same better-auth instance the routes use;
+	// makeAuthService adds the banned-user enforcement + revocation (T-034).
+	const AuthServiceLive = Layer.succeed(Auth, makeAuthService(auth, db));
 	// LLM provider config is resolved here, once — impl packages never
 	// read env themselves.
 	const llmConfig: LlmConfig = {
@@ -268,6 +277,13 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		PlatformAdmin,
 		makePlatformAdminGate(parsePlatformAdminEmails(env.PLATFORM_ADMIN_EMAILS)),
 	);
+	// Runtime plugin enable/config state (P-058): the service is built
+	// from the discovered registry (ids, dep edges, meta.config schemas)
+	// over the Db port — provided here so plugin layers, server fns and
+	// the CQRS gate below all share one instance. `.pipe(Layer.provide(
+	// DbLive))` wires the sibling Db output in explicitly (mergeAll does
+	// not), leaving only `Binding` for the outer provideMerge.
+	const PluginStatesLive = makePluginStatesLive(plugins).pipe(Layer.provide(DbLive));
 	// Tenant resolution is opt-in: the app supplies a TenantResolverShape
 	// (usually makeTenantResolver over its TenantDirectory adapter). When
 	// absent the Reference default resolves null — personal scope.
@@ -283,6 +299,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		AuthServiceLive,
 		AnamnesisEngineLive,
 		PlatformAdminLive,
+		PluginStatesLive,
 		// Cross-plugin event bus — plugins publish/subscribe via EventBus
 		// inside their service layers (CQRS event surface).
 		makeEventBus(),
@@ -318,25 +335,52 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 					),
 				),
 	];
+	// Enabled-state gate (P-058): services layers always compose
+	// (ManagedRuntime can't recompose per toggle), so dispatch is the
+	// fail-closed seam — a group's handlers are unreachable while EVERY
+	// plugin id of its package (`plugins/<pkg>/*`) is disabled. The gate
+	// reads PluginStates per dispatch so toggles apply without restart.
+	//
+	// `Middleware` is typed `(payload) => Effect<A, E>` — R=never — but
+	// the bus executes inside the app runtime where core services are
+	// provided; the cast is the same erasure `Layer.Any` plugin layers
+	// already rely on.
+	const pluginGate = (pkg: string): Middleware.Middleware => {
+		const gate =
+			<A, E>(
+				dispatch: (payload: never) => Effect.Effect<A, E>,
+			): ((payload: never) => Effect.Effect<A, E>) =>
+			(payload) =>
+				Effect.gen(function* () {
+					const states = yield* PluginStates;
+					const enabled = yield* states.enabledIds();
+					const prefix = `${pkg}.`;
+					if (![...enabled].some((id) => id.startsWith(prefix))) {
+						return yield* Effect.fail(new PluginDisabled({ pluginId: pkg }));
+					}
+					return yield* dispatch(payload);
+				}) as Effect.Effect<A, E>;
+		return gate as Middleware.Middleware;
+	};
 	const busesLive = Layer.unwrap(
 		Effect.gen(function* () {
-			const queryTables = yield* Effect.forEach(queryGroups, (group) =>
-				Query.dispatcher(group, { middleware: busMiddleware }),
+			const queryTables = yield* Effect.forEach(queryGroups, ({ pkg, group }) =>
+				Query.dispatcher(group, { middleware: [pluginGate(pkg), ...busMiddleware] }),
 			);
-			const commandTables = yield* Effect.forEach(commandGroups, (group) =>
-				Command.dispatcher(group, { middleware: busMiddleware }),
+			const commandTables = yield* Effect.forEach(commandGroups, ({ pkg, group }) =>
+				Command.dispatcher(group, { middleware: [pluginGate(pkg), ...busMiddleware] }),
 			);
 			return Layer.mergeAll(
 				Layer.succeed(
 					QueryBus,
 					makeQueryBus(mergeDispatchTables(...queryTables) as DispatchTable, {
-						declaredIn: queryGroups,
+						declaredIn: queryGroups.map(({ group }) => group),
 					}),
 				),
 				Layer.succeed(
 					CommandBus,
 					makeCommandBus(mergeDispatchTables(...commandTables) as DispatchTable, {
-						declaredIn: commandGroups,
+						declaredIn: commandGroups.map(({ group }) => group),
 					}),
 				),
 			);

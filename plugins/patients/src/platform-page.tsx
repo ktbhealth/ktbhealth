@@ -1,6 +1,11 @@
 import type { PanelPageContext } from "@ktb/kernel";
-import type { AdminPatientRow } from "./index.ts";
+import type { AdminPatientRow, OwnerOption } from "./index.ts";
 import { AdminPatientsPage } from "./views/AdminPatientsPage.tsx";
+
+interface AdminPatientsData {
+	patients: AdminPatientRow[];
+	owners: OwnerOption[];
+}
 
 /**
  * `panel.pages` component for /platform/patients (P-050): the host
@@ -11,6 +16,6 @@ import { AdminPatientsPage } from "./views/AdminPatientsPage.tsx";
  * view's catalog.
  */
 export function PatientsPlatformPage({ data, ctx }: { data: unknown; ctx: PanelPageContext }) {
-	const patients = data as AdminPatientRow[];
-	return <AdminPatientsPage patients={patients} locale={ctx.locale} />;
+	const { patients, owners } = data as AdminPatientsData;
+	return <AdminPatientsPage patients={patients} owners={owners} locale={ctx.locale} />;
 }

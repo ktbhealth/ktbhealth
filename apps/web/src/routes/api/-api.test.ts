@@ -103,7 +103,7 @@ describe("api routes", () => {
 		expect(body.user.email).toBe("api@x.com");
 	});
 
-	it("bots POST creates a stub consultation", { timeout: 25000 }, async () => {
+	it("bots POST creates a stub consultation", { timeout: 90000 }, async () => {
 		const h = handlersOf(BotsRoute);
 		const bad = await h.POST!({
 			request: post("http://x/api/bots", {}),
@@ -133,7 +133,9 @@ describe("api routes", () => {
 					.where(eq(consultations.id, body.consultationId));
 				expect(rows[0]?.status).toBe("done");
 			},
-			{ timeout: 20000 },
+			// The stub bot appends transcript chunks on a timer — under
+			// parallel load the simulated call can take ~60s.
+			{ timeout: 60000 },
 		);
 	});
 

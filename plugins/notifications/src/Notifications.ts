@@ -14,7 +14,7 @@ import { ConsultationCreated } from "@ktb/consultations/api";
 
 import type { ConsoleNotification } from "./context.ts";
 import { notificationMessages } from "./i18n.ts";
-import { notifications } from "./schema.ts";
+import { notifications } from "@ktb/db/schema";
 
 export type NotificationRow = typeof notifications.$inferSelect;
 

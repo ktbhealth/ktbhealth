@@ -24,7 +24,7 @@ import {
 	splitPermission,
 	subjectRoles,
 } from "./index.ts";
-import { rolePermissions, roles } from "./schema.ts";
+import { rolePermissions, roles } from "@ktb/db/schema";
 
 const DDL = `
 CREATE TABLE roles (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, meta TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
@@ -194,6 +194,65 @@ describe("buildPermissions", () => {
 		expect(first.has(grantKey("consultation", "read"))).toBe(true);
 		const second = await Effect.runPromise(p.permissionsFor("u3"));
 		expect(second).toBe(first);
+	});
+
+	it("skips a duplicate allow grant for the same (resource, action)", async () => {
+		// u5 holds two roles that both allow patient.read — the second
+		// row must not overwrite the first (deny-wins ordering stays
+		// stable regardless of row order).
+		await db.insert(roles).values({ id: 4, name: "auditor2", description: null, meta: null });
+		await db.insert(rolePermissions).values({
+			roleId: 4,
+			resource: "patient",
+			action: "read",
+			effect: "allow",
+		});
+		await db.insert(subjectRoles).values([
+			{ subjectKind: "user", subjectId: "u5", roleId: 1, tenantId: null, grantedBy: "test" },
+			{ subjectKind: "user", subjectId: "u5", roleId: 4, tenantId: null, grantedBy: "test" },
+		]);
+		const p = buildPermissions(db);
+		const grants = await Effect.runPromise(p.permissionsFor("u5"));
+		expect(grants.get(grantKey("patient", "read"))).toBe("allow");
+		expect(grants.get(grantKey("patient", "delete"))).toBe("deny");
+	});
+
+	it("tracks the earliest expiry across multiple grants", async () => {
+		// u6: two expiring assignments — the second row's expiry is later
+		// than the first's, exercising the notAfter comparison both ways.
+		await db.insert(subjectRoles).values([
+			{
+				subjectKind: "user",
+				subjectId: "u6",
+				roleId: 1,
+				tenantId: null,
+				grantedBy: "test",
+				expiresAt: new Date(Date.now() + 30_000),
+			},
+			{
+				subjectKind: "user",
+				subjectId: "u6",
+				roleId: 3,
+				tenantId: null,
+				grantedBy: "test",
+				expiresAt: new Date(Date.now() + 90_000),
+			},
+		]);
+		const p = buildPermissions(db);
+		const grants = await Effect.runPromise(p.permissionsFor("u6"));
+		expect(grants.get(grantKey("patient", "read"))).toBe("allow");
+		expect(grants.get(grantKey("consultation", "read"))).toBe("allow");
+	});
+
+	it("clears the grant cache once it reaches the bound", async () => {
+		const p = buildPermissions(db);
+		// CACHE_LIMIT is 1000 — resolving one more distinct user evicts
+		// the whole map; earlier entries must re-resolve cleanly.
+		for (let i = 0; i < 1001; i++) {
+			await Effect.runPromise(p.permissionsFor(`bulk-${i}`));
+		}
+		const grants = await Effect.runPromise(p.permissionsFor("u1"));
+		expect(grants.get(grantKey("patient", "read"))).toBe("allow");
 	});
 });
 

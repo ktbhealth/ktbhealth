@@ -1,12 +1,22 @@
 import { env } from "cloudflare:workers";
 
-import { setServerRuntime, getTenantSelector } from "@ktb/server-fns";
+import {
+	audioStorageStats,
+	getTenantSelector,
+	setServerRuntime,
+	type AudioObjectLister,
+	type QueueDepth,
+} from "@ktb/server-fns";
 import type { TenantSelector } from "@ktb/tenant/selector";
-import type * as Effect from "effect/Effect";
+import { makeTenantResolver } from "@ktb/tenant";
+import { makeDb, type SqlDatabase } from "@ktb/db";
+import * as Effect from "effect/Effect";
+import { PluginStates } from "@ktb/platform/plugin-states";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { verificationEmail } from "./emails.ts";
+import { makeTenantDirectory } from "./tenant-directory.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
 import { fhirR4Exporter } from "@ktb/interop-fhir";
@@ -24,7 +34,20 @@ const aiBinding = resolveAi(env as unknown as AiEnv);
 
 const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
 
-const app = createApp(appEnv as unknown as typeof env, { verificationEmail });
+// Tenant resolution (P-053, phase A): the directory reads the groups
+// plugin's membership tables directly (edge adapter — the groups
+// service is PlatformAdmin-gated); resolution runs per request inside
+// runAs. Fallback stays "personal" so requests without a tenant
+// selector keep the pre-tenancy ownerId-scoped behavior. With no
+// selector, a user with exactly one membership auto-selects it; zero
+// or several memberships fall through to personal scope.
+const tenantResolver = makeTenantResolver({
+	directory: makeTenantDirectory(makeDb(env.DB as unknown as SqlDatabase)),
+	fallback: "personal",
+	selectDefault: (memberships) => (memberships.length === 1 ? memberships[0] : undefined),
+});
+
+const app = createApp(appEnv as unknown as typeof env, { tenantResolver, verificationEmail });
 
 export const {
 	BindingLive,
@@ -85,6 +108,17 @@ const recordExporters: Record<ExportFormat, RecordExporter> = {
 	openehr: openEhrExporter,
 };
 
+// Ops probes (T-035): the queue depth signal exists only when the bound
+// queue exposes stats — the dev:node SQLite queue does; the workerd
+// Queue binding doesn't (prod queues are managed in the Cloudflare
+// dashboard, so the ops console reports them as externally managed).
+// The storage probe paginates the bucket's list() with a page cap; a
+// missing listing capability or a failed page resolves null → the page
+// shows "unavailable", never a fake zero.
+const queueDepthProbe = (env.AUDIO_QUEUE as { stats?: () => Promise<QueueDepth> } | undefined)
+	?.stats;
+const audioBucketLister = env.AUDIO_BUCKET as unknown as AudioObjectLister | undefined;
+
 // P-033: publish the runtime to @ktb/server-fns so plugin-owned server
 // functions (plugins/*/src/**) reach run/runAs, audio purge and locale
 // without importing this module. Env reads stay here — the registry
@@ -94,10 +128,23 @@ setServerRuntime({
 	runAs,
 	audio: env.AUDIO_BUCKET,
 	audioQueue: env.AUDIO_QUEUE,
+	audioQueueDepth:
+		typeof queueDepthProbe === "function" ? () => queueDepthProbe().catch(() => null) : undefined,
+	audioStorageStats:
+		audioBucketLister === undefined ? undefined : () => audioStorageStats(audioBucketLister),
 	ai: aiBinding,
 	audioTranscribeModel,
 	recordExporters,
 	getLocale,
+	// P-058: backs `pluginEnabledFn` / `createPluginFileRoute` — plugin
+	// page routes 404 when their `*.routes` plugin is disabled.
+	pluginEnabled: (pluginId) =>
+		run(
+			Effect.gen(function* () {
+				const states = yield* PluginStates;
+				return yield* states.isEnabled(pluginId);
+			}),
+		),
 });
 
 // Raw platform binding passthrough — not composed, just exposed.

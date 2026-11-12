@@ -5,6 +5,7 @@ import { STUB_CALL } from "@ktb/bot";
 import { Bot } from "@ktb/bot";
 import { Effect } from "effect";
 import { Consultations } from "@ktb/consultations";
+import { Tenant, runAsTenantId, tenantScopeId } from "@ktb/tenant";
 
 /**
  * POST /api/bots — send a bot into a teleconsult.
@@ -44,18 +45,24 @@ export const Route = createFileRoute("/api/bots")({
 				const session = await provider.join(body.meetUrl, webhookUrl);
 				const user = await ensureDoctorUser();
 
-				const consultationId = await runAs(
+				const created = await runAs(
 					user,
 					Effect.gen(function* () {
 						const consultations = yield* Consultations;
-						return yield* consultations.create({
+						const tenant = yield* Tenant;
+						const id = yield* consultations.create({
 							userId: user.id,
 							source: "bot",
 							status: "live",
 							botId: session.botId,
 						});
+						// Tenant id stamped on the row travels with the
+						// simulated call so its system-path appends re-bind
+						// the same scope (P-053 phase D).
+						return { id, tenantId: tenantScopeId(tenant) };
 					}),
 				);
+				const consultationId = created.id;
 				if (!consultationId) {
 					return Response.json({ error: "failed to create consultation" }, { status: 500 });
 				}
@@ -64,7 +71,7 @@ export const Route = createFileRoute("/api/bots")({
 					// import.meta.env.DEV was checked above — reaching here
 					// means dev mode, where simulation is allowed.
 					console.warn("[bots] stub provider — simulating call", { consultationId });
-					void simulateCall(consultationId);
+					void simulateCall(consultationId, created.tenantId);
 				}
 
 				return Response.json({
@@ -80,15 +87,20 @@ export const Route = createFileRoute("/api/bots")({
 // Simulated-call appends run on the system path (`run`, no Principal):
 // appendTranscript/finish are bot-channel methods authorized by the
 // botId binding established at create time — same as the real webhook.
-async function simulateCall(consultationId: number) {
+// `tenantId` is the tenant stamped at create; the appends re-bind it
+// explicitly since ambient tenant never crosses into background work.
+async function simulateCall(consultationId: number, tenantId: number | null) {
 	await run(
-		Effect.gen(function* () {
-			const consultations = yield* Consultations;
-			for (const seg of STUB_CALL) {
-				yield* Effect.promise(() => new Promise<void>((r) => setTimeout(r, seg.delayMs)));
-				yield* consultations.appendTranscript(consultationId, `${seg.speaker}: ${seg.text}`);
-			}
-			yield* consultations.finish(consultationId);
-		}),
+		runAsTenantId(
+			tenantId,
+			Effect.gen(function* () {
+				const consultations = yield* Consultations;
+				for (const seg of STUB_CALL) {
+					yield* Effect.promise(() => new Promise<void>((r) => setTimeout(r, seg.delayMs)));
+					yield* consultations.appendTranscript(consultationId, `${seg.speaker}: ${seg.text}`);
+				}
+				yield* consultations.finish(consultationId);
+			}),
+		),
 	);
 }

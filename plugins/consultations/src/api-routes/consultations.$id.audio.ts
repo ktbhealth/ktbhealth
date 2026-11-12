@@ -1,8 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
-import { getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * POST /api/consultations/:id/audio — store the session recording in R2
@@ -51,7 +50,7 @@ const fetchOwned = (id: number, userId: string) =>
 		}),
 	);
 
-export const Route = createFileRoute("/api/consultations/$id/audio")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/consultations/$id/audio")({
 	server: {
 		handlers: {
 			POST: async ({ request, params }) => {
@@ -122,7 +121,16 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 				);
 
 				try {
-					await audioQueue.send({ consultationId: id, audioKey, userId: user.id });
+					// tenantId travels on the message so the queue consumer
+					// can re-bind tenant scope (P-053 phase D). The fetched
+					// row's tenant_id is authoritative — it matches what
+					// attachAudio stamped under the bound Tenant.
+					await audioQueue.send({
+						consultationId: id,
+						audioKey,
+						userId: user.id,
+						tenantId: detail.tenantId,
+					});
 				} catch {
 					return Response.json(
 						{ error: "audio stored but transcription queue unavailable" },

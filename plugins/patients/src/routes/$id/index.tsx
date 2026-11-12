@@ -1,11 +1,13 @@
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
+import { notFound, useNavigate } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { PatientDetailPage } from "../../views/index.ts";
 import { getPatientFn, localeFn, patientConsultationsFn } from "../../fns.ts";
 import { requireDoctor } from "../../guard.ts";
 import { patientDeleteApi } from "../../apis.ts";
 
-export const Route = createFileRoute("/patients/$id/")({
+export const Route = createPluginFileRoute("patients.routes")("/patients/$id/")({
 	staleTime: 30_000,
 	beforeLoad: () => requireDoctor(),
 	loader: async ({ params }) => {

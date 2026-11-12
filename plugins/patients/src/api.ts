@@ -10,7 +10,9 @@ const ForbiddenSchema = Schema.declare<Forbidden>((u): u is Forbidden => u insta
  * commands via `Command.dispatcher`, events via `EventBus`. */
 export const PatientOwnerOf = Query.make("patients.ownerOf", {
 	payload: { id: Schema.Number },
-	success: Schema.NullOr(Schema.Struct({ ownerId: Schema.String })),
+	success: Schema.NullOr(
+		Schema.Struct({ ownerId: Schema.String, tenantId: Schema.NullOr(Schema.Number) }),
+	),
 });
 
 export const PatientsQueries = Query.group(PatientOwnerOf);
@@ -71,9 +73,16 @@ export const PatientCreated = Event.make("patient.created", {
 	id: Schema.Number,
 	ownerId: Schema.String,
 	name: Schema.String,
+	/** Owning tenant (`groups.id`) or null for personal rows — optional so
+	 * pre-tenancy dispatches/tests stay valid; subscribers treat a missing
+	 * value as personal scope. */
+	tenantId: Schema.optionalKey(Schema.NullOr(Schema.Number)),
 });
 
 export const PatientDeleted = Event.make("patient.deleted", {
 	id: Schema.Number,
 	ownerId: Schema.String,
+	/** Owning tenant (`groups.id`) or null for personal rows — see
+	 * {@link PatientCreated}. */
+	tenantId: Schema.optionalKey(Schema.NullOr(Schema.Number)),
 });

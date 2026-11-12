@@ -21,7 +21,7 @@ import {
 
 const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, patient_id INTEGER, transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL DEFAULT 'browser', status TEXT NOT NULL DEFAULT 'done', bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, patient_id INTEGER, transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL DEFAULT 'browser', status TEXT NOT NULL DEFAULT 'done', bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
 `;
 
 const makeDeps = (over: Partial<AudioJobDeps> = {}) => {
@@ -177,8 +177,12 @@ describe("processAudioJob", () => {
 	});
 
 	it("publishes live audio updates for the jobs feed", async () => {
-		const updates: { consultationId: number; audioStatus: string; audioError: string | null }[] =
-			[];
+		const updates: {
+			consultationId: number;
+			audioStatus: string;
+			audioError: string | null;
+			tenantId: number | null;
+		}[] = [];
 		const { db, deps } = makeDeps({
 			publishAudioUpdate: async (u) => {
 				updates.push(u);
@@ -189,8 +193,35 @@ describe("processAudioJob", () => {
 
 		await processAudioJob(job(id), deps);
 		expect(updates).toEqual([
-			{ consultationId: id, audioStatus: "processing", audioError: null },
-			{ consultationId: id, audioStatus: "done", audioError: null },
+			{ consultationId: id, audioStatus: "processing", audioError: null, tenantId: null },
+			{ consultationId: id, audioStatus: "done", audioError: null, tenantId: null },
+		]);
+	});
+
+	it("forwards the row's tenant_id on live updates — the payload hint only covers missing rows", async () => {
+		const updates: { tenantId: number | null }[] = [];
+		const { db, deps } = makeDeps({
+			publishAudioUpdate: async (u) => {
+				updates.push(u);
+			},
+		});
+		// Row owned by tenant 7; the message claims tenant 9 — the row wins.
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }, 7))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/a.webm", size: 3 });
+		await processAudioJob(job(id, { tenantId: 9 }), deps);
+		expect(updates.length).toBeGreaterThan(0);
+		expect(updates.every((u) => u.tenantId === 7)).toBe(true);
+
+		// Missing row: the payload's tenantId is the only scope signal.
+		updates.length = 0;
+		await processAudioJob(job(424242, { tenantId: 9 }), deps);
+		expect(updates).toEqual([
+			{
+				consultationId: 424242,
+				audioStatus: "failed",
+				audioError: "consultation not found",
+				tenantId: 9,
+			},
 		]);
 	});
 
@@ -305,6 +336,24 @@ describe("handleAudioQueueBatch", () => {
 			deps,
 		);
 		expect(log).toEqual(["ack", "ack", "ack"]);
+		expect((await row(db, id))?.audioStatus).toBe("done");
+	});
+
+	it("accepts tenant_id on the message and still acks pre-tenancy payloads", async () => {
+		const { db, deps } = makeDeps();
+		const id = (await createConsultation(db, { userId: "u1", source: "browser" }, 4))!;
+		await attachAudioRecord(db, id, { audioKey: "audio/u1/1/a.webm", size: 3 });
+		const log: string[] = [];
+		await handleAudioQueueBatch(
+			[
+				// New shape: explicit tenant_id.
+				msg({ ...job(id), tenantId: 4 }, log),
+				// Old shape: no tenant_id — decodes as personal scope.
+				msg(job(id), log),
+			],
+			deps,
+		);
+		expect(log).toEqual(["ack", "ack"]);
 		expect((await row(db, id))?.audioStatus).toBe("done");
 	});
 

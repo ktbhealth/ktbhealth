@@ -33,6 +33,10 @@ export const ConsultationCreated = Event.make("consultation.created", {
 	id: Schema.Number,
 	userId: Schema.String,
 	source: Schema.String,
+	/** Owning tenant (`groups.id`) or null for personal rows — optional so
+	 * pre-tenancy dispatches/tests stay valid; subscribers treat a missing
+	 * value as personal scope. */
+	tenantId: Schema.optionalKey(Schema.NullOr(Schema.Number)),
 });
 
 /**
@@ -47,4 +51,7 @@ export const ConsultationAudioUpdated = Event.make("consultation.audioUpdated", 
 	consultationId: Schema.Number,
 	audioStatus: Schema.String,
 	audioError: Schema.NullOr(Schema.String),
+	/** Owning tenant (`groups.id`) or null for personal rows — see
+	 * {@link ConsultationCreated}. */
+	tenantId: Schema.optionalKey(Schema.NullOr(Schema.Number)),
 });

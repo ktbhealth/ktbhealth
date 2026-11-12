@@ -1,20 +1,26 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, or, type SQL } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 import { UsersIcon } from "lucide-react";
 
-import { user as users } from "@ktb/auth/schema";
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
+import { patients, user as users } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { Command, EventBus, Query } from "@effect-server-utils/cqrs";
 import { PatientCreated, PatientDeleted, PatientsCommands, PatientsQueries } from "./api.ts";
 import { PatientsPlatformPage } from "./platform-page.tsx";
-import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
-import { requireCanAs, requirePrincipalUser, type Forbidden } from "@ktb/authz";
+import {
+	PlatformAdmin,
+	platformAdminPlugin,
+	platformPanelPlugin,
+	type PlatformAdminShape,
+} from "@ktb/platform";
+import { Forbidden, requireCanAs, requirePrincipalUser } from "@ktb/authz";
+import { accessibleTenantIds, Tenant, tenantScopeCondition, tenantScopeId } from "@ktb/tenant";
 import type { PatientFields } from "./record.ts";
-import { patients } from "./schema.ts";
 
 export type Patient = typeof patients.$inferSelect;
 
@@ -24,11 +30,26 @@ export interface AdminPatientRow extends Patient {
 	readonly ownerName: string | null;
 }
 
-export async function listPatients(db: DbClient, ownerId: string) {
+/**
+ * Tenant visibility fence (P-053-B). A patient row is visible to the
+ * caller when the `tenantScopeCondition` fence admits it (its
+ * `tenant_id` is NULL or in the caller's accessible tenant set —
+ * `Tenant`/`TenantAccess`) AND it is either a personal row they own
+ * (`owner_id` = caller, `tenant_id` NULL) or a tenant-owned row
+ * (`tenant_id` NOT NULL — membership already proved by the fence).
+ * In personal scope the accessible set is empty, so this degrades to
+ * "own personal rows only".
+ */
+export const patientScope = (ownerId: string) =>
+	Effect.map(tenantScopeCondition(patients), (fence) =>
+		and(fence, or(eq(patients.ownerId, ownerId), isNotNull(patients.tenantId))),
+	);
+
+export async function listPatients(db: DbClient, ownerId: string, where?: SQL) {
 	return db
 		.select()
 		.from(patients)
-		.where(eq(patients.ownerId, ownerId))
+		.where(where ?? eq(patients.ownerId, ownerId))
 		.orderBy(asc(patients.name));
 }
 
@@ -56,10 +77,30 @@ export async function listAllPatients(db: DbClient): Promise<AdminPatientRow[]> 
 	}));
 }
 
-/** Owner lookup exposed to other plugins via the `patients.ownerOf` query. */
+/** Owner-picker options for admin create forms — id + display label. */
+export interface OwnerOption {
+	readonly id: string;
+	readonly label: string;
+}
+
+/**
+ * User accounts eligible as patient owners. Unauthenticated repo
+ * helper — callers MUST pass the `PlatformAdmin` gate first (the
+ * `Patients.adminOwners` service method does).
+ */
+export async function listOwnerOptions(db: DbClient): Promise<OwnerOption[]> {
+	const rows = await db
+		.select({ id: users.id, email: users.email, name: users.name })
+		.from(users)
+		.orderBy(asc(users.name));
+	return rows.map((r) => ({ id: r.id, label: r.name || r.email || r.id }));
+}
+
+/** Owner lookup exposed to other plugins via the `patients.ownerOf`
+ * query. `tenantId` lets callers apply tenant visibility (P-053). */
 export async function getPatientOwnerId(db: DbClient, id: number) {
 	const rows = await db
-		.select({ ownerId: patients.ownerId })
+		.select({ ownerId: patients.ownerId, tenantId: patients.tenantId })
 		.from(patients)
 		.where(eq(patients.id, id))
 		.limit(1);
@@ -72,10 +113,15 @@ export async function deletePatientRow(db: DbClient, id: number) {
 	await db.delete(patients).where(eq(patients.id, id));
 }
 
-export async function createPatient(db: DbClient, ownerId: string, fields: PatientFields) {
+export async function createPatient(
+	db: DbClient,
+	ownerId: string,
+	fields: PatientFields,
+	tenantId: number | null = null,
+) {
 	const rows = await db
 		.insert(patients)
-		.values({ ...fields, ownerId, createdAt: new Date() })
+		.values({ ...fields, ownerId, tenantId, createdAt: new Date() })
 		.returning();
 	return rows[0] ?? null;
 }
@@ -88,6 +134,55 @@ export async function updatePatient(db: DbClient, id: number, fields: PatientFie
 		.returning();
 	return rows[0] ?? null;
 }
+
+/**
+ * Owner-scoped authz that a platform admin may override: regular
+ * principals must own the row, allowlisted admins pass either way.
+ * Used on read/update/delete so the /platform console can manage
+ * cross-owner records through the same code paths as owners.
+ */
+const orPlatformAdmin = (
+	platformAdmin: PlatformAdminShape,
+	check: Effect.Effect<void, Forbidden>,
+) =>
+	check.pipe(
+		Effect.catchTag("Forbidden", (err) =>
+			// Admin override passes silently; when it also fails, re-raise
+			// the original owner-violation error (path stays accurate).
+			platformAdmin.requireAdmin().pipe(Effect.catchTag("Forbidden", () => Effect.fail(err))),
+		),
+	);
+
+/** True when `tenantId` is in the caller's accessible tenant set
+ * (`Tenant`/`TenantAccess` — empty in personal scope). Ids compare
+ * numerically so string|number directory ids both match. */
+const tenantRowVisible = (tenantId: number) =>
+	Effect.map(accessibleTenantIds, (ids) => ids.some((id) => Number(id) === tenantId));
+
+/**
+ * Row-level authz (P-053-B). Tenant-owned rows (`tenant_id` set) are
+ * governed by tenant membership: any member of the row's tenant may
+ * read/operate it — `ownerId` stays creator attribution and is NOT an
+ * access grant outside the tenant (the creator reaches the row by
+ * acting inside the tenant, not from personal scope). Everyone else
+ * needs the platform-admin override, which works cross-tenant.
+ * Personal rows (`tenant_id` NULL) keep the owner-scoped permix check.
+ */
+const authorizePatientRow = (
+	platformAdmin: PlatformAdminShape,
+	row: { readonly ownerId: string; readonly tenantId: number | null },
+	action: "patient.read" | "patient.update" | "patient.delete",
+) =>
+	Effect.gen(function* () {
+		if (row.tenantId !== null) {
+			if (yield* tenantRowVisible(row.tenantId)) return;
+			yield* platformAdmin
+				.requireAdmin()
+				.pipe(Effect.catchTag("Forbidden", () => Effect.fail(new Forbidden({ path: action }))));
+			return;
+		}
+		yield* orPlatformAdmin(platformAdmin, requireCanAs(action, { ownerId: row.ownerId }));
+	});
 
 /**
  * Patients domain port — Effect service, swappable in tests.
@@ -116,6 +211,16 @@ export class Patients extends Context.Service<
 		) => Effect.Effect<Patient | null, Forbidden>;
 		/** Cross-owner listing for the /platform console — platform admins only. */
 		readonly adminList: () => Effect.Effect<AdminPatientRow[], Forbidden>;
+		/**
+		 * Create a patient on behalf of `ownerId` — platform admins only.
+		 * Owner picker options come from `adminOwners`.
+		 */
+		readonly adminCreate: (
+			ownerId: string,
+			fields: PatientFields,
+		) => Effect.Effect<Patient | null, Forbidden>;
+		/** User accounts for the admin create-form owner picker — platform admins only. */
+		readonly adminOwners: () => Effect.Effect<OwnerOption[], Forbidden>;
 	}
 >()("@ktb/patients/Patients") {}
 
@@ -128,24 +233,37 @@ export const PatientsLive = Layer.effect(
 		return Patients.of({
 			list: Effect.fn("Patients.list")(function* (ownerId: string) {
 				yield* requireCanAs("patient.read", { ownerId });
-				return yield* Effect.promise(() => listPatients(db, ownerId));
+				const where = yield* patientScope(ownerId);
+				return yield* Effect.promise(() => listPatients(db, ownerId, where));
 			}),
 			get: Effect.fn("Patients.get")(function* (ownerId: string, id: number) {
 				yield* requirePrincipalUser(ownerId, "patient.read");
 				const row = yield* Effect.promise(() => getPatient(db, id));
 				if (row === null) return null;
-				// Someone else's row is Forbidden, not silently null.
-				yield* requireCanAs("patient.read", { ownerId: row.ownerId });
+				// Tenant members read tenant-owned rows; personal rows stay
+				// owner-scoped and platform admins read cross-owner either
+				// way (admin detail/edit pages).
+				yield* authorizePatientRow(platformAdmin, row, "patient.read");
 				return row;
 			}),
 			create: Effect.fn("Patients.create")(function* (ownerId: string, fields: PatientFields) {
 				yield* requirePrincipalUser(ownerId, "patient.create");
 				yield* requireCanAs("patient.create");
+				const tenant = yield* Tenant;
 				yield* Effect.annotateCurrentSpan({ ownerId });
 				yield* Effect.logInfo("patient create", { ownerId });
-				const row = yield* Effect.promise(() => createPatient(db, ownerId, fields));
+				const row = yield* Effect.promise(() =>
+					createPatient(db, ownerId, fields, tenantScopeId(tenant)),
+				);
 				if (row !== null) {
-					yield* events.dispatch([PatientCreated.make({ id: row.id, ownerId, name: row.name })]);
+					yield* events.dispatch([
+						PatientCreated.make({
+							id: row.id,
+							ownerId,
+							name: row.name,
+							tenantId: tenantScopeId(tenant),
+						}),
+					]);
 				}
 				return row;
 			}),
@@ -157,7 +275,7 @@ export const PatientsLive = Layer.effect(
 				yield* requirePrincipalUser(ownerId, "patient.update");
 				const row = yield* Effect.promise(() => getPatient(db, id));
 				if (row === null) return null;
-				yield* requireCanAs("patient.update", { ownerId: row.ownerId });
+				yield* authorizePatientRow(platformAdmin, row, "patient.update");
 				yield* Effect.annotateCurrentSpan({ ownerId, patientId: id });
 				yield* Effect.logInfo("patient update", { ownerId, patientId: id });
 				return yield* Effect.promise(() => updatePatient(db, id, fields));
@@ -169,6 +287,42 @@ export const PatientsLive = Layer.effect(
 				yield* Effect.annotateCurrentSpan({ adminList: true });
 				yield* Effect.logInfo("patients admin list");
 				return yield* Effect.promise(() => listAllPatients(db));
+			}),
+			adminCreate: Effect.fn("Patients.adminCreate")(function* (
+				ownerId: string,
+				fields: PatientFields,
+			) {
+				yield* platformAdmin.requireAdmin();
+				const tenant = yield* Tenant;
+				yield* Effect.annotateCurrentSpan({ ownerId });
+				yield* Effect.logInfo("patient admin create", { ownerId });
+				const row = yield* Effect.promise(() =>
+					createPatient(db, ownerId, fields, tenantScopeId(tenant)),
+				);
+				if (row !== null) {
+					yield* events.dispatch([
+						PatientCreated.make({
+							id: row.id,
+							ownerId,
+							name: row.name,
+							tenantId: tenantScopeId(tenant),
+						}),
+					]);
+					// T-037: admin-created patient — ids only, never the
+					// record fields (PHI stays out of the audit log).
+					yield* audit({
+						action: "patients.create",
+						targetType: "patient",
+						targetId: row.id,
+						tenantId: tenantScopeId(tenant),
+						detail: { ownerId },
+					});
+				}
+				return row;
+			}),
+			adminOwners: Effect.fn("Patients.adminOwners")(function* () {
+				yield* platformAdmin.requireAdmin();
+				return yield* Effect.promise(() => listOwnerOptions(db));
 			}),
 		});
 	}),
@@ -198,11 +352,16 @@ export const PatientsCommandsLive = Command.handlersOf(PatientsCommands, {
 		Effect.gen(function* () {
 			const db = yield* Db;
 			const events = yield* EventBus;
+			const platformAdmin = yield* PlatformAdmin;
 			const row = yield* Effect.promise(() => getPatient(db, id));
 			if (row === null) return;
-			yield* requireCanAs("patient.delete", { ownerId: row.ownerId });
+			yield* authorizePatientRow(platformAdmin, row, "patient.delete");
 			yield* Effect.promise(() => deletePatientRow(db, id));
-			yield* events.dispatch([PatientDeleted.make({ id, ownerId: row.ownerId })]);
+			yield* events.dispatch([
+				// The row's tenant_id is authoritative — ambient Tenant may
+				// differ from the deleted row's owner scope.
+				PatientDeleted.make({ id, ownerId: row.ownerId, tenantId: row.tenantId }),
+			]);
 		}),
 });
 
@@ -211,6 +370,9 @@ export const patientsServicesPlugin = definePlugin({
 	// adminList consumes the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
+	// Audit writes resolve the Audit service via serviceOption — the dep
+	// edge is an ordering hint only; absence is legal.
+	optionalDeps: [auditServicesPlugin.id],
 	services: Layer.mergeAll(PatientsLive, PatientsQueriesLive, PatientsCommandsLive),
 });
 
@@ -226,19 +388,46 @@ export const patientsRoutesPlugin = definePlugin({
 	routes: [physical("/patients", "../../../../plugins/patients/src/routes")],
 });
 
-export const patientsLandingNavPlugin = definePlugin({
-	id: "patients.landing-nav",
-	landingNav: [{ to: "/patients", label: "Patients" }],
+// Chrome contributions (P-060): the app-shell nav link and the console
+// sidebar entry live in `chrome` regions; the dep edge orders the
+// sidebar item after the platform shell like the retired panel entry.
+export const patientsChromePlugin = definePlugin({
+	id: "patients.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "patients.nav",
+			region: "app.header.nav",
+			content: { kind: "link", to: "/patients", label: "Patients" },
+		},
+		{
+			id: "patients.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: {
+					to: "/platform/patients",
+					label: "Patients",
+					icon: UsersIcon,
+					group: "Domains",
+				},
+			},
+		},
+	],
 });
 
 // Panel (system console) contribution: /platform/patients is mounted by
 // the platform plugin's physical route subtree; this plugin only declares
-// the sidebar entry. The dep edge orders it after the platform shell.
+// the page descriptor. The dep edge orders it after the platform shell.
 export const patientsPanelPlugin = definePlugin({
 	id: "patients.panel",
 	requiredDeps: [platformPanelPlugin.id],
+	meta: {
+		name: "Patients",
+		description: "Patient records and demographics",
+		icon: UsersIcon,
+	},
 	panel: {
-		sidebar: [{ to: "/platform/patients", label: "Patients", icon: UsersIcon, group: "Domains" }],
 		pages: [
 			{
 				id: "patients.admin",
@@ -250,9 +439,15 @@ export const patientsPanelPlugin = definePlugin({
 				loader: () =>
 					Effect.gen(function* () {
 						const patients = yield* Patients;
-						return yield* patients
-							.adminList()
-							.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[])));
+						const [rows, owners] = yield* Effect.all([
+							patients
+								.adminList()
+								.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as AdminPatientRow[]))),
+							patients
+								.adminOwners()
+								.pipe(Effect.catchTag("Forbidden", () => Effect.succeed([] as OwnerOption[]))),
+						]);
+						return { patients: rows, owners };
 					}),
 			},
 		],
@@ -265,7 +460,7 @@ export const plugins: readonly Plugin[] = [
 	patientsTablesPlugin,
 	patientsServicesPlugin,
 	patientsRoutesPlugin,
-	patientsLandingNavPlugin,
+	patientsChromePlugin,
 	patientsPanelPlugin,
 ];
 
@@ -276,7 +471,7 @@ declare module "@ktb/kernel" {
 		"patients.tables": true;
 		"patients.services": true;
 		"patients.routes": true;
-		"patients.landing-nav": true;
+		"patients.chrome": true;
 		"patients.panel": true;
 	}
 }

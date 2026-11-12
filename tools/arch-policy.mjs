@@ -36,6 +36,10 @@ const PORT_PACKAGE_NAMES = [
 	"rbac",
 	// The server-fn runtime registry is port infrastructure, not an adapter.
 	"server-fns",
+	// Host infrastructure below the plugin system (admin gate, console
+	// shell, plugin_state) — held to the same boundary it had under
+	// plugins/ before the T-088 move to packages/platform.
+	"platform",
 ];
 
 const pkgGlob = (names) => `packages/{${names.join(",")}}/src/**/*.{ts,tsx}`;

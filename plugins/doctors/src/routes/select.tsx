@@ -1,4 +1,6 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { redirect } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { DoctorSelectPage, type DoctorSelectApi } from "../views/index.ts";
 import { doctorContextFn, localeFn, selectDoctorFn } from "../fns.ts";
@@ -12,7 +14,7 @@ const api: DoctorSelectApi = {
 // account with no doctor profile is a patient account — it has nothing
 // to choose here and is sent to the patient portal; doctor profiles are
 // only created by the doctor sign-up.
-export const Route = createFileRoute("/doctors/select")({
+export const Route = createPluginFileRoute("doctors.routes")("/doctors/select")({
 	loader: async () => {
 		const [context, locale] = await Promise.all([doctorContextFn(), localeFn()]);
 		if (!context) throw redirect({ to: "/login" });

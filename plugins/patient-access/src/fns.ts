@@ -6,8 +6,8 @@ import { Schema } from "effect";
 import { and, eq } from "drizzle-orm";
 
 import { Db } from "@ktb/db";
+import { patients } from "@ktb/db/schema";
 import { Email } from "@ktb/email";
-import { patients } from "@ktb/patients/schema";
 import { getDoctorAccess, getDoctorUser, getLocale, run, runAs } from "@ktb/server-fns";
 
 import { patientAccessMessages } from "./i18n.ts";

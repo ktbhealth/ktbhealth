@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
 /**
@@ -46,10 +46,12 @@ const readMeta = async (file: string): Promise<string | undefined> => {
 };
 
 /**
- * Filesystem-backed slice of R2Bucket covering what the audio routes
- * and purge path use: `put` (ArrayBuffer/Uint8Array/ReadableStream +
- * httpMetadata.contentType), `get` (body stream + size + arrayBuffer,
- * R2ObjectBody-compatible), `delete` (single key or batch).
+ * Filesystem-backed slice of R2Bucket covering what the audio routes,
+ * purge path and ops stats probe use: `put` (ArrayBuffer/Uint8Array/
+ * ReadableStream + httpMetadata.contentType), `get` (body stream +
+ * size + arrayBuffer, R2ObjectBody-compatible), `delete` (single key or
+ * batch), `list` (full inventory in one page — dev buckets are small;
+ * pagination options are accepted and ignored).
  */
 export const makeLocalAudioBucket = (dir: string) => {
 	const root = resolve(dir);
@@ -102,6 +104,36 @@ export const makeLocalAudioBucket = (dir: string) => {
 				await rm(file, { force: true });
 				await rm(file + META_SUFFIX, { force: true });
 			}
+		},
+		// R2-style listing for the ops storage probe: every object file
+		// under the root (sidecars excluded), keys as posix-relative
+		// paths. Always one untruncated page — the dev store is a
+		// directory, not a paginated service.
+		list: async (): Promise<{
+			objects: { key: string; size: number }[];
+			truncated: boolean;
+		}> => {
+			const objects: { key: string; size: number }[] = [];
+			const walk = async (dir: string, prefix: string): Promise<void> => {
+				const entries = await readdir(dir, { withFileTypes: true });
+				for (const entry of entries) {
+					const rel = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+					const file = resolve(dir, entry.name);
+					if (entry.isDirectory()) {
+						await walk(file, rel);
+					} else if (entry.isFile() && !entry.name.endsWith(META_SUFFIX)) {
+						objects.push({ key: rel, size: (await stat(file)).size });
+					}
+				}
+			};
+			try {
+				await walk(root, "");
+			} catch (error) {
+				// Empty/missing store dir → zero objects, not an error.
+				if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+			}
+			objects.sort((a, b) => a.key.localeCompare(b.key));
+			return { objects, truncated: false };
 		},
 	};
 };

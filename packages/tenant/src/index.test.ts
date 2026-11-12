@@ -7,12 +7,14 @@ import {
 	makeTenantResolver,
 	requireTenant,
 	runAsTenant,
+	runAsTenantId,
 	Tenant,
 	TenantDirectory,
 	TenantNotFound,
 	TenantRequired,
 	TenantResolver,
 	TenantResolverLive,
+	tenantScopeId,
 	tenantSelectorFromHeaders,
 	withTenantAccess,
 	type TenantDirectoryShape,
@@ -75,6 +77,50 @@ describe("runAsTenant / requireTenant", () => {
 	});
 });
 
+describe("runAsTenantId", () => {
+	it("binds the accessible set to the bare id without binding Tenant", async () => {
+		const program = Effect.gen(function* () {
+			return yield* runAsTenantId(7, Effect.all({ ids: accessibleTenantIds, tenant: Tenant }));
+		});
+		const result = await Effect.runPromise(Effect.provideService(program, Tenant, tenantA));
+		expect(result.ids).toEqual([7]);
+		// Ambient Tenant is shadowed by the access set only — Tenant
+		// itself stays whatever the outer scope bound (here tenantA);
+		// system callers run with no outer Tenant at all.
+		expect(result.tenant).toEqual(tenantA);
+	});
+
+	it("leaves personal scope untouched for null/undefined ids", async () => {
+		const program = Effect.gen(function* () {
+			const ids = yield* runAsTenantId(null, accessibleTenantIds);
+			const ids2 = yield* runAsTenantId(undefined, accessibleTenantIds);
+			return { ids, ids2 };
+		});
+		const result = await Effect.runPromise(program);
+		expect(result.ids).toEqual([]);
+		expect(result.ids2).toEqual([]);
+	});
+
+	it("normalizes numeric string ids", async () => {
+		const ids = await Effect.runPromise(runAsTenantId("42", accessibleTenantIds));
+		expect(ids).toEqual([42]);
+	});
+
+	it("keeps non-numeric string ids as strings", async () => {
+		const ids = await Effect.runPromise(runAsTenantId("clinic-9", accessibleTenantIds));
+		expect(ids).toEqual(["clinic-9"]);
+	});
+});
+
+describe("tenantScopeId", () => {
+	it("maps bound tenants to their numeric tenant_id", () => {
+		expect(tenantScopeId(null)).toBeNull();
+		expect(tenantScopeId(tenantA)).toBe(1);
+		expect(tenantScopeId({ ...tenantA, id: "42" })).toBe(42);
+		expect(tenantScopeId({ ...tenantA, id: "clinic-x" })).toBeNull();
+	});
+});
+
 describe("withTenantAccess", () => {
 	it("binds an explicit accessible set and restores the default after", async () => {
 		const program = Effect.gen(function* () {
@@ -111,6 +157,16 @@ describe("tenantSelectorFromHeaders", () => {
 	it("keeps non-numeric ids as strings", () => {
 		const headers = new Headers({ "x-tenant-id": "clinic-42" });
 		expect(tenantSelectorFromHeaders(headers)).toEqual({ id: "clinic-42" });
+	});
+
+	it("parses negative numeric ids", () => {
+		const headers = new Headers({ "x-tenant-id": "-7" });
+		expect(tenantSelectorFromHeaders(headers)).toEqual({ id: -7 });
+	});
+
+	it("extracts a partial selector when only some headers are present", () => {
+		const headers = new Headers({ "x-tenant-slug": "clinic-a" });
+		expect(tenantSelectorFromHeaders(headers)).toEqual({ slug: "clinic-a" });
 	});
 });
 
@@ -161,6 +217,14 @@ describe("makeTenantResolver", () => {
 			selectDefault: (ms) => (ms.length === 1 ? ms[0] : null),
 		});
 		await expect(Effect.runPromise(resolver.resolve(null, "u1"))).resolves.toEqual(tenantA);
+	});
+
+	it("selectDefault may return a Tenant directly", async () => {
+		const resolver = makeTenantResolver({
+			directory: directory(),
+			selectDefault: () => tenantB,
+		});
+		await expect(Effect.runPromise(resolver.resolve(null, "u1"))).resolves.toEqual(tenantB);
 	});
 
 	it("selectDefault returning null falls through to the fallback", async () => {

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as indexRouteImport } from './routes/index'
+import { Route as splatRouteImport } from './routes/$'
 import { Route as captureTestRouteImport } from './routes/capture-test'
 import { Route as loginRouteImport } from './routes/login'
 import { Route as platformRouteImport } from './routes/platform'
@@ -43,6 +44,11 @@ import { Route as ApiPatientsDotidDotexportRouteImport } from './../../../plugin
 const indexRoute = indexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const splatRoute = splatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const captureTestRoute = captureTestRouteImport.update({
@@ -197,6 +203,7 @@ const ApiPatientsDotidDotexportRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof indexRoute
+  '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
   '/login': typeof loginRoute
   '/platform': typeof platformRouteWithChildren
@@ -229,6 +236,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof indexRoute
+  '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
   '/login': typeof loginRoute
   '/verify-email': typeof verifyEmailRoute
@@ -261,6 +269,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof indexRoute
+  '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
   '/login': typeof loginRoute
   '/platform': typeof platformRouteWithChildren
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/capture-test'
     | '/login'
     | '/platform'
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
     | '/capture-test'
     | '/login'
     | '/verify-email'
@@ -358,6 +369,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$'
     | '/capture-test'
     | '/login'
     | '/platform'
@@ -391,6 +403,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   indexRoute: typeof indexRoute
+  splatRoute: typeof splatRoute
   captureTestRoute: typeof captureTestRoute
   loginRoute: typeof loginRoute
   platformRoute: typeof platformRouteWithChildren
@@ -426,6 +439,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof indexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof splatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/capture-test': {
@@ -661,6 +681,7 @@ const ApiBotsRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
+  splatRoute: splatRoute,
   captureTestRoute: captureTestRoute,
   loginRoute: loginRoute,
   platformRoute: platformRouteWithChildren,

@@ -7,6 +7,7 @@ import {
 	changeLocale,
 	localeFromCookieHeader,
 	localeName,
+	pluginFooterNote,
 	pluginNavLabel,
 	pluginPanelGroup,
 	pluginPanelLabel,
@@ -108,6 +109,16 @@ describe("pluginPanelGroup", () => {
 
 	it("passes unknown groups through unchanged", () => {
 		expect(pluginPanelGroup("Other")).toBe("Other");
+	});
+});
+
+describe("pluginFooterNote", () => {
+	it("localizes known footer note keys", () => {
+		expect(pluginFooterNote("disclaimer", "fallback")).not.toBe("fallback");
+	});
+
+	it("falls back to the plugin-provided text for unknown keys", () => {
+		expect(pluginFooterNote("unknown", "Custom note")).toBe("Custom note");
 	});
 });
 

@@ -1,10 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
 import { isExportFormat } from "@ktb/interop";
 import { Patients } from "@ktb/patients";
-import { getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/patients/:id/export?format=fhir-r4|openehr — owner-only
@@ -19,7 +18,7 @@ import { getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
  * standard-specific exporters stay host-side behind the @ktb/server-fns
  * runtime registry (P-033).
  */
-export const Route = createFileRoute("/api/patients/$id/export")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/patients/$id/export")({
 	server: {
 		handlers: {
 			GET: async ({ params, request }) => {

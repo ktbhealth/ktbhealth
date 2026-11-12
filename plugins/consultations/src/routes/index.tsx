@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { ConsultationsPage } from "../views/index.ts";
 import { prefersWhisper } from "../backend.ts";
@@ -7,7 +8,7 @@ import { listConsultationsFn, localeFn } from "../fns.ts";
 import { requireDoctor } from "../guard.ts";
 import { prefetchWhisperModel } from "../whisper-prefetch.ts";
 
-export const Route = createFileRoute("/consultations/")({
+export const Route = createPluginFileRoute("consultations.routes")("/consultations/")({
 	staleTime: 30_000,
 	beforeLoad: () => requireDoctor(),
 	loader: async () => {

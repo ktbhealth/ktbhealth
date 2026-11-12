@@ -5,7 +5,6 @@ import {
 	EllipsisVerticalIcon,
 	PencilIcon,
 	PlusIcon,
-	SearchIcon,
 	Trash2Icon,
 	UsersIcon,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@ktbhealth/ui/components/dropdown-menu";
 import {
@@ -29,7 +27,7 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
-import { Input } from "@ktbhealth/ui/components/input";
+import { SearchInput } from "@ktbhealth/ui/components/search-input";
 import type { Patient } from "../index.ts";
 import { patientMessages } from "../i18n.ts";
 import { formatCpf } from "../record.ts";
@@ -86,17 +84,13 @@ export function PatientsPage({
 			</div>
 
 			{patients.length > 0 ? (
-				<div className="relative mt-5 w-full max-w-sm">
-					<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						type="search"
-						value={q}
-						onChange={(e) => setQ(e.target.value)}
-						placeholder={t.list.searchPlaceholder}
-						aria-label={t.list.searchLabel}
-						className="pl-8"
-					/>
-				</div>
+				<SearchInput
+					value={q}
+					onChange={(e) => setQ(e.target.value)}
+					placeholder={t.list.searchPlaceholder}
+					aria-label={t.list.searchLabel}
+					className="mt-5 w-full max-w-sm"
+				/>
 			) : null}
 
 			<div className="mt-4 space-y-3">
@@ -131,8 +125,24 @@ export function PatientsPage({
 							{!p.active ? <Badge variant="outline">{t.common.inactive}</Badge> : null}
 							{!p.birthDate ? <Badge variant="outline">{t.list.incomplete}</Badge> : null}
 						</div>
-						{/* Above the card's stretched link so the menu stays clickable. */}
-						<div className="relative z-10 shrink-0">
+						{/* Above the card's stretched link so the actions stay clickable. */}
+						<div className="relative z-10 flex shrink-0 items-center gap-1">
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={t.actions.editFor(displayName(p))}
+								render={<Link to="/patients/$id/edit" params={{ id: String(p.id) }} />}
+							>
+								<PencilIcon />
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={t.actions.deleteFor(displayName(p))}
+								onClick={() => setToDelete({ id: p.id, name: displayName(p) })}
+							>
+								<Trash2Icon />
+							</Button>
 							<DropdownMenu>
 								<DropdownMenuTrigger
 									render={
@@ -146,13 +156,6 @@ export function PatientsPage({
 									<EllipsisVerticalIcon />
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end" className="w-56">
-									<DropdownMenuItem
-										render={<Link to="/patients/$id/edit" params={{ id: String(p.id) }} />}
-									>
-										<PencilIcon />
-										{t.actions.edit}
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
 									<DropdownMenuGroup>
 										<DropdownMenuLabel>{t.detail.exportRecord}</DropdownMenuLabel>
 										{exportLinks(t, p.id).map(({ format, label, href }) => (
@@ -162,14 +165,6 @@ export function PatientsPage({
 											</DropdownMenuItem>
 										))}
 									</DropdownMenuGroup>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										variant="destructive"
-										onClick={() => setToDelete({ id: p.id, name: displayName(p) })}
-									>
-										<Trash2Icon />
-										{t.actions.delete}
-									</DropdownMenuItem>
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>

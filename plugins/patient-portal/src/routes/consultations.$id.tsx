@@ -1,4 +1,6 @@
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { notFound, redirect } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { PortalConsultationPage } from "../views/index.ts";
 import { localeFn, portalConsultationFn } from "../fns.ts";
@@ -6,7 +8,7 @@ import { localeFn, portalConsultationFn } from "../fns.ts";
 // One consultation in the patient portal, read-only. Anonymous visitors
 // go to the patient sign-in page; a consultation the signed-in person
 // holds no active link to is a plain 404, like one that does not exist.
-export const Route = createFileRoute("/portal/consultations/$id")({
+export const Route = createPluginFileRoute("patient-portal.routes")("/portal/consultations/$id")({
 	loader: async ({ params }) => {
 		const [result, locale] = await Promise.all([
 			portalConsultationFn({ data: Number(params.id) }),

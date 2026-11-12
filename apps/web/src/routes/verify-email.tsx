@@ -32,7 +32,7 @@ function VerifyEmailPage() {
 	const { data: session, isPending: sessionPending } = authClient.useSession();
 	// The root session knows which side the account is on: a patient
 	// account continues to its portal, everyone else to the app home.
-	const account = useLoaderData({ from: "__root__" });
+	const { user: account } = useLoaderData({ from: "__root__" });
 	const [typedEmail, setTypedEmail] = useState("");
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);

@@ -5,10 +5,9 @@ import * as Layer from "effect/Layer";
 import { and, asc, eq, ne } from "drizzle-orm";
 
 import { DoctorProfiles, type DoctorProfile } from "@ktb/auth";
-import { user } from "@ktb/auth/schema";
 import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
-import { doctors } from "@ktb/doctors/schema";
+import { doctors, user } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { physical } from "@tanstack/virtual-file-routes";
 

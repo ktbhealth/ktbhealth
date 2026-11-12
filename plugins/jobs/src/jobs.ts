@@ -20,6 +20,23 @@ const STATUS_MAP: Record<string, JobStatusValue | undefined> = {
 	failed: "failed",
 };
 
+/**
+ * Audio-pipeline status → job badge status; null for rows that are not
+ * jobs ("none" or unmapped). Client-safe — the ops console reuses it.
+ */
+export const jobStatusOf = (audioStatus: string): JobStatusValue | null =>
+	STATUS_MAP[audioStatus] ?? null;
+
+/**
+ * Audio statuses the admin retry accepts — mirrors
+ * `AUDIO_RETRY_STATUSES` in @ktb/consultations (kept here so views stay
+ * client-safe; the service re-checks server-side).
+ */
+export const RETRYABLE_AUDIO_STATUSES = ["stored", "failed"] as const;
+
+export const isAudioRetryable = (audioStatus: string): boolean =>
+	(RETRYABLE_AUDIO_STATUSES as readonly string[]).includes(audioStatus);
+
 const fmtDate = (value: Date | string, locale: string): string => {
 	const d = value instanceof Date ? value : new Date(value);
 	return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(locale);

@@ -34,7 +34,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		Link: ({ to, children, className }: { to: string; children?: unknown; className?: string }) =>
 			React.createElement("a", { href: to, className }, children as never),
 		// The root session, as the root route's loader returns it.
-		useLoaderData: () => state.account,
+		useLoaderData: () => ({ user: state.account }),
 	};
 });
 

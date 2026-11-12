@@ -48,14 +48,23 @@ export interface PanelHeaderAction {
  * discriminate the union.
  */
 
+/** Host-injected context handed to `pages` page components (P-059): the
+ * discovered plugin registry, so contributed pages can render
+ * plugin-aware views without importing the app host, plus the active
+ * UI locale so views resolve their own localized copy, plus the
+ * session user when one exists (app pages may be public). */
+export interface PageContext {
+	readonly plugins: readonly Plugin[];
+	readonly locale: string;
+	readonly user?: ChromeUser | null;
+}
+
 /** Host-injected context handed to every panel page component — the
  * discovered plugin registry, so console pages can render
  * plugin-aware views without importing the app host, plus the active
- * UI locale so views resolve their own localized copy. */
-export interface PanelPageContext {
-	readonly plugins: readonly Plugin[];
-	readonly locale: string;
-}
+ * UI locale so views resolve their own localized copy. Same payload
+ * as `PageContext` (P-059 unified the two). */
+export interface PanelPageContext extends PageContext {}
 
 /** A console page contributed via `panel.pages` (P-050): the host
  * mounts a generic dispatcher at `path` under /platform, runs `loader`
@@ -69,13 +78,49 @@ export interface PanelPageContext {
  * `guard` (optional) is an Effect run server-side under the same
  * principal BEFORE `loader`; a `false` result makes the host treat the
  * page as not found — use it for feature flags / entitlement checks.
- * Hard authorization stays inside the loader/service layer. */
+ * Hard authorization stays inside the loader/service layer.
+ * `guard`/`loader` receive the request path — exact-path pages ignore
+ * it; wildcard pages (see `Page.path`) need it to resolve their data. */
 export interface PanelPage {
 	readonly id: string;
 	readonly path: string;
 	readonly component: ComponentType<{ data: unknown; ctx: PanelPageContext }>;
-	readonly loader?: () => Effect.Effect<unknown, unknown, unknown>;
-	readonly guard?: () => Effect.Effect<boolean, unknown, unknown>;
+	readonly loader?: (path: string) => Effect.Effect<unknown, unknown, unknown>;
+	readonly guard?: (path: string) => Effect.Effect<boolean, unknown, unknown>;
+}
+
+/** A page contributed via `pages` (P-059): the host mounts a generic
+ * splat dispatcher that resolves `path` against the registry, runs
+ * `guard` then `loader` as Effects (server-side, under the session
+ * principal when one exists — app pages may be public), and renders
+ * `component` with the result as `data`. `path` is the full absolute
+ * route path ("/about", "/platform/x", …); the host looks descriptors
+ * up by exact path. `guard` (optional) runs BEFORE `loader`; a `false`
+ * result or a failure makes the host treat the page as not found —
+ * use it for feature flags / entitlement checks. Hard authorization
+ * stays inside the loader/service layer.
+ * `context` selects the shell: "console" pages dispatch under
+ * /platform behind the admin gate (console chrome); "app" pages render
+ * inside the marketing shell and may be public. Defaults to "console"
+ * for /platform* paths and "app" otherwise — an app-context page
+ * claiming a /platform* path is a contract violation (the host warns
+ * and ignores it).
+ * `path` may also end in "/*" to claim a whole path subtree (same
+ * syntax as chrome `when` paths): exact-path descriptors always win;
+ * among wildcard entries the LONGEST matching base wins, ties break by
+ * plugin topo order. This is the seam runtime/DB-driven pages use —
+ * one wildcard descriptor serves every path its loader resolves (e.g.
+ * the custom-pages plugin's "/*" backed by a DB lookup). `guard` and
+ * `loader` receive the REQUESTED path so the descriptor can resolve
+ * which entity the path names; signatures taking no argument remain
+ * valid (the argument is simply ignored). */
+export interface Page {
+	readonly id: string;
+	readonly path: string;
+	readonly component: ComponentType<{ data: unknown; ctx: PageContext }>;
+	readonly loader?: (path: string) => Effect.Effect<unknown, unknown, unknown>;
+	readonly guard?: (path: string) => Effect.Effect<boolean, unknown, unknown>;
+	readonly context?: "app" | "console";
 }
 
 /** Dependency anchor only — no contribution of its own. */
@@ -99,21 +144,104 @@ export interface RoutesPlugin extends PluginBase, ForbiddenContributions<"routes
 	readonly routes: readonly VirtualRouteNode[];
 }
 
-/** A link contributed to the landing chrome (header nav, footer blocks). */
+/** A link contributed to a chrome region (header nav). */
 export interface LandingLink {
 	readonly to: string;
 	readonly label: string;
 }
 
-/** One block in the landing footer: optional heading + link list. */
+/** One block in a footer region: optional heading + link list. */
 export interface LandingFooterBlock {
 	readonly heading?: string;
 	readonly links: ReadonlyArray<LandingLink>;
 }
 
-/** Links surfaced in the host's landing/app header. */
-export interface LandingNavPlugin extends PluginBase, ForbiddenContributions<"landingNav"> {
-	readonly landingNav: ReadonlyArray<LandingLink>;
+/** Declarative per-page visibility for a chrome contribution — data,
+ * not functions, so the registries stay serializable-clean and rules
+ * stay unit-testable. `paths`/`exceptPaths` entries match the current
+ * pathname exactly or as a `prefix/*` subtree (the bare prefix itself
+ * counts); `exceptPaths` wins over `paths`. Absent `paths` means "every
+ * page". */
+export interface ChromeWhen {
+	readonly paths?: readonly string[];
+	readonly exceptPaths?: readonly string[];
+}
+
+/** Session user shape handed to chrome components — structurally
+ * compatible with `SessionUser` (@ktb/auth) without a kernel→auth dep. */
+export interface ChromeUser {
+	readonly id: string;
+	readonly email: string;
+	readonly name?: string | null;
+	/** True for an account with no doctor side (a patient account) — chrome
+	 * hides doctor-only entries for it. Absent means a regular account. */
+	readonly patientOnly?: boolean;
+}
+
+/** Everything the host injects into a chrome `component` contribution —
+ * plugins cannot import the host's i18n runtime or session helpers, so
+ * the shell resolves locale, user, labels and sign-out and hands them
+ * down. `labels` carries the host-localized strings plugins need
+ * (documented keys: `signIn`, `signOut`, `newConsultation`, `langMenu`,
+ * `switchDoctor`, `secretaries`, `patientPortal`, `myConsultations`);
+ * plugins fall back to their own English literal per key. `signOut`
+ * performs the host's sign-out flow (plugins may not import auth
+ * adapters). */
+export interface ChromeProps {
+	readonly user: ChromeUser | null;
+	readonly locale: string;
+	readonly plugins: readonly Plugin[];
+	readonly locales: readonly string[];
+	readonly localeName: (locale: string) => string;
+	readonly setLocale: (locale: string) => void;
+	readonly labels: Readonly<Record<string, string>>;
+	readonly signOut: () => Promise<void>;
+}
+
+/** What a chrome contribution renders. `link` is a router link (nav
+ * regions), `component` an arbitrary widget, `sidebarItem`/`headerAction`
+ * the console chrome payloads (reusing the panel types), `footerBlock`
+ * a footer link block, `note` a localized footer note keyed for the
+ * host's i18n mapping. */
+export type ChromeContent =
+	| { readonly kind: "link"; readonly to: string; readonly label: string }
+	| { readonly kind: "component"; readonly component: ComponentType<ChromeProps> }
+	| { readonly kind: "sidebarItem"; readonly item: PanelSidebarItem }
+	| {
+			readonly kind: "headerAction";
+			readonly id: string;
+			readonly component: ComponentType<{ readonly locale?: string }>;
+	  }
+	| { readonly kind: "footerBlock"; readonly block: LandingFooterBlock }
+	| { readonly kind: "note"; readonly key: string; readonly fallback: string };
+
+/** One slot filled in a shell-owned region. `region` names the slot
+ * (e.g. "app.header.nav", "console.sidebar") — the host declares the
+ * valid set per shell; unknown regions are skipped with a dev warning.
+ * `order` sorts within the region (ascending, `order ?? Infinity`),
+ * ties break by plugin topo order then array index; `when` filters by
+ * pathname at render time. */
+export interface ChromeContribution {
+	readonly id: string;
+	readonly region: string;
+	readonly order?: number;
+	readonly when?: ChromeWhen;
+	readonly content: ChromeContent;
+}
+
+/** Shell chrome slots: ordered, per-page-filtered contributions into
+ * named regions owned by the host shells (app marketing chrome,
+ * /platform console). Replaces the retired landingNav/landingFooter
+ * fields and the sidebar/headerActions halves of `panel`. */
+export interface ChromePlugin extends PluginBase, ForbiddenContributions<"chrome"> {
+	readonly chrome: ReadonlyArray<ChromeContribution>;
+}
+
+/** Props the host injects into a contributed landing page — the active
+ * UI locale so the page resolves its own localized copy (plugins cannot
+ * import the host's i18n runtime). */
+export interface LandingPageProps {
+	readonly locale?: string;
 }
 
 /** Whole-page landing slot: the host renders the first landing plugin's
@@ -121,26 +249,17 @@ export interface LandingNavPlugin extends PluginBase, ForbiddenContributions<"la
  * one landing plugin should exist — additional ones are ignored. */
 export interface LandingPlugin extends PluginBase, ForbiddenContributions<"landing"> {
 	readonly landing: {
-		readonly page: ComponentType;
+		readonly page: ComponentType<LandingPageProps>;
 	};
 }
 
-/** Footer blocks rendered by the host's landing chrome, in topo order. */
-export interface LandingFooterPlugin extends PluginBase, ForbiddenContributions<"landingFooter"> {
-	readonly landingFooter: {
-		readonly blocks: ReadonlyArray<LandingFooterBlock>;
-	};
-}
-
-/** System-console (panel) contribution: sidebar entries rendered by
- * the /platform shell, ordered by plugin topo order. */
+/** System-console (panel) contribution: pages the host dispatches
+ * under /platform — each `path` gets a generic route that runs `loader`
+ * and renders `component`. Paths must be unique across plugins. Console
+ * chrome (sidebar items, header actions) is contributed via `chrome`
+ * into the "console.*" regions instead. */
 export interface PanelPlugin extends PluginBase, ForbiddenContributions<"panel"> {
 	readonly panel: {
-		readonly sidebar?: ReadonlyArray<PanelSidebarItem>;
-		/** Top-bar actions rendered on the right side of the console
-		 * header, in plugin topo order. Only taken into account when the
-		 * `platform.header` extension point is present. */
-		readonly headerActions?: ReadonlyArray<PanelHeaderAction>;
 		/** Console pages the host dispatches under /platform — each
 		 * `path` gets a generic route that runs `loader` and renders
 		 * `component`. Paths must be unique across plugins. */
@@ -148,12 +267,24 @@ export interface PanelPlugin extends PluginBase, ForbiddenContributions<"panel">
 	};
 }
 
+/** Generic page contribution (P-059): plugin-declared pages at
+ * arbitrary absolute paths, dispatched by the host's splat routes —
+ * the generalization of `panel.pages` beyond /platform. `context`
+ * picks the shell (default derived from the path); paths must be
+ * unique across ALL page contributions (panel.pages and pages
+ * together) — first in topo order wins, later duplicates are dropped
+ * with a dev warning. This is also the seam runtime/DB-driven pages
+ * (e.g. a future custom-pages plugin) plug into. */
+export interface PagesPlugin extends PluginBase, ForbiddenContributions<"pages"> {
+	readonly pages: ReadonlyArray<Page>;
+}
+
 export type Plugin =
 	| MarkerPlugin
 	| TablesPlugin
 	| ServicesPlugin
 	| RoutesPlugin
-	| LandingNavPlugin
 	| LandingPlugin
-	| LandingFooterPlugin
-	| PanelPlugin;
+	| ChromePlugin
+	| PanelPlugin
+	| PagesPlugin;

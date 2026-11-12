@@ -1,10 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { recordSummary } from "@ktb/patients/record";
-import { getDoctorUser, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, runAs } from "@ktb/server-fns";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
 /**
@@ -15,7 +14,7 @@ import { renderAnamnesisPdf } from "@ktb/export-pdf";
  * (physical("/api", "src/api-routes")); the session/runtime boundary is
  * @ktb/server-fns, so no host imports are needed (P-033).
  */
-export const Route = createFileRoute("/api/consultations/$id/pdf")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/consultations/$id/pdf")({
 	server: {
 		handlers: {
 			GET: async ({ params }) => {

@@ -8,11 +8,11 @@
 	},
 	"dependencies": {
 		"@ktb/auth": "workspace:*",
+		"@ktb/db": "workspace:*",
 		"better-auth": "1.7.18",
 		"drizzle-orm": "^0.45.1"
 	},
 	"devDependencies": {
-		"@ktb/db": "workspace:*",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^22.10.2",
 		"better-sqlite3": "^13.0.3"

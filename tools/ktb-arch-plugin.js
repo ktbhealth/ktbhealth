@@ -28,6 +28,18 @@
  *   covers `import { patients } from "./schema.ts"` and
  *   `@ktb/<pkg>/schema` specifiers; test files are exempt (fixtures may
  *   seed directly).
+ * - `ktb-arch/plugin-route-gate` — page route modules under a plugin's
+ *   `src/routes` tree must build `Route` via
+ *   `createPluginFileRoute("<pkg>.routes")` from `@ktb/server-fns`,
+ *   which 404s when the package's routes plugin is disabled (P-058).
+ *   Bare `createFileRoute`/`createLazyFileRoute` imports from
+ *   `@tanstack/react-router` are banned there; test files are exempt.
+ * - `ktb-arch/plugin-api-route-gate` — API/server route modules under a
+ *   plugin's `src/api-routes` tree must build `Route` via
+ *   `createPluginApiRoute("<pkg>.routes")` (server routes never run
+ *   beforeLoad, so the helper wraps `server.handlers` with the same
+ *   enabled-state check, answering 404 when the plugin is disabled).
+ *   Same bare-creator ban and test exemption as the page gate.
  */
 
 import { PROVIDER_LITERAL_PATTERNS } from "./arch-policy.mjs";
@@ -431,6 +443,94 @@ const tenantScope = {
 	},
 };
 
+// --- ktb-arch/plugin-route-gate + plugin-api-route-gate ---------------------
+// Plugin route modules are gated on the package's `*.routes` plugin
+// enable state automatically. Page routes (plugins/<pkg>/src/routes/...)
+// must build `Route` through `createPluginFileRoute`, which wraps
+// `createFileRoute` and throws notFound() when the plugin is off; API
+// routes (plugins/<pkg>/src/api-routes/...) must build it through
+// `createPluginApiRoute`, which wraps `server.handlers` with the same
+// check answering a 404 Response (server routes never run beforeLoad).
+// Bare createFileRoute imports are banned so the gate can't be bypassed;
+// test files are exempt.
+
+const PLUGIN_PAGE_ROUTE_RE =
+	/(?:^|[/\\])plugins[/\\]([^/\\]+)[/\\]src[/\\]routes[/\\].*\.(?:ts|tsx)$/;
+const PLUGIN_API_ROUTE_RE =
+	/(?:^|[/\\])plugins[/\\]([^/\\]+)[/\\]src[/\\]api-routes[/\\].*\.(?:ts|tsx)$/;
+const SERVER_FNS_PKG = "@ktb/server-fns";
+const ROUTER_PKG = "@tanstack/react-router";
+const BANNED_ROUTE_CREATORS = new Set(["createFileRoute", "createLazyFileRoute"]);
+
+/** Shared rule body; `helperName`/`fileRe` select page vs API gating. */
+const makePluginRouteGate = (fileRe, helperName) => ({
+	create(context) {
+		const match = context.filename.match(fileRe);
+		if (match === null || TEST_FILE_RE.test(context.filename)) {
+			return {};
+		}
+		const expectedId = `${match[1]}.routes`;
+		// Set by the Program visitor; CallExpression runs after it.
+		let imports;
+		return {
+			Program(node) {
+				imports = namedImports(node);
+
+				// Value imports of the bare route creators bypass the gate.
+				for (const stmt of node.body) {
+					if (stmt.type !== "ImportDeclaration" || stmt.importKind === "type") continue;
+					if (stmt.source?.value !== ROUTER_PKG) continue;
+					for (const spec of stmt.specifiers ?? []) {
+						const imported = importedName(spec);
+						if (typeof imported === "string" && BANNED_ROUTE_CREATORS.has(imported)) {
+							context.report({
+								node: spec,
+								message:
+									`plugin route modules must use ${helperName}("${expectedId}") ` +
+									`from "${SERVER_FNS_PKG}" — bare ${imported} bypasses the ` +
+									"enabled-state gate (ktb-arch/plugin-route-gate)",
+							});
+						}
+					}
+				}
+
+				// Modules that export a Route must build it through the helper.
+				if (!exportedNames(node).has("Route")) return;
+				const usesHelper = [...imports.values()].some(
+					(entry) => entry.source === SERVER_FNS_PKG && entry.imported === helperName,
+				);
+				if (!usesHelper) {
+					context.report({
+						node,
+						message:
+							`plugin route modules must build Route via ` +
+							`${helperName}("${expectedId}") from "${SERVER_FNS_PKG}" ` +
+							"(ktb-arch/plugin-route-gate)",
+					});
+				}
+			},
+			CallExpression(node) {
+				const callee = node.callee;
+				if (callee?.type !== "Identifier" || imports === undefined) return;
+				const binding = imports.get(callee.name);
+				if (binding?.source !== SERVER_FNS_PKG || binding.imported !== helperName) return;
+				const arg = node.arguments[0];
+				if (arg?.type === "Literal" && typeof arg.value === "string" && arg.value !== expectedId) {
+					context.report({
+						node: arg,
+						message:
+							`${helperName} must gate on this package's routes plugin id ` +
+							`"${expectedId}" (ktb-arch/plugin-route-gate)`,
+					});
+				}
+			},
+		};
+	},
+});
+
+const pluginRouteGate = makePluginRouteGate(PLUGIN_PAGE_ROUTE_RE, "createPluginFileRoute");
+const pluginApiRouteGate = makePluginRouteGate(PLUGIN_API_ROUTE_RE, "createPluginApiRoute");
+
 export default {
 	meta: { name: "ktb-arch" },
 	rules: {
@@ -439,5 +539,7 @@ export default {
 		"driver-contract": driverContract,
 		"provider-lockin": providerLockin,
 		"tenant-scope": tenantScope,
+		"plugin-route-gate": pluginRouteGate,
+		"plugin-api-route-gate": pluginApiRouteGate,
 	},
 };

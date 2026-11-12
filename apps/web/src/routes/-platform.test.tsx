@@ -23,9 +23,25 @@ const getSessionUserFn = vi.fn(
 	}),
 );
 const listMyNotificationsFn = vi.fn(async () => [] as unknown[]);
+const pluginStatesFn = vi.fn(async () => ({ enabled: [] as string[] }));
 const signOut = vi.fn(async () => {});
 
 vi.mock("@ktb/auth-better/client", () => ({ authClient: { signOut: () => signOut() } }));
+
+vi.mock("#/lib/registry.ts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#/lib/registry.ts")>();
+	return {
+		...actual,
+		collectChrome: (
+			pluginList: Parameters<typeof actual.collectChrome>[0],
+			region: string,
+			path: string,
+		) => [
+			...actual.collectChrome(pluginList, region, path),
+			...chromeExtra.filter((entry) => entry.region === region),
+		],
+	};
+});
 
 vi.mock("#/lib/fns.ts", () => ({
 	platformAdminFn: () => platformAdminFn(),
@@ -36,6 +52,7 @@ vi.mock("#/lib/fns.ts", () => ({
 	markMyNotificationsReadFn: (arg: unknown) => markMyNotificationsReadFn(arg),
 	markAllMyNotificationsReadFn: () => markAllMyNotificationsReadFn(),
 	getSessionUserFn: () => getSessionUserFn(),
+	pluginStatesFn: () => pluginStatesFn(),
 }));
 
 let loaderData: unknown = { patients: [], consultations: [] };
@@ -43,6 +60,8 @@ let pathname = "/platform";
 let pageParam = "patients";
 // When set, replaces the <Outlet /> stub so a test can read context values.
 let outletChild: (() => ReactElement | null) | null = null;
+// Test-only chrome injection: extra collectChrome results per region.
+let chromeExtra: { id: string; region: string; content: Record<string, unknown> }[] = [];
 
 beforeAll(() => {
 	// jsdom has no matchMedia; the ui sidebar's useIsMobile needs it.
@@ -76,7 +95,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			return opts?.select ? opts.select(loc) : loc;
 		},
 		getRouteApi: () => ({
-			useLoaderData: () => ({ id: "u1", email: "admin@ktb.test", name: "Admin" }),
+			useLoaderData: () => ({
+				user: { id: "u1", email: "admin@ktb.test", name: "Admin" },
+				pluginStates: { enabled: plugins.map((p) => p.id) },
+			}),
 		}),
 		Link: (props: Record<string, unknown>) => {
 			const { to, children, ...rest } = props;
@@ -92,7 +114,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 import { Route as PlatformRoute } from "./platform.tsx";
 import { Route as PlatformIndexRoute } from "./platform/index.tsx";
 import { Route as PlatformPageRoute } from "./platform/$.tsx";
-import { platformPages } from "#/lib/platform-pages.ts";
+import { consolePages } from "#/lib/registry.ts";
+import { plugins } from "#/plugins.ts";
 import type { PanelPage } from "@ktb/kernel";
 
 const component = (route: unknown) =>
@@ -110,6 +133,7 @@ afterEach(() => {
 	cleanup();
 	vi.unstubAllGlobals();
 	outletChild = null;
+	chromeExtra = [];
 	signOut.mockClear();
 	pathname = "/platform";
 	pageParam = "patients";
@@ -121,6 +145,7 @@ afterEach(() => {
 	markMyNotificationsReadFn.mockReset().mockResolvedValue(true);
 	markAllMyNotificationsReadFn.mockReset().mockResolvedValue(true);
 	getSessionUserFn.mockReset().mockResolvedValue({ id: "u1", email: "a@x.com", name: "A" });
+	pluginStatesFn.mockReset().mockResolvedValue({ enabled: plugins.map((p) => p.id) });
 	loaderData = {
 		patients: [],
 		consultations: [],
@@ -174,6 +199,20 @@ describe("/platform layout", () => {
 		});
 	});
 
+	it("loader skips feeds whose plugin package is fully disabled (P-058)", async () => {
+		pluginStatesFn.mockResolvedValue({
+			enabled: plugins
+				.filter((p) => !p.id.startsWith("consultations.") && !p.id.startsWith("notifications."))
+				.map((p) => p.id),
+		});
+		await expect(loader(PlatformRoute)!()).resolves.toEqual({
+			audioJobs: [],
+			notifications: [],
+		});
+		expect(adminListAudioJobsFn).not.toHaveBeenCalled();
+		expect(listMyNotificationsFn).not.toHaveBeenCalled();
+	});
+
 	it("injects mark-read actions for the notifications popover", async () => {
 		let actions: NotificationsActions | null = null;
 		outletChild = function Probe() {
@@ -210,6 +249,36 @@ describe("/platform layout", () => {
 	it("beforeLoad passes for admins", async () => {
 		await expect(beforeLoad(PlatformRoute)!()).resolves.toBeUndefined();
 	});
+
+	it("skips chrome entries whose kind does not match the console slot", () => {
+		chromeExtra = [
+			{
+				id: "t.sidebar-note",
+				region: "console.sidebar",
+				content: { kind: "note", key: "k", fallback: "f" },
+			},
+			{
+				id: "t.header-link",
+				region: "console.header.actions",
+				content: { kind: "link", to: "/x", label: "X" },
+			},
+		];
+		render(createElement(component(PlatformRoute)));
+		// Matching entries still render; mismatched kinds are dropped.
+		expect(screen.getByTestId("platform-outlet")).toBeTruthy();
+	});
+
+	it("stays silent outside dev", async () => {
+		// The dev chrome-region warning is module-level — re-import the
+		// route with DEV stubbed off to cover the skipped branch.
+		vi.stubEnv("DEV", false);
+		vi.resetModules();
+		try {
+			await import("./platform.tsx");
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
 });
 
 describe("/platform index", () => {
@@ -230,16 +299,19 @@ describe("/platform index", () => {
 describe("/platform/$ splat dispatcher", () => {
 	it("renders the patients page contributed by the patients plugin", () => {
 		pageParam = "patients";
-		loaderData = [
-			{
-				id: 7,
-				ownerId: "u1",
-				name: "Ana",
-				createdAt: new Date("2026-11-01T10:00:00Z"),
-				ownerEmail: "d@x.com",
-				ownerName: "Dra",
-			},
-		];
+		loaderData = {
+			patients: [
+				{
+					id: 7,
+					ownerId: "u1",
+					name: "Ana",
+					createdAt: new Date("2026-11-01T10:00:00Z"),
+					ownerEmail: "d@x.com",
+					ownerName: "Dra",
+				},
+			],
+			owners: [],
+		};
 		render(createElement(component(PlatformPageRoute)));
 		expect(screen.getByText("Ana")).toBeTruthy();
 		expect(screen.getByText("Dra")).toBeTruthy();
@@ -286,6 +358,25 @@ describe("/platform/$ splat dispatcher", () => {
 		expect(screen.getByText("clinic-a")).toBeTruthy();
 	});
 
+	it("renders the tenants page contributed by the tenant plugin", () => {
+		pageParam = "tenants";
+		loaderData = [
+			{
+				id: 4,
+				name: "Clinic B",
+				slug: "clinic-b",
+				kind: "clinic",
+				meta: null,
+				createdAt: new Date("2026-11-01T10:00:00Z"),
+				updatedAt: new Date("2026-11-01T10:00:00Z"),
+				memberCount: 2,
+			},
+		];
+		render(createElement(component(PlatformPageRoute)));
+		expect(screen.getByText("Clinic B")).toBeTruthy();
+		expect(screen.getByText("clinic-b")).toBeTruthy();
+	});
+
 	it("loader resolves the descriptor path and calls the data fn", async () => {
 		await loader(PlatformPageRoute)!({ params: { _splat: "patients" } });
 		expect(platformPageDataFn).toHaveBeenCalledWith("/platform/patients");
@@ -294,11 +385,14 @@ describe("/platform/$ splat dispatcher", () => {
 	it("loader resolves nested splat paths against the registry", async () => {
 		// No shipped plugin owns a nested path — register a throwaway
 		// descriptor so the splat lookup has something to find.
-		const pages = platformPages as unknown as Map<string, PanelPage>;
+		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
 		pages.set("/platform/foo/bar", {
-			id: "test.nested",
-			path: "/platform/foo/bar",
-			component: () => null,
+			page: {
+				id: "test.nested",
+				path: "/platform/foo/bar",
+				component: () => null,
+			},
+			pluginId: "platform.routes",
 		});
 		try {
 			await loader(PlatformPageRoute)!({ params: { _splat: "foo/bar" } });

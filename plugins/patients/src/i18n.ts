@@ -118,6 +118,8 @@ export interface PatientMessages {
 		readonly menu: (name: string) => string;
 		readonly edit: string;
 		readonly delete: string;
+		readonly editFor: (name: string) => string;
+		readonly deleteFor: (name: string) => string;
 	};
 	readonly remove: {
 		readonly title: string;
@@ -142,6 +144,17 @@ export interface PatientMessages {
 		readonly colOwner: string;
 		readonly colOwnerId: string;
 		readonly colCreated: string;
+		readonly searchPlaceholder: string;
+		readonly searchLabel: string;
+		readonly noMatch: string;
+		readonly filteredCount: (shown: number, total: number) => string;
+		readonly colActions: string;
+		readonly newPatient: string;
+		readonly createTitle: string;
+		readonly createDescription: string;
+		readonly ownerLabel: string;
+		readonly ownerPlaceholder: string;
+		readonly createFailed: string;
 	};
 	readonly form: {
 		readonly editTitle: string;
@@ -281,6 +294,8 @@ const en: PatientMessages = {
 		menu: (name) => `Actions for ${name}`,
 		edit: "Edit record",
 		delete: "Delete patient",
+		editFor: (name) => `Edit ${name}`,
+		deleteFor: (name) => `Delete ${name}`,
 	},
 	remove: {
 		title: "Delete patient?",
@@ -306,6 +321,17 @@ const en: PatientMessages = {
 		colOwner: "Owner",
 		colOwnerId: "Owner id",
 		colCreated: "Created",
+		searchPlaceholder: "Search by name or owner…",
+		searchLabel: "Search patients",
+		noMatch: "No patients match the search.",
+		filteredCount: (shown, total) => `Showing ${shown} of ${total}`,
+		colActions: "Actions",
+		newPatient: "New patient",
+		createTitle: "New patient",
+		createDescription: "Create a patient record on behalf of an owner.",
+		ownerLabel: "Owner",
+		ownerPlaceholder: "Select an owner",
+		createFailed: "Could not create the patient. Try again.",
 	},
 	form: {
 		editTitle: "Edit patient",
@@ -446,6 +472,8 @@ const ptBR: PatientMessages = {
 		menu: (name) => `Ações para ${name}`,
 		edit: "Editar cadastro",
 		delete: "Excluir paciente",
+		editFor: (name) => `Editar ${name}`,
+		deleteFor: (name) => `Excluir ${name}`,
 	},
 	remove: {
 		title: "Excluir paciente?",
@@ -471,6 +499,17 @@ const ptBR: PatientMessages = {
 		colOwner: "Proprietário",
 		colOwnerId: "Id do proprietário",
 		colCreated: "Cadastrado em",
+		searchPlaceholder: "Buscar por nome ou proprietário…",
+		searchLabel: "Buscar pacientes",
+		noMatch: "Nenhum paciente corresponde à busca.",
+		filteredCount: (shown, total) => `Exibindo ${shown} de ${total}`,
+		colActions: "Ações",
+		newPatient: "Novo paciente",
+		createTitle: "Novo paciente",
+		createDescription: "Cadastre um paciente em nome de um proprietário.",
+		ownerLabel: "Proprietário",
+		ownerPlaceholder: "Selecione um proprietário",
+		createFailed: "Não foi possível cadastrar o paciente. Tente novamente.",
 	},
 	form: {
 		editTitle: "Editar paciente",
@@ -613,6 +652,8 @@ const es: PatientMessages = {
 		menu: (name) => `Acciones para ${name}`,
 		edit: "Editar registro",
 		delete: "Eliminar paciente",
+		editFor: (name) => `Editar ${name}`,
+		deleteFor: (name) => `Eliminar ${name}`,
 	},
 	remove: {
 		title: "¿Eliminar paciente?",
@@ -638,6 +679,17 @@ const es: PatientMessages = {
 		colOwner: "Propietario",
 		colOwnerId: "Id del propietario",
 		colCreated: "Creado",
+		searchPlaceholder: "Buscar por nombre o propietario…",
+		searchLabel: "Buscar pacientes",
+		noMatch: "Ningún paciente coincide con la búsqueda.",
+		filteredCount: (shown, total) => `Mostrando ${shown} de ${total}`,
+		colActions: "Acciones",
+		newPatient: "Nuevo paciente",
+		createTitle: "Nuevo paciente",
+		createDescription: "Cree un registro de paciente en nombre de un propietario.",
+		ownerLabel: "Propietario",
+		ownerPlaceholder: "Seleccione un propietario",
+		createFailed: "No se pudo crear el paciente. Inténtelo de nuevo.",
 	},
 	form: {
 		editTitle: "Editar paciente",

@@ -8,15 +8,11 @@ import { physical } from "@tanstack/virtual-file-routes";
 
 import { decodeAnamnesisOption } from "@ktb/anamnesis/schema";
 import { SECTION_LABELS, type Anamnesis, type AnamnesisSectionKey } from "@ktb/anamnesis/types";
-import { user } from "@ktb/auth/schema";
 import { Forbidden, Principal } from "@ktb/authz";
-import { consultations } from "@ktb/consultations/schema";
 import { Db, type DbClient } from "@ktb/db";
-import { doctors } from "@ktb/doctors/schema";
+import { consultations, doctors, patientAccess, patients, user } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import { patientAccess } from "@ktb/patient-access/schema";
 import { isValidCpf } from "@ktb/patients/record";
-import { patients } from "@ktb/patients/schema";
 
 /**
  * The patient record a portal profile opens: whose it is and who keeps

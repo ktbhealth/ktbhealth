@@ -1,10 +1,28 @@
 import { useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button } from "@ktbhealth/ui/components/button";
+import { ConfirmDialog } from "@ktbhealth/ui/components/confirm-dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@ktbhealth/ui/components/dialog";
+import { Field, FieldLabel } from "@ktbhealth/ui/components/field";
 import { Input } from "@ktbhealth/ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ktbhealth/ui/components/select";
+import { PageContainer } from "@ktbhealth/ui/components/page-container";
+import { PageHeader } from "@ktbhealth/ui/components/page-header";
 import {
 	Table,
 	TableBody,
@@ -14,7 +32,7 @@ import {
 	TableRow,
 } from "@ktbhealth/ui/components/table";
 
-import type { AdminRbacPageData, AssignmentRow, RoleDetailWire } from "../index.ts";
+import type { AdminRbacPageData, AssignmentRow, RoleDetailWire, RoleWire } from "../index.ts";
 import {
 	assignSubjectFn,
 	createRoleFn,
@@ -22,13 +40,19 @@ import {
 	revokeRolePermissionFn,
 	setRolePermissionFn,
 	unassignSubjectFn,
+	updateRoleFn,
 } from "../fns.ts";
-import { rbacMessages } from "../i18n.ts";
+import { rbacMessages, type RbacMessages } from "../i18n.ts";
 
 const inputCls =
 	"h-8 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
 const permKey = (resource: string, action: string) => `${resource}.${action}`;
+
+const KIND_ITEMS = [
+	{ value: "user", label: "user" },
+	{ value: "group", label: "group" },
+] as const;
 
 /**
  * /platform/roles console (P-054): role list + create/delete, a
@@ -50,12 +74,21 @@ export function AdminRbacPage({
 	const [selectedId, setSelectedId] = useState<number | null>(data.roles[0]?.id ?? null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState(false);
+	const [editing, setEditing] = useState<RoleWire | null>(null);
+	const [deleting, setDeleting] = useState<RoleWire | null>(null);
+	const [unassigning, setUnassigning] = useState<AssignmentRow | null>(null);
 	const [newName, setNewName] = useState("");
 	const [newDesc, setNewDesc] = useState("");
-	const [assign, setAssign] = useState({
-		subjectKind: "user" as "user" | "group",
+	const [assign, setAssign] = useState<{
+		subjectKind: "user" | "group";
+		subjectId: string;
+		roleId: string | null;
+		tenantId: string;
+		expiresAt: string;
+	}>({
+		subjectKind: "user",
 		subjectId: "",
-		roleId: "",
+		roleId: null,
 		tenantId: "",
 		expiresAt: "",
 	});
@@ -69,6 +102,14 @@ export function AdminRbacPage({
 		for (const p of detail?.permissions ?? []) m.set(permKey(p.resource, p.action), p.effect);
 		return m;
 	}, [detail]);
+	// Base UI models "nothing selected" as null — the form state keeps "".
+	const roleItems = useMemo(
+		() => [
+			{ value: null, label: t.selectRole },
+			...data.roles.map((r) => ({ value: String(r.id), label: r.name })),
+		],
+		[data.roles, t.selectRole],
+	);
 
 	const run = async (fn: () => Promise<{ ok: boolean }>) => {
 		setBusy(true);
@@ -83,6 +124,7 @@ export function AdminRbacPage({
 	};
 
 	const cycleEffect = (resource: string, action: string) => {
+		/* v8 ignore next -- the matrix button only renders when detail is non-null */
 		if (!detail) return;
 		const key = permKey(resource, action);
 		const current = grants.get(key);
@@ -98,15 +140,22 @@ export function AdminRbacPage({
 		);
 	};
 
+	const confirmDelete = async (role: RoleWire) => {
+		setDeleting(null);
+		await run(() => deleteRoleFn({ data: { id: role.id } }));
+	};
+
+	const confirmUnassign = async (a: AssignmentRow) => {
+		setUnassigning(null);
+		await run(() => unassignSubjectFn({ data: { id: a.id } }));
+	};
+
 	const fmtDate = (d: Date | string | null) =>
 		d === null ? t.neverExpires : new Date(d).toLocaleString(locale);
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<h1 className="text-lg font-bold tracking-tight">{t.title}</h1>
-				<p className="mt-1 text-xs text-muted-foreground">{t.subtitle}</p>
-			</div>
+		<PageContainer className="space-y-8">
+			<PageHeader title={t.title} description={t.subtitle} />
 			{error ? <p className="text-xs text-destructive">{t.saveError}</p> : null}
 
 			<section>
@@ -153,7 +202,7 @@ export function AdminRbacPage({
 								<TableRow>
 									<TableHead>{t.roleName}</TableHead>
 									<TableHead>{t.roleDescription}</TableHead>
-									<TableHead className="text-right">{t.unassign}</TableHead>
+									<TableHead className="text-right">{t.colActions}</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -174,9 +223,22 @@ export function AdminRbacPage({
 												variant="ghost"
 												size="sm"
 												disabled={busy}
+												aria-label={t.editRole}
 												onClick={(e) => {
 													e.stopPropagation();
-													void run(() => deleteRoleFn({ data: { id: r.id } }));
+													setEditing(r);
+												}}
+											>
+												<PencilIcon className="size-3.5" />
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												disabled={busy}
+												onClick={(e) => {
+													e.stopPropagation();
+													setDeleting(r);
 												}}
 											>
 												<Trash2Icon className="size-3.5" /> {t.deleteRole}
@@ -251,7 +313,7 @@ export function AdminRbacPage({
 					className="mt-2 flex flex-wrap items-center gap-2"
 					onSubmit={(e) => {
 						e.preventDefault();
-						if (assign.subjectId.trim() === "" || assign.roleId === "") return;
+						if (assign.subjectId.trim() === "" || assign.roleId === null) return;
 						void run(() =>
 							assignSubjectFn({
 								data: {
@@ -266,36 +328,44 @@ export function AdminRbacPage({
 						);
 					}}
 				>
-					<select
-						className={inputCls}
+					<Select
+						items={KIND_ITEMS}
 						value={assign.subjectKind}
-						onChange={(e) =>
-							setAssign({ ...assign, subjectKind: e.target.value as "user" | "group" })
-						}
-						aria-label={t.subjectKind}
+						onValueChange={(v) => setAssign({ ...assign, subjectKind: v as "user" | "group" })}
 					>
-						<option value="user">user</option>
-						<option value="group">group</option>
-					</select>
+						<SelectTrigger aria-label={t.subjectKind} className="h-8 text-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{KIND_ITEMS.map((item) => (
+								<SelectItem key={item.value} value={item.value}>
+									{item.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Input
 						className={inputCls}
 						placeholder={t.subjectId}
 						value={assign.subjectId}
 						onChange={(e) => setAssign({ ...assign, subjectId: e.target.value })}
 					/>
-					<select
-						className={inputCls}
+					<Select
+						items={roleItems}
 						value={assign.roleId}
-						onChange={(e) => setAssign({ ...assign, roleId: e.target.value })}
-						aria-label={t.colRole}
+						onValueChange={(v) => setAssign({ ...assign, roleId: v })}
 					>
-						<option value="">{t.selectRole}</option>
-						{data.roles.map((r) => (
-							<option key={r.id} value={r.id}>
-								{r.name}
-							</option>
-						))}
-					</select>
+						<SelectTrigger aria-label={t.colRole} className="h-8 max-w-56 text-xs">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{roleItems.map((item) => (
+								<SelectItem key={item.value ?? ""} value={item.value}>
+									{item.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Input
 						className={inputCls}
 						placeholder={t.tenantId}
@@ -348,7 +418,7 @@ export function AdminRbacPage({
 												variant="ghost"
 												size="sm"
 												disabled={busy}
-												onClick={() => void run(() => unassignSubjectFn({ data: { id: a.id } }))}
+												onClick={() => setUnassigning(a)}
 											>
 												{t.unassign}
 											</Button>
@@ -360,6 +430,147 @@ export function AdminRbacPage({
 					</div>
 				)}
 			</section>
-		</div>
+			{editing !== null ? (
+				<EditRoleDialog key={editing.id} role={editing} t={t} onClose={() => setEditing(null)} />
+			) : null}
+			{deleting !== null ? (
+				<ConfirmDialog
+					open
+					onOpenChange={(open) => {
+						/* v8 ignore next -- mounted only while deleting; only close events fire */
+						if (!open) setDeleting(null);
+					}}
+					title={t.deleteRoleTitle}
+					description={t.deleteRoleDescription(deleting.name)}
+					confirmLabel={t.deleteRole}
+					cancelLabel={t.cancel}
+					variant="destructive"
+					loading={busy}
+					onConfirm={() => confirmDelete(deleting)}
+				/>
+			) : null}
+			{unassigning !== null ? (
+				<ConfirmDialog
+					open
+					onOpenChange={(open) => {
+						/* v8 ignore next -- mounted only while unassigning; only close events fire */
+						if (!open) setUnassigning(null);
+					}}
+					title={t.unassignTitle}
+					description={t.unassignDescription(unassigning.subjectId, unassigning.roleName)}
+					confirmLabel={t.unassign}
+					cancelLabel={t.cancel}
+					variant="destructive"
+					loading={busy}
+					onConfirm={() => confirmUnassign(unassigning)}
+				/>
+			) : null}
+		</PageContainer>
+	);
+}
+
+/** Edit-role dialog — name/description/meta, pre-filled from the row. */
+function EditRoleDialog({
+	role,
+	t,
+	onClose,
+}: {
+	role: RoleWire;
+	t: RbacMessages;
+	onClose: () => void;
+}) {
+	const router = useRouter();
+	const [form, setForm] = useState({
+		name: role.name,
+		description: role.description ?? "",
+		meta: role.meta ?? "",
+	});
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState(false);
+
+	const submit = async () => {
+		const name = form.name.trim();
+		if (name === "") return;
+		setBusy(true);
+		setError(false);
+		try {
+			const res = await updateRoleFn({
+				data: {
+					id: role.id,
+					name,
+					description: form.description.trim() === "" ? null : form.description.trim(),
+					meta: form.meta.trim() === "" ? null : form.meta.trim(),
+				},
+			});
+			if (!res.ok) {
+				setError(true);
+				return;
+			}
+			onClose();
+			await router.invalidate();
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<Dialog
+			open
+			onOpenChange={(open) => {
+				/* v8 ignore next -- mounted only while editing; only close events fire */
+				if (!open) onClose();
+			}}
+		>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>{t.editRoleTitle}</DialogTitle>
+				</DialogHeader>
+				<form
+					className="space-y-3"
+					onSubmit={(e) => {
+						e.preventDefault();
+						void submit();
+					}}
+				>
+					<Field>
+						<FieldLabel htmlFor="edit-role-name">{t.roleName}</FieldLabel>
+						<Input
+							id="edit-role-name"
+							className={inputCls}
+							value={form.name}
+							onChange={(e) => setForm({ ...form, name: e.target.value })}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="edit-role-description">{t.roleDescription}</FieldLabel>
+						<Input
+							id="edit-role-description"
+							className={inputCls}
+							value={form.description}
+							onChange={(e) => setForm({ ...form, description: e.target.value })}
+						/>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor="edit-role-meta">{t.roleMeta}</FieldLabel>
+						<Input
+							id="edit-role-meta"
+							className={inputCls}
+							placeholder={t.metaPlaceholder}
+							value={form.meta}
+							onChange={(e) => setForm({ ...form, meta: e.target.value })}
+						/>
+					</Field>
+					{error ? <p className="text-xs text-destructive">{t.saveError}</p> : null}
+					<DialogFooter>
+						<Button type="button" variant="ghost" size="sm" onClick={onClose}>
+							{t.cancel}
+						</Button>
+						<Button type="submit" size="sm" disabled={busy}>
+							{t.editRoleSubmit}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 	);
 }

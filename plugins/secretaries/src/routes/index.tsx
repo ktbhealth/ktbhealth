@@ -1,4 +1,6 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { redirect, useRouter } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { SecretariesPage, type SecretariesApi } from "../views/index.ts";
 import {
@@ -17,7 +19,7 @@ const api: SecretariesApi = {
 // A doctor's secretaries: who may act on their behalf. Only the doctor
 // themself manages this list — anonymous visitors go to /login, accounts
 // without a doctor profile of their own to the profile chooser.
-export const Route = createFileRoute("/secretaries/")({
+export const Route = createPluginFileRoute("secretaries.routes")("/secretaries/")({
 	beforeLoad: async () => {
 		if (!(await sessionUserFn())) throw redirect({ to: "/login" });
 	},

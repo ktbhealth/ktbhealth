@@ -1,13 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb } from "@ktb/db";
-import { user as userTable } from "@ktb/db/schema";
+import {
+	consultations as consultationsTable,
+	patients as patientsTable,
+	user as userTable,
+} from "@ktb/db/schema";
 import { makeD1 } from "@ktb/db/testing";
 import { Principal } from "@ktb/authz";
-import { patients as patientsTable } from "@ktb/patients/schema";
-import { patientsServicesPlugin, PatientsCommandsLive, PatientsQueriesLive } from "@ktb/patients";
-import { makeEventBus, Query } from "@effect-server-utils/cqrs";
+import {
+	Patients,
+	patientsServicesPlugin,
+	PatientsCommandsLive,
+	PatientsQueriesLive,
+} from "@ktb/patients";
+import { EventBus, type EventBusShape, makeEventBus, Query } from "@effect-server-utils/cqrs";
+import { Tenant, type Tenant as TenantScope } from "@ktb/tenant";
 import {
 	makePlatformAdminGate,
 	parsePlatformAdminEmails,
@@ -15,9 +25,7 @@ import {
 	platformAdminPlugin,
 	platformPanelPlugin,
 } from "@ktb/platform";
-import { ClipboardListIcon } from "lucide-react";
-import { consultations as consultationsTable } from "./schema.ts";
-import { ConsultationsQueries } from "./api.ts";
+import { ConsultationAudioUpdated, ConsultationsQueries } from "./api.ts";
 import {
 	Consultations,
 	ConsultationsLive,
@@ -27,7 +35,7 @@ import {
 	audioJobRecord,
 	beginAudioJob,
 	completeAudioJob,
-	consultationsLandingNavPlugin,
+	consultationsChromePlugin,
 	consultationsPanelPlugin,
 	consultationsRoutesPlugin,
 	consultationsServicesPlugin,
@@ -48,22 +56,30 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Stream from "effect/Stream";
 
 const DDL = `
-CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, cpf TEXT UNIQUE);
-INSERT INTO "user" VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0, NULL);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
-CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
+CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, banned INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, cpf TEXT UNIQUE);
+INSERT INTO "user" (id, name, email, email_verified, image, banned, created_at, updated_at) VALUES ('u1', 'Dra', 'd@x.com', 0, NULL, 0, 0, 0);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
+${AUDIT_TEST_DDL}
 `;
 
 // ConsultationsLive requires PlatformAdmin (adminList) — every runtime
 // below provides the same allowlisted gate.
-const liveDeps = (db: ReturnType<typeof makeDb>) => {
+const liveDeps = (
+	db: ReturnType<typeof makeDb>,
+	eventBus: Layer.Layer<EventBus> = makeEventBus(),
+) => {
 	const infra = Layer.mergeAll(
 		Layer.succeed(Db, db),
 		Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
-		makeEventBus(),
+		eventBus,
 	);
 	return Layer.mergeAll(
 		infra,
+		// Provide the real audit service so admin mutations write
+		// admin_audit rows (T-037); fake-db tests degrade to a no-op
+		// insert and the absent-service path stays covered elsewhere.
+		AuditLive.pipe(Layer.provide(infra)),
 		// ConsultationsLive dispatches `patients.ownerOf` / `patients.delete`
 		// — register the real handlers against the test db (same impls the
 		// patients plugin ships).
@@ -91,7 +107,7 @@ describe("consultations repo", () => {
 		});
 		await appendTranscript(db, id!, "two");
 		await appendTranscript(db, id!, "three");
-		const { consultations } = await import("./schema.ts");
+		const { consultations } = await import("@ktb/db/schema");
 		const { eq } = await import("drizzle-orm");
 		const rows = await db
 			.select({ t: consultations.transcript })
@@ -107,7 +123,7 @@ describe("consultations repo", () => {
 			status: "live",
 		});
 		await finishConsultation(db, id!);
-		const { consultations } = await import("./schema.ts");
+		const { consultations } = await import("@ktb/db/schema");
 		const { eq } = await import("drizzle-orm");
 		const rows = await db
 			.select({ s: consultations.status })
@@ -186,7 +202,7 @@ describe("ConsultationsLive", () => {
 
 	beforeAll(() => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -362,6 +378,181 @@ describe("ConsultationsLive", () => {
 		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
 
+	it("adminCreate inserts a consultation for another owner", async () => {
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+		const id = await asUser(
+			"u1",
+			call((c) => c.adminCreate({ userId: "u2", transcript: "admin note", source: "manual" })),
+			"admin@x.com",
+		);
+		expect(id).not.toBeNull();
+		const rows = await testDb
+			.select()
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id!));
+		expect(rows[0]).toMatchObject({ userId: "u2", transcript: "admin note", source: "manual" });
+		// T-037: the audit row carries ids/source only — never the transcript.
+		const auditRows = await testDb.select().from(adminAudit);
+		const entry = auditRows.find(
+			(r) => r.action === "consultations.create" && r.targetId === String(id),
+		);
+		expect(entry).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "consultation",
+		});
+		expect(entry?.detail).not.toContain("admin note");
+	});
+
+	it("adminCreate links an existing patient and rejects unknown ones", async () => {
+		const [patient] = await testDb
+			.insert(patientsTable)
+			.values({ ownerId: "u1", name: "Pat", createdAt: new Date() })
+			.returning({ id: patientsTable.id });
+		const id = await asUser(
+			"u1",
+			call((c) => c.adminCreate({ userId: "u2", patientId: patient!.id, source: "manual" })),
+			"admin@x.com",
+		);
+		const rows = await testDb
+			.select({ patientId: consultationsTable.patientId })
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id!));
+		expect(rows[0]?.patientId).toBe(patient!.id);
+
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminCreate({ userId: "u2", patientId: 999999, source: "manual" })),
+				"admin@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patientId" });
+	});
+
+	it("adminCreate fails Forbidden for non-admin and null principal", async () => {
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminCreate({ userId: "u2", source: "manual" })),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+		await expect(
+			asUser(
+				null,
+				call((c) => c.adminCreate({ userId: "u2", source: "manual" })),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminDelete removes the row and returns its audio key", async () => {
+		const id = await createConsultation(testDb, {
+			userId: "u1",
+			source: "mic",
+			patientId: undefined,
+		});
+		await testDb
+			.update(consultationsTable)
+			.set({ audioKey: "audios/x.webm" })
+			.where(eq(consultationsTable.id, id!));
+		const result = await asUser(
+			"u1",
+			call((c) => c.adminDelete(id!)),
+			"admin@x.com",
+		);
+		expect(result).toEqual({ audioKey: "audios/x.webm" });
+		const rows = await testDb
+			.select({ id: consultationsTable.id })
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id!));
+		expect(rows).toEqual([]);
+		// T-037: delete is audited with hadAudio only — never the audio key.
+		const auditRows = await testDb.select().from(adminAudit);
+		const entry = auditRows.find(
+			(r) => r.action === "consultations.delete" && r.targetId === String(id),
+		);
+		expect(entry).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "consultation",
+		});
+		expect(entry?.detail).toContain('"hadAudio":true');
+		expect(entry?.detail).not.toContain("audios/x.webm");
+	});
+
+	it("adminCreate returns null when the insert yields no row", async () => {
+		const stub = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as ReturnType<typeof makeDb>;
+		const runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(stub))));
+		try {
+			const id = await runtime.runPromise(
+				Effect.provideService(
+					Effect.flatMap(Consultations, (c) => c.adminCreate({ userId: "u2", source: "manual" })),
+					Principal,
+					{ userId: "u1", email: "admin@x.com" },
+				),
+			);
+			expect(id).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("adminDelete reports null for a missing row and denies non-admins", async () => {
+		expect(
+			await asUser(
+				"u1",
+				call((c) => c.adminDelete(424242)),
+				"admin@x.com",
+			),
+		).toBeNull();
+		const id = await createConsultation(testDb, { userId: "u1", source: "mic" });
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminDelete(id!)),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("get and getLive let an admin read another owner's consultation", async () => {
+		const id = await createConsultation(testDb, {
+			userId: "u1",
+			transcript: "secret",
+			source: "mic",
+		});
+		const detail = await asUser(
+			"u2",
+			call((c) => c.get(id!, "u2")),
+			"admin@x.com",
+		);
+		expect(detail?.transcript).toBe("secret");
+		const live = await asUser(
+			"u2",
+			call((c) => c.getLive(id!, "u2")),
+			"admin@x.com",
+		);
+		expect(live).toEqual({ transcript: "secret", status: "done" });
+		// Non-admin still Forbidden.
+		await expect(
+			asUser(
+				"u2",
+				call((c) => c.get(id!, "u2")),
+			),
+		).rejects.toMatchObject({
+			_tag: "Forbidden",
+		});
+	});
+
 	it("denies reads on ownerless rows (null userId)", async () => {
 		const id = await createConsultation(testDb, { userId: "u1", source: "mic" });
 		await testDb
@@ -465,7 +656,7 @@ describe("audio pipeline", () => {
 
 	beforeAll(() => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -481,6 +672,7 @@ describe("audio pipeline", () => {
 			audioKey: "audio/u1/1/x.webm",
 			audioStatus: "stored",
 			userId: "u1",
+			tenantId: null,
 		});
 		await markAudioQueued(testDb, id);
 		await beginAudioJob(testDb, id);
@@ -575,6 +767,131 @@ describe("audio pipeline", () => {
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
+
+	it("adminAudioJobs lists the projection for admins and denies others", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(testDb, id, { audioKey: "k-admin-jobs", size: 1 });
+		const rows = await asUser(
+			"u1",
+			call((c) => c.adminAudioJobs()),
+			"admin@x.com",
+		);
+		expect(rows.find((r) => r.id === id)?.audioStatus).toBe("stored");
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminAudioJobs()),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asUser(
+				null,
+				call((c) => c.adminAudioJobs()),
+			),
+		).rejects.toMatchObject({
+			_tag: "Forbidden",
+		});
+	});
+
+	it("adminAudioJob returns the retry record and denies non-admins", async () => {
+		const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+		await attachAudioRecord(testDb, id, { audioKey: "k-retry", size: 1 });
+		await failAudioJob(testDb, id, "boom");
+		const record = await asUser(
+			"u1",
+			call((c) => c.adminAudioJob(id)),
+			"admin@x.com",
+		);
+		expect(record).toMatchObject({
+			audioKey: "k-retry",
+			audioStatus: "failed",
+			userId: "u1",
+		});
+		expect(
+			await asUser(
+				"u1",
+				call((c) => c.adminAudioJob(424242)),
+				"admin@x.com",
+			),
+		).toBeNull();
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.adminAudioJob(id)),
+				"other@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("adminRequeueAudio flips retryable rows to queued and publishes the event", async () => {
+		// Explicit bus so the test can subscribe to the same instance the
+		// service layer dispatches on (same pattern as the tenant suite).
+		const busRuntime = ManagedRuntime.make(makeEventBus());
+		const bus = await busRuntime.runPromise(EventBus);
+		const rt = ManagedRuntime.make(
+			ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
+		);
+		const seen: { consultationId: number; audioStatus: string; tenantId?: number | null }[] = [];
+		await Effect.runPromise(
+			bus.subscribe(ConsultationAudioUpdated, (e) =>
+				Effect.sync(() => {
+					seen.push({
+						consultationId: e.consultationId,
+						audioStatus: e.audioStatus,
+						tenantId: e.tenantId,
+					});
+				}),
+			),
+		);
+		const asAdmin = <A, E>(effect: Effect.Effect<A, E, Consultations>) =>
+			rt.runPromise(
+				Effect.provideService(effect, Principal, { userId: "u1", email: "admin@x.com" }),
+			);
+		try {
+			const id = (await createConsultation(testDb, { userId: "u1", source: "browser" }))!;
+			await attachAudioRecord(testDb, id, { audioKey: "k-requeue", size: 1 });
+			await failAudioJob(testDb, id, "boom");
+			const ok = await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)));
+			expect(ok).toBe(true);
+			const row = await audioJobRecord(testDb, id);
+			expect(row?.audioStatus).toBe("queued");
+			const full = await testDb.query.consultations.findFirst({
+				where: (t, { eq }) => eq(t.id, id),
+			});
+			expect(full?.audioError).toBeNull();
+			expect(seen).toContainEqual({ consultationId: id, audioStatus: "queued", tenantId: null });
+			// T-037: the requeue is audited (this is the /platform/ops retry).
+			const auditRows = await testDb.select().from(adminAudit);
+			const entry = auditRows.find(
+				(r) => r.action === "consultations.audio.requeue" && r.targetId === String(id),
+			);
+			expect(entry).toMatchObject({
+				actorUserId: "u1",
+				actorEmail: "admin@x.com",
+				targetType: "consultation",
+			});
+			// Second call: status already "queued" — not retryable → false.
+			const again = await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)));
+			expect(again).toBe(false);
+			// Missing row → false; non-admin → Forbidden.
+			expect(await asAdmin(Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(424242)))).toBe(
+				false,
+			);
+			await expect(
+				rt.runPromise(
+					Effect.provideService(
+						Effect.flatMap(Consultations, (c) => c.adminRequeueAudio(id)),
+						Principal,
+						{ userId: "u1", email: "other@x.com" },
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+		} finally {
+			await rt.dispose();
+			await busRuntime.dispose();
+		}
+	});
 });
 
 describe("Consultations.history", () => {
@@ -618,7 +935,7 @@ describe("Consultations.history", () => {
 
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 		const [p] = await testDb
 			.insert(patientsTable)
 			.values({ ownerId: "u1", name: "Maria", createdAt: new Date() })
@@ -775,7 +1092,7 @@ describe("patientId ownership on save/attach", () => {
 
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
-		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provide(liveDeps(testDb))));
+		runtime = ManagedRuntime.make(ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb))));
 		await testDb.insert(userTable).values({
 			id: "u2",
 			name: "Dr B",
@@ -895,7 +1212,7 @@ describe("consultations.audioJobs query", () => {
 	beforeAll(async () => {
 		testDb = makeDb(makeD1(DDL));
 		runtime = ManagedRuntime.make(
-			ConsultationsQueriesLive.pipe(Layer.provide(liveDeps(testDb))),
+			ConsultationsQueriesLive.pipe(Layer.provideMerge(liveDeps(testDb))),
 		) as ManagedRuntime.ManagedRuntime<Query.Registered<typeof ConsultationsQueries>, never>;
 		const [p] = await testDb
 			.insert(patientsTable)
@@ -942,18 +1259,16 @@ describe("plugins", () => {
 			patientsServicesPlugin.id,
 			platformAdminPlugin.id,
 		]);
-		expect(consultationsLandingNavPlugin.id).toBe("consultations.landing-nav");
-		expect(consultationsLandingNavPlugin.landingNav?.[0]?.to).toBe("/consultations");
+		expect(consultationsChromePlugin.id).toBe("consultations.chrome");
+		expect(consultationsChromePlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
+		expect(consultationsChromePlugin.chrome.map((c) => c.region)).toEqual([
+			"app.header.nav",
+			"app.header.actions",
+			"console.sidebar",
+		]);
 		expect(consultationsPanelPlugin.id).toBe("consultations.panel");
 		expect(consultationsPanelPlugin.requiredDeps).toEqual([platformPanelPlugin.id]);
-		expect(consultationsPanelPlugin.panel?.sidebar).toEqual([
-			{
-				to: "/platform/consultations",
-				label: "Consultations",
-				icon: ClipboardListIcon,
-				group: "Domains",
-			},
-		]);
+		expect(consultationsPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform/consultations");
 	});
 
 	it("declares the /consultations route subtree", () => {
@@ -965,13 +1280,320 @@ describe("plugins", () => {
 		);
 	});
 
+	it("platform loader maps blank owner fields to an empty label", async () => {
+		const loader = consultationsPanelPlugin.panel?.pages?.[0]?.loader;
+		expect(loader).toBeDefined();
+		const result = await Effect.runPromise(
+			loader!().pipe(
+				Effect.provideService(Consultations, {
+					adminList: () => Effect.succeed([]),
+				} as never),
+				Effect.provideService(Patients, {
+					adminOwners: () => Effect.succeed([]),
+					adminList: () =>
+						Effect.succeed([
+							{ id: 1, name: "Pat", ownerId: "u9", ownerName: null, ownerEmail: null },
+						] as never),
+				} as never),
+			),
+		);
+		expect(result).toEqual({
+			consultations: [],
+			owners: [],
+			patients: [{ id: 1, name: "Pat", ownerId: "u9", ownerName: "" }],
+		});
+	});
+
 	it("exports the discovery plugins array", () => {
 		expect(plugins.map((p) => p.id)).toEqual([
 			"consultations.tables",
 			"consultations.services",
 			"consultations.routes",
-			"consultations.landing-nav",
+			"consultations.chrome",
 			"consultations.panel",
 		]);
+	});
+});
+
+describe("ConsultationsLive tenant scope (P-053)", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Consultations, never>;
+	let busRuntime: ManagedRuntime.ManagedRuntime<EventBus, never>;
+	let testDb: ReturnType<typeof makeDb>;
+	let bus: EventBusShape;
+
+	const TENANT_A: TenantScope = { id: 7, kind: "clinic", slug: "clinica-a", role: "member" };
+	const TENANT_B: TenantScope = { id: 8, kind: "clinic", slug: "clinica-b", role: "member" };
+
+	const asUser = <A, E>(
+		userId: string | null,
+		effect: Effect.Effect<A, E, Consultations>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(effect, Principal, userId === null ? null : { userId, email }),
+		);
+
+	const asTenant = <A, E>(
+		userId: string,
+		tenant: TenantScope,
+		effect: Effect.Effect<A, E, Consultations>,
+		email?: string,
+	) =>
+		runtime.runPromise(
+			Effect.provideService(
+				Effect.provideService(effect, Principal, { userId, email }),
+				Tenant,
+				tenant,
+			),
+		);
+
+	const call = <A, E>(f: (c: Consultations["Service"]) => Effect.Effect<A, E>) =>
+		Effect.flatMap(Consultations, f);
+
+	const saveInput = (over: Partial<SaveConsultationInput> = {}): SaveConsultationInput => ({
+		transcript: "t",
+		anamnesis: {} as SaveConsultationInput["anamnesis"],
+		engine: "e",
+		...over,
+	});
+
+	const tenantIdOf = async (id: number) => {
+		const rows = await testDb
+			.select({ tenantId: consultationsTable.tenantId })
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, id));
+		return rows[0]?.tenantId ?? null;
+	};
+
+	beforeAll(async () => {
+		testDb = makeDb(makeD1(DDL));
+		// The shared DDL seeds only u1 — tenant-member scenarios need u2
+		// (the consultations.user_id FK is enforced by better-sqlite3).
+		await testDb.insert(userTable).values({
+			id: "u2",
+			name: "Dr B",
+			email: "b@x.com",
+			emailVerified: false,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		});
+		// Build the bus explicitly so tests can subscribe to the same
+		// instance the service layer dispatches on.
+		busRuntime = ManagedRuntime.make(makeEventBus());
+		bus = await busRuntime.runPromise(EventBus);
+		runtime = ManagedRuntime.make(
+			ConsultationsLive.pipe(Layer.provideMerge(liveDeps(testDb, Layer.succeed(EventBus, bus)))),
+		);
+	});
+
+	afterAll(async () => {
+		await runtime.dispose();
+		await busRuntime.dispose();
+	});
+
+	it("create/save/adminCreate stamp tenant_id from the bound tenant", async () => {
+		const id = await asTenant(
+			"u1",
+			TENANT_A,
+			call((c) => c.create({ userId: "u1", source: "browser" })),
+		);
+		expect(await tenantIdOf(id!)).toBe(7);
+
+		const saved = await asTenant(
+			"u1",
+			TENANT_A,
+			call((c) => c.save("u1", saveInput())),
+		);
+		expect(await tenantIdOf(saved.id)).toBe(7);
+
+		const admin = await asTenant(
+			"u1",
+			TENANT_A,
+			call((c) => c.adminCreate({ userId: "u2", source: "manual" })),
+			"admin@x.com",
+		);
+		expect(await tenantIdOf(admin!)).toBe(7);
+
+		// Personal scope and non-numeric tenant ids both stamp NULL.
+		const personal = await asUser(
+			"u1",
+			call((c) => c.create({ userId: "u1", source: "browser" })),
+		);
+		expect(await tenantIdOf(personal!)).toBeNull();
+		const weird = await asTenant(
+			"u1",
+			{ ...TENANT_A, id: "clinic-x" },
+			call((c) => c.create({ userId: "u1", source: "browser" })),
+		);
+		expect(await tenantIdOf(weird!)).toBeNull();
+	});
+
+	it("list shows tenant consultations to members and hides them from outsiders and personal scope", async () => {
+		const t7 = await createConsultation(testDb, { userId: "u1", source: "browser" }, 7);
+		const t8 = await createConsultation(testDb, { userId: "u1", source: "browser" }, 8);
+
+		const member = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.list("u2")),
+		);
+		const memberIds = member.map((r) => r.id);
+		expect(memberIds).toContain(t7);
+		expect(memberIds).not.toContain(t8);
+
+		// Personal scope: tenant rows are invisible even to their creator.
+		const personal = await asUser(
+			"u1",
+			call((c) => c.list("u1")),
+		);
+		const personalIds = personal.map((r) => r.id);
+		expect(personalIds).not.toContain(t7);
+		expect(personalIds).not.toContain(t8);
+	});
+
+	it("get/getLive let tenant members read tenant rows; outsiders and personal-scope owners are Forbidden", async () => {
+		const t7 = await createConsultation(
+			testDb,
+			{ userId: "u1", transcript: "shared", source: "mic", status: "live" },
+			7,
+		);
+
+		const got = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.get(t7!, "u2")),
+		);
+		expect(got?.transcript).toBe("shared");
+		const live = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.getLive(t7!, "u2")),
+		);
+		expect(live).toEqual({ transcript: "shared", status: "live" });
+
+		// Member of a different tenant → Forbidden.
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.get(t7!, "u2")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "consultation.read" });
+		// The creator in personal scope → Forbidden (strict tenant rows).
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.get(t7!, "u1")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		// Platform admin reads cross-tenant.
+		const admin = await asTenant(
+			"u1",
+			TENANT_B,
+			call((c) => c.get(t7!, "u1")),
+			"admin@x.com",
+		);
+		expect(admin?.transcript).toBe("shared");
+	});
+
+	it("attachAnamnesis/recordConsent let tenant members update tenant rows", async () => {
+		const t7 = await createConsultation(testDb, { userId: "u1", source: "mic" }, 7);
+		const anamnesis = {} as SaveConsultationInput["anamnesis"];
+
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.attachAnamnesis("u2", { consultationId: t7!, anamnesis, engine: "e" })),
+		);
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.recordConsent(t7!, "u2")),
+		);
+		const rows = await testDb
+			.select({
+				anamnesis: consultationsTable.anamnesis,
+				consentAt: consultationsTable.consentAt,
+			})
+			.from(consultationsTable)
+			.where(eq(consultationsTable.id, t7!));
+		expect(rows[0]?.anamnesis).not.toBeNull();
+		expect(rows[0]?.consentAt).toBeInstanceOf(Date);
+
+		// Non-member → Forbidden on both paths.
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.attachAnamnesis("u2", { consultationId: t7!, anamnesis, engine: "e2" })),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.recordConsent(t7!, "u2")),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("attachAudio/updateAudioStatus stamp the row's tenant_id on audio events", async () => {
+		const t7 = await createConsultation(testDb, { userId: "u1", source: "mic" }, 7);
+		const seen: (number | null | undefined)[] = [];
+		await Effect.runPromise(
+			bus.subscribe(ConsultationAudioUpdated, (e) =>
+				Effect.sync(() => {
+					seen.push(e.tenantId);
+				}),
+			),
+		);
+		// Tenant member operates the shared row — both events carry tenant 7.
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.attachAudio("u2", { consultationId: t7!, audioKey: "k-t", size: 1 })),
+		);
+		await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.updateAudioStatus("u2", t7!, "queued")),
+		);
+		expect(seen).toEqual([7, 7]);
+	});
+
+	it("save links tenant patients for members and rejects non-members", async () => {
+		const patient = (
+			await testDb
+				.insert(patientsTable)
+				.values({ ownerId: "u1", name: "Tenant Patient", tenantId: 7, createdAt: new Date() })
+				.returning({ id: patientsTable.id })
+		)[0]!;
+
+		// Member of tenant 7 links the shared patient; the consultation
+		// is stamped with the bound tenant.
+		const saved = await asTenant(
+			"u2",
+			TENANT_A,
+			call((c) => c.save("u2", saveInput({ patientId: patient.id }))),
+		);
+		expect(await tenantIdOf(saved.id)).toBe(7);
+
+		// Member of another tenant → Forbidden (can't probe patient ids).
+		await expect(
+			asTenant(
+				"u2",
+				TENANT_B,
+				call((c) => c.save("u2", saveInput({ patientId: patient.id }))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "patient.read" });
+
+		// The patient's owner in personal scope → Forbidden: tenant
+		// patients need tenant context to link.
+		await expect(
+			asUser(
+				"u1",
+				call((c) => c.save("u1", saveInput({ patientId: patient.id }))),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
 	});
 });

@@ -6,6 +6,7 @@ import { Schema } from "effect";
 
 import {
 	ensureDoctorUser,
+	ensureSessionUser,
 	getDoctorAccess,
 	getDoctorUser,
 	getLocale,
@@ -44,8 +45,15 @@ const PatientUpdateInput = Schema.Struct({
 	active: Schema.optionalKey(Schema.Boolean),
 	id: Schema.Number,
 });
+/** Admin create: the doctor-facing draft plus the target owner. */
+const AdminPatientCreateInput = Schema.Struct({
+	...draftFields,
+	active: Schema.optionalKey(Schema.Boolean),
+	ownerId: Schema.String,
+});
 
 const decodePatientDraft = Schema.decodeUnknownSync(PatientDraftInput);
+const decodeAdminPatientCreate = Schema.decodeUnknownSync(AdminPatientCreateInput);
 /** `id` tolerates a numeric string, like `patientId` elsewhere. */
 const decodePatientUpdate = (input: unknown) => {
 	const o = typeof input === "object" && input !== null ? (input as Record<string, unknown>) : {};
@@ -163,6 +171,29 @@ export const createPatientFn = createServerFn({ method: "POST" })
 			Effect.gen(function* () {
 				const patients = yield* Patients;
 				const patient = yield* patients.create(user.id, result.fields);
+				return patient ? { ok: true as const, patient } : { ok: false as const, errors: {} };
+			}),
+		);
+	});
+
+/**
+ * Platform-admin create on behalf of another user — the service
+ * re-checks the PlatformAdmin gate; non-admins get the same
+ * `{ ok: false }` shape as a validation failure.
+ */
+export const adminCreatePatientFn = createServerFn({ method: "POST" })
+	.validator((input: unknown) => decodeAdminPatientCreate(input))
+	.handler(async ({ data: { ownerId, ...draft } }) => {
+		const user = await ensureSessionUser();
+		const result = validatePatient(draft);
+		if (!result.ok) return { ok: false as const, errors: result.errors };
+		return runAs(
+			user,
+			Effect.gen(function* () {
+				const patients = yield* Patients;
+				const patient = yield* patients
+					.adminCreate(ownerId, result.fields)
+					.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null)));
 				return patient ? { ok: true as const, patient } : { ok: false as const, errors: {} };
 			}),
 		);

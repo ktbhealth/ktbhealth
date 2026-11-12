@@ -62,6 +62,7 @@ const AuthStub = (user: typeof sec | null) =>
 		Auth.of({
 			getSession: async () =>
 				user === null ? null : { user, sessionId: "s1", expiresAt: new Date(0) },
+			setUserBanned: async () => {},
 		}),
 	);
 

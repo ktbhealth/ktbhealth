@@ -5,6 +5,7 @@ import * as Option from "effect/Option";
 import { and, count, desc, eq } from "drizzle-orm";
 import { BoxesIcon } from "lucide-react";
 
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
 import { PermissionInvalidator } from "@ktb/rbac";
@@ -15,7 +16,7 @@ import { Query } from "@effect-server-utils/cqrs";
 
 import { GroupsQueries } from "./api.ts";
 import { GroupsPlatformPage } from "./platform-page.tsx";
-import { groupMembers, groups } from "./schema.ts";
+import { groupMembers, groups } from "@ktb/db/schema";
 
 export type Group = typeof groups.$inferSelect;
 export type GroupMember = typeof groupMembers.$inferSelect;
@@ -46,6 +47,14 @@ export interface RemoveGroupMemberInput {
 	readonly memberId: string;
 }
 
+export interface UpdateGroupMemberRoleInput {
+	readonly groupId: number;
+	readonly memberKind: string;
+	readonly memberId: string;
+	/** `null` clears the role back to the column default. */
+	readonly role: string | null;
+}
+
 export async function createGroup(db: DbClient, input: CreateGroupInput) {
 	const rows = await db
 		.insert(groups)
@@ -74,6 +83,15 @@ export async function listGroups(db: DbClient): Promise<AdminGroupRow[]> {
 	]);
 	const counts = new Map(memberCounts.map((r) => [r.groupId, r.n]));
 	return rows.map((g) => ({ ...g, memberCount: counts.get(g.id) ?? 0 }));
+}
+
+/**
+ * Deletes a group row; `group_members` rows cascade via the FK. Returns
+ * false when no group with that id exists.
+ */
+export async function deleteGroup(db: DbClient, id: number): Promise<boolean> {
+	const rows = await db.delete(groups).where(eq(groups.id, id)).returning({ id: groups.id });
+	return rows.length > 0;
 }
 
 export async function getGroup(db: DbClient, id: number): Promise<Group | null> {
@@ -136,6 +154,27 @@ export async function removeMember(db: DbClient, input: RemoveGroupMemberInput) 
 	return existing;
 }
 
+/**
+ * Updates the `role` column of an existing membership; returns the
+ * updated row, or null when no such membership exists.
+ */
+export async function updateMemberRole(db: DbClient, input: UpdateGroupMemberRoleInput) {
+	const existing = await findMembership(db, input.groupId, input.memberKind, input.memberId);
+	if (existing === null) return null;
+	const rows = await db
+		.update(groupMembers)
+		.set({ role: input.role })
+		.where(
+			and(
+				eq(groupMembers.groupId, input.groupId),
+				eq(groupMembers.memberKind, input.memberKind),
+				eq(groupMembers.memberId, input.memberId),
+			),
+		)
+		.returning();
+	return rows[0] ?? existing;
+}
+
 export async function listMembers(db: DbClient, groupId: number) {
 	return db
 		.select()
@@ -147,8 +186,8 @@ export async function listMembers(db: DbClient, groupId: number) {
 /**
  * Groups domain port — Effect service, swappable in tests.
  *
- * Admin-facing operations (`create`, `list`, `get`, `addMember`,
- * `removeMember`, `members`) enforce the `PlatformAdmin` env-allowlist
+ * Admin-facing operations (`create`, `list`, `get`, `delete`,
+ * `addMember`, `removeMember`, `members`) enforce the `PlatformAdmin` env-allowlist
  * gate against the bound `Principal` — defense in depth on top of the
  * /platform layout guard. `requireMember` is the member-scoped check for
  * future non-admin paths: for `memberKind === "user"` the bound
@@ -161,11 +200,15 @@ export class Groups extends Context.Service<
 		readonly create: (input: CreateGroupInput) => Effect.Effect<Group | null, Forbidden>;
 		readonly list: () => Effect.Effect<AdminGroupRow[], Forbidden>;
 		readonly get: (id: number) => Effect.Effect<AdminGroupRow | null, Forbidden>;
+		readonly delete: (id: number) => Effect.Effect<boolean, Forbidden>;
 		readonly addMember: (
 			input: AddGroupMemberInput,
 		) => Effect.Effect<GroupMember | null, Forbidden>;
 		readonly removeMember: (
 			input: RemoveGroupMemberInput,
+		) => Effect.Effect<GroupMember | null, Forbidden>;
+		readonly updateMemberRole: (
+			input: UpdateGroupMemberRoleInput,
 		) => Effect.Effect<GroupMember | null, Forbidden>;
 		readonly members: (groupId: number) => Effect.Effect<GroupMember[], Forbidden>;
 		readonly requireMember: (
@@ -191,7 +234,19 @@ export const GroupsLive = Layer.effect(
 		return Groups.of({
 			create: Effect.fn("Groups.create")(function* (input: CreateGroupInput) {
 				yield* platformAdmin.requireAdmin();
-				return yield* Effect.promise(() => createGroup(db, input));
+				const row = yield* Effect.promise(() => createGroup(db, input));
+				if (row !== null) {
+					// T-037: groups double as tenants — the new row's id is
+					// both target and tenant scope.
+					yield* audit({
+						action: "groups.create",
+						targetType: "group",
+						targetId: row.id,
+						tenantId: row.id,
+						detail: { slug: row.slug, kind: row.kind },
+					});
+				}
+				return row;
 			}),
 			list: Effect.fn("Groups.list")(function* () {
 				yield* platformAdmin.requireAdmin();
@@ -204,18 +259,87 @@ export const GroupsLive = Layer.effect(
 				const memberCount = yield* Effect.promise(() => countGroupMembers(db, id));
 				return { ...group, memberCount };
 			}),
+			delete: Effect.fn("Groups.delete")(function* (id: number) {
+				yield* platformAdmin.requireAdmin();
+				const deleted = yield* Effect.promise(() => deleteGroup(db, id));
+				// Cascaded memberships feed RBAC group-derived grants — bump
+				// the permission epoch like the member mutations do.
+				if (deleted && invalidatePermissions !== undefined) yield* invalidatePermissions();
+				if (deleted) {
+					yield* audit({
+						action: "groups.delete",
+						targetType: "group",
+						targetId: id,
+						tenantId: id,
+					});
+				}
+				return deleted;
+			}),
 			addMember: Effect.fn("Groups.addMember")(function* (input: AddGroupMemberInput) {
 				yield* platformAdmin.requireAdmin();
 				const member = yield* Effect.promise(() => addMember(db, input));
 				// Membership feeds RBAC group-derived grants (P-054) — bump
 				// the permission epoch so cached grant sets re-resolve.
 				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				if (member !== null) {
+					// Tenant member adds flow through here (Tenants facade)
+					// — memberKind distinguishes user vs patient members.
+					yield* audit({
+						action: "groups.member.add",
+						targetType: "group",
+						targetId: input.groupId,
+						tenantId: input.groupId,
+						detail: {
+							memberKind: input.memberKind,
+							memberId: input.memberId,
+							role: input.role ?? null,
+						},
+					});
+				}
 				return member;
 			}),
 			removeMember: Effect.fn("Groups.removeMember")(function* (input: RemoveGroupMemberInput) {
 				yield* platformAdmin.requireAdmin();
 				const member = yield* Effect.promise(() => removeMember(db, input));
 				if (invalidatePermissions !== undefined) yield* invalidatePermissions();
+				if (member !== null) {
+					yield* audit({
+						action: "groups.member.remove",
+						targetType: "group",
+						targetId: input.groupId,
+						tenantId: input.groupId,
+						detail: {
+							memberKind: input.memberKind,
+							memberId: input.memberId,
+							role: member.role,
+						},
+					});
+				}
+				return member;
+			}),
+			updateMemberRole: Effect.fn("Groups.updateMemberRole")(function* (
+				input: UpdateGroupMemberRoleInput,
+			) {
+				yield* platformAdmin.requireAdmin();
+				const member = yield* Effect.promise(() => updateMemberRole(db, input));
+				// Role changes feed RBAC group-derived grants — same epoch
+				// bump as add/remove (P-054).
+				if (member !== null && invalidatePermissions !== undefined) {
+					yield* invalidatePermissions();
+				}
+				if (member !== null) {
+					yield* audit({
+						action: "groups.member.setRole",
+						targetType: "group",
+						targetId: input.groupId,
+						tenantId: input.groupId,
+						detail: {
+							memberKind: input.memberKind,
+							memberId: input.memberId,
+							role: input.role,
+						},
+					});
+				}
 				return member;
 			}),
 			members: Effect.fn("Groups.members")(function* (groupId: number) {
@@ -278,18 +402,35 @@ export const groupsServicesPlugin = definePlugin({
 	requiredDeps: [platformAdminPlugin.id],
 	// Membership writes invalidate RBAC grants when the rbac plugin is
 	// deployed — ordering hint only; absence is legal (serviceOption).
-	optionalDeps: [rbacServicesPlugin.id],
+	optionalDeps: [rbacServicesPlugin.id, auditServicesPlugin.id],
 	services: Layer.mergeAll(GroupsLive, GroupsQueriesLive),
+});
+
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const groupsChromePlugin = definePlugin({
+	id: "groups.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "groups.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+			},
+		},
+	],
 });
 
 // Panel (system console) contribution: /platform/groups is mounted by
 // the platform plugin's physical route subtree; this plugin only
-// declares the sidebar entry. The dep edge orders it after the shell.
+// declares the page descriptor. The dep edge orders it after the shell.
 export const groupsPanelPlugin = definePlugin({
 	id: "groups.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" }],
 		pages: [
 			{
 				id: "groups.admin",
@@ -315,6 +456,7 @@ export const groupsPanelPlugin = definePlugin({
 export const plugins: readonly Plugin[] = [
 	groupsTablesPlugin,
 	groupsServicesPlugin,
+	groupsChromePlugin,
 	groupsPanelPlugin,
 ];
 
@@ -324,6 +466,7 @@ declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"groups.tables": true;
 		"groups.services": true;
+		"groups.chrome": true;
 		"groups.panel": true;
 	}
 }

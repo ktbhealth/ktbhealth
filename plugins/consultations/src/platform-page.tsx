@@ -1,6 +1,21 @@
 import type { AdminConsultationRow } from "./index.ts";
+import type { OwnerOption } from "@ktb/patients";
 import type { PanelPageContext } from "@ktb/kernel";
 import { AdminConsultationsPage } from "./views/AdminConsultationsPage.tsx";
+
+/** Patient picker option for the admin create form. */
+export interface ConsultationPatientOption {
+	readonly id: number;
+	readonly name: string;
+	readonly ownerId: string;
+	readonly ownerName: string;
+}
+
+interface AdminConsultationsData {
+	consultations: AdminConsultationRow[];
+	owners: OwnerOption[];
+	patients: ConsultationPatientOption[];
+}
 
 /**
  * `panel.pages` component for /platform/consultations (P-050): the
@@ -10,6 +25,13 @@ import { AdminConsultationsPage } from "./views/AdminConsultationsPage.tsx";
  * `Consultations.adminList`). `ctx.locale` feeds the view's catalog.
  */
 export function ConsultationsPlatformPage({ data, ctx }: { data: unknown; ctx: PanelPageContext }) {
-	const consultations = data as AdminConsultationRow[];
-	return <AdminConsultationsPage consultations={consultations} locale={ctx.locale} />;
+	const { consultations, owners, patients } = data as AdminConsultationsData;
+	return (
+		<AdminConsultationsPage
+			consultations={consultations}
+			owners={owners}
+			patients={patients}
+			locale={ctx.locale}
+		/>
+	);
 }

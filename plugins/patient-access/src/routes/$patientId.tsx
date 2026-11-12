@@ -1,4 +1,6 @@
-import { createFileRoute, notFound, redirect, useRouter } from "@tanstack/react-router";
+import { notFound, redirect, useRouter } from "@tanstack/react-router";
+
+import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { PatientAccessPage, type PatientAccessApi } from "../views/index.ts";
 import {
@@ -14,7 +16,7 @@ import {
 // portal. Doctor-side page — anonymous visitors go to /login, accounts
 // with no doctor profile to act as to the profile chooser; a patient
 // that is not the acting doctor's is a plain 404.
-export const Route = createFileRoute("/patient-access/$patientId")({
+export const Route = createPluginFileRoute("patient-access.routes")("/patient-access/$patientId")({
 	beforeLoad: async () => {
 		const access = await doctorAccessFn();
 		if (access === "anonymous") throw redirect({ to: "/login" });

@@ -1,7 +1,7 @@
 import { getTableConfig } from "drizzle-orm/sqlite-core/utils";
 import { describe, expect, it } from "vitest";
 
-import { patients } from "./schema.ts";
+import { patients } from "@ktb/db/schema";
 
 describe("patients schema", () => {
 	it("exposes table config with owner FK", () => {

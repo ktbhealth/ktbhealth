@@ -4,6 +4,7 @@ import { CommandBus, QueryBus } from "@effect-server-utils/cqrs";
 import { Auth } from "@ktb/auth";
 import { Principal } from "@ktb/authz";
 import { makeD1 } from "@ktb/db/testing";
+import { PluginStates } from "@ktb/platform/plugin-states";
 import {
 	NotificationsMarkAllRead,
 	NotificationsUnreadCount,
@@ -14,15 +15,18 @@ import { assertCaptchaConfigured, createApp, defaultVerificationEmail, plugins }
 
 const DDL = `
 CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT, payload TEXT, read_at INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE plugin_state (plugin_id TEXT PRIMARY KEY NOT NULL, enabled INTEGER DEFAULT true NOT NULL, config TEXT, updated_at INTEGER NOT NULL);
 `;
 
-const app = createApp({
+const env = {
 	DB: makeD1(DDL),
 	BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!!",
 	BETTER_AUTH_URL: "http://localhost:3000",
 	PLATFORM_ADMIN_EMAILS: "admin@x.com",
 	AI: { run: async () => ({ response: "  Texto corrigido.  " }) },
-});
+};
+
+const app = createApp(env);
 
 /** Structured log lines emitted through Logger.consoleJson. */
 const logged = (spy: ReturnType<typeof vi.spyOn>) =>
@@ -40,6 +44,26 @@ describe("createApp", () => {
 
 	it("run executes system-path effects without a principal", async () => {
 		await expect(app.run(Effect.succeed("ok"))).resolves.toBe("ok");
+	});
+
+	it("binds an app-supplied tenant resolver into runAs", async () => {
+		const seen: unknown[] = [];
+		const tenantApp = createApp(env, {
+			tenantResolver: {
+				resolve: (selector) => {
+					seen.push(selector);
+					return Effect.succeed(null);
+				},
+			},
+		});
+		try {
+			await expect(
+				tenantApp.runAs({ id: "u1" }, Effect.succeed("ok"), { slug: "clinic-a" }),
+			).resolves.toBe("ok");
+			expect(seen).toEqual([{ slug: "clinic-a" }]);
+		} finally {
+			await tenantApp.runtime.dispose();
+		}
 	});
 
 	describe("assertCaptchaConfigured", () => {
@@ -103,6 +127,56 @@ describe("createApp", () => {
 			);
 			expect(exit).toMatchObject({ _tag: "Forbidden" });
 			expect(logged(log).some((l: string) => l.includes("cqrs dispatch failed"))).toBe(true);
+		});
+	});
+
+	describe("plugin enabled gate (P-058)", () => {
+		const user = { id: "u1", email: "u1@x.com" };
+		const unread = () =>
+			app.runAs(
+				user,
+				Effect.flatMap(QueryBus, (bus) => bus.execute(NotificationsUnreadCount, { userId: "u1" })),
+			);
+		const setEnabled = (ids: readonly string[], enabled: boolean) =>
+			app.run(
+				Effect.gen(function* () {
+					const states = yield* PluginStates;
+					yield* states.setEnabled(ids, enabled);
+				}),
+			);
+		const notificationsIds = plugins
+			.filter((p) => p.id.startsWith("notifications."))
+			.map((p) => p.id);
+
+		it("blocks dispatch with PluginDisabled when every plugin of the package is off", async () => {
+			expect(notificationsIds.length).toBeGreaterThan(1);
+			await expect(unread()).resolves.toBe(0);
+			await setEnabled(notificationsIds, false);
+			try {
+				const exit = await app
+					.runAs(
+						user,
+						Effect.flatMap(QueryBus, (bus) =>
+							bus.execute(NotificationsUnreadCount, { userId: "u1" }),
+						).pipe(Effect.flip),
+					)
+					.catch((e: unknown) => e);
+				expect(exit).toMatchObject({ _tag: "PluginDisabled", pluginId: "notifications" });
+			} finally {
+				await setEnabled(notificationsIds, true);
+			}
+			await expect(unread()).resolves.toBe(0);
+		});
+
+		it("keeps dispatch open while any plugin id of the package is enabled", async () => {
+			// Disabling only the services plugin leaves the package's other
+			// ids enabled — the package-level gate stays open.
+			await setEnabled(["notifications.services"], false);
+			try {
+				await expect(unread()).resolves.toBe(0);
+			} finally {
+				await setEnabled(["notifications.services"], true);
+			}
 		});
 	});
 

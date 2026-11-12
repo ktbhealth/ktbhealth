@@ -1,10 +1,15 @@
-import { ListTodoIcon } from "lucide-react";
+import { ActivityIcon, ListTodoIcon } from "lucide-react";
 import { physical } from "@tanstack/virtual-file-routes";
+import * as Effect from "effect/Effect";
 
+import type { Forbidden } from "@ktb/authz";
+import { consultationsServicesPlugin } from "@ktb/consultations";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { platformHeaderPlugin } from "@ktb/platform-header";
-import { platformPanelPlugin } from "@ktb/platform";
+import { platformAdminPlugin, platformPanelPlugin, PlatformAdmin } from "@ktb/platform";
 
+import { Ops, OpsLive } from "./ops.ts";
+import { OpsPlatformPage } from "./platform-page.tsx";
 import { JobsHeaderAction } from "./views/JobsHeaderAction.tsx";
 
 /**
@@ -18,9 +23,13 @@ export const jobsHeaderPlugin = definePlugin({
 	id: "jobs.header",
 	requiredDeps: [platformPanelPlugin.id],
 	optionalDeps: [platformHeaderPlugin.id],
-	panel: {
-		headerActions: [{ id: "jobs", component: JobsHeaderAction }],
-	},
+	chrome: [
+		{
+			id: "jobs.header-action",
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "jobs", component: JobsHeaderAction },
+		},
+	],
 });
 
 // Route subtree composed into the host's virtualRouteConfig (P-033):
@@ -39,12 +48,100 @@ export const jobsRoutesPlugin = definePlugin({
 	routes: [physical("/api", "../../../../plugins/jobs/src/api-routes")],
 });
 
+/**
+ * Ops console services (T-035): the `Ops` port aggregates the signals
+ * behind /platform/ops — the audio-pipeline job projection (delegated
+ * to Consultations, which re-checks PlatformAdmin) and the host-published
+ * queue/storage probes. The dep edge orders it after the consultations
+ * services it consumes and the env-composed admin gate.
+ */
+export const opsServicesPlugin = definePlugin({
+	id: "jobs.ops.services",
+	requiredDeps: [consultationsServicesPlugin.id, platformAdminPlugin.id],
+	services: OpsLive,
+});
+
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const opsChromePlugin = definePlugin({
+	id: "jobs.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "jobs.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/ops", label: "Ops", icon: ActivityIcon, group: "System" },
+			},
+		},
+	],
+});
+
+// Panel (system console) contribution: /platform/ops is mounted by the
+// platform plugin's physical route subtree; this plugin declares the
+// page descriptor. The dep edge orders it after the shell and the ops
+// services its loader consumes.
+export const opsPanelPlugin = definePlugin({
+	id: "jobs.panel",
+	requiredDeps: [platformPanelPlugin.id, opsServicesPlugin.id],
+	panel: {
+		pages: [
+			{
+				id: "jobs.ops",
+				path: "/platform/ops",
+				component: OpsPlatformPage,
+				// Hard 404 for non-admins — same contract as the /platform
+				// layout guard; every service call re-checks anyway.
+				guard: () =>
+					Effect.gen(function* () {
+						const platformAdmin = yield* PlatformAdmin;
+						return yield* platformAdmin.requireAdmin().pipe(
+							Effect.as(true),
+							Effect.catchTag("Forbidden", () => Effect.succeed(false)),
+						);
+					}),
+				loader: () =>
+					Effect.gen(function* () {
+						const ops = yield* Ops;
+						// Each section degrades independently: a Forbidden or a
+						// missing runtime probe yields null → the view renders
+						// the unavailable state, never a fabricated zero.
+						const section = <A>(effect: Effect.Effect<A, Forbidden>) =>
+							effect.pipe(Effect.catchTag("Forbidden", () => Effect.succeed(null as A | null)));
+						const [jobs, queue, storage] = yield* Effect.all(
+							[section(ops.audioJobs()), section(ops.queueDepth()), section(ops.storageStats())],
+							{ concurrency: "unbounded" },
+						);
+						return { jobs, queue, storage };
+					}),
+			},
+		],
+	},
+});
+
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [jobsHeaderPlugin, jobsRoutesPlugin];
+export const plugins: readonly Plugin[] = [
+	jobsHeaderPlugin,
+	jobsRoutesPlugin,
+	opsServicesPlugin,
+	opsChromePlugin,
+	opsPanelPlugin,
+];
 
 export { JobsDataContext, type ConsoleJob } from "./context.ts";
-export { jobFromAudioRow, jobsFromAudioRows, type AudioJobRow } from "./jobs.ts";
+export {
+	isAudioRetryable,
+	jobFromAudioRow,
+	jobStatusOf,
+	jobsFromAudioRows,
+	RETRYABLE_AUDIO_STATUSES,
+	type AudioJobRow,
+} from "./jobs.ts";
+export { Ops } from "./ops.ts";
+export type { OpsPageData } from "./platform-page.tsx";
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
@@ -52,5 +149,8 @@ declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"jobs.header": true;
 		"jobs.routes": true;
+		"jobs.ops.services": true;
+		"jobs.chrome": true;
+		"jobs.panel": true;
 	}
 }

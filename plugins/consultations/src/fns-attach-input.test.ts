@@ -33,7 +33,10 @@ import { attachAnamnesisFn } from "./fns.ts";
 // proves the validator accepted the input.
 
 const runtime = ManagedRuntime.make(
-	Layer.succeed(Auth, Auth.of({ getSession: async () => null })) as Layer.Layer<unknown>,
+	Layer.succeed(
+		Auth,
+		Auth.of({ getSession: async () => null, setUserBanned: async () => {} }),
+	) as Layer.Layer<unknown>,
 );
 
 beforeAll(() => {

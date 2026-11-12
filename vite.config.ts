@@ -27,6 +27,28 @@ export default defineConfig({
 				command: "bun run gen:route-types && git add -N plugins && git diff --exit-code -- plugins",
 				dependsOn: ["ci:build"],
 			},
+			// Regenerate packages/db/src/schema.gen.ts from
+			// plugins/*/src/schema.ts and fail on drift. No build needed —
+			// the aggregator is a pure filesystem scan.
+			"ci:db-schema": {
+				command:
+					"bun run gen:db-schema && git add -N packages/db/src && git diff --exit-code -- packages/db/src/schema.gen.ts",
+			},
+			// Regenerate drizzle migrations (packages/db/drizzle + the
+			// alchemy-migrations copy produced by sync-alchemy-migrations)
+			// and fail on drift. No build needed — drizzle-kit is a pure
+			// schema scan.
+			"ci:db-migrations": {
+				command:
+					"bun run db:generate && git add -N packages/db && git diff --exit-code -- packages/db/drizzle packages/db/alchemy-migrations",
+			},
+			// Regenerate apps/web/worker-configuration.d.ts (wrangler
+			// types) and fail on drift. No build needed — reads
+			// wrangler.jsonc offline.
+			"ci:worker-types": {
+				command:
+					"bun run cf-typegen && git add -N apps/web && git diff --exit-code -- apps/web/worker-configuration.d.ts",
+			},
 			// Unused-code/dependency gate (knip.json is the config).
 			"ci:knip": { command: "bun run knip" },
 			// Fast smoke test proving the ktb-arch rules still fire
@@ -39,6 +61,7 @@ export default defineConfig({
 		useTabs: true,
 		ignorePatterns: [
 			"**/routeTree.gen.ts",
+			"**/schema.gen.ts",
 			"**/worker-configuration.d.ts",
 			"**/.alchemy/**",
 			"**/drizzle/meta/**",
@@ -122,6 +145,27 @@ export default defineConfig({
 				},
 			},
 			{
+				// Plugin page routes are gated on plugin enable state
+				// automatically (P-058): modules under each plugin's src/routes
+				// tree must build `Route` via createPluginFileRoute("<pkg>.routes")
+				// from @ktb/server-fns — bare createFileRoute bypasses the
+				// gate. api-routes/** are server endpoints (see below).
+				files: ["plugins/*/src/routes/**/*.{ts,tsx}"],
+				rules: {
+					"ktb-arch/plugin-route-gate": "error",
+				},
+			},
+			{
+				// Plugin API/server routes get the same enabled-state gate
+				// through createPluginApiRoute("<pkg>.routes"), which wraps
+				// server.handlers (server routes never run beforeLoad) and
+				// answers 404 when the plugin is disabled.
+				files: ["plugins/*/src/api-routes/**/*.{ts,tsx}"],
+				rules: {
+					"ktb-arch/plugin-api-route-gate": "error",
+				},
+			},
+			{
 				// Client manifests ship to the browser bundle: value
 				// imports are allowlisted (kernel, UI kit, React/lucide/
 				// router primitives, relative .tsx components) so server
@@ -187,9 +231,11 @@ export default defineConfig({
 			},
 			{
 				// Documented exceptions to the impl-import ban above:
-				// - platform.ts / plugins.ts are the composition root wiring
-				//   @ktb/app-host (and the @ktb/interop-* exporters) into the
-				//   deploy target.
+				// - platform.ts / plugins.ts / registry.ts are the composition
+				//   root wiring @ktb/app-host (and the @ktb/interop-* exporters)
+				//   into the deploy target; registry.ts re-exports the
+				//   client-registry collections (page maps, chrome/enabled
+				//   helpers) so routes and server fns share one import path.
 				// - node-cloudflare-workers.ts is the KTB_DEV_NODE env shim —
 				//   it is the composition root for the plain-Node dev target
 				//   and wires @ktb/db-sqlite as AppEnv.DB.
@@ -205,6 +251,7 @@ export default defineConfig({
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
+					"apps/web/src/lib/registry.ts",
 					"apps/web/src/lib/node-cloudflare-workers.ts",
 					"apps/web/src/plugins.ts",
 					"apps/web/src/routes/login.tsx",

@@ -1,8 +1,13 @@
 import { sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-import { user } from "@ktb/auth/schema";
-import { doctors } from "@ktb/doctors/schema";
+// Relative imports on purpose: drizzle-kit loads the composed schema
+// through a CJS resolver that cannot follow `@ktb/*` package
+// specifiers, and the generated packages/db/src/schema.gen.ts reaches
+// plugin sources by relative path anyway — keep the FK targets on the
+// same module resolution.
+import { user } from "../../../packages/db/src/auth.ts";
+import { doctors } from "../../doctors/src/schema.ts";
 
 /** Delegate roles on a doctor profile. Only "secretary" today. */
 export const DOCTOR_ACCESS_ROLES = ["secretary"] as const;

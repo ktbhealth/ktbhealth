@@ -24,7 +24,7 @@
         "@inlang/paraglide-js": "2.29.3",
         "@ktb/anamnesis": "workspace:*",
         "@ktb/app-host": "workspace:*",
-        "@ktb/auth": "workspace:*",
+        "@ktb/audience": "workspace:*",
         "@ktb/auth-better": "workspace:*",
         "@ktb/bot": "workspace:*",
         "@ktb/captcha": "workspace:*",
@@ -49,7 +49,7 @@
         "@ktb/secretaries": "workspace:*",
         "@ktb/server-fns": "workspace:*",
         "@ktb/tenant": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-devtools": "0.10.14",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-router-devtools": "1.167.2",
@@ -148,22 +148,22 @@
     "packages/auth": {
       "name": "@ktb/auth",
       "dependencies": {
-        "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
       },
       "devDependencies": {
         "@ktb/db": "workspace:*",
+        "drizzle-orm": "^0.45.1",
       },
     },
     "packages/auth-better": {
       "name": "@ktb/auth-better",
       "dependencies": {
         "@ktb/auth": "workspace:*",
+        "@ktb/db": "workspace:*",
         "better-auth": "1.7.18",
         "drizzle-orm": "^0.45.1",
       },
       "devDependencies": {
-        "@ktb/db": "workspace:*",
         "@types/better-sqlite3": "^9.6.0",
         "@types/node": "^22.10.2",
         "better-sqlite3": "^13.0.3",
@@ -217,15 +217,6 @@
     "packages/db": {
       "name": "@ktb/db",
       "dependencies": {
-        "@ktb/auth": "workspace:*",
-        "@ktb/consultations": "workspace:*",
-        "@ktb/doctors": "workspace:*",
-        "@ktb/groups": "workspace:*",
-        "@ktb/notifications": "workspace:*",
-        "@ktb/patient-access": "workspace:*",
-        "@ktb/patients": "workspace:*",
-        "@ktb/rbac": "workspace:*",
-        "@ktb/secretaries": "workspace:*",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
       },
@@ -327,6 +318,17 @@
         "react": "^19.2.0",
       },
     },
+    "packages/platform": {
+      "name": "@ktb/platform",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@tanstack/virtual-file-routes": "1.162.0",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+      },
+    },
     "packages/rbac": {
       "name": "@ktb/rbac",
       "dependencies": {
@@ -347,6 +349,7 @@
         "@ktb/auth": "workspace:*",
         "@ktb/interop": "workspace:*",
         "@ktb/tenant": "workspace:*",
+        "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "effect": "4.1.2",
       },
@@ -376,11 +379,51 @@
         "@ktb/transcription": "workspace:*",
       },
     },
+    "plugins/audience": {
+      "name": "@ktb/audience",
+      "dependencies": {
+        "@ktb/kernel": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/audit": {
+      "name": "@ktb/audit",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/consultations": {
       "name": "@ktb/consultations",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
         "@ktb/anamnesis": "workspace:*",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -391,10 +434,11 @@
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/server-fns": "workspace:*",
+        "@ktb/tenant": "workspace:*",
         "@ktb/transcription": "workspace:*",
         "@ktb/transcription-webspeech": "workspace:*",
         "@ktb/transcription-whisper": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
@@ -425,7 +469,7 @@
         "@ktb/notifications": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "effect": "4.1.2",
         "lucide-react": "0.544.0",
       },
@@ -441,12 +485,11 @@
     "plugins/doctors": {
       "name": "@ktb/doctors",
       "dependencies": {
-        "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
@@ -467,13 +510,18 @@
       "name": "@ktb/groups",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
+        "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/rbac": "workspace:*",
         "@ktb/rbac-plugin": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
         "lucide-react": "0.544.0",
@@ -492,14 +540,41 @@
       "name": "@ktb/jobs",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/authz": "workspace:*",
         "@ktb/consultations": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/platform-header": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@ktb/auth": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/patients": "workspace:*",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/manager": {
+      "name": "@ktb/manager",
+      "dependencies": {
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
         "effect": "4.1.2",
         "lucide-react": "0.544.0",
       },
@@ -507,11 +582,8 @@
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
-        "@ktb/patients": "workspace:*",
-        "@tanstack/react-start": "1.169.5",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
-        "react": "^19.2.0",
         "react-dom": "^19.2.0",
       },
       "peerDependencies": {
@@ -530,7 +602,7 @@
         "@ktb/platform": "workspace:*",
         "@ktb/platform-header": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/virtual-file-routes": "1.162.0",
         "drizzle-orm": "^0.45.1",
@@ -549,6 +621,32 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/pages": {
+      "name": "@ktb/pages",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@ktb/auth": "workspace:*",
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/patient-access": {
       "name": "@ktb/patient-access",
       "dependencies": {
@@ -557,9 +655,8 @@
         "@ktb/db": "workspace:*",
         "@ktb/email": "workspace:*",
         "@ktb/kernel": "workspace:*",
-        "@ktb/patients": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
@@ -581,16 +678,12 @@
       "name": "@ktb/patient-portal",
       "dependencies": {
         "@ktb/anamnesis": "workspace:*",
-        "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
-        "@ktb/consultations": "workspace:*",
         "@ktb/db": "workspace:*",
-        "@ktb/doctors": "workspace:*",
         "@ktb/kernel": "workspace:*",
-        "@ktb/patient-access": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
@@ -612,13 +705,14 @@
       "name": "@ktb/patients",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
-        "@ktb/auth": "workspace:*",
+        "@ktb/audit": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktb/tenant": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
@@ -639,15 +733,6 @@
         "react": "^19.2.0",
       },
     },
-    "plugins/platform": {
-      "name": "@ktb/platform",
-      "dependencies": {
-        "@ktb/authz": "workspace:*",
-        "@ktb/kernel": "workspace:*",
-        "@tanstack/virtual-file-routes": "1.162.0",
-        "effect": "4.1.2",
-      },
-    },
     "plugins/platform-header": {
       "name": "@ktb/platform-header",
       "dependencies": {
@@ -660,7 +745,7 @@
       "dependencies": {
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "lucide-react": "0.544.0",
       },
@@ -678,6 +763,7 @@
       "name": "@ktb/rbac-plugin",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
@@ -685,7 +771,7 @@
         "@ktb/platform": "workspace:*",
         "@ktb/rbac": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "drizzle-orm": "^0.45.1",
@@ -708,11 +794,10 @@
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
-        "@ktb/doctors": "workspace:*",
         "@ktb/email": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/server-fns": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
         "@tanstack/virtual-file-routes": "1.162.0",
@@ -730,18 +815,80 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/session": {
+      "name": "@ktb/session",
+      "dependencies": {
+        "@ktb/kernel": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+        "@tanstack/react-router": "1.170.46",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/site": {
+      "name": "@ktb/site",
+      "dependencies": {
+        "@ktb/kernel": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+        "@tanstack/react-router": "1.170.46",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/tenant": {
+      "name": "@ktb/tenant-plugin",
+      "dependencies": {
+        "@ktb/auth": "workspace:*",
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/groups": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/platform": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktb/tenant": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/users": {
       "name": "@ktb/users",
       "dependencies": {
         "@effect-server-utils/cqrs": "0.1.0-beta.10",
+        "@ktb/audit": "workspace:*",
         "@ktb/auth": "workspace:*",
         "@ktb/authz": "workspace:*",
-        "@ktb/consultations": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/kernel": "workspace:*",
-        "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
-        "@ktbhealth/ui": "github:ktbhealth/ui#v0.1.3@react",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
         "lucide-react": "0.544.0",
@@ -1114,6 +1261,10 @@
 
     "@ktb/app-host": ["@ktb/app-host@workspace:packages/app-host"],
 
+    "@ktb/audience": ["@ktb/audience@workspace:plugins/audience"],
+
+    "@ktb/audit": ["@ktb/audit@workspace:plugins/audit"],
+
     "@ktb/auth": ["@ktb/auth@workspace:packages/auth"],
 
     "@ktb/auth-better": ["@ktb/auth-better@workspace:packages/auth-better"],
@@ -1166,7 +1317,11 @@
 
     "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
 
+    "@ktb/manager": ["@ktb/manager@workspace:plugins/manager"],
+
     "@ktb/notifications": ["@ktb/notifications@workspace:plugins/notifications"],
+
+    "@ktb/pages": ["@ktb/pages@workspace:plugins/pages"],
 
     "@ktb/patient-access": ["@ktb/patient-access@workspace:plugins/patient-access"],
 
@@ -1174,7 +1329,7 @@
 
     "@ktb/patients": ["@ktb/patients@workspace:plugins/patients"],
 
-    "@ktb/platform": ["@ktb/platform@workspace:plugins/platform"],
+    "@ktb/platform": ["@ktb/platform@workspace:packages/platform"],
 
     "@ktb/platform-header": ["@ktb/platform-header@workspace:plugins/platform-header"],
 
@@ -1188,7 +1343,13 @@
 
     "@ktb/server-fns": ["@ktb/server-fns@workspace:packages/server-fns"],
 
+    "@ktb/session": ["@ktb/session@workspace:plugins/session"],
+
+    "@ktb/site": ["@ktb/site@workspace:plugins/site"],
+
     "@ktb/tenant": ["@ktb/tenant@workspace:packages/tenant"],
+
+    "@ktb/tenant-plugin": ["@ktb/tenant-plugin@workspace:plugins/tenant"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
 
@@ -1200,7 +1361,7 @@
 
     "@ktb/web": ["@ktb/web@workspace:apps/web"],
 
-    "@ktbhealth/ui": ["@ktbhealth/ui@github:ktbhealth/ui#fb49ba6", { "dependencies": { "@base-ui/react": "^1.9.0", "@radix-ui/react-use-controllable-state": "^1.3.0", "@rive-app/react-webgl2": "^4.38.1", "@shadcn/react": "^0.3.1", "@streamdown/cjk": "^1.0.4", "@streamdown/code": "^2.0.0", "@streamdown/math": "^1.0.3", "@streamdown/mermaid": "^1.0.3", "@vueuse/core": "^15.0.0", "@xyflow/react": "^12.12.1", "ai": "^7.0.163", "ansi-to-react": "^6.2.6", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "cn": "^0.5.2", "date-fns": "^4.4.0", "embla-carousel-react": "^8.6.0", "embla-carousel-vue": "^8.6.0", "input-otp": "^1.5.0", "lucide-react": "^0.544.0", "lucide-vue-next": "^1.0.0", "media-chrome": "^4.19.4", "motion": "^14.9.1", "nanoid": "^6.0.2", "react-day-picker": "^10.0.2", "react-jsx-parser": "^2.4.1", "react-resizable-panels": "^4.18.1", "recharts": "3.8.0", "reka-ui": "^2.11.0", "shadcn": "^4.23.0", "shiki": "^4.6.0", "streamdown": "^2.7.1", "tailwind-merge": "^3.7.0", "tailwindcss": "^4.3.5", "tokenlens": "^1.3.1", "tw-animate-css": "^1.4.0", "use-stick-to-bottom": "^1.1.6", "vue": "^3.5.0", "vue-sonner": "^2.0.9" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" }, "optionalPeers": ["react", "react-dom"] }, "ktbhealth-ui-fb49ba6", "sha512-TWtzS0QYaenZlYo4n1yl0NXdyXXLQE7PBWVg5ttj19p+QrktmMkm1vlILlWmzia3nmuEM6e7Km7HtY5c5Bg/Hw=="],
+    "@ktbhealth/ui": ["@ktbhealth/ui@github:ktbhealth/ui#89b4aba", { "dependencies": { "@base-ui/react": "^1.9.0", "@radix-ui/react-use-controllable-state": "^1.3.0", "@rive-app/react-webgl2": "^4.38.1", "@shadcn/react": "^0.3.1", "@streamdown/cjk": "^1.0.4", "@streamdown/code": "^2.0.0", "@streamdown/math": "^1.0.3", "@streamdown/mermaid": "^1.0.3", "@vueuse/core": "^15.0.0", "@xyflow/react": "^12.12.1", "ai": "^7.0.163", "ansi-to-react": "^6.2.6", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "cn": "^0.5.2", "date-fns": "^4.4.0", "embla-carousel-react": "^8.6.0", "embla-carousel-vue": "^8.6.0", "input-otp": "^1.5.0", "lucide-react": "^0.544.0", "lucide-vue-next": "^1.0.0", "media-chrome": "^4.19.4", "motion": "^14.9.1", "nanoid": "^6.0.2", "react-day-picker": "^10.0.2", "react-jsx-parser": "^2.4.1", "react-resizable-panels": "^4.18.1", "recharts": "3.8.0", "reka-ui": "^2.11.0", "shadcn": "^4.23.0", "shiki": "^4.6.0", "streamdown": "^2.7.1", "tailwind-merge": "^3.7.0", "tailwindcss": "^4.3.5", "tokenlens": "^1.3.1", "tw-animate-css": "^1.4.0", "use-stick-to-bottom": "^1.1.6", "vue": "^3.5.0", "vue-sonner": "^2.0.9" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "ktbhealth-ui-89b4aba", "sha512-RoFq93UVm8geambabzKGO1dkMFek2N01ujpSbZPIDbSPunr1hXPXXLfHPMFjd3SVC/gxaWZXi8Xypc4wUHHhRg=="],
 
     "@lix-js/sdk": ["@lix-js/sdk@0.20.1", "", { "dependencies": { "@bytecodealliance/jco-transpile": "0.13.0", "binaryen": "130.0.0", "fflate": "^0.8.3" } }, "sha512-oscOFP8Cr1My6Wh2KVYC9+aJ1mHs+d7vnD+7PPJaA4L+Y1FR37Sm99SrFGfvUizaj/XtRi2GlDF2IOFt9iXMNQ=="],
 
@@ -3173,6 +3334,12 @@
     "@esbuild-kit/core-utils/esbuild": ["esbuild@0.18.20", "", { "optionalDependencies": { "@esbuild/android-arm": "0.18.20", "@esbuild/android-arm64": "0.18.20", "@esbuild/android-x64": "0.18.20", "@esbuild/darwin-arm64": "0.18.20", "@esbuild/darwin-x64": "0.18.20", "@esbuild/freebsd-arm64": "0.18.20", "@esbuild/freebsd-x64": "0.18.20", "@esbuild/linux-arm": "0.18.20", "@esbuild/linux-arm64": "0.18.20", "@esbuild/linux-ia32": "0.18.20", "@esbuild/linux-loong64": "0.18.20", "@esbuild/linux-mips64el": "0.18.20", "@esbuild/linux-ppc64": "0.18.20", "@esbuild/linux-riscv64": "0.18.20", "@esbuild/linux-s390x": "0.18.20", "@esbuild/linux-x64": "0.18.20", "@esbuild/netbsd-x64": "0.18.20", "@esbuild/openbsd-x64": "0.18.20", "@esbuild/sunos-x64": "0.18.20", "@esbuild/win32-arm64": "0.18.20", "@esbuild/win32-ia32": "0.18.20", "@esbuild/win32-x64": "0.18.20" }, "hasInstallScript": true, "bin": { "esbuild": "bin/esbuild" } }, "sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA=="],
 
     "@img/sharp-wasm32/@emnapi/runtime": ["@emnapi/runtime@1.11.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA=="],
+
+    "@ktb/manager/@ktbhealth/ui": ["@ktbhealth/ui@github:ktbhealth/ui#23eca97", { "dependencies": { "@base-ui/react": "^1.9.0", "@radix-ui/react-use-controllable-state": "^1.3.0", "@rive-app/react-webgl2": "^4.38.1", "@shadcn/react": "^0.3.1", "@streamdown/cjk": "^1.0.4", "@streamdown/code": "^2.0.0", "@streamdown/math": "^1.0.3", "@streamdown/mermaid": "^1.0.3", "@vueuse/core": "^15.0.0", "@xyflow/react": "^12.12.1", "ai": "^7.0.163", "ansi-to-react": "^6.2.6", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "cn": "^0.5.2", "date-fns": "^4.4.0", "embla-carousel-react": "^8.6.0", "embla-carousel-vue": "^8.6.0", "input-otp": "^1.5.0", "lucide-react": "^0.544.0", "lucide-vue-next": "^1.0.0", "media-chrome": "^4.19.4", "motion": "^14.9.1", "nanoid": "^6.0.2", "react-day-picker": "^10.0.2", "react-jsx-parser": "^2.4.1", "react-resizable-panels": "^4.18.1", "recharts": "3.8.0", "reka-ui": "^2.11.0", "shadcn": "^4.23.0", "shiki": "^4.6.0", "streamdown": "^2.7.1", "tailwind-merge": "^3.7.0", "tailwindcss": "^4.3.5", "tokenlens": "^1.3.1", "tw-animate-css": "^1.4.0", "use-stick-to-bottom": "^1.1.6", "vue": "^3.5.0", "vue-sonner": "^2.0.9" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "ktbhealth-ui-23eca97", "sha512-24joKi2tHeOQHgvj3sK06PxO0bi7HJRNY7EzNcYv6gc+Nj9l5GIrz2BBj6Z0RseHmy/VX85Z2+WF9uQb4BCxkg=="],
+
+    "@ktb/session/@ktbhealth/ui": ["@ktbhealth/ui@github:ktbhealth/ui#23eca97", { "dependencies": { "@base-ui/react": "^1.9.0", "@radix-ui/react-use-controllable-state": "^1.3.0", "@rive-app/react-webgl2": "^4.38.1", "@shadcn/react": "^0.3.1", "@streamdown/cjk": "^1.0.4", "@streamdown/code": "^2.0.0", "@streamdown/math": "^1.0.3", "@streamdown/mermaid": "^1.0.3", "@vueuse/core": "^15.0.0", "@xyflow/react": "^12.12.1", "ai": "^7.0.163", "ansi-to-react": "^6.2.6", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "cn": "^0.5.2", "date-fns": "^4.4.0", "embla-carousel-react": "^8.6.0", "embla-carousel-vue": "^8.6.0", "input-otp": "^1.5.0", "lucide-react": "^0.544.0", "lucide-vue-next": "^1.0.0", "media-chrome": "^4.19.4", "motion": "^14.9.1", "nanoid": "^6.0.2", "react-day-picker": "^10.0.2", "react-jsx-parser": "^2.4.1", "react-resizable-panels": "^4.18.1", "recharts": "3.8.0", "reka-ui": "^2.11.0", "shadcn": "^4.23.0", "shiki": "^4.6.0", "streamdown": "^2.7.1", "tailwind-merge": "^3.7.0", "tailwindcss": "^4.3.5", "tokenlens": "^1.3.1", "tw-animate-css": "^1.4.0", "use-stick-to-bottom": "^1.1.6", "vue": "^3.5.0", "vue-sonner": "^2.0.9" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "ktbhealth-ui-23eca97", "sha512-24joKi2tHeOQHgvj3sK06PxO0bi7HJRNY7EzNcYv6gc+Nj9l5GIrz2BBj6Z0RseHmy/VX85Z2+WF9uQb4BCxkg=="],
+
+    "@ktb/site/@ktbhealth/ui": ["@ktbhealth/ui@github:ktbhealth/ui#23eca97", { "dependencies": { "@base-ui/react": "^1.9.0", "@radix-ui/react-use-controllable-state": "^1.3.0", "@rive-app/react-webgl2": "^4.38.1", "@shadcn/react": "^0.3.1", "@streamdown/cjk": "^1.0.4", "@streamdown/code": "^2.0.0", "@streamdown/math": "^1.0.3", "@streamdown/mermaid": "^1.0.3", "@vueuse/core": "^15.0.0", "@xyflow/react": "^12.12.1", "ai": "^7.0.163", "ansi-to-react": "^6.2.6", "class-variance-authority": "^0.7.1", "clsx": "^2.1.1", "cmdk": "^1.1.1", "cn": "^0.5.2", "date-fns": "^4.4.0", "embla-carousel-react": "^8.6.0", "embla-carousel-vue": "^8.6.0", "input-otp": "^1.5.0", "lucide-react": "^0.544.0", "lucide-vue-next": "^1.0.0", "media-chrome": "^4.19.4", "motion": "^14.9.1", "nanoid": "^6.0.2", "react-day-picker": "^10.0.2", "react-jsx-parser": "^2.4.1", "react-resizable-panels": "^4.18.1", "recharts": "3.8.0", "reka-ui": "^2.11.0", "shadcn": "^4.23.0", "shiki": "^4.6.0", "streamdown": "^2.7.1", "tailwind-merge": "^3.7.0", "tailwindcss": "^4.3.5", "tokenlens": "^1.3.1", "tw-animate-css": "^1.4.0", "use-stick-to-bottom": "^1.1.6", "vue": "^3.5.0", "vue-sonner": "^2.0.9" }, "peerDependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" }, "optionalPeers": ["react", "react-dom"] }, "ktbhealth-ui-23eca97", "sha512-24joKi2tHeOQHgvj3sK06PxO0bi7HJRNY7EzNcYv6gc+Nj9l5GIrz2BBj6Z0RseHmy/VX85Z2+WF9uQb4BCxkg=="],
 
     "@oxc-minify/binding-wasm32-wasi/@emnapi/core": ["@emnapi/core@1.11.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.2", "tslib": "^2.4.0" } }, "sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ=="],
 

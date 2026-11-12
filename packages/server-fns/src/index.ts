@@ -1,9 +1,12 @@
 export {
+	audioStorageStats,
 	type AiRunner,
 	type AudioDeleter,
 	type AudioJobMessage,
 	type AudioObject,
+	type AudioObjectLister,
 	type AudioQueueSender,
+	type AudioStorageStats,
 	type AudioStore,
 	getLocale,
 	getServerRuntime,
@@ -12,6 +15,7 @@ export {
 	run,
 	runAs,
 	setServerRuntime,
+	type QueueDepth,
 	type ServerRuntime,
 } from "./runtime.ts";
 export {
@@ -37,3 +41,5 @@ export {
 	type SessionAccount,
 	type SessionUser,
 } from "./session.ts";
+export { createPluginApiRoute, createPluginFileRoute, pluginEnabledFn } from "./plugin-route.ts";
+export { peekServerRuntime } from "./runtime.ts";

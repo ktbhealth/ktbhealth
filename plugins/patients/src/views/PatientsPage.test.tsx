@@ -108,7 +108,7 @@ describe("PatientsPage", () => {
 		expect(screen.getByText("1 patient registered.")).toBeTruthy();
 	});
 
-	it("offers edit, export and delete per patient from the row menu", async () => {
+	it("offers edit, export and delete actions per patient", async () => {
 		const user = userEvent.setup();
 		const deleteApi = {
 			impact: vi.fn<PatientDeleteApi["impact"]>(async () => ({ consultations: 2 })),
@@ -123,18 +123,19 @@ describe("PatientsPage", () => {
 				onDeleted={onDeleted}
 			/>,
 		);
+		// Edit and delete are visible icon actions; export stays in the row menu.
+		expect(screen.getByRole("link", { name: "Edit Joana Pereira" }).getAttribute("href")).toBe(
+			"/patients/2/edit",
+		);
 		await user.click(screen.getByRole("button", { name: "Actions for Joana Pereira" }));
-		expect(
-			(await screen.findByRole("menuitem", { name: "Edit record" })).getAttribute("href"),
-		).toBe("/patients/2/edit");
-		const fhir = screen.getByRole("menuitem", { name: "HL7 FHIR R4 (JSON)" });
+		const fhir = await screen.findByRole("menuitem", { name: "HL7 FHIR R4 (JSON)" });
 		expect(fhir.getAttribute("href")).toBe("/api/patients/2/export?format=fhir-r4");
 		expect(fhir.hasAttribute("download")).toBe(true);
-		expect(screen.getByRole("menuitem", { name: "openEHR (JSON)" }).getAttribute("href")).toBe(
-			"/api/patients/2/export?format=openehr",
-		);
+		expect(
+			(await screen.findByRole("menuitem", { name: "openEHR (JSON)" })).getAttribute("href"),
+		).toBe("/api/patients/2/export?format=openehr");
 
-		await user.click(screen.getByRole("menuitem", { name: "Delete patient" }));
+		await user.click(screen.getByRole("button", { name: "Delete Joana Pereira" }));
 		expect(
 			await screen.findByText("This permanently deletes the record of Joana Pereira."),
 		).toBeTruthy();
@@ -148,9 +149,7 @@ describe("PatientsPage", () => {
 	it("closes the delete dialog on cancel", async () => {
 		const user = userEvent.setup();
 		render(<PatientsPage patients={[BASE]} locale="pt-BR" {...actions} />);
-		await user.click(screen.getByRole("button", { name: "Ações para Maria Silva" }));
-		expect(await screen.findByRole("menuitem", { name: "Editar cadastro" })).toBeTruthy();
-		await user.click(screen.getByRole("menuitem", { name: "Excluir paciente" }));
+		await user.click(screen.getByRole("button", { name: "Excluir Maria Silva" }));
 		await user.click(await screen.findByRole("button", { name: "Cancelar" }));
 		expect(screen.queryByText("Excluir paciente?")).toBeNull();
 	});

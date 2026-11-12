@@ -62,25 +62,39 @@ const dashboardLoader = () =>
 		};
 	});
 
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// platform shell like the retired panel entry.
+export const dashboardChromePlugin = definePlugin({
+	id: "dashboard.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "dashboard.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: {
+					to: "/platform",
+					label: "Dashboard",
+					icon: LayoutDashboardIcon,
+					exact: true,
+				},
+			},
+		},
+	],
+});
+
 // Panel (system console) contribution: the console landing page
 // (/platform) is dispatched by the host's generic panel.pages route;
-// this plugin declares the sidebar entry that owns it plus the page
-// descriptor. The service dep edges order the listing sources (and
-// keep them discovered); notifications stays optional because the
-// backend may be absent.
+// this plugin declares the page descriptor. The service dep edges order
+// the listing sources (and keep them discovered); notifications stays
+// optional because the backend may be absent.
 export const dashboardPanelPlugin = definePlugin({
 	id: "dashboard.panel",
 	requiredDeps: [platformPanelPlugin.id, patientsServicesPlugin.id, consultationsServicesPlugin.id],
 	optionalDeps: [notificationsServicesPlugin.id],
 	panel: {
-		sidebar: [
-			{
-				to: "/platform",
-				label: "Dashboard",
-				icon: LayoutDashboardIcon,
-				exact: true,
-			},
-		],
 		pages: [
 			{
 				id: "dashboard.home",
@@ -94,12 +108,13 @@ export const dashboardPanelPlugin = definePlugin({
 
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [dashboardPanelPlugin];
+export const plugins: readonly Plugin[] = [dashboardChromePlugin, dashboardPanelPlugin];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
+		"dashboard.chrome": true;
 		"dashboard.panel": true;
 	}
 }

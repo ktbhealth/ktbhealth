@@ -4,11 +4,11 @@ import * as Layer from "effect/Layer";
 import { count, desc, eq, getTableColumns } from "drizzle-orm";
 import { UserCogIcon } from "lucide-react";
 
-import { user as users } from "@ktb/auth/schema";
-import { consultations } from "@ktb/consultations/schema";
+import { Auth } from "@ktb/auth";
+import { audit, auditServicesPlugin } from "@ktb/audit";
 import { Db, type DbClient } from "@ktb/db";
+import { consultations, patients, user as users } from "@ktb/db/schema";
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import { patients } from "@ktb/patients/schema";
 import { PlatformAdmin, platformAdminPlugin, platformPanelPlugin } from "@ktb/platform";
 import type { Forbidden } from "@ktb/authz";
 import { Query } from "@effect-server-utils/cqrs";
@@ -25,7 +25,9 @@ export type UserRow = Omit<typeof users.$inferSelect, "cpf"> & {
 	readonly consultationCount: number;
 };
 
-/** Console row: repo row plus the platform-admin flag resolved by the gate. */
+/** Console row: repo row plus the platform-admin flag resolved by the
+ * gate. `banned` (from the auth-owned user table) is the suspension
+ * flag — the console labels it "suspended". */
 export interface AdminUserRow extends UserRow {
 	readonly isAdmin: boolean;
 }
@@ -63,6 +65,15 @@ export class Users extends Context.Service<
 	{
 		/** Cross-owner listing for the /platform console — platform admins only. */
 		readonly adminList: () => Effect.Effect<AdminUserRow[], Forbidden>;
+		/**
+		 * Suspend (`true`) or reactivate (`false`) a user's sign-in —
+		 * platform admins only. Delegates to the Auth port, which revokes
+		 * sessions on ban and makes `getSession` return null.
+		 */
+		readonly adminSetSuspended: (
+			userId: string,
+			suspended: boolean,
+		) => Effect.Effect<void, Forbidden>;
 	}
 >()("@ktb/users/Users") {}
 
@@ -70,6 +81,7 @@ export const UsersLive = Layer.effect(
 	Users,
 	Effect.gen(function* () {
 		const db = yield* Db;
+		const auth = yield* Auth;
 		const platformAdmin = yield* PlatformAdmin;
 		return Users.of({
 			adminList: Effect.fn("Users.adminList")(function* () {
@@ -80,6 +92,18 @@ export const UsersLive = Layer.effect(
 				return yield* Effect.forEach(rows, (row) =>
 					Effect.map(platformAdmin.isAdmin(row.email), (isAdmin) => ({ ...row, isAdmin })),
 				);
+			}),
+			adminSetSuspended: Effect.fn("Users.adminSetSuspended")(function* (userId, suspended) {
+				// Same platform gate as adminList — suspension is a
+				// cross-owner, platform-level action.
+				yield* platformAdmin.requireAdmin();
+				yield* Effect.promise(() => auth.setUserBanned(userId, suspended));
+				// T-037: audit the admin action — record() never fails.
+				yield* audit({
+					action: suspended ? "users.suspend" : "users.reactivate",
+					targetType: "user",
+					targetId: userId,
+				});
 			}),
 		});
 	}),
@@ -106,17 +130,37 @@ export const usersServicesPlugin = definePlugin({
 	// adminList consumes the PlatformAdmin gate — the dep edge keeps the
 	// platform module ordered (and discovered) before this plugin's layer.
 	requiredDeps: [platformAdminPlugin.id],
+	// Audit writes resolve the Audit service via serviceOption — the dep
+	// edge is an ordering hint only; absence is legal.
+	optionalDeps: [auditServicesPlugin.id],
 	services: Layer.mergeAll(UsersLive, UsersQueriesLive),
+});
+
+// Chrome contribution (P-060): the console sidebar entry lives in the
+// `console.sidebar` chrome region; the dep edge orders it after the
+// shell like the retired panel entry.
+export const usersChromePlugin = definePlugin({
+	id: "users.chrome",
+	requiredDeps: [platformPanelPlugin.id],
+	chrome: [
+		{
+			id: "users.sidebar",
+			region: "console.sidebar",
+			content: {
+				kind: "sidebarItem",
+				item: { to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" },
+			},
+		},
+	],
 });
 
 // Panel (system console) contribution: /platform/users is mounted by
 // the platform plugin's physical route subtree; this plugin only
-// declares the sidebar entry. The dep edge orders it after the shell.
+// declares the page descriptor. The dep edge orders it after the shell.
 export const usersPanelPlugin = definePlugin({
 	id: "users.panel",
 	requiredDeps: [platformPanelPlugin.id],
 	panel: {
-		sidebar: [{ to: "/platform/users", label: "Users", icon: UserCogIcon, group: "Access" }],
 		pages: [
 			{
 				id: "users.admin",
@@ -139,13 +183,18 @@ export const usersPanelPlugin = definePlugin({
 
 /** Single-concern plugins contributed by this module — the host
  * discovery contract (`discoverPlugins` reads this export). */
-export const plugins: readonly Plugin[] = [usersServicesPlugin, usersPanelPlugin];
+export const plugins: readonly Plugin[] = [
+	usersServicesPlugin,
+	usersChromePlugin,
+	usersPanelPlugin,
+];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
 declare module "@ktb/kernel" {
 	interface PluginRegistry {
 		"users.services": true;
+		"users.chrome": true;
 		"users.panel": true;
 	}
 }

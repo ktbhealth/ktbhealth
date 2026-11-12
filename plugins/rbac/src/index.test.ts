@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Command, Query } from "@effect-server-utils/cqrs";
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Principal } from "@ktb/authz";
 import { Db, makeDb, type DbClient } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
@@ -21,6 +22,7 @@ import {
 	listRolePermissions,
 	listRoles,
 	plugins,
+	rbacChromePlugin,
 	rbacPanelPlugin,
 	rbacServicesPlugin,
 	rbacTablesPlugin,
@@ -28,8 +30,9 @@ import {
 	setRolePermission,
 	unassignSubject,
 	updateRole,
+	type AdminRbacPageData,
 } from "./index.ts";
-import { roles as rolesTable } from "@ktb/rbac/schema";
+import { roles as rolesTable } from "@ktb/db/schema";
 import { RbacCommands, RbacQueries } from "./api.ts";
 
 const DDL = `
@@ -43,12 +46,40 @@ CREATE TABLE groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, s
 CREATE TABLE group_members (id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE, member_kind TEXT NOT NULL, member_id TEXT NOT NULL, role TEXT, created_at INTEGER NOT NULL);
 INSERT INTO groups (id, name, slug, kind, meta, created_at, updated_at) VALUES (7, 'Clinic', 'clinic', 'clinic', NULL, 1, 1);
 INSERT INTO group_members (group_id, member_kind, member_id, role, created_at) VALUES (7, 'user', 'u1', NULL, 1), (7, 'patient', 'p1', NULL, 1);
+${AUDIT_TEST_DDL}
 `;
 
 const ADMIN = { userId: "admin@x.com", email: "admin@x.com" };
 const MEMBER = { userId: "user@x.com", email: "user@x.com" };
 
 const adminGate = makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"));
+
+/** A DbClient stub for the defensive empty-RETURNING paths real
+ * drivers never produce: `selects` is a queue of row arrays consumed
+ * by `where()`/`orderBy()` terminals in call order, `insertRows` is
+ * what `insert(...).values(...).returning()` resolves with. The same
+ * `values()` also answers `onConflictDoUpdate` (epoch bumps). */
+const fakeDb = (opts: {
+	readonly selects?: readonly unknown[][];
+	readonly insertRows?: readonly unknown[];
+}): DbClient => {
+	const selects = [...(opts.selects ?? [])];
+	return {
+		select: () => ({
+			from: () => ({
+				where: async () => selects.shift() ?? [],
+				orderBy: async () => selects.shift() ?? [],
+				innerJoin: () => ({ orderBy: async () => selects.shift() ?? [] }),
+			}),
+		}),
+		insert: () => ({
+			values: () => ({
+				returning: async () => opts.insertRows ?? [],
+				onConflictDoUpdate: async () => [],
+			}),
+		}),
+	} as unknown as DbClient;
+};
 
 describe("rbac repo", () => {
 	let db: DbClient;
@@ -172,6 +203,67 @@ describe("rbac repo", () => {
 		expect(await groupIdsForUser(db, "u1")).toEqual(["7"]);
 		expect(await groupIdsForUser(db, "nobody")).toEqual([]);
 	});
+
+	it("updateRole patches meta and assignSubject refresh keeps grantedBy", async () => {
+		const role = (await createRole(db, { name: "meta-role" }))!;
+		const updated = await updateRole(db, { id: role.id, meta: '{"a":1}' });
+		expect(updated?.meta).toBe('{"a":1}');
+
+		const exp = new Date("2031-05-05T00:00:00.000Z");
+		const a1 = await assignSubject(db, {
+			subjectKind: "user",
+			subjectId: "u7",
+			roleId: role.id,
+			expiresAt: exp,
+			grantedBy: "first",
+		});
+		expect(a1?.expiresAt?.getTime()).toBe(exp.getTime());
+
+		// Refresh without grantedBy/expiresAt inputs keeps the stored
+		// granter and clears the expiry.
+		const a2 = await assignSubject(db, {
+			subjectKind: "user",
+			subjectId: "u7",
+			roleId: role.id,
+		});
+		expect(a2?.id).toBe(a1?.id);
+		expect(a2?.grantedBy).toBe("first");
+		expect(a2?.expiresAt).toBeNull();
+	});
+});
+
+describe("rbac repo — empty-driver paths", () => {
+	it("createRole returns null when RETURNING yields no row", async () => {
+		expect(await createRole(fakeDb({}), { name: "ghost" })).toBeNull();
+	});
+
+	it("assignSubject returns null when the insert RETURNING yields no row", async () => {
+		const result = await assignSubject(fakeDb({ selects: [[]] }), {
+			subjectKind: "user",
+			subjectId: "u",
+			roleId: 1,
+		});
+		expect(result).toBeNull();
+	});
+
+	it("assignSubject reports an empty roleName when the role row is gone", async () => {
+		const row = {
+			id: 1,
+			subjectKind: "user",
+			subjectId: "u-ghost",
+			roleId: 999,
+			tenantId: null,
+			grantedBy: null,
+			expiresAt: null,
+			createdAt: new Date(0),
+		};
+		const result = await assignSubject(fakeDb({ selects: [[], []], insertRows: [[row]] }), {
+			subjectKind: "user",
+			subjectId: "u-ghost",
+			roleId: 999,
+		});
+		expect(result?.roleName).toBe("");
+	});
 });
 
 describe("rbac services + CQRS", () => {
@@ -195,11 +287,19 @@ describe("rbac services + CQRS", () => {
 		db = makeDb(makeD1(DDL));
 		await db.insert(rolesTable).values({ name: "auditor", description: null, meta: null });
 		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, adminGate));
+		// Provide the real audit service so admin commands write
+		// admin_audit rows (T-037); the empty-driver describes below
+		// intentionally omit it to cover the optional-absent path.
+		const envWithAudit = Layer.mergeAll(env, AuditLive.pipe(Layer.provide(env)));
 		// The plugin's services layer is type-erased (Layer.Any) — same
 		// treatment the composition root gives it.
 		const services = rbacServicesPlugin.services as Layer.Layer<unknown, unknown, unknown>;
 		runtime = ManagedRuntime.make(
-			services.pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+			services.pipe(Layer.provideMerge(envWithAudit)) as unknown as Layer.Layer<
+				unknown,
+				never,
+				never
+			>,
 		);
 	});
 
@@ -259,6 +359,66 @@ describe("rbac services + CQRS", () => {
 		expect(await readEpoch(db)).toBeGreaterThan(0);
 	});
 
+	it("admin commands write audit rows for the full lifecycle", async () => {
+		const out = await asUser(
+			ADMIN,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const commands = yield* Command.dispatcher(RbacCommands);
+					const role = yield* commands["rbac.createRole"]({ name: "audited-role" });
+					yield* commands["rbac.updateRole"]({ id: role.id, description: "Audited" });
+					yield* commands["rbac.setRolePermission"]({
+						roleId: role.id,
+						resource: "patient",
+						action: "read",
+						effect: "allow",
+					});
+					const assignment = yield* commands["rbac.assignSubject"]({
+						subjectKind: "user",
+						subjectId: "u-audit",
+						roleId: role.id,
+						tenantId: "7",
+					});
+					yield* commands["rbac.revokeRolePermission"]({
+						roleId: role.id,
+						resource: "patient",
+						action: "read",
+					});
+					yield* commands["rbac.unassignSubject"]({ id: assignment.id });
+					yield* commands["rbac.deleteRole"]({ id: role.id });
+					return { roleId: role.id, assignmentId: assignment.id };
+				}),
+			),
+		);
+		const rows = await db.select().from(adminAudit);
+		const byAction = (action: string) => rows.filter((r) => r.action === action);
+		// Earlier tests in this describe also write audit rows — scope
+		// every count to this test's role/assignment.
+		const forRole = (action: string) =>
+			byAction(action).filter((r) => r.targetId === String(out.roleId));
+		expect(forRole("rbac.role.create")).toHaveLength(1);
+		expect(forRole("rbac.role.update")).toHaveLength(1);
+		expect(forRole("rbac.permission.set")).toHaveLength(1);
+		expect(forRole("rbac.permission.revoke")).toHaveLength(1);
+		expect(forRole("rbac.role.delete")).toHaveLength(1);
+		expect(byAction("rbac.subject.assign").map((r) => r.targetId)).toContain(
+			String(out.assignmentId),
+		);
+		expect(byAction("rbac.subject.unassign").map((r) => r.targetId)).toContain(
+			String(out.assignmentId),
+		);
+		const created = forRole("rbac.role.create")[0]!;
+		expect(created).toMatchObject({
+			actorUserId: "admin@x.com",
+			actorEmail: "admin@x.com",
+			targetType: "role",
+		});
+		const assigned = byAction("rbac.subject.assign").find(
+			(r) => r.targetId === String(out.assignmentId),
+		)!;
+		expect(assigned.tenantId).toBe(7);
+	});
+
 	it("denies commands for unknown roles and non-admins", async () => {
 		await expect(
 			asUser(
@@ -306,6 +466,249 @@ describe("rbac services + CQRS", () => {
 		expect(out.grants.size).toBe(0);
 		await runtime.runPromise(out.invalidate());
 	});
+
+	it("rbac.role returns null for an unknown id", async () => {
+		const detail = await asUser(
+			ADMIN,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const queries = yield* Query.dispatcher(RbacQueries);
+					return yield* queries["rbac.role"]({ id: 999 });
+				}),
+			),
+		);
+		expect(detail).toBeNull();
+	});
+
+	it("assignSubject fails Forbidden for an unknown role", async () => {
+		await expect(
+			asUser(
+				ADMIN,
+				Effect.scoped(
+					Effect.gen(function* () {
+						const commands = yield* Command.dispatcher(RbacCommands);
+						return yield* commands["rbac.assignSubject"]({
+							subjectKind: "user",
+							subjectId: "u",
+							roleId: 999,
+						});
+					}),
+				),
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden" });
+	});
+
+	it("unassignSubject on a missing row audits a null detail", async () => {
+		await asUser(
+			ADMIN,
+			Effect.scoped(
+				Effect.gen(function* () {
+					const commands = yield* Command.dispatcher(RbacCommands);
+					yield* commands["rbac.unassignSubject"]({ id: 424242 });
+				}),
+			),
+		);
+		const rows = await db.select().from(adminAudit);
+		const row = rows.find((r) => r.action === "rbac.subject.unassign" && r.targetId === "424242");
+		expect(row).toMatchObject({ detail: null, tenantId: null });
+	});
+});
+
+describe("rbac services — empty-driver paths", () => {
+	const servicesLayer = () => rbacServicesPlugin.services as Layer.Layer<unknown, unknown, unknown>;
+
+	const runtimeFor = (db: DbClient, gate: PlatformAdmin["Service"] = adminGate) => {
+		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, gate));
+		return ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+	};
+
+	const asPrincipal = <A, E>(
+		rt: ManagedRuntime.ManagedRuntime<unknown, never>,
+		principal: { userId: string; email?: string } | null,
+		effect: Effect.Effect<A, E, unknown>,
+	) =>
+		rt.runPromise(
+			effect.pipe(
+				Effect.provideService(
+					Principal,
+					principal === null ? null : { userId: principal.userId, email: principal.email },
+				),
+			),
+		);
+
+	it("createRole fails Forbidden when INSERT ... RETURNING yields no row", async () => {
+		const rt = runtimeFor(fakeDb({}));
+		try {
+			await expect(
+				asPrincipal(
+					rt,
+					ADMIN,
+					Effect.scoped(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(RbacCommands);
+							return yield* commands["rbac.createRole"]({ name: "ghost" });
+						}),
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("assignSubject fails Forbidden when the insert RETURNING yields no row", async () => {
+		const role = {
+			id: 1,
+			name: "auditor",
+			description: null,
+			meta: null,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		};
+		// getRole → [role], findAssignment → [], insert RETURNING → [].
+		const rt = runtimeFor(fakeDb({ selects: [[role], []] }));
+		try {
+			await expect(
+				asPrincipal(
+					rt,
+					ADMIN,
+					Effect.scoped(
+						Effect.gen(function* () {
+							const commands = yield* Command.dispatcher(RbacCommands);
+							return yield* commands["rbac.assignSubject"]({
+								subjectKind: "user",
+								subjectId: "u",
+								roleId: 1,
+							});
+						}),
+					),
+				),
+			).rejects.toMatchObject({ _tag: "Forbidden" });
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("assignSubject records a null grantedBy without a bound principal", async () => {
+		const db = makeDb(makeD1(DDL));
+		await db.insert(rolesTable).values({ name: "auditor", description: null, meta: null });
+		// A gate that admits everyone isolates the grantedBy null path.
+		const openGate: PlatformAdmin["Service"] = {
+			isAdmin: () => Effect.succeed(true),
+			requireAdmin: () => Effect.void,
+		};
+		const rt = runtimeFor(db, openGate);
+		try {
+			const row = await asPrincipal(
+				rt,
+				null,
+				Effect.scoped(
+					Effect.gen(function* () {
+						const commands = yield* Command.dispatcher(RbacCommands);
+						return yield* commands["rbac.assignSubject"]({
+							subjectKind: "user",
+							subjectId: "u9",
+							roleId: 1,
+						});
+					}),
+				),
+			);
+			expect(row.grantedBy).toBeNull();
+		} finally {
+			await rt.dispose();
+		}
+	});
+});
+
+describe("rbac panel loader", () => {
+	const servicesLayer = () => rbacServicesPlugin.services as Layer.Layer<unknown, unknown, unknown>;
+	const loader = rbacPanelPlugin.panel!.pages![0]!.loader as () => Effect.Effect<
+		AdminRbacPageData,
+		unknown,
+		unknown
+	>;
+
+	it("returns roles, details, assignments and the catalog", async () => {
+		const db = makeDb(makeD1(DDL));
+		await db.insert(rolesTable).values({ name: "auditor", description: null, meta: null });
+		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, adminGate));
+		const rt = ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+		try {
+			const data = await rt.runPromise(
+				Effect.scoped(loader()).pipe(
+					Effect.provideService(Principal, {
+						userId: ADMIN.userId,
+						email: ADMIN.email,
+					}),
+				),
+			);
+			expect(data.roles.map((r) => r.name)).toContain("auditor");
+			expect(data.details).toHaveLength(data.roles.length);
+			expect(data.details[0]?.permissions).toEqual([]);
+			expect(data.catalog.some((c) => c.key === "patient.read")).toBe(true);
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("collapses Forbidden to the empty console", async () => {
+		const db = makeDb(makeD1(DDL));
+		const env = Layer.mergeAll(Layer.succeed(Db, db), Layer.succeed(PlatformAdmin, adminGate));
+		const rt = ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+		try {
+			const data = await rt.runPromise(
+				Effect.scoped(loader()).pipe(
+					Effect.provideService(Principal, {
+						userId: MEMBER.userId,
+						email: MEMBER.email,
+					}),
+				),
+			);
+			expect(data).toEqual({ roles: [], details: [], assignments: [], catalog: [] });
+		} finally {
+			await rt.dispose();
+		}
+	});
+
+	it("drops roles whose detail query returns null", async () => {
+		const role = {
+			id: 1,
+			name: "auditor",
+			description: null,
+			meta: null,
+			createdAt: new Date(0),
+			updatedAt: new Date(0),
+		};
+		// rbac.roles → [role], rbac.assignments → [], rbac.role → null.
+		const env = Layer.mergeAll(
+			Layer.succeed(Db, fakeDb({ selects: [[role], [], []] })),
+			Layer.succeed(PlatformAdmin, adminGate),
+		);
+		const rt = ManagedRuntime.make(
+			servicesLayer().pipe(Layer.provide(env)) as unknown as Layer.Layer<unknown, never, never>,
+		);
+		try {
+			const data = await rt.runPromise(
+				Effect.scoped(loader()).pipe(
+					Effect.provideService(Principal, {
+						userId: ADMIN.userId,
+						email: ADMIN.email,
+					}),
+				),
+			);
+			expect(data.roles).toHaveLength(1);
+			expect(data.details).toEqual([]);
+			expect(data.assignments).toEqual([]);
+		} finally {
+			await rt.dispose();
+		}
+	});
 });
 
 describe("plugins", () => {
@@ -323,13 +726,26 @@ describe("plugins", () => {
 		expect(rbacServicesPlugin.services).toBeDefined();
 		expect(rbacPanelPlugin.id).toBe("rbac.panel");
 		expect(rbacPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(rbacPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" },
-		]);
 		expect(rbacPanelPlugin.panel?.pages?.[0]).toMatchObject({
 			id: "rbac.admin",
 			path: "/platform/roles",
 		});
-		expect(plugins).toEqual([rbacTablesPlugin, rbacServicesPlugin, rbacPanelPlugin]);
+		expect(rbacChromePlugin.id).toBe("rbac.chrome");
+		expect(rbacChromePlugin.chrome).toEqual([
+			{
+				id: "rbac.sidebar",
+				region: "console.sidebar",
+				content: {
+					kind: "sidebarItem",
+					item: { to: "/platform/roles", label: "Roles", icon: ShieldCheckIcon, group: "Access" },
+				},
+			},
+		]);
+		expect(plugins).toEqual([
+			rbacTablesPlugin,
+			rbacServicesPlugin,
+			rbacChromePlugin,
+			rbacPanelPlugin,
+		]);
 	});
 });

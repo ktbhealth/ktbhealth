@@ -4,6 +4,7 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
+		"./schema": "./src/schema.ts",
 		"./selector": "./src/selector.ts",
 		"./testing": "./src/testing.ts"
 	},

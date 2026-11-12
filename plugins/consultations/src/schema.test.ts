@@ -1,7 +1,7 @@
 import { getTableConfig } from "drizzle-orm/sqlite-core/utils";
 import { describe, expect, it } from "vitest";
 
-import { consultations } from "./schema.ts";
+import { consultations } from "@ktb/db/schema";
 
 describe("consultations schema", () => {
 	it("exposes table config with FKs and defaults", () => {

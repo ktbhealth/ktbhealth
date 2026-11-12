@@ -1,0 +1,21 @@
+{
+	"name": "@ktb/session",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/kernel": "workspace:*",
+		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.1@react",
+		"@tanstack/react-router": "1.170.46"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.0",
+		"@types/react-dom": "^19.2.0",
+		"react-dom": "^19.2.0"
+	},
+	"peerDependencies": {
+		"react": "^19.2.0"
+	}
+}

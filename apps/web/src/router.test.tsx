@@ -2,7 +2,9 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { createRoot, type Root } from "react-dom/client";
+import type { ReactElement } from "react";
 
 const headers = { current: new Headers() };
 
@@ -58,7 +60,7 @@ vi.mock("@tanstack/react-router-devtools", () => ({
 
 import { RouterProvider } from "@tanstack/react-router";
 import { eq } from "drizzle-orm";
-import { user as userTable } from "@ktb/auth/schema";
+import { user as userTable } from "@ktb/db/schema";
 import { getRouter } from "./router.tsx";
 import { plugins } from "./plugins.ts";
 import { routes } from "./routes.ts";
@@ -101,8 +103,25 @@ async function signInRouterUser() {
 	consultationId = saved.id!;
 }
 
+// The root route renders the full document shell (<html>/<body>). Mounting it
+// inside RTL's container <div> desyncs React's fiber tree from the DOM and can
+// send event dispatch into an infinite ancestor walk (react#37065). Rooting on
+// `document` keeps <html> as the real documentElement.
+let shellRoot: Root | null = null;
+const renderShell = async (el: ReactElement) => {
+	shellRoot?.unmount();
+	shellRoot = createRoot(document);
+	await act(async () => {
+		shellRoot!.render(el);
+	});
+};
+
 describe("router integration", () => {
-	afterEach(cleanup);
+	afterEach(() => {
+		shellRoot?.unmount();
+		shellRoot = null;
+		cleanup();
+	});
 	beforeAll(async () => {
 		// warm up: import route tree happens via router.tsx
 	});
@@ -127,8 +146,8 @@ describe("router integration", () => {
 	it("renders home, sign-in page and navigates", async () => {
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
-		await waitFor(() => expect(document.body.textContent).toContain("documented"));
+		await renderShell(createElement(RouterProvider, { router }));
+		await waitFor(() => expect(document.body.textContent).toContain("The doctor decides."));
 		// sign-in link present (anonymous)
 		expect(screen.getByText("Sign in")).toBeTruthy();
 		// nav links from plugin manifests
@@ -151,7 +170,7 @@ describe("router integration", () => {
 		await signInRouterUser();
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
+		await renderShell(createElement(RouterProvider, { router }));
 		await waitFor(() => expect(document.body.textContent).toContain("Dra Router"));
 		// The user menu offers the doctor chooser, the secretaries page and
 		// sign-out; each closes the menu, so it is reopened per item.
@@ -209,7 +228,7 @@ describe("router integration", () => {
 
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
+		await renderShell(createElement(RouterProvider, { router }));
 		await act(async () => {
 			await router.navigate({ to: "/consultations/$id", params: { id: String(second.id!) } });
 		});
@@ -233,7 +252,7 @@ describe("router integration", () => {
 		});
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
+		await renderShell(createElement(RouterProvider, { router }));
 		await waitFor(() =>
 			expect(document.querySelector(".bg-muted.uppercase")?.textContent).toBe("?"),
 		);
@@ -242,7 +261,7 @@ describe("router integration", () => {
 	it("renders consultation detail 404 for unknown id", async () => {
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
+		await renderShell(createElement(RouterProvider, { router }));
 		await act(async () => {
 			await router.navigate({ to: "/consultations/$id", params: { id: "99999" } });
 		});
@@ -254,7 +273,7 @@ describe("router integration", () => {
 	it("renders new consultation page", async () => {
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
+		await renderShell(createElement(RouterProvider, { router }));
 		await act(async () => {
 			await router.navigate({ to: "/consultations/new" });
 		});
@@ -266,7 +285,7 @@ describe("router integration", () => {
 	it("renders capture-test page", async () => {
 		const router = getRouter();
 		await router.load();
-		render(createElement(RouterProvider, { router }));
+		await renderShell(createElement(RouterProvider, { router }));
 		await act(async () => {
 			await router.navigate({ to: "/capture-test" });
 		});

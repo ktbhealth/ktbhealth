@@ -1,8 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
-import { getDoctorUser, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, runAs } from "@ktb/server-fns";
 
 import { Notifications } from "../Notifications.ts";
 
@@ -21,7 +20,7 @@ import { Notifications } from "../Notifications.ts";
  * "src/api-routes")); the session/runtime boundary is @ktb/server-fns,
  * so no host imports are needed (P-033).
  */
-export const Route = createFileRoute("/api/notifications")({
+export const Route = createPluginApiRoute("notifications.routes")("/api/notifications")({
 	server: {
 		handlers: {
 			GET: async () => {

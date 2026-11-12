@@ -37,4 +37,7 @@ export const routes = rootRoute("__root.tsx", [
 	route("portal/login", "portal-login.tsx"),
 	route("verify-email", "verify-email.tsx"),
 	physical("/api", "api"),
+	// Root splat (P-059): dispatches plugin-contributed `pages` at
+	// arbitrary app paths; static routes above keep match priority.
+	route("$", "$.tsx"),
 ]);

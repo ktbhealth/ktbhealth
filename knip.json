@@ -29,10 +29,11 @@
 		},
 		"plugins/notifications": {
 			// Only referenced by generated src/route-types.d.ts
-			// (`import type {} from "@tanstack/react-start"`) and a
+			// (`import type {} from "@tanstack/react-start"` / `AnyRoute`
+			// from "@tanstack/react-router"`) and a
 			// vi.mock("@tanstack/react-start/server") factory — no static
 			// import for knip to count.
-			"ignoreDependencies": ["@tanstack/react-start"]
+			"ignoreDependencies": ["@tanstack/react-start", "@tanstack/react-router"]
 		}
 	}
 }

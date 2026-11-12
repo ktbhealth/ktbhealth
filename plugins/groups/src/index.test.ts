@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { Query } from "@effect-server-utils/cqrs";
+import { adminAudit, AUDIT_TEST_DDL, AuditLive } from "@ktb/audit";
 import { Db, makeDb, type DbClient } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 import { Forbidden, Principal } from "@ktb/authz";
@@ -11,17 +12,20 @@ import { eq } from "drizzle-orm";
 import { BoxesIcon } from "lucide-react";
 
 import { makePlatformAdminGate, parsePlatformAdminEmails, PlatformAdmin } from "@ktb/platform";
+import { PermissionInvalidator } from "@ktb/rbac";
 
 import { GroupsQueries } from "./api.ts";
-import { groups as groupsTable } from "./schema.ts";
+import { groups as groupsTable } from "@ktb/db/schema";
 import {
 	addMember,
 	createGroup,
+	deleteGroup,
 	findMembership,
 	getGroup,
 	Groups,
 	GroupsLive,
 	GroupsQueriesLive,
+	groupsChromePlugin,
 	groupsPanelPlugin,
 	groupsServicesPlugin,
 	groupsTablesPlugin,
@@ -29,6 +33,7 @@ import {
 	listMembers,
 	plugins,
 	removeMember,
+	updateMemberRole,
 } from "./index.ts";
 
 const DDL = `
@@ -42,6 +47,7 @@ INSERT INTO group_members (group_id, member_kind, member_id, role, created_at) V
   (1, 'user', 'u1', 'admin', 1000),
   (1, 'user', 'u2', NULL, 1000),
   (2, 'patient', 'p1', 'member', 1000);
+${AUDIT_TEST_DDL}
 `;
 
 describe("groups repo", () => {
@@ -97,6 +103,33 @@ describe("groups repo", () => {
 		expect(await findMembership(db, 2, "user", "u9")).toBeNull();
 		expect(await removeMember(db, { groupId: 2, memberKind: "user", memberId: "u9" })).toBeNull();
 	});
+
+	it("updateMemberRole rewrites the role and reports misses", async () => {
+		const updated = await updateMemberRole(db, {
+			groupId: 1,
+			memberKind: "user",
+			memberId: "u2",
+			role: "owner",
+		});
+		expect(updated?.role).toBe("owner");
+		expect((await findMembership(db, 1, "user", "u2"))?.role).toBe("owner");
+		// Clearing the role stores null.
+		const cleared = await updateMemberRole(db, {
+			groupId: 1,
+			memberKind: "user",
+			memberId: "u2",
+			role: null,
+		});
+		expect(cleared?.role).toBeNull();
+		expect(
+			await updateMemberRole(db, {
+				groupId: 1,
+				memberKind: "user",
+				memberId: "ghost",
+				role: "admin",
+			}),
+		).toBeNull();
+	});
 	it("createGroup stores the optional meta payload", async () => {
 		const created = await createGroup(db, {
 			name: "With meta",
@@ -124,6 +157,15 @@ describe("groups repo", () => {
 		expect(row!.name).toBe("Clinic A2");
 		expect(row!.updatedAt.getTime()).toBeGreaterThan(1000);
 	});
+
+	it("deleteGroup removes the row and reports misses", async () => {
+		// Membership cascade is schema-level (schema.test.ts asserts the
+		// onDelete: "cascade" reference); the in-memory driver does not
+		// enforce PRAGMA foreign_keys.
+		expect(await deleteGroup(db, 2)).toBe(true);
+		expect(await getGroup(db, 2)).toBeNull();
+		expect(await deleteGroup(db, 999)).toBe(false);
+	});
 });
 
 describe("groups repo — empty driver results", () => {
@@ -139,18 +181,67 @@ describe("groups repo — empty driver results", () => {
 			await addMember(emptyInsert, { groupId: 1, memberKind: "user", memberId: "u" }),
 		).toBeNull();
 	});
+
+	it("updateMemberRole falls back to the pre-update row when RETURNING yields nothing", async () => {
+		const memberRow = { id: 7, role: "admin" };
+		const fakeDb = {
+			select: () => ({ from: () => ({ where: async () => [memberRow] }) }),
+			update: () => ({ set: () => ({ where: () => ({ returning: async () => [] }) }) }),
+		} as unknown as DbClient;
+		const result = await updateMemberRole(fakeDb, {
+			groupId: 1,
+			memberKind: "user",
+			memberId: "u1",
+			role: "owner",
+		});
+		expect(result).toBe(memberRow);
+	});
+
+	it("service create/addMember return null and skip audit when RETURNING yields nothing", async () => {
+		const writeOnlyDb = {
+			insert: () => ({ values: () => ({ returning: async () => [] }) }),
+		} as unknown as DbClient;
+		const deps = Layer.merge(
+			Layer.succeed(Db, writeOnlyDb),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+		);
+		const runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+		try {
+			const asAdmin = <A, E>(effect: Effect.Effect<A, E, Groups>) =>
+				runtime.runPromise(
+					Effect.provideService(effect, Principal, { userId: "u1", email: "admin@x.com" }),
+				);
+			expect(
+				await asAdmin(Effect.flatMap(Groups, (p) => p.create({ name: "X", slug: "x", kind: "k" }))),
+			).toBeNull();
+			expect(
+				await asAdmin(
+					Effect.flatMap(Groups, (p) =>
+						p.addMember({ groupId: 1, memberKind: "user", memberId: "u9" }),
+					),
+				),
+			).toBeNull();
+		} finally {
+			await runtime.dispose();
+		}
+	});
 });
 
 describe("GroupsLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<Groups, never>;
+	let db: ReturnType<typeof makeDb>;
 
 	beforeAll(() => {
-		const db = makeDb(makeD1(DDL));
+		db = makeDb(makeD1(DDL));
 		const deps = Layer.merge(
 			Layer.succeed(Db, db),
 			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
 		);
-		runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+		// Provide the real audit service so admin mutations write
+		// admin_audit rows (T-037); the "PermissionInvalidator" describe
+		// below intentionally omits it to cover the optional-absent path.
+		const allDeps = Layer.merge(deps, AuditLive.pipe(Layer.provide(deps)));
+		runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provideMerge(allDeps)));
 	});
 
 	afterAll(() => runtime.dispose());
@@ -238,6 +329,49 @@ describe("GroupsLive", () => {
 		expect(removed?.memberId).toBe("u7");
 	});
 
+	it("admin updateMemberRole rewrites roles, misses return null and non-admins are Forbidden", async () => {
+		const updated = await asUser(
+			"u1",
+			call((p) =>
+				p.updateMemberRole({
+					groupId: 1,
+					memberKind: "user",
+					memberId: "u2",
+					role: "member",
+				}),
+			),
+			"admin@x.com",
+		);
+		expect(updated?.role).toBe("member");
+		const missing = await asUser(
+			"u1",
+			call((p) =>
+				p.updateMemberRole({
+					groupId: 1,
+					memberKind: "user",
+					memberId: "ghost",
+					role: "admin",
+				}),
+			),
+			"admin@x.com",
+		);
+		expect(missing).toBeNull();
+		await expect(
+			asUser(
+				"u2",
+				call((p) =>
+					p.updateMemberRole({
+						groupId: 1,
+						memberKind: "user",
+						memberId: "u1",
+						role: "member",
+					}),
+				),
+				"doc@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
+	});
+
 	it("requireMember passes when the bound user is a member", async () => {
 		const member = await asUser(
 			"u1",
@@ -299,6 +433,54 @@ describe("GroupsLive", () => {
 		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
 	});
 
+	it("admin mutations write audit rows", async () => {
+		const group = await asUser(
+			"u1",
+			call((p) => p.create({ name: "Audited", slug: "audited", kind: "custom" })),
+			"admin@x.com",
+		);
+		const gid = group!.id;
+		await asUser(
+			"u1",
+			call((p) => p.addMember({ groupId: gid, memberKind: "user", memberId: "u8", role: "mod" })),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) =>
+				p.updateMemberRole({ groupId: gid, memberKind: "user", memberId: "u8", role: "lead" }),
+			),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) => p.removeMember({ groupId: gid, memberKind: "user", memberId: "u8" })),
+			"admin@x.com",
+		);
+		await asUser(
+			"u1",
+			call((p) => p.delete(gid)),
+			"admin@x.com",
+		);
+		const rows = await db.select().from(adminAudit);
+		// Other tests in this describe also mutate groups — scope every
+		// assertion to the group this test created.
+		const mine = rows.filter((r) => r.targetId === String(gid));
+		const byAction = (action: string) => mine.filter((r) => r.action === action);
+		expect(byAction("groups.create")).toHaveLength(1);
+		expect(byAction("groups.member.add")).toHaveLength(1);
+		expect(byAction("groups.member.setRole")).toHaveLength(1);
+		expect(byAction("groups.member.remove")).toHaveLength(1);
+		expect(byAction("groups.delete")).toHaveLength(1);
+		const created = byAction("groups.create")[0]!;
+		expect(created).toMatchObject({
+			actorUserId: "u1",
+			actorEmail: "admin@x.com",
+			targetType: "group",
+			tenantId: gid,
+		});
+	});
+
 	it("requireMember fails Forbidden when the bound user has no membership row", async () => {
 		// u1 IS the principal, but belongs to group 1 only — group 2 has no row.
 		await expect(
@@ -314,6 +496,37 @@ describe("GroupsLive", () => {
 				call((p) => p.requireMember(2, "patient", "ghost")),
 			),
 		).rejects.toMatchObject({ _tag: "Forbidden", path: "groups.member" });
+	});
+
+	it("delete removes a group for admins, reports misses and is Forbidden otherwise", async () => {
+		// Runs last: deleting group 2 cascades its patient membership used
+		// by the requireMember tests above.
+		const deleted = await asUser(
+			"u1",
+			call((p) => p.delete(2)),
+			"admin@x.com",
+		);
+		expect(deleted).toBe(true);
+		expect(
+			await asUser(
+				"u1",
+				call((p) => p.get(2)),
+				"admin@x.com",
+			),
+		).toBeNull();
+		const missing = await asUser(
+			"u1",
+			call((p) => p.delete(999)),
+			"admin@x.com",
+		);
+		expect(missing).toBe(false);
+		await expect(
+			asUser(
+				"u2",
+				call((p) => p.delete(1)),
+				"doc@x.com",
+			),
+		).rejects.toMatchObject({ _tag: "Forbidden", path: "platform.admin" });
 	});
 });
 
@@ -386,8 +599,17 @@ describe("plugins", () => {
 		expect(groupsServicesPlugin.services).toBeDefined();
 		expect(groupsPanelPlugin.id).toBe("groups.panel");
 		expect(groupsPanelPlugin.requiredDeps).toEqual(["platform.panel"]);
-		expect(groupsPanelPlugin.panel?.sidebar).toEqual([
-			{ to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+		expect(groupsPanelPlugin.panel?.pages?.[0]?.path).toBe("/platform/groups");
+		expect(groupsChromePlugin.id).toBe("groups.chrome");
+		expect(groupsChromePlugin.chrome).toEqual([
+			{
+				id: "groups.sidebar",
+				region: "console.sidebar",
+				content: {
+					kind: "sidebarItem",
+					item: { to: "/platform/groups", label: "Groups", icon: BoxesIcon, group: "Access" },
+				},
+			},
 		]);
 	});
 
@@ -414,14 +636,99 @@ describe("plugins", () => {
 		});
 	});
 
-	it("contributes no routes or top-nav", () => {
+	it("contributes no routes outside the chrome plugin", () => {
 		for (const p of [groupsTablesPlugin, groupsServicesPlugin, groupsPanelPlugin]) {
 			expect("routes" in p).toBe(false);
-			expect("landingNav" in p).toBe(false);
+			expect("chrome" in p).toBe(false);
 		}
+		expect("routes" in groupsChromePlugin).toBe(false);
 	});
 
 	it("exports the discovery plugins array", () => {
-		expect(plugins.map((p) => p.id)).toEqual(["groups.tables", "groups.services", "groups.panel"]);
+		expect(plugins.map((p) => p.id)).toEqual([
+			"groups.tables",
+			"groups.services",
+			"groups.chrome",
+			"groups.panel",
+		]);
+	});
+});
+
+describe("GroupsLive with PermissionInvalidator", () => {
+	let runtime: ManagedRuntime.ManagedRuntime<Groups, never>;
+	let invalidations = 0;
+
+	beforeAll(() => {
+		const db = makeDb(makeD1(DDL));
+		const deps = Layer.mergeAll(
+			Layer.succeed(Db, db),
+			Layer.succeed(PlatformAdmin, makePlatformAdminGate(parsePlatformAdminEmails("admin@x.com"))),
+			Layer.succeed(PermissionInvalidator, {
+				invalidate: () => Effect.sync(() => invalidations++),
+			}),
+		);
+		runtime = ManagedRuntime.make(GroupsLive.pipe(Layer.provide(deps)));
+	});
+
+	afterAll(() => runtime.dispose());
+
+	it("membership writes and group deletes bump the permission epoch", async () => {
+		const added = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.addMember({ groupId: 1, memberKind: "user", memberId: "u9", role: "mod" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(added?.memberId).toBe("u9");
+		const removed = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.removeMember({ groupId: 1, memberKind: "user", memberId: "u9" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(removed?.memberId).toBe("u9");
+		// A role update on an existing membership bumps the epoch too; a
+		// miss (null member) does not.
+		const updated = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.updateMemberRole({ groupId: 1, memberKind: "user", memberId: "u1", role: "owner" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(updated?.role).toBe("owner");
+		const missed = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) =>
+				p.updateMemberRole({ groupId: 1, memberKind: "user", memberId: "ghost", role: "admin" }),
+			).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(missed).toBeNull();
+		// A successful delete cascades memberships — same epoch bump.
+		const deleted = await runtime.runPromise(
+			Effect.flatMap(Groups, (p) => p.delete(2)).pipe(
+				Effect.provideService(Principal, {
+					userId: "u1",
+					email: "admin@x.com",
+				}),
+			),
+		);
+		expect(deleted).toBe(true);
+		expect(invalidations).toBe(4);
 	});
 });

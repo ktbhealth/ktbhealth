@@ -20,6 +20,7 @@ import { Route as ExportRoute } from "./api-routes/patients.$id.export.ts";
 // has no exporter registered the route must answer 503 (not 404/500).
 
 const authStub = Auth.of({
+	setUserBanned: async () => {},
 	getSession: async (h: Headers) =>
 		/session=owner/.test(h.get("cookie") ?? "")
 			? {

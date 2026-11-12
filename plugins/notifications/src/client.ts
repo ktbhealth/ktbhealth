@@ -16,9 +16,13 @@ export const notificationsHeaderPlugin = definePlugin({
 	id: "notifications.header",
 	requiredDeps: ["platform.panel"],
 	optionalDeps: ["platform.header"],
-	panel: {
-		headerActions: [{ id: "notifications", component: NotificationsHeaderAction }],
-	},
+	chrome: [
+		{
+			id: "notifications.header-action",
+			region: "console.header.actions",
+			content: { kind: "headerAction", id: "notifications", component: NotificationsHeaderAction },
+		},
+	],
 });
 
 /** Single-concern plugins contributed by this module — the client

@@ -43,8 +43,8 @@ const DDL = `
 CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO "user" VALUES ('u-admin', 'Admin Jobs', 'platform-admin@ktb.test', 0, NULL, 0, 0);
 INSERT INTO "user" VALUES ('u-jobs', 'Dra Jobs', 'jobs-user@x.com', 0, NULL, 0, 0);
-CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER);
-CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL);
+CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL REFERENCES "user"(id), name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, social_name TEXT, gender TEXT, birth_date TEXT, cpf TEXT, cns TEXT, passport TEXT, phone TEXT, email TEXT, preferred_language TEXT, address_line TEXT, address_number TEXT, address_complement TEXT, district TEXT, city TEXT, state TEXT, postal_code TEXT, country TEXT, mother_name TEXT, marital_status TEXT, race_color TEXT, nationality TEXT, emergency_contact_name TEXT, emergency_contact_relationship TEXT, emergency_contact_phone TEXT, created_at INTEGER, updated_at INTEGER, tenant_id INTEGER);
+CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES "user"(id), patient_id INTEGER REFERENCES patients(id), transcript TEXT NOT NULL, anamnesis TEXT, review TEXT, engine TEXT, source TEXT NOT NULL, status TEXT NOT NULL, bot_id TEXT, consent_at INTEGER, audio_key TEXT, audio_status TEXT NOT NULL DEFAULT 'none', audio_content_type TEXT, audio_size INTEGER, audio_error TEXT, server_transcript TEXT, corrected_transcript TEXT, enhancement_engine TEXT, created_at INTEGER NOT NULL, tenant_id INTEGER);
 `;
 
 const USERS = new Map([
@@ -52,8 +52,12 @@ const USERS = new Map([
 	["user", { id: "u-jobs", email: "jobs-user@x.com", name: "Dra Jobs" }],
 ]);
 
+/** Mutable enable-state behind the route gate (createPluginApiRoute). */
+const pluginGate = { enabled: true };
+
 /** Cookie "session=<key>" authenticates as USERS[key]; anything else is anonymous. */
 const authStub = Auth.of({
+	setUserBanned: async () => {},
 	getSession: async (h: Headers) => {
 		const key = /session=([^;]+)/.exec(h.get("cookie") ?? "")?.[1];
 		const user = key ? USERS.get(key) : undefined;
@@ -105,6 +109,7 @@ beforeAll(() => {
 			),
 		getLocale: () => "en",
 		audioTranscribeModel: "test-model",
+		pluginEnabled: async () => pluginGate.enabled,
 	});
 });
 
@@ -148,6 +153,18 @@ async function readUntil(body: ReadableStream<Uint8Array>, needle: string, ms = 
 }
 
 describe("GET /api/jobs", () => {
+	it("answers 404 when the jobs.routes plugin is disabled", async () => {
+		pluginGate.enabled = false;
+		try {
+			useSession(signIn("admin"));
+			const res = await get();
+			expect(res.status).toBe(404);
+			expect(await res.json()).toEqual({ error: "not found" });
+		} finally {
+			pluginGate.enabled = true;
+		}
+	});
+
 	it("rejects unauthenticated requests", async () => {
 		const saved = headers.current;
 		headers.current = new Headers();
