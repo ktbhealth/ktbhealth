@@ -25,6 +25,7 @@
 		"db:migrate:local": "bun --cwd apps/web db:migrate:local",
 		"db:studio": "bun --cwd packages/db db:studio",
 		"db:erd": "bun packages/db/scripts/generate-erd.mjs",
+		"db:erd:check": "bun packages/db/scripts/generate-erd.mjs --check",
 		"knip": "knip",
 		"gen:route-types": "bun tools/gen-plugin-route-types.mjs",
 		"gen:db-schema": "bun tools/gen-db-schema.mjs",
