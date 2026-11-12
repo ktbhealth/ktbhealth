@@ -1,10 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ensureSessionUser } from "#/lib/auth.ts";
-import { run, runAs } from "#/lib/platform.ts";
-import { STUB_CALL } from "@ktb/bot";
-import { Bot } from "@ktb/bot";
-import { Effect } from "effect";
+import { Bot, STUB_CALL } from "@ktb/bot";
 import { Consultations } from "@ktb/consultations";
+import { Effect } from "effect";
+import { ensureSessionUser, createPluginApiRoute, run, runAs } from "@ktb/server-fns";
 import { Tenant, runAsTenantId, tenantScopeId } from "@ktb/tenant";
 
 /**
@@ -15,8 +12,12 @@ import { Tenant, runAsTenantId, tenantScopeId } from "@ktb/tenant";
  * /api/bots/webhook. With the stub provider (dev only — outside dev a
  * missing RECALL_API_KEY is a 503), we simulate them in-process — same
  * appendTranscript path the webhook uses.
+ *
+ * Moved from apps/web/src/routes/api/bots.ts — the Bot driver, the
+ * Consultations service and the session/runtime boundary all resolve
+ * through @ktb/server-fns, so the plugin owns the route end to end.
  */
-export const Route = createFileRoute("/api/bots")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/bots")({
 	server: {
 		handlers: {
 			POST: async ({ request }) => {

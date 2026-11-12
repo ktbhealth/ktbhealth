@@ -1,10 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations, consultationTenantId } from "@ktb/consultations";
 import { Db } from "@ktb/db";
+import { createPluginApiRoute, run } from "@ktb/server-fns";
 import { runAsTenantId } from "@ktb/tenant";
-import { run } from "#/lib/platform.ts";
 
 /**
  * POST /api/bots/webhook — transcript events from the bot provider.
@@ -12,8 +11,11 @@ import { run } from "#/lib/platform.ts";
  * Real providers (Recall) post segments with participant names —
  * the channel separation IS the diarization. We persist
  * "Speaker: text" lines; AnamnesisExtractor unchanged.
+ *
+ * Moved from apps/web/src/routes/api/bots.webhook.ts — services and
+ * the runtime boundary resolve through @ktb/server-fns.
  */
-export const Route = createFileRoute("/api/bots/webhook")({
+export const Route = createPluginApiRoute("consultations.routes")("/api/bots/webhook")({
 	server: {
 		handlers: {
 			POST: async ({ request }) => {

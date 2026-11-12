@@ -32,7 +32,6 @@
 		"@ktb/audience": "workspace:*",
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/auth-plugin": "workspace:*",
-		"@ktb/bot": "workspace:*",
 		"@ktb/consultations": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/db-sqlite": "workspace:*",
