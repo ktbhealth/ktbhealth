@@ -255,12 +255,12 @@ function renderTarget(root) {
 }
 
 // 4. Render each target into staging, then copy into the docs repo or diff.
-//    A target is the `reference/` dir that contains `database/`.
-//    --out DIR means "the dir that will contain database/" (same semantics).
+//    A target is the dir that contains `database/` (…/plugins/reference).
+//    --out DIR uses the same semantics: the dir that will contain database/.
 const targets = outOverride
 	? [outOverride]
 	: LOCALES.map((l) =>
-			join(DOCS_REPO, "content/docs", l, "developers/reference"),
+			join(DOCS_REPO, "content/docs", l, "developers/plugins/reference"),
 		);
 
 function collectFiles(dir, prefix = "") {
