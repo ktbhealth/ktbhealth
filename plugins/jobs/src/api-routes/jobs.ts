@@ -4,7 +4,7 @@ import * as Stream from "effect/Stream";
 
 import { Consultations } from "@ktb/consultations";
 import { PlatformAdmin } from "@ktb/platform";
-import { getSessionUser, runAs } from "@ktb/server-fns";
+import { getDoctorUser, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/jobs — SSE feed of the consultation audio-pipeline rows behind
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/jobs")({
 	server: {
 		handlers: {
 			GET: async () => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				if (!user) return new Response("unauthorized", { status: 401 });
 
 				const admin = await runAs(

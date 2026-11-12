@@ -160,6 +160,10 @@ export default defineConfig({
 								"@ktb/captcha-stub/**",
 								"@ktb/captcha-turnstile",
 								"@ktb/captcha-turnstile/**",
+								"@ktb/email-cloudflare",
+								"@ktb/email-cloudflare/**",
+								"@ktb/email-stub",
+								"@ktb/email-stub/**",
 								"@ktb/transcription-whisper",
 								"@ktb/transcription-whisper/**",
 								"@ktb/transcription-webspeech",
@@ -195,14 +199,17 @@ export default defineConfig({
 				//   the model on consultations pages (whisper-prefetch.ts)
 				//   — the same documented injection points the host route
 				//   files had before the P-033 route migration.
-				// - login.tsx / __root.tsx / platform.tsx use the better-auth
-				//   client SDK, which is inherently impl-bound.
+				// - login.tsx / portal-login.tsx / verify-email.tsx / __root.tsx /
+				//   platform.tsx use the better-auth client SDK, which is
+				//   inherently impl-bound.
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
 					"apps/web/src/lib/node-cloudflare-workers.ts",
 					"apps/web/src/plugins.ts",
 					"apps/web/src/routes/login.tsx",
+					"apps/web/src/routes/portal-login.tsx",
+					"apps/web/src/routes/verify-email.tsx",
 					"apps/web/src/routes/__root.tsx",
 					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",

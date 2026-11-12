@@ -13,10 +13,10 @@
 	// (alchemy.run.ts) with secrets from the cuora vault; this config only
 	// lets `vp build`/`vp preview` boot the worker locally. The values
 	// below are deliberately dev-only: CAPTCHA_STUB bypasses the bot
-	// check, and the D1 id is a placeholder — a real deploy through
-	// wrangler would either fail on the bogus id or, worse, ship a
-	// stub-captcha worker.
-	"vars": { "CAPTCHA_STUB": "1" },
+	// check, EMAIL_STUB logs outbound email instead of sending it, and
+	// the D1 id is a placeholder — a real deploy through wrangler would
+	// either fail on the bogus id or, worse, ship a stub-captcha worker.
+	"vars": { "CAPTCHA_STUB": "1", "EMAIL_STUB": "1" },
 	"ai": { "binding": "AI" },
 	"r2_buckets": [{ "binding": "AUDIO_BUCKET", "bucket_name": "ktb-audio" }],
 	"queues": {

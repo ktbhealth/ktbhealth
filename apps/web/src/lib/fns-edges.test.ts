@@ -36,6 +36,12 @@ vi.mock("#/lib/auth.ts", () => ({
 		if (!hoisted.user) throw new Error("unauthenticated");
 		return hoisted.user;
 	},
+	// Doctor-scoped fns act as the signed-in user here (no delegation).
+	getDoctorUser: async () => hoisted.user,
+	ensureDoctorUser: async () => {
+		if (!hoisted.user) throw new Error("unauthenticated");
+		return hoisted.user;
+	},
 }));
 // Plugin-owned fns (@ktb/patients/fns, @ktb/consultations/fns) reach the
 // session and the app runtime through @ktb/server-fns, not #/lib/auth.ts —
@@ -59,6 +65,11 @@ vi.mock("@ktb/server-fns", async (importOriginal) => {
 		...actual,
 		getSessionUser: async () => hoisted.user,
 		ensureSessionUser: async () => {
+			if (!hoisted.user) throw new Error("unauthenticated");
+			return hoisted.user;
+		},
+		getDoctorUser: async () => hoisted.user,
+		ensureDoctorUser: async () => {
 			if (!hoisted.user) throw new Error("unauthenticated");
 			return hoisted.user;
 		},

@@ -25,9 +25,9 @@ import {
 } from "./index.ts";
 
 const DDL = `
-CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-INSERT INTO "user" VALUES ('u1', 'Admin', 'admin@x.com', 1, NULL, 1000, 1000);
-INSERT INTO "user" VALUES ('u2', 'Doc', 'doc@x.com', 0, NULL, 2000, 2000);
+CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, cpf TEXT UNIQUE);
+INSERT INTO "user" VALUES ('u1', 'Admin', 'admin@x.com', 1, NULL, 1000, 1000, NULL);
+INSERT INTO "user" VALUES ('u2', 'Doc', 'doc@x.com', 0, NULL, 2000, 2000, NULL);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER);
 INSERT INTO patients (owner_id, name, created_at) VALUES ('u2', 'Ana', 0), ('u2', 'Bia', 0);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, status TEXT);
@@ -44,8 +44,8 @@ describe("users repo", () => {
 	it("counts zero for a user with no patients and no consultations", async () => {
 		const empty = makeDb(
 			makeD1(`
-CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-INSERT INTO "user" VALUES ('u9', 'New', 'new@x.com', 0, NULL, 3000, 3000);
+CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL, image TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, cpf TEXT UNIQUE);
+INSERT INTO "user" VALUES ('u9', 'New', 'new@x.com', 0, NULL, 3000, 3000, NULL);
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL, created_at INTEGER);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, status TEXT);
 `),

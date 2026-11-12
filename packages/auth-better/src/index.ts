@@ -1,7 +1,7 @@
 import type { Session, SessionUser } from "@ktb/auth";
 
 export { makeAuth } from "./auth.ts";
-export type { Auth } from "./auth.ts";
+export type { Auth, AuthOptions, VerificationEmailInput } from "./auth.ts";
 
 export const toSessionUser = (u: {
 	id: string;

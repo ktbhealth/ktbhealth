@@ -43,6 +43,20 @@
       "when": 1794357656398,
       "tag": "0005_white_boom_boom",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794366622113,
+      "tag": "0006_wet_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1794366655278,
+      "tag": "0007_backfill_doctors",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import type * as Effect from "effect/Effect";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
+import { verificationEmail } from "./emails.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
 import { fhirR4Exporter } from "@ktb/interop-fhir";
@@ -23,7 +24,7 @@ const aiBinding = resolveAi(env as unknown as AiEnv);
 
 const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
 
-const app = createApp(appEnv as unknown as typeof env);
+const app = createApp(appEnv as unknown as typeof env, { verificationEmail });
 
 export const {
 	BindingLive,
@@ -50,7 +51,7 @@ export const {
  * inherited into background work.
  */
 export const runAs = <A, E>(
-	user: { readonly id: string; readonly email?: string },
+	user: { readonly id: string; readonly email?: string; readonly actorId?: string },
 	effect: Effect.Effect<A, E, unknown>,
 	tenantSelector?: TenantSelector | null,
 ): Promise<A> => {

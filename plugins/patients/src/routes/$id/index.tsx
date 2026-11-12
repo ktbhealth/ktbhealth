@@ -2,12 +2,12 @@ import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 
 import { PatientDetailPage } from "../../views/index.ts";
 import { getPatientFn, localeFn, patientConsultationsFn } from "../../fns.ts";
-import { requireSession } from "../../guard.ts";
+import { requireDoctor } from "../../guard.ts";
 import { patientDeleteApi } from "../../apis.ts";
 
 export const Route = createFileRoute("/patients/$id/")({
 	staleTime: 30_000,
-	beforeLoad: () => requireSession(),
+	beforeLoad: () => requireDoctor(),
 	loader: async ({ params }) => {
 		const id = Number(params.id);
 		// Non-numeric params (e.g. /patients/abc) would reach the fns as

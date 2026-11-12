@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ensureSessionUser } from "#/lib/auth.ts";
+import { ensureDoctorUser } from "#/lib/auth.ts";
 import { run, runAs } from "#/lib/platform.ts";
 import { STUB_CALL } from "@ktb/bot";
 import { Bot } from "@ktb/bot";
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/bots")({
 				}
 				const webhookUrl = new URL("/api/bots/webhook", request.url).toString();
 				const session = await provider.join(body.meetUrl, webhookUrl);
-				const user = await ensureSessionUser();
+				const user = await ensureDoctorUser();
 
 				const consultationId = await runAs(
 					user,

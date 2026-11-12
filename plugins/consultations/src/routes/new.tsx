@@ -9,12 +9,12 @@ import {
 	validateNewConsultationSearch,
 } from "../apis.ts";
 import { localeFn } from "../fns.ts";
-import { requireSession } from "../guard.ts";
+import { requireDoctor } from "../guard.ts";
 import { prefetchWhisperModel } from "../whisper-prefetch.ts";
 
 export const Route = createFileRoute("/consultations/new")({
 	validateSearch: validateNewConsultationSearch,
-	beforeLoad: () => requireSession(),
+	beforeLoad: () => requireDoctor(),
 	loader: async () => {
 		const [initialPatients, locale] = await Promise.all([newConsultationLoader(), localeFn()]);
 		return { initialPatients, locale };

@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 
+import { Email } from "@ktb/email";
 import { Notifications, rowToConsole } from "@ktb/notifications";
 import { run, runAs, serverPlugins } from "#/lib/platform.ts";
 import { platformPages } from "#/lib/platform-pages.ts";
 import { PlatformAdmin } from "@ktb/platform";
 import type { PanelPage } from "@ktb/kernel";
 import { Schema } from "effect";
-import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
+import { ensureDoctorUser, getDoctorUser, getSessionAccount, getSessionUser } from "#/lib/auth.ts";
 import * as Effect from "effect/Effect";
 
 // Services enforce authorization and fail `Forbidden`; handlers translate
@@ -16,7 +17,19 @@ import * as Effect from "effect/Effect";
 
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
-export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
+/** Root-layout session: the user plus whether the account is
+ * patient-only (no doctor profile to act as), which narrows the
+ * navigation to the patient portal. */
+export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionAccount());
+
+/**
+ * True when this deployment can send email (an Email driver other than
+ * the disabled one is bound). Lets the UI skip flows that would promise
+ * a message that is never sent — e.g. the post-sign-up verification step.
+ */
+export const emailEnabledFn = createServerFn({ method: "GET" }).handler(() =>
+	run(Effect.map(Effect.service(Email), (sender) => sender !== null)),
+);
 
 /**
  * /platform console gate: true when the session user's email is in the
@@ -135,7 +148,7 @@ export {
  * otherwise).
  */
 export const listMyNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
+	const user = await getDoctorUser();
 	if (!user) return [];
 	return runAs(
 		user,
@@ -150,7 +163,7 @@ export const listMyNotificationsFn = createServerFn({ method: "GET" }).handler(a
 /** Exact unread count for the /platform dashboard card — the list fn
  * above is capped at 50 rows, so it can't be derived client-side. */
 export const countMyUnreadNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
+	const user = await getDoctorUser();
 	if (!user) return 0;
 	return runAs(
 		user,
@@ -169,7 +182,7 @@ const decodeNotificationIds = Schema.decodeUnknownSync(Schema.Array(Schema.Numbe
 export const markMyNotificationsReadFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => decodeNotificationIds(input))
 	.handler(async ({ data: ids }) => {
-		const user = await ensureSessionUser();
+		const user = await ensureDoctorUser();
 		return runAs(
 			user,
 			Effect.gen(function* () {
@@ -183,7 +196,7 @@ export const markMyNotificationsReadFn = createServerFn({ method: "POST" })
 	});
 
 export const markAllMyNotificationsReadFn = createServerFn({ method: "POST" }).handler(async () => {
-	const user = await ensureSessionUser();
+	const user = await ensureDoctorUser();
 	return runAs(
 		user,
 		Effect.gen(function* () {

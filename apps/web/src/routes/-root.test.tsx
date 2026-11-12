@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	pathname: "/",
-	user: null as { name?: string; email?: string } | null,
+	user: null as { name?: string; email?: string; patientOnly?: boolean } | null,
 	plugins: [] as unknown[],
 }));
 
@@ -28,6 +28,26 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 			const { to, children, activeProps: _a, ...rest } = props;
 			return React.createElement("a", { href: to as string, ...rest }, children as ReactNode);
 		},
+	};
+});
+// The account menu renders closed (no items in static markup); swap in
+// passthroughs so the tests can see which entries an account is offered.
+vi.mock("@ktbhealth/ui/components/dropdown-menu", async () => {
+	const React = await import("react");
+	const passthrough =
+		(tag: string) =>
+		({ children }: { children?: ReactNode }) =>
+			React.createElement(tag, null, children);
+	return {
+		DropdownMenu: passthrough("div"),
+		DropdownMenuTrigger: passthrough("button"),
+		DropdownMenuContent: passthrough("div"),
+		DropdownMenuGroup: passthrough("div"),
+		DropdownMenuItem: passthrough("button"),
+		DropdownMenuLabel: passthrough("div"),
+		DropdownMenuSeparator: () => React.createElement("hr"),
+		DropdownMenuRadioGroup: passthrough("div"),
+		DropdownMenuRadioItem: passthrough("div"),
 	};
 });
 vi.mock("@tanstack/react-devtools", () => ({ TanStackDevtools: () => null }));
@@ -124,6 +144,30 @@ describe("root document", () => {
 		const html = render();
 		expect(html).toContain("Dra. Bia");
 		expect(html).not.toContain('href="/login"');
+	});
+
+	it("offers a doctor the doctor navigation and the profile menu", () => {
+		state.user = { name: "Dra. Bia", email: "bia@ktb.test", patientOnly: false };
+		state.plugins = [{ landingNav: [{ to: "/consultations", label: "Consultations" }] }];
+		const html = render();
+		expect(html).toContain('href="/consultations"');
+		expect(html).toContain('href="/consultations/new"');
+		expect(html).toContain("Switch doctor");
+		expect(html).toContain("Secretaries");
+		expect(html).toContain("Patient portal");
+		expect(html).not.toContain("My consultations");
+	});
+
+	it("narrows a patient account to the portal: no doctor navigation or profiles", () => {
+		state.user = { name: "Ana", email: "ana@ktb.test", patientOnly: true };
+		state.plugins = [{ landingNav: [{ to: "/consultations", label: "Consultations" }] }];
+		const html = render();
+		expect(html).toContain('href="/portal"');
+		expect(html).toContain("My consultations");
+		expect(html).not.toContain('href="/consultations"');
+		expect(html).not.toContain('href="/consultations/new"');
+		expect(html).not.toContain("Switch doctor");
+		expect(html).not.toContain("Secretaries");
 	});
 
 	it("falls back to a placeholder initial when the user has no name", () => {

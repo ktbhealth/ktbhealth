@@ -1,7 +1,7 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, getTableColumns } from "drizzle-orm";
 import { UserCogIcon } from "lucide-react";
 
 import { user as users } from "@ktb/auth/schema";
@@ -15,8 +15,12 @@ import { Query } from "@effect-server-utils/cqrs";
 import { UsersQueries } from "./api.ts";
 import { UsersPlatformPage } from "./platform-page.tsx";
 
-/** Repo-level user row: auth user fields plus aggregate counts. */
-export type UserRow = typeof users.$inferSelect & {
+// The console listing never carries the CPF — it is only needed for the
+// patient-record match, not for platform operations.
+const { cpf: _cpf, ...listedUserColumns } = getTableColumns(users);
+
+/** Repo-level user row: auth user fields (minus CPF) plus aggregate counts. */
+export type UserRow = Omit<typeof users.$inferSelect, "cpf"> & {
 	readonly patientCount: number;
 	readonly consultationCount: number;
 };
@@ -33,7 +37,7 @@ export interface AdminUserRow extends UserRow {
  */
 export async function listAllUsers(db: DbClient): Promise<UserRow[]> {
 	const [rows, patientCounts, consultationCounts] = await Promise.all([
-		db.select().from(users).orderBy(desc(users.createdAt)),
+		db.select(listedUserColumns).from(users).orderBy(desc(users.createdAt)),
 		db.select({ ownerId: patients.ownerId, n: count() }).from(patients).groupBy(patients.ownerId),
 		db
 			.select({ userId: consultations.userId, n: count() })

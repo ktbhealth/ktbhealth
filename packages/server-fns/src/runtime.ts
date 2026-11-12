@@ -58,9 +58,10 @@ export interface ServerRuntime {
 	/** Run an Effect program as an authenticated user (Principal + Authz +
 	 * resolved Tenant bound). `tenantSelector` is the opaque request
 	 * selector forwarded to the app's TenantResolver — omit for the
-	 * resolver's default path. */
+	 * resolver's default path. `user.actorId` marks delegated access:
+	 * pass the `ActingUser` from `getDoctorUser`/`ensureDoctorUser`. */
 	readonly runAs: <A, E>(
-		user: { readonly id: string; readonly email?: string },
+		user: { readonly id: string; readonly email?: string; readonly actorId?: string },
 		effect: Effect.Effect<A, E, unknown>,
 		tenantSelector?: TenantSelector | null,
 	) => Promise<A>;
@@ -109,7 +110,7 @@ export const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
 
 /** `runAs` against the registered runtime. */
 export const runAs = <A, E>(
-	user: { readonly id: string; readonly email?: string },
+	user: { readonly id: string; readonly email?: string; readonly actorId?: string },
 	effect: Effect.Effect<A, E, unknown>,
 	tenantSelector?: TenantSelector | null,
 ): Promise<A> => getServerRuntime().runAs(user, effect, tenantSelector);

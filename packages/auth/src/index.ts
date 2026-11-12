@@ -20,3 +20,17 @@ export class Auth extends Context.Service<
 		getSession(headers: Headers): Promise<Session | null>;
 	}
 >()("@ktb/auth/Auth") {}
+
+export {
+	actingAs,
+	DOCTOR_PROFILE_COOKIE,
+	DoctorProfiles,
+	PATIENT_PROFILE_COOKIE,
+	PatientProfiles,
+	profileIdFromHeaders,
+	resolveDoctorProfile,
+	resolvePatientProfile,
+	type ActingUser,
+	type DoctorProfile,
+	type PatientProfile,
+} from "./profiles.ts";

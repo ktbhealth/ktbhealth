@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const localeFn = vi.hoisted(() => vi.fn(async () => "pt-BR"));
 
 vi.mock("../fns.ts", () => ({ localeFn }));
-vi.mock("../guard.ts", () => ({ requireSession: vi.fn() }));
+vi.mock("../guard.ts", () => ({ requireDoctor: vi.fn() }));
 vi.mock("../apis.ts", () => ({ newPatientApi: {} }));
 vi.mock("../views/index.ts", () => ({ PatientFormPage: () => null }));
 vi.mock("@tanstack/react-router", async (importOriginal) => {

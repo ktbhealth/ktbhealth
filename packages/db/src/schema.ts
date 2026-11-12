@@ -6,3 +6,6 @@ export * from "@ktb/groups/schema";
 export * from "@ktb/notifications/schema";
 export * from "@ktb/auth/schema";
 export * from "@ktb/rbac/schema";
+export * from "@ktb/doctors/schema";
+export * from "@ktb/secretaries/schema";
+export * from "@ktb/patient-access/schema";

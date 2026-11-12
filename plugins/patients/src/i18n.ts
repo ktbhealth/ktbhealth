@@ -100,6 +100,7 @@ export interface PatientMessages {
 	};
 	readonly detail: {
 		readonly editRecord: string;
+		readonly portalAccess: string;
 		readonly newConsultation: string;
 		readonly incomplete: string;
 		readonly completeRecord: string;
@@ -262,6 +263,7 @@ const en: PatientMessages = {
 	},
 	detail: {
 		editRecord: "Edit record",
+		portalAccess: "Portal access",
 		newConsultation: "New consultation",
 		incomplete: "This record is incomplete: birth date is missing.",
 		completeRecord: "Complete the record",
@@ -426,6 +428,7 @@ const ptBR: PatientMessages = {
 	},
 	detail: {
 		editRecord: "Editar cadastro",
+		portalAccess: "Acesso ao portal",
 		newConsultation: "Nova consulta",
 		incomplete: "Este cadastro está incompleto: falta a data de nascimento.",
 		completeRecord: "Completar o cadastro",
@@ -592,6 +595,7 @@ const es: PatientMessages = {
 	},
 	detail: {
 		editRecord: "Editar registro",
+		portalAccess: "Acceso al portal",
 		newConsultation: "Nueva consulta",
 		incomplete: "Este registro está incompleto: falta la fecha de nacimiento.",
 		completeRecord: "Completar el registro",

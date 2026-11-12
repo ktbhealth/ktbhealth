@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
@@ -15,14 +15,18 @@ import { Label } from "@ktbhealth/ui/components/label";
 import { Spinner } from "@ktbhealth/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@ktbhealth/ui/components/tabs";
 import { Turnstile } from "@ktbhealth/ui/components/turnstile";
+import { doctorContextFn, ensureDoctorProfileFn } from "@ktb/doctors/fns";
+import { emailEnabledFn } from "#/lib/fns.ts";
 import * as m from "#/paraglide/messages.js";
 
 export const Route = createFileRoute("/login")({
 	head: () => ({ meta: [{ title: m.login_meta_title() }] }),
+	loader: async () => ({ emailEnabled: await emailEnabledFn() }),
 	component: SignInPage,
 });
 
 function SignInPage() {
+	const { emailEnabled } = Route.useLoaderData();
 	const [mode, setMode] = useState<"in" | "up">("in");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
@@ -48,16 +52,32 @@ function SignInPage() {
 				? await authClient.signUp.email({
 						...credentials,
 						name: signUpName,
+						// Where the emailed verification link lands.
+						callbackURL: "/verify-email",
 					} as Parameters<typeof authClient.signUp.email>[0])
 				: await authClient.signIn.email(
 						credentials as Parameters<typeof authClient.signIn.email>[0],
 					);
-		setPending(false);
 		if (res.error) {
+			setPending(false);
 			setError(res.error.message ?? m.login_error_fallback());
 			return;
 		}
-		window.location.assign("/");
+		// Signed in: stay pending until the browser navigates away.
+		if (mode === "up") {
+			// This is the doctor sign-up: the new account gets its own doctor
+			// profile, then goes through the verification step — but only
+			// when this deployment can actually send the email.
+			await ensureDoctorProfileFn();
+			window.location.assign(emailEnabled ? "/verify-email" : "/");
+			return;
+		}
+		// Straight in when there is exactly one doctor to act as, the
+		// chooser when there are several. An account with no doctor profile
+		// is a patient account: it only has the patient portal.
+		const context = await doctorContextFn();
+		const profiles = context?.profiles.length;
+		window.location.assign(profiles === 0 ? "/portal" : profiles === 1 ? "/" : "/doctors/select");
 	};
 
 	return (
@@ -135,6 +155,18 @@ function SignInPage() {
 									: m.login_submit_up()}
 						</Button>
 					</form>
+					<Link
+						to="/verify-email"
+						className="mt-4 block text-center text-sm text-muted-foreground transition hover:text-foreground"
+					>
+						{m.login_verify_link()}
+					</Link>
+					<Link
+						to="/portal/login"
+						className="mt-2 block text-center text-sm text-muted-foreground transition hover:text-foreground"
+					>
+						{m.login_patient_link()}
+					</Link>
 				</CardContent>
 			</Card>
 		</div>

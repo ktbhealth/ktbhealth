@@ -22,6 +22,15 @@ export default Alchemy.Stack(
 		const audioBucket = yield* Cloudflare.R2.Bucket("audio");
 		const transcriptionQueue = yield* Cloudflare.Queues.Queue("transcription");
 
+		// Outbound email (Cloudflare Email Service): the `send_email`
+		// binding is restricted to the configured sender. EMAIL_FROM's
+		// domain must be onboarded for sending in the Cloudflare account;
+		// without EMAIL_FROM the worker runs with email disabled.
+		const emailFrom = process.env.EMAIL_FROM;
+		const email = emailFrom
+			? yield* Cloudflare.Email.SendEmail("EMAIL", { allowedSenderAddresses: [emailFrom] })
+			: undefined;
+
 		const site = yield* deployWorker({
 			name: "web",
 			outdir: "dist/client",
@@ -38,6 +47,7 @@ export default Alchemy.Stack(
 				// Public base URL better-auth builds callback/reset links
 				// from — config, not a secret (cuora ref: better-auth-url).
 				...(process.env.BETTER_AUTH_URL ? { BETTER_AUTH_URL: process.env.BETTER_AUTH_URL } : {}),
+				...(email && emailFrom ? { EMAIL: email, EMAIL_FROM: emailFrom } : {}),
 				...(process.env.TURNSTILE_SECRET_KEY
 					? { TURNSTILE_SECRET_KEY: Redacted.make(process.env.TURNSTILE_SECRET_KEY) }
 					: {}),

@@ -36,10 +36,16 @@ export { Authz, can };
  * `email` is the session email when the caller has one — env-allowlist
  * gates (e.g. @ktb/platform `PlatformAdmin.requireAdmin`) check it
  * against the bound principal rather than a caller-supplied argument.
+ *
+ * `actorId` is the signed-in user when it differs from `userId` — a
+ * secretary acting on a doctor's behalf: authorization and data scope
+ * follow `userId` (the doctor), audit trails record `actorId`. Absent
+ * means the principal acts for themselves.
  */
 export const Principal = Context.Reference<{
 	readonly userId: string;
 	readonly email?: string;
+	readonly actorId?: string;
 } | null>("@ktb/authz/Principal", { defaultValue: () => null });
 
 /** Ownership rules for a principal. */

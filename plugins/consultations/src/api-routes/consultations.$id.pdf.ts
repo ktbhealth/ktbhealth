@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { recordSummary } from "@ktb/patients/record";
-import { getSessionUser, runAs } from "@ktb/server-fns";
+import { getDoctorUser, runAs } from "@ktb/server-fns";
 import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
 /**
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/consultations/$id/pdf")({
 	server: {
 		handlers: {
 			GET: async ({ params }) => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				const id = Number.parseInt(params.id, 10);
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
@@ -49,7 +49,7 @@ export const Route = createFileRoute("/api/consultations/$id/pdf")({
 					createdAt: detail.createdAt,
 					patientName: detail.patientName,
 					patientDetails: patient ? recordSummary(patient) : null,
-					doctorName: user.name,
+					doctorName: user.doctor.name,
 					consentAt: detail.consentAt,
 					anamnesis: detail.anamnesis,
 				});

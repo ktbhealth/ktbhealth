@@ -5,7 +5,9 @@ import * as Effect from "effect/Effect";
 import { Schema } from "effect";
 
 import {
-	ensureSessionUser,
+	ensureDoctorUser,
+	getDoctorAccess,
+	getDoctorUser,
 	getLocale,
 	getServerRuntime,
 	getSessionUser,
@@ -54,6 +56,9 @@ const decodePatientUpdate = (input: unknown) => {
 /** Session user for route guards — null when anonymous. */
 export const sessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
+/** Doctor-side standing of the request — drives the route guard. */
+export const doctorAccessFn = createServerFn({ method: "GET" }).handler(() => getDoctorAccess());
+
 /** Active UI locale for the current request — route loaders attach it
  * to their data so plugin views never import the host's i18n runtime. */
 export const localeFn = createServerFn({ method: "GET" }).handler(() => getLocale());
@@ -63,7 +68,7 @@ export const localeFn = createServerFn({ method: "GET" }).handler(() => getLocal
 // ownership via the bound Principal — no handler-level requireCan.
 
 export const listPatientsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
+	const user = await getDoctorUser();
 	if (!user) return [];
 	return runAs(
 		user,
@@ -78,7 +83,7 @@ export const listPatientsFn = createServerFn({ method: "GET" }).handler(async ()
 export const patientDeletionImpactFn = createServerFn({ method: "GET" })
 	.validator((id: number) => decodeNumber(id))
 	.handler(async ({ data: id }) => {
-		const user = await getSessionUser();
+		const user = await getDoctorUser();
 		if (!user) return null;
 		return runAs(
 			user,
@@ -107,7 +112,7 @@ export const patientDeletionImpactFn = createServerFn({ method: "GET" })
 export const deletePatientFn = createServerFn({ method: "POST" })
 	.validator((id: number) => decodeNumber(id))
 	.handler(async ({ data: id }) => {
-		const user = await ensureSessionUser();
+		const user = await ensureDoctorUser();
 		const result = await runAs(
 			user,
 			Effect.scoped(
@@ -132,7 +137,7 @@ export const deletePatientFn = createServerFn({ method: "POST" })
 export const getPatientFn = createServerFn({ method: "GET" })
 	.validator((id: number) => decodeNumber(id))
 	.handler(async ({ data: id }) => {
-		const user = await getSessionUser();
+		const user = await getDoctorUser();
 		if (!user) return null;
 		// Someone else's patient fails Forbidden inside the service → null (404).
 		return runAs(
@@ -150,7 +155,7 @@ export const getPatientFn = createServerFn({ method: "GET" })
 export const createPatientFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => decodePatientDraft(input))
 	.handler(async ({ data }) => {
-		const user = await ensureSessionUser();
+		const user = await ensureDoctorUser();
 		const result = validatePatient(data);
 		if (!result.ok) return { ok: false as const, errors: result.errors };
 		return runAs(
@@ -166,7 +171,7 @@ export const createPatientFn = createServerFn({ method: "POST" })
 export const updatePatientFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => decodePatientUpdate(input))
 	.handler(async ({ data: { id, ...draft } }) => {
-		const user = await ensureSessionUser();
+		const user = await ensureDoctorUser();
 		const result = validatePatient(draft);
 		if (!result.ok) return { ok: false as const, errors: result.errors };
 		return runAs(
@@ -188,7 +193,7 @@ export const updatePatientFn = createServerFn({ method: "POST" })
 export const patientConsultationsFn = createServerFn({ method: "GET" })
 	.validator((patientId: number) => decodeNumber(patientId))
 	.handler(async ({ data: patientId }) => {
-		const user = await getSessionUser();
+		const user = await getDoctorUser();
 		if (!user) return [];
 		return runAs(
 			user,

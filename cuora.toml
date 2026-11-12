@@ -31,3 +31,7 @@ BETTER_AUTH_SECRET = "cuora://ktb/better-auth-secret"
 BETTER_AUTH_URL = "cuora://ktb/better-auth-url"
 TURNSTILE_SECRET_KEY = "cuora://ktb/turnstile-secret-key"
 VITE_TURNSTILE_SITE_KEY = "cuora://ktb/turnstile-site-key"
+# Outbound email sender (Cloudflare Email Service). Uncomment after
+# `cuora put` and after onboarding the domain for sending in Cloudflare —
+# until then the deploy runs with email disabled.
+# EMAIL_FROM = "cuora://ktb/email-from"

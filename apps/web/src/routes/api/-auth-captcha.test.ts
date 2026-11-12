@@ -52,6 +52,19 @@ describe("auth route captcha", () => {
 		expect(res.status).not.toBe(403);
 	});
 
+	it("rejects verification-email resends without a valid captcha token", async () => {
+		const h = handlersOf(Route);
+		const res = await h.POST!({
+			request: new Request("http://localhost:3000/api/auth/send-verification-email", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ email: "a@b.com" }),
+			}),
+		} as never);
+		expect(res.status).toBe(403);
+		expect(((await res.json()) as { code: string }).code).toBe("CAPTCHA_FAILED");
+	});
+
 	it("skips captcha for non-credential paths", async () => {
 		const h = handlersOf(Route);
 		const res = await h.POST!({

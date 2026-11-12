@@ -100,6 +100,10 @@ const NAV_ACTIVE = "bg-muted text-foreground";
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const user = Route.useLoaderData();
+	// A patient account (no doctor profile to act as) only ever sees the
+	// patient portal: no doctor navigation, nothing that creates or
+	// switches doctor profiles.
+	const patientOnly = user?.patientOnly === true;
 	const pathname = useLocation({ select: (l) => l.pathname });
 	// /platform is a system console, not an app page — it owns the whole
 	// viewport (own chrome) so the marketing header/footer and the
@@ -126,24 +130,36 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 										<span className="text-lg font-bold tracking-tight">KTB Health</span>
 									</Link>
 									<div className="flex items-center gap-1.5">
-										{plugins
-											.flatMap((p) => p.landingNav ?? [])
-											.map((item) => (
+										{patientOnly ? (
+											<Link
+												to="/portal"
+												className={NAV_LINK}
+												activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+											>
+												{m.nav_my_consultations()}
+											</Link>
+										) : (
+											<>
+												{plugins
+													.flatMap((p) => p.landingNav ?? [])
+													.map((item) => (
+														<Link
+															key={item.to}
+															to={item.to}
+															className={NAV_LINK}
+															activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+														>
+															{pluginNavLabel(item.to, item.label)}
+														</Link>
+													))}
 												<Link
-													key={item.to}
-													to={item.to}
-													className={NAV_LINK}
-													activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+													to="/consultations/new"
+													className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
 												>
-													{pluginNavLabel(item.to, item.label)}
+													{m.nav_new_consultation()}
 												</Link>
-											))}
-										<Link
-											to="/consultations/new"
-											className="ml-1 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/80"
-										>
-											{m.nav_new_consultation()}
-										</Link>
+											</>
+										)}
 										<span className="mx-1.5 h-5 w-px bg-border" />
 										<LanguageToggle
 											locales={locales}
@@ -176,6 +192,28 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 																{user?.email}
 															</span>
 														</DropdownMenuLabel>
+													</DropdownMenuGroup>
+													<DropdownMenuSeparator />
+													<DropdownMenuGroup>
+														{/* Full navigations, like sign-out: the target pages
+														    decide what this account may see. */}
+														{patientOnly ? null : (
+															<>
+																<DropdownMenuItem
+																	onClick={() => window.location.assign("/doctors/select")}
+																>
+																	{m.nav_switch_doctor()}
+																</DropdownMenuItem>
+																<DropdownMenuItem
+																	onClick={() => window.location.assign("/secretaries")}
+																>
+																	{m.nav_secretaries()}
+																</DropdownMenuItem>
+															</>
+														)}
+														<DropdownMenuItem onClick={() => window.location.assign("/portal")}>
+															{patientOnly ? m.nav_my_consultations() : m.nav_patient_portal()}
+														</DropdownMenuItem>
 													</DropdownMenuGroup>
 													<DropdownMenuSeparator />
 													<DropdownMenuItem

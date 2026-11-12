@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Effect } from "effect";
 
 import { Consultations } from "@ktb/consultations";
-import { getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
+import { getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * POST /api/consultations/:id/audio — store the session recording in R2
@@ -55,7 +55,7 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 	server: {
 		handlers: {
 			POST: async ({ request, params }) => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				const id = Number.parseInt(params.id, 10);
 				if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 				if (!Number.isFinite(id)) return Response.json({ error: "not found" }, { status: 404 });
@@ -144,7 +144,7 @@ export const Route = createFileRoute("/api/consultations/$id/audio")({
 				});
 			},
 			GET: async ({ params }) => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				const id = Number.parseInt(params.id, 10);
 				if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 				if (!Number.isFinite(id)) return Response.json({ error: "not found" }, { status: 404 });

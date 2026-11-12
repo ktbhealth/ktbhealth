@@ -3,8 +3,9 @@ import { auth, CaptchaLive } from "#/lib/platform.ts";
 import { Captcha } from "@ktb/captcha";
 import { Effect } from "effect";
 
-/** better-auth paths that accept raw credentials and need a bot check. */
-const CREDENTIAL_PATHS = ["/sign-in/email", "/sign-up/email"];
+/** better-auth paths that need a bot check: they accept raw credentials
+ * or make the server send email to a caller-supplied address. */
+const CREDENTIAL_PATHS = ["/sign-in/email", "/sign-up/email", "/send-verification-email"];
 
 /** better-auth catch-all: /api/auth/* (sign-in, sign-up, session, sign-out). */
 export const Route = createFileRoute("/api/auth/$")({

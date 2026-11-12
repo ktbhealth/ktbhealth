@@ -4,7 +4,7 @@ import { Effect } from "effect";
 import { Consultations } from "@ktb/consultations";
 import { isExportFormat } from "@ktb/interop";
 import { Patients } from "@ktb/patients";
-import { getSessionUser, getServerRuntime, runAs } from "@ktb/server-fns";
+import { getDoctorUser, getServerRuntime, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/patients/:id/export?format=fhir-r4|openehr — owner-only
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/patients/$id/export")({
 				if (!isExportFormat(format))
 					return Response.json({ error: "format must be fhir-r4 or openehr" }, { status: 400 });
 
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				const id = Number.parseInt(params.id, 10);
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
@@ -62,7 +62,11 @@ export const Route = createFileRoute("/api/patients/$id/export")({
 					consultations: [...record.consultations].sort(
 						(a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
 					),
-					practitioner: { id: user.id, name: user.name ?? user.email, email: user.email },
+					practitioner: {
+						id: user.id,
+						name: user.doctor.name ?? user.doctor.email,
+						email: user.doctor.email,
+					},
 					exportedAt: new Date(),
 				});
 				return new Response(body, {

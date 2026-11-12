@@ -7,6 +7,7 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 
 import { auth } from "#/lib/platform.ts";
+import { signUpDoctor } from "#/test/doctor.ts";
 import { Route as BotsRoute } from "./bots.ts";
 
 // No RECALL_API_KEY → the Bot driver selects the stub provider. Outside dev
@@ -18,9 +19,7 @@ const handlersOf = (r: unknown) =>
 
 describe("bots route with the stub provider outside dev", () => {
 	beforeAll(async () => {
-		await auth.api.signUpEmail({
-			body: { email: "stubguard@x.com", password: "senha-forte-123", name: "Dra Stub" },
-		});
+		await signUpDoctor({ email: "stubguard@x.com", password: "senha-forte-123", name: "Dra Stub" });
 		const res = await auth.handler(
 			new Request("http://localhost:3000/api/auth/sign-in/email", {
 				method: "POST",

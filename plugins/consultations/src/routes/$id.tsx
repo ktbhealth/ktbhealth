@@ -2,12 +2,12 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { ConsultationDetailPage } from "../views/index.ts";
 import { getConsultationFn, localeFn, patientHistoryFn } from "../fns.ts";
-import { requireSession } from "../guard.ts";
+import { requireDoctor } from "../guard.ts";
 import { consultationDetailApi } from "../apis.ts";
 
 export const Route = createFileRoute("/consultations/$id")({
 	staleTime: 30_000,
-	beforeLoad: () => requireSession(),
+	beforeLoad: () => requireDoctor(),
 	loader: async ({ params }) => {
 		const c = await getConsultationFn({ data: Number(params.id) });
 		if (!c) throw notFound();
