@@ -15,14 +15,7 @@
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import Database from "better-sqlite3";
-import {
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,8 +31,7 @@ const DOMAINS = [
 		id: "patients",
 		title: "Patients",
 		owner: "`plugins/patients`",
-		description:
-			"Patient register — the clinical-administrative record for each person cared for.",
+		description: "Patient register — the clinical-administrative record for each person cared for.",
 		tables: ["patients"],
 	},
 	{
@@ -54,8 +46,7 @@ const DOMAINS = [
 		id: "groups",
 		title: "Groups",
 		owner: "`plugins/groups`",
-		description:
-			"Generic groups entity and memberships — clinics, teams, classes.",
+		description: "Generic groups entity and memberships — clinics, teams, classes.",
 		tables: ["group_members", "groups"],
 	},
 	{
@@ -69,24 +60,21 @@ const DOMAINS = [
 		id: "audit",
 		title: "Audit log",
 		owner: "`plugins/audit`",
-		description:
-			"Admin audit trail — who changed what, when, on which target.",
+		description: "Admin audit trail — who changed what, when, on which target.",
 		tables: ["admin_audit"],
 	},
 	{
 		id: "pages",
 		title: "Custom pages",
 		owner: "`plugins/pages`",
-		description:
-			"Plugin-defined custom pages and their navigation placement.",
+		description: "Plugin-defined custom pages and their navigation placement.",
 		tables: ["custom_pages"],
 	},
 	{
 		id: "auth",
 		title: "Auth",
 		owner: "`packages/db/src/auth.ts` (better-auth)",
-		description:
-			"better-auth core tables: users, sessions, OAuth accounts, verification tokens.",
+		description: "better-auth core tables: users, sessions, OAuth accounts, verification tokens.",
 		tables: ["account", "session", "user", "verification"],
 	},
 	{
@@ -95,37 +83,25 @@ const DOMAINS = [
 		owner: "`packages/rbac` + `plugins/rbac`",
 		description:
 			"Roles, role-permission grants and subject (user/group) role assignments, with an epoch for cache invalidation.",
-		tables: [
-			"permission_epoch",
-			"role_permissions",
-			"roles",
-			"subject_roles",
-		],
+		tables: ["permission_epoch", "role_permissions", "roles", "subject_roles"],
 	},
 	{
 		id: "platform",
 		title: "Platform",
 		owner: "`packages/db/src/plugin-state.ts`",
-		description:
-			"Kernel-owned state: per-plugin persisted configuration.",
+		description: "Kernel-owned state: per-plugin persisted configuration.",
 		tables: ["plugin_state"],
 	},
 ];
 
-const TABLE_DOMAIN = new Map(
-	DOMAINS.flatMap((d) => d.tables.map((t) => [t, d.id])),
-);
+const TABLE_DOMAIN = new Map(DOMAINS.flatMap((d) => d.tables.map((t) => [t, d.id])));
 
 const args = process.argv.slice(2);
 const check = args.includes("--check");
 const outFlag = args.indexOf("--out");
 const outOverride = outFlag === -1 ? null : resolve(args[outFlag + 1]);
 
-const tblsCandidates = [
-	process.env.TBLS_BIN,
-	"tbls",
-	join(homedir(), "go/bin/tbls"),
-];
+const tblsCandidates = [process.env.TBLS_BIN, "tbls", join(homedir(), "go/bin/tbls")];
 let tbls = null;
 for (const candidate of tblsCandidates) {
 	if (!candidate) continue;
@@ -186,11 +162,9 @@ if (unknown.length || missing.length) {
 const domainMermaid = {};
 for (const d of DOMAINS) {
 	const f = join(tmp, `domain-${d.id}.mmd`);
-	execFileSync(
-		tbls,
-		["out", dsn, "-t", "mermaid", "--include", d.tables.join(","), "-o", f],
-		{ stdio: "inherit" },
-	);
+	execFileSync(tbls, ["out", dsn, "-t", "mermaid", "--include", d.tables.join(","), "-o", f], {
+		stdio: "inherit",
+	});
 	domainMermaid[d.id] = readFileSync(f, "utf8").trim();
 }
 
@@ -214,11 +188,7 @@ function renderTarget(root) {
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(
 			join(dir, "meta.json"),
-			JSON.stringify(
-				{ title: d.title, pages: ["index", ...d.tables] },
-				null,
-				"\t",
-			) + "\n",
+			JSON.stringify({ title: d.title, pages: ["index", ...d.tables] }, null, "\t") + "\n",
 		);
 		writeFileSync(join(dir, "schema.mmd"), domainMermaid[d.id] + "\n");
 		writeFileSync(
@@ -232,9 +202,7 @@ function renderTarget(root) {
 
 		for (const table of d.tables) {
 			const src = readFileSync(join(stage, `${table}.md`), "utf8");
-			const title =
-				src.match(/^#\s+(.+)$/m)?.[1]?.trim() ??
-				table.replaceAll("_", " ");
+			const title = src.match(/^#\s+(.+)$/m)?.[1]?.trim() ?? table.replaceAll("_", " ");
 			// Drop the per-table ER image (ugly tbls SVG); column docs remain.
 			const body = src
 				.replace(/^#\s+.+\n/, "")
@@ -259,9 +227,7 @@ function renderTarget(root) {
 //    --out DIR uses the same semantics: the dir that will contain database/.
 const targets = outOverride
 	? [outOverride]
-	: LOCALES.map((l) =>
-			join(DOCS_REPO, "content/docs", l, "developers/plugins/reference"),
-		);
+	: LOCALES.map((l) => join(DOCS_REPO, "content/docs", l, "developers/plugins/reference"));
 
 function collectFiles(dir, prefix = "") {
 	const out = new Map();
@@ -269,8 +235,7 @@ function collectFiles(dir, prefix = "") {
 	for (const e of readdirSync(dir, { withFileTypes: true })) {
 		const rel = prefix ? `${prefix}/${e.name}` : e.name;
 		if (e.isDirectory()) {
-			for (const [k, v] of collectFiles(join(dir, e.name), rel))
-				out.set(k, v);
+			for (const [k, v] of collectFiles(join(dir, e.name), rel)) out.set(k, v);
 		} else out.set(rel, readFileSync(join(dir, e.name), "utf8"));
 	}
 	return out;
@@ -293,8 +258,7 @@ if (check) {
 		for (const [rel, content] of expected) {
 			const act = join(checkBase, rel);
 			if (!existsSync(act)) diffs.push(`missing: ${rel}`);
-			else if (readFileSync(act, "utf8") !== content)
-				diffs.push(`content differs: ${rel}`);
+			else if (readFileSync(act, "utf8") !== content) diffs.push(`content differs: ${rel}`);
 		}
 		for (const rel of actual.keys()) {
 			if (!expected.has(rel)) diffs.push(`stale (not generated): ${rel}`);
@@ -316,16 +280,11 @@ if (check) {
 		mkdirSync(genDir, { recursive: true });
 		// wipe generated content, keep hand-written database/index.mdx
 		for (const e of readdirSync(genDir, { withFileTypes: true })) {
-			if (e.name !== "index.mdx")
-				rmSync(join(genDir, e.name), { recursive: true, force: true });
+			if (e.name !== "index.mdx") rmSync(join(genDir, e.name), { recursive: true, force: true });
 		}
 		const src = join(renderRoot, "database");
 		for (const e of readdirSync(src, { withFileTypes: true })) {
-			execFileSync("cp", [
-				"-r",
-				join(src, e.name),
-				join(genDir, e.name),
-			]);
+			execFileSync("cp", ["-r", join(src, e.name), join(genDir, e.name)]);
 		}
 		console.log(`wrote database docs → ${genDir}`);
 	}
