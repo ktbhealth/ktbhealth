@@ -279,7 +279,7 @@ const ptBR: AudienceMessages = {
 		"O áudio só é capturado após consentimento explícito do paciente e é processado para gerar o rascunho. A transcrição pode rodar local ou no servidor, sempre sob o seu controle; você também pode apontar para o seu próprio modelo (inclusive um local via Ollama) para manter tudo no seu ambiente.",
 	faq1_q: "Como o áudio da consulta é tratado?",
 	faq2_a:
-		"Não. O KTB Health gera um rascunho estruturado a partir do que foi dito na consulta. Cada campo mostra a confiança e as frases de origem, e a ficha final é sempre revisada e aprovada por um médico. O KTB é uma ferramenta, não um decisor: o médico tem decisão total.",
+		"Não. A KTB Health gera um rascunho estruturado a partir do que foi dito na consulta. Cada campo mostra a confiança e as frases de origem, e a ficha final é sempre revisada e aprovada por um médico. A KTB é uma ferramenta, não um decisor: o médico tem decisão total.",
 	faq2_q: "A IA diagnostica ou prescreve?",
 	faq3_a:
 		"Sim. Começamos pela telemedicina porque a captura remota é mais simples: o bot entra em chamadas do Meet, Zoom, Teams e WhatsApp Web, ou você captura o áudio da aba do navegador diretamente. O atendimento presencial é parte central da visão — estamos estendendo a mesma captura ambiente para o consultório.",
@@ -307,7 +307,7 @@ const ptBR: AudienceMessages = {
 	feat_review_i3: "PDF pronto para exportar",
 	feat_review_title: "Revisão e aprovação",
 	feat_trans_desc:
-		"O KTB capta o áudio da consulta, armazena, transcreve e processa tudo em um rascunho estruturado. O médico usa como ferramenta — cada campo rastreável ao que foi dito.",
+		"A KTB capta o áudio da consulta, armazena, transcreve e processa tudo em um rascunho estruturado. O médico usa como ferramenta — cada campo rastreável ao que foi dito.",
 	feat_trans_title: "Scribe ambiente",
 	foryou_business_p1:
 		"Sem diagnóstico, prescrição ou decisão clínica, em nenhuma camada do produto.",
