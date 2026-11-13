@@ -57,6 +57,15 @@ overrides:
       processors: [service-graphs, span-metrics]
 
 # --- 7-day retention (added vs upstream default) ---
-compactor:
+# Tempo 3.x removed the standalone `compactor` block: retention jobs are
+# scheduled by backend_scheduler and executed by backend_worker.
+# block_retention must be set in BOTH — the worker's value wins.
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: 168h # 7 days
+
+backend_worker:
   compaction:
     block_retention: 168h # 7 days
