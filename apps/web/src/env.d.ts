@@ -24,6 +24,22 @@ declare namespace Cloudflare {
 		KTB_TELEMETRY_TRACES_SAMPLE_RATE?: string;
 		/** Client-event sample ratio 0..1 (default 1). */
 		KTB_TELEMETRY_CLIENT_SAMPLE_RATE?: string;
+		/** Per-signal OTLP endpoint overrides (full /v1/<signal> URL). */
+		OTEL_EXPORTER_OTLP_LOGS_ENDPOINT?: string;
+		OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?: string;
+		OTEL_EXPORTER_OTLP_METRICS_ENDPOINT?: string;
+		/** "gzip" enables OTLP request compression. */
+		OTEL_EXPORTER_OTLP_COMPRESSION?: string;
+		/** Extra OTLP resource attributes, k=v,k2=v2. */
+		OTEL_RESOURCE_ATTRIBUTES?: string;
+		/** OTLP export interval / batch / shutdown tuning (ms, counts). */
+		KTB_TELEMETRY_EXPORT_INTERVAL_MS?: string;
+		KTB_TELEMETRY_MAX_BATCH_SIZE?: string;
+		KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS?: string;
+		/** "0"/"false" disables browser-event ingest. */
+		KTB_TELEMETRY_CLIENT?: string;
+		/** Minimum Effect log level (Info/Warning/…). */
+		KTB_LOG_LEVEL?: string;
 		/** "1" disables all telemetry export. */
 		OTEL_SDK_DISABLED?: string;
 		/** Bearer token guarding GET /api/metrics (secret). */

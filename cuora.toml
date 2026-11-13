@@ -31,3 +31,8 @@ BETTER_AUTH_SECRET = "cuora://ktb/better-auth-secret"
 BETTER_AUTH_URL = "cuora://ktb/better-auth-url"
 TURNSTILE_SECRET_KEY = "cuora://ktb/turnstile-secret-key"
 VITE_TURNSTILE_SITE_KEY = "cuora://ktb/turnstile-site-key"
+# Observability rollout (T-099): uncomment AFTER `cuora put` — `cuora run`
+# fails when a declared ref doesn't resolve. Non-secret OTLP config
+# (endpoint, service name, sample rates, KTB_*) is plain env, not cuora.
+# OTEL_EXPORTER_OTLP_HEADERS = "cuora://ktb/otel-exporter-otlp-headers"
+# METRICS_SCRAPE_TOKEN = "cuora://ktb/metrics-scrape-token"

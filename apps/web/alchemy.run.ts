@@ -94,6 +94,26 @@ export default Alchemy.Stack(
 				...(process.env.METRICS_SCRAPE_TOKEN
 					? { METRICS_SCRAPE_TOKEN: Redacted.make(process.env.METRICS_SCRAPE_TOKEN) }
 					: {}),
+				// Remaining ObservabilityEnv knobs — all plain config. Per-
+				// signal endpoints matter because the TLS guard drops remote
+				// http:// URLs; compression/resource-attributes/tuning vars
+				// are optional but must be bindable to reach the worker.
+				...Object.fromEntries(
+					[
+						"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+						"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+						"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+						"OTEL_EXPORTER_OTLP_COMPRESSION",
+						"OTEL_RESOURCE_ATTRIBUTES",
+						"KTB_TELEMETRY_EXPORT_INTERVAL_MS",
+						"KTB_TELEMETRY_MAX_BATCH_SIZE",
+						"KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS",
+						"KTB_TELEMETRY_CLIENT",
+						"KTB_LOG_LEVEL",
+					]
+						.filter((k) => process.env[k])
+						.map((k) => [k, process.env[k] as string]),
+				),
 			},
 			// No nodejs_compat: worker-runtime code reads secrets only via
 			// bindings (.dev.vars in dev, these bindings in prod).
