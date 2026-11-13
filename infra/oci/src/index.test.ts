@@ -1,6 +1,7 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { HostSpec } from "@ktb/infra-ports";
@@ -248,5 +249,83 @@ describe("ociDeployHost", () => {
 	it("dies on invalid spec before invoking pulumi", async () => {
 		const deploy = makeOciDeployHost({ pulumiBin: join(dir, "pulumi"), programDir: dir });
 		await expect(run(deploy({ name: "bad" }))).rejects.toThrow(/invalid HostSpec/);
+	});
+
+	it("rejects with stderr when pulumi exits non-zero", async () => {
+		const fake = join(dir, "pulumi");
+		await writeFile(fake, "#!/bin/sh\necho 'boom-details' >&2\nexit 3\n");
+		await chmod(fake, 0o755);
+		const deploy = makeOciDeployHost({
+			pulumiBin: fake,
+			programDir: dir,
+			specFile,
+		});
+		await expect(run(deploy(baseSpec))).rejects.toThrow(/exited with code 3\nboom-details/);
+	});
+
+	it("falls back to stdout in the error when stderr is empty", async () => {
+		const fake = join(dir, "pulumi");
+		await writeFile(fake, "#!/bin/sh\necho '{\"partial\":true}'\nexit 2\n");
+		await chmod(fake, 0o755);
+		const deploy = makeOciDeployHost({
+			pulumiBin: fake,
+			programDir: dir,
+			specFile,
+		});
+		await expect(run(deploy(baseSpec))).rejects.toThrow(/exited with code 2\n\{"partial":true\}/);
+	});
+
+	it("rejects when the pulumi binary cannot be spawned", async () => {
+		const deploy = makeOciDeployHost({
+			pulumiBin: join(dir, "missing-pulumi"),
+			programDir: dir,
+			specFile,
+		});
+		await expect(run(deploy(baseSpec))).rejects.toThrow();
+	});
+
+	it("uses default programDir/stack/specFile when only pulumiBin is given", async () => {
+		const deploy = makeOciDeployHost({ pulumiBin: join(dir, "pulumi") });
+		const host = await run(deploy(baseSpec));
+		expect(host.id).toBe("ocid1.instance.oc1..fake");
+
+		// Default specFile is <programDir>/ktb.spec.json — the real
+		// infra/oci/pulumi dir (the file itself is gitignored).
+		const written = JSON.parse(
+			await readFile(fileURLToPath(new URL("../pulumi/ktb.spec.json", import.meta.url)), "utf8"),
+		) as Record<string, unknown>;
+		expect(written).toMatchObject({ name: "lgtm", shape: "VM.Standard.A1.Flex" });
+	});
+
+	it("falls back to `pulumi` on PATH when pulumiBin is unset", async () => {
+		const bindir = join(dir, "bin");
+		await mkdir(bindir);
+		const fake = join(bindir, "pulumi");
+		await writeFile(
+			fake,
+			[
+				"#!/bin/sh",
+				'if [ "$1" = "stack" ] && [ "$2" = "output" ]; then',
+				'  echo \'{"instanceId":"ocid1.instance.oc1..fake","publicIp":"203.0.113.10"}\'',
+				"fi",
+				"exit 0",
+				"",
+			].join("\n"),
+		);
+		await chmod(fake, 0o755);
+
+		const oldPath = process.env.PATH;
+		process.env.PATH = `${bindir}${oldPath === undefined ? "" : `:${oldPath}`}`;
+		try {
+			const deploy = makeOciDeployHost({ programDir: dir, specFile });
+			const host = await run(deploy(baseSpec));
+			expect(host.id).toBe("ocid1.instance.oc1..fake");
+		} finally {
+			if (oldPath === undefined) {
+				delete process.env.PATH;
+			} else {
+				process.env.PATH = oldPath;
+			}
+		}
 	});
 });

@@ -189,6 +189,42 @@ describe("readRequestBodyLimited", () => {
 		await expect(readRequestBodyLimited(request, 1_024)).resolves.toBeNull();
 	});
 
+	it("skips undefined chunks mid-stream", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(undefined as unknown as Uint8Array);
+				controller.enqueue(new TextEncoder().encode("ok"));
+				controller.close();
+			},
+		});
+		const request = new Request("http://localhost/api/telemetry", {
+			method: "POST",
+			body: stream,
+			// @ts-expect-error duplex is required for streamed request bodies in node
+			duplex: "half",
+		});
+		await expect(readRequestBodyLimited(request, 1_024)).resolves.toBe("ok");
+	});
+
+	it("still resolves null when cancelling an over-cap stream rejects", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode("x".repeat(60)));
+				controller.enqueue(new TextEncoder().encode("y".repeat(60)));
+			},
+			cancel() {
+				return Promise.reject(new Error("cancel failed"));
+			},
+		});
+		const request = new Request("http://localhost/api/telemetry", {
+			method: "POST",
+			body: stream,
+			// @ts-expect-error duplex is required for streamed request bodies in node
+			duplex: "half",
+		});
+		await expect(readRequestBodyLimited(request, 100)).resolves.toBeNull();
+	});
+
 	it("exposes the production cap sized above the max legal batch", () => {
 		expect(MAX_CLIENT_TELEMETRY_BODY_BYTES).toBeGreaterThanOrEqual(600 * 1024);
 	});

@@ -170,6 +170,7 @@ describe("ingestClientEvents field coverage", () => {
 						durationMs: 12,
 						message: "ok",
 						requestId: "r-1",
+						timestamp: Date.now(),
 						attributes: { route: "/patients" },
 					},
 					{

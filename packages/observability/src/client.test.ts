@@ -447,6 +447,23 @@ describe("fetch instrumentation", () => {
 		telemetry.dispose();
 	});
 
+	it("injects no trace headers when window.location is unavailable", async () => {
+		const browser = installBrowser();
+		const fetchMock = browser.win.fetch;
+		const telemetry = initClientTelemetry();
+		fetchMock.mockResolvedValue({ status: 200, ok: true });
+		(browser.win as { location?: unknown }).location = undefined;
+
+		await browser.win.fetch("http://localhost/api/x");
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		// No resolvable origin → treated as cross-origin: no injected
+		// traceparent/x-request-id.
+		const headers = new Headers(init?.headers);
+		expect(headers.get("traceparent")).toBeNull();
+		expect(headers.get("x-request-id")).toBeNull();
+		telemetry.dispose();
+	});
+
 	it("handles Request-like inputs, preserving method and merging headers", async () => {
 		const browser = installBrowser();
 		const fetchMock = browser.win.fetch;

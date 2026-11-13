@@ -1,5 +1,9 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { generatedDashboards } from "./dashboards/index";
+import { promInstant } from "./dashboards/shared";
 
 /**
  * Structural checks on the generated dashboard models — enough to catch
@@ -91,6 +95,35 @@ describe("generated dashboards", () => {
 			for (const variable of dashboard.templating?.list ?? []) {
 				expect(variable.name).toBeTruthy();
 			}
+		}
+	});
+});
+
+describe("shared query builders", () => {
+	it("promInstant builds an instant query and applies legendFormat when given", () => {
+		expect(promInstant("A", "up")).toBeTruthy();
+		expect(promInstant("A", "up", "{{instance}}")).toBeTruthy();
+	});
+});
+
+describe("gen-dashboards", () => {
+	it("emits provisioning JSON for every generated dashboard", async () => {
+		// Importing the module runs main() — writes the committed
+		// provisioning/dashboards/*.json files (deterministic output).
+		await import("./gen-dashboards.ts");
+		const outDir = join(
+			dirname(fileURLToPath(import.meta.url)),
+			"..",
+			"provisioning",
+			"dashboards",
+		);
+		for (const { uid } of generatedDashboards()) {
+			const json = JSON.parse(await readFile(join(outDir, `${uid}.json`), "utf8")) as {
+				schemaVersion?: number;
+				uid?: string;
+			};
+			expect(json.schemaVersion).toBe(39);
+			expect(json.uid).toBe(uid);
 		}
 	});
 });
