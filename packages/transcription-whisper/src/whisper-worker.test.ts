@@ -133,13 +133,14 @@ describe("whisper-worker", () => {
 		pipelineImpl = vi.fn(async (_t: string, _m: string, opts: Record<string, unknown>) => {
 			pipelineCalls.push({ model: _m, opts });
 			const cb = opts.progress_callback as (p: Record<string, unknown>) => void;
-			// per-file events are ignored — they sit at 100% and caused the
-			// stuck "downloading model 100%" status text
-			cb({ status: "progress", file: "a.onnx", progress: 100 });
-			cb({ status: "progress_total", progress: 40 });
-			cb({ status: "progress_total", progress: 40 });
-			cb({ status: "progress_total", progress: 100 });
-			cb({ status: "progress_total", progress: 100 });
+			// per-file events are ignored — without content-length (our CDN
+			// proxy strips it) they report a fake 100% and pinned the status
+			// text at "downloading model 100%" for the whole load
+			cb({ status: "progress", file: "a.onnx", progress: 100, loaded: 1 });
+			cb({ status: "progress_total", progress: 100, loaded: 10 * 1048576 });
+			cb({ status: "progress_total", progress: 100, loaded: 10 * 1048576 });
+			cb({ status: "progress_total", progress: 100, loaded: 20 * 1048576 });
+			cb({ status: "progress_total" });
 			cb({ status: "ready" });
 			return async () => ({ text: "ok" });
 		}) as never;
@@ -148,14 +149,8 @@ describe("whisper-worker", () => {
 		const messages = posted
 			.filter((m) => m.type === "progress")
 			.map((m) => m.message)
-			.filter((m) => String(m).startsWith("downloading") || String(m).startsWith("loading model ("));
-		// the pre-pipeline "loading model (wasm)…" is posted once before
-		// the callback runs; the 100% aggregate reuses the same text
-		expect(messages).toEqual([
-			"loading model (wasm)…",
-			"downloading model 40%",
-			"loading model (wasm)…",
-		]);
+			.filter((m) => String(m).startsWith("downloading model…"));
+		expect(messages).toEqual(["downloading model… 10 MB", "downloading model… 20 MB"]);
 	});
 
 	it("posts load-failed and error when all devices fail", async () => {

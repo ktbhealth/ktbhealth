@@ -113,19 +113,14 @@ async function doLoad() {
 					device: d as "webgpu" | "wasm",
 					// quantized weights: much smaller download
 					dtype: d === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8",
-					progress_callback: (p: { status?: string; progress?: number }) => {
-						if (cached || p.status !== "progress_total" || typeof p.progress !== "number")
-							return;
-						const pct = Math.round(p.progress);
-						// transformers.js emits per-file events alongside the
-						// aggregate `progress_total`; per-file events sit at
-						// 100% once their file lands, which pinned the status
-						// text at "downloading model 100%" for the whole load.
-						// At 100% the bytes are done — the remaining wait is
-						// wasm/session init — so switch back to a loading
-						// message instead of claiming the download is stuck.
-						const message =
-							pct >= 100 ? `loading model (${d})…` : `downloading model ${pct}%`;
+					progress_callback: (p: { status?: string; progress?: number; loaded?: number }) => {
+						if (cached || p.status !== "progress_total" || typeof p.loaded !== "number") return;
+						// The /api/cdn proxy strips content-length, so
+						// transformers.js can't compute a real percent — it
+						// reports 100 from the first chunk and the status text
+						// looked stuck at "downloading model 100%" for the
+						// whole load. Bytes loaded are real: show those.
+						const message = `downloading model… ${Math.round(p.loaded / 1048576)} MB`;
 						if (message !== lastProgressMessage) {
 							lastProgressMessage = message;
 							postMessage({ type: "progress", message });
