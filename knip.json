@@ -33,6 +33,10 @@
 			// deps are intentionally not declared on @ktb/infra-oci.
 			"ignore": ["pulumi/**"]
 		},
+		"packages/eval-dataset-local": {
+			// Runnable demo — `bun scripts/demo.ts`, not imported anywhere.
+			"entry": ["scripts/**/*.ts"]
+		},
 		"plugins/notifications": {
 			// Only referenced by generated src/route-types.d.ts
 			// (`import type {} from "@tanstack/react-start"` / `AnyRoute`

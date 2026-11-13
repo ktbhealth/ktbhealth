@@ -1,0 +1,13 @@
+{
+	"name": "@ktb/eval-dataset",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./schema": "./src/schema.ts",
+		"./ports": "./src/ports.ts"
+	},
+	"dependencies": {
+		"effect": "4.1.2"
+	}
+}
