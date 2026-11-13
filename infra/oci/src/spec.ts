@@ -20,8 +20,8 @@ const A1_MAX_OCPUS = 4;
 const A1_MAX_MEMORY_GBS = 24;
 
 /** Same defaults the OpenTofu module exposed as variables. */
-export const DEFAULT_VCN_CIDR = "10.0.0.0/16";
-export const DEFAULT_SSH_INGRESS_CIDR = "0.0.0.0/0";
+const DEFAULT_VCN_CIDR = "10.0.0.0/16";
+const DEFAULT_SSH_INGRESS_CIDR = "0.0.0.0/0";
 
 /**
  * The JSON document written to the spec file and consumed by

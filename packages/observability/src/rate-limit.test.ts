@@ -65,4 +65,13 @@ describe("makeFixedWindowRateLimiter", () => {
 		// second hit is denied rather than resetting.
 		expect(rl.hit("b", 1).allowed).toBe(false);
 	});
+
+	it("defaults to a 60s window when windowMs is not given", () => {
+		const rl = makeFixedWindowRateLimiter();
+		expect(rl.hit("a", 1)).toEqual({ allowed: true, retryAfterMs: 0 });
+		const denied = rl.hit("a", 1);
+		expect(denied.allowed).toBe(false);
+		expect(denied.retryAfterMs).toBeGreaterThan(0);
+		expect(denied.retryAfterMs).toBeLessThanOrEqual(60_000);
+	});
 });

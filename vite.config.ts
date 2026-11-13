@@ -123,6 +123,11 @@ export default defineConfig({
 	},
 
 	lint: {
+		// infra/oci/pulumi is a standalone Pulumi program — not a workspace
+		// member, with its own lockfile and tsconfig. Its @pulumi/* deps are
+		// never installed by the root `bun install`, so type-aware lint
+		// cannot resolve them; it is checked by `pulumi preview` instead.
+		ignorePatterns: ["infra/oci/pulumi/**"],
 		plugins: ["typescript", "react", "import"],
 		// ktb architecture rules (tools/ktb-arch-plugin.js), enabled per-glob
 		// in the overrides below.
