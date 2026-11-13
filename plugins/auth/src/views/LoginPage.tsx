@@ -1,5 +1,7 @@
+import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
+import { doctorContextFn, ensureDoctorProfileFn } from "@ktb/doctors/fns";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
 import {
@@ -20,11 +22,18 @@ import { authMessages } from "../i18n.ts";
 /**
  * Sign-in / create-account page (moved from apps/web/src/routes/login.tsx,
  * P-062). `locale` arrives via the route loader (localeFn) — plugins
- * cannot import the host's Paraglide runtime. The better-auth client is
- * inherently impl-bound (documented vite.config exception, same role the
- * host route files had).
+ * cannot import the host's Paraglide runtime. `emailEnabled` tells the
+ * sign-up flow whether a verification message can actually be sent.
+ * The better-auth client is inherently impl-bound (documented
+ * vite.config exception, same role the host route files had).
  */
-export function LoginPage({ locale }: { readonly locale: string }) {
+export function LoginPage({
+	locale,
+	emailEnabled,
+}: {
+	readonly locale: string;
+	readonly emailEnabled: boolean;
+}) {
 	const t = authMessages(locale);
 	const [mode, setMode] = useState<"in" | "up">("in");
 	const [email, setEmail] = useState("");
@@ -51,16 +60,32 @@ export function LoginPage({ locale }: { readonly locale: string }) {
 				? await authClient.signUp.email({
 						...credentials,
 						name: signUpName,
+						// Where the emailed verification link lands.
+						callbackURL: "/verify-email",
 					} as Parameters<typeof authClient.signUp.email>[0])
 				: await authClient.signIn.email(
 						credentials as Parameters<typeof authClient.signIn.email>[0],
 					);
-		setPending(false);
 		if (res.error) {
+			setPending(false);
 			setError(res.error.message ?? t.errorFallback);
 			return;
 		}
-		window.location.assign("/");
+		// Signed in: stay pending until the browser navigates away.
+		if (mode === "up") {
+			// This is the doctor sign-up: the new account gets its own doctor
+			// profile, then goes through the verification step — but only
+			// when this deployment can actually send the email.
+			await ensureDoctorProfileFn();
+			window.location.assign(emailEnabled ? "/verify-email" : "/");
+			return;
+		}
+		// Straight in when there is exactly one doctor to act as, the
+		// chooser when there are several. An account with no doctor profile
+		// is a patient account: it only has the patient portal.
+		const context = await doctorContextFn();
+		const profiles = context?.profiles.length;
+		window.location.assign(profiles === 0 ? "/portal" : profiles === 1 ? "/" : "/doctors/select");
 	};
 
 	return (
@@ -134,6 +159,18 @@ export function LoginPage({ locale }: { readonly locale: string }) {
 							{pending ? t.pending : mode === "in" ? t.submitIn : t.submitUp}
 						</Button>
 					</form>
+					<Link
+						to="/verify-email"
+						className="mt-4 block text-center text-sm text-muted-foreground transition hover:text-foreground"
+					>
+						{t.verifyLink}
+					</Link>
+					<Link
+						to="/portal/login"
+						className="mt-2 block text-center text-sm text-muted-foreground transition hover:text-foreground"
+					>
+						{t.patientLink}
+					</Link>
 				</CardContent>
 			</Card>
 		</div>

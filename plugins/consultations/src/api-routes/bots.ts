@@ -1,7 +1,7 @@
 import { Bot, STUB_CALL } from "@ktb/bot";
 import { Consultations } from "@ktb/consultations";
 import { Effect } from "effect";
-import { ensureSessionUser, createPluginApiRoute, run, runAs } from "@ktb/server-fns";
+import { ensureDoctorUser, createPluginApiRoute, run, runAs } from "@ktb/server-fns";
 import { Tenant, runAsTenantId, tenantScopeId } from "@ktb/tenant";
 
 /**
@@ -44,7 +44,7 @@ export const Route = createPluginApiRoute("consultations.routes")("/api/bots")({
 				}
 				const webhookUrl = new URL("/api/bots/webhook", request.url).toString();
 				const session = await provider.join(body.meetUrl, webhookUrl);
-				const user = await ensureSessionUser();
+				const user = await ensureDoctorUser();
 
 				const created = await runAs(
 					user,

@@ -330,7 +330,11 @@ if (check) {
 			// explanation guides (their meta.json files are hand-maintained
 			// too — only how-to/meta.json is regenerated with preserved pages)
 			// and plugin index.mdx
-			if (/^[^/]+\/(tutorials|how-to|explanation)\//.test(rel) && rel !== `${rel.split("/")[0]}/how-to/meta.json`) continue;
+			if (
+				/^[^/]+\/(tutorials|how-to|explanation)\//.test(rel) &&
+				rel !== `${rel.split("/")[0]}/how-to/meta.json`
+			)
+				continue;
 			if (/^[^/]+\/index\.mdx$/.test(rel)) continue;
 			if (!expected.has(rel)) diffs.push(`stale (not generated): ${rel}`);
 		}

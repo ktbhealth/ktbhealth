@@ -26,6 +26,7 @@ import type { Page, PanelPage } from "@ktb/kernel";
 import { appPages, consolePages } from "./registry.ts";
 import { SAMPLE_TRANSCRIPT, type Anamnesis, type AnamnesisSection } from "@ktb/anamnesis";
 import { auth, db } from "./platform.ts";
+import { signUpDoctor } from "#/test/doctor.ts";
 import { consultations, pluginState } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { audioBucketStore } from "#/test/cloudflare-workers.ts";
@@ -38,6 +39,7 @@ import {
 	countMyUnreadNotificationsFn,
 	createPatientFn,
 	deletePatientFn,
+	emailEnabledFn,
 	extractAnamnesisFn,
 	getConsultationFn,
 	getLiveConsultationFn,
@@ -88,12 +90,8 @@ let cookie = "";
 
 async function signIn(email: string) {
 	// Repeat sign-ins (e.g. the platform-admin user across tests) skip
-	// the signup — the account already exists.
-	await auth.api
-		.signUpEmail({
-			body: { email, password: "senha-forte-123", name: "Dra" },
-		})
-		.catch(() => {});
+	// the signup — the account and its doctor profile already exist.
+	await signUpDoctor({ email, password: "senha-forte-123", name: "Dra" }).catch(() => {});
 	const res = await auth.handler(
 		new Request("http://localhost:3000/api/auth/sign-in/email", {
 			method: "POST",
@@ -107,6 +105,15 @@ async function signIn(email: string) {
 describe("server fns", () => {
 	beforeAll(async () => {
 		cookie = await signIn("fns@x.com");
+	});
+
+	it("reports whether the deployment can send email", async () => {
+		// Mirrors the bound Email driver: the test worker env decides.
+		const { env } = await import("cloudflare:workers");
+		const bound = env as { EMAIL_STUB?: unknown; EMAIL?: unknown; EMAIL_FROM?: unknown };
+		expect(await emailEnabledFn()).toBe(
+			Boolean(bound.EMAIL_STUB) || (Boolean(bound.EMAIL) && Boolean(bound.EMAIL_FROM)),
+		);
 	});
 
 	it("anonymous users get empty/null results", async () => {

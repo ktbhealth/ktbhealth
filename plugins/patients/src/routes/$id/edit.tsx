@@ -5,10 +5,10 @@ import { createPluginFileRoute } from "@ktb/server-fns";
 import { PatientFormPage } from "../../views/index.ts";
 import { getPatientFn, localeFn } from "../../fns.ts";
 import { editPatientApi } from "../../apis.ts";
-import { requireSession } from "../../guard.ts";
+import { requireDoctor } from "../../guard.ts";
 
 export const Route = createPluginFileRoute("patients.routes")("/patients/$id/edit")({
-	beforeLoad: () => requireSession(),
+	beforeLoad: () => requireDoctor(),
 	loader: async ({ params }) => {
 		const id = Number(params.id);
 		// Same NaN guard as the detail route — bad ids are a 404, not a 500.

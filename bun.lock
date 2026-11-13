@@ -30,6 +30,8 @@
         "@ktb/consultations": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/db-sqlite": "workspace:*",
+        "@ktb/doctors": "workspace:*",
+        "@ktb/email": "workspace:*",
         "@ktb/infra-cloudflare": "workspace:*",
         "@ktb/interop": "workspace:*",
         "@ktb/interop-fhir": "workspace:*",
@@ -37,10 +39,13 @@
         "@ktb/jobs": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/notifications": "workspace:*",
+        "@ktb/patient-access": "workspace:*",
+        "@ktb/patient-portal": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/platform-header": "workspace:*",
         "@ktb/platform-sidebar": "workspace:*",
+        "@ktb/secretaries": "workspace:*",
         "@ktb/server-fns": "workspace:*",
         "@ktb/tenant": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
@@ -127,6 +132,9 @@
         "@ktb/captcha-turnstile": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "@ktb/email-cloudflare": "workspace:*",
+        "@ktb/email-stub": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/tenant": "workspace:*",
@@ -235,6 +243,29 @@
       "name": "@ktb/driver-framework",
       "dependencies": {
         "@ktb/kernel": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email": {
+      "name": "@ktb/email",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email-cloudflare": {
+      "name": "@ktb/email-cloudflare",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email-stub": {
+      "name": "@ktb/email-stub",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
         "effect": "4.1.2",
       },
     },
@@ -391,6 +422,8 @@
       "dependencies": {
         "@ktb/auth-better": "workspace:*",
         "@ktb/captcha": "workspace:*",
+        "@ktb/doctors": "workspace:*",
+        "@ktb/email": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/server-fns": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
@@ -422,6 +455,7 @@
         "@ktb/export-pdf": "workspace:*",
         "@ktb/interop": "workspace:*",
         "@ktb/kernel": "workspace:*",
+        "@ktb/patient-access": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/server-fns": "workspace:*",
@@ -467,6 +501,30 @@
       "devDependencies": {
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/doctors": {
+      "name": "@ktb/doctors",
+      "dependencies": {
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "@tanstack/virtual-file-routes": "1.162.0",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
         "react-dom": "^19.2.0",
       },
       "peerDependencies": {
@@ -614,6 +672,61 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/patient-access": {
+      "name": "@ktb/patient-access",
+      "dependencies": {
+        "@ktb/auth": "workspace:*",
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "@tanstack/virtual-file-routes": "1.162.0",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/patient-portal": {
+      "name": "@ktb/patient-portal",
+      "dependencies": {
+        "@ktb/anamnesis": "workspace:*",
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/patient-access": "workspace:*",
+        "@ktb/patients": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "@tanstack/virtual-file-routes": "1.162.0",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
     "plugins/patients": {
       "name": "@ktb/patients",
       "dependencies": {
@@ -687,6 +800,33 @@
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
         "@tanstack/react-router": "1.170.46",
         "@tanstack/react-start": "1.169.5",
+        "drizzle-orm": "^0.45.1",
+        "effect": "4.1.2",
+        "lucide-react": "0.544.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0",
+      },
+      "peerDependencies": {
+        "react": "^19.2.0",
+      },
+    },
+    "plugins/secretaries": {
+      "name": "@ktb/secretaries",
+      "dependencies": {
+        "@ktb/auth": "workspace:*",
+        "@ktb/authz": "workspace:*",
+        "@ktb/db": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/server-fns": "workspace:*",
+        "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
+        "@tanstack/react-router": "1.170.46",
+        "@tanstack/react-start": "1.169.5",
+        "@tanstack/virtual-file-routes": "1.162.0",
         "drizzle-orm": "^0.45.1",
         "effect": "4.1.2",
         "lucide-react": "0.544.0",
@@ -1161,7 +1301,15 @@
 
     "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
+    "@ktb/doctors": ["@ktb/doctors@workspace:plugins/doctors"],
+
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
+
+    "@ktb/email": ["@ktb/email@workspace:packages/email"],
+
+    "@ktb/email-cloudflare": ["@ktb/email-cloudflare@workspace:packages/email-cloudflare"],
+
+    "@ktb/email-stub": ["@ktb/email-stub@workspace:packages/email-stub"],
 
     "@ktb/export-pdf": ["@ktb/export-pdf@workspace:packages/export-pdf"],
 
@@ -1187,6 +1335,10 @@
 
     "@ktb/pages": ["@ktb/pages@workspace:plugins/pages"],
 
+    "@ktb/patient-access": ["@ktb/patient-access@workspace:plugins/patient-access"],
+
+    "@ktb/patient-portal": ["@ktb/patient-portal@workspace:plugins/patient-portal"],
+
     "@ktb/patients": ["@ktb/patients@workspace:plugins/patients"],
 
     "@ktb/platform": ["@ktb/platform@workspace:packages/platform"],
@@ -1198,6 +1350,8 @@
     "@ktb/rbac": ["@ktb/rbac@workspace:packages/rbac"],
 
     "@ktb/rbac-plugin": ["@ktb/rbac-plugin@workspace:plugins/rbac"],
+
+    "@ktb/secretaries": ["@ktb/secretaries@workspace:plugins/secretaries"],
 
     "@ktb/server-fns": ["@ktb/server-fns@workspace:packages/server-fns"],
 

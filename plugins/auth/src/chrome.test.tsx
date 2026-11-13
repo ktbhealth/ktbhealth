@@ -27,7 +27,10 @@ const props = (over: Partial<ChromeProps> = {}): ChromeProps => ({
 	...over,
 });
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
+});
 
 describe("SessionMenu", () => {
 	it("renders a localized sign-in link when anonymous", () => {
@@ -75,5 +78,62 @@ describe("SessionMenu", () => {
 		const item = await screen.findByText("Sair");
 		fireEvent.click(item);
 		await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+	});
+
+	it("offers a doctor account the profile shortcuts as full navigations", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("location", { assign });
+		render(
+			<SessionMenu
+				{...props({
+					user: { id: "u1", email: "bia@ktb.test", name: "Bia", patientOnly: false },
+					labels: {
+						switchDoctor: "Trocar de médico",
+						secretaries: "Secretárias",
+						patientPortal: "Portal do paciente",
+					},
+				})}
+			/>,
+		);
+		fireEvent.click(screen.getByText("Bia"));
+		fireEvent.click(await screen.findByText("Trocar de médico"));
+		fireEvent.click(screen.getByText("Bia"));
+		fireEvent.click(await screen.findByText("Secretárias"));
+		fireEvent.click(screen.getByText("Bia"));
+		fireEvent.click(await screen.findByText("Portal do paciente"));
+		expect(assign.mock.calls).toEqual([["/doctors/select"], ["/secretaries"], ["/portal"]]);
+	});
+
+	it("falls back to English profile shortcuts when the host fills none", async () => {
+		render(
+			<SessionMenu
+				{...props({ user: { id: "u1", email: "bia@ktb.test", name: "Bia" }, labels: {} })}
+			/>,
+		);
+		fireEvent.click(screen.getByText("Bia"));
+		expect(await screen.findByText("Switch doctor")).toBeTruthy();
+		expect(screen.getByText("Secretaries")).toBeTruthy();
+		expect(screen.getByText("Patient portal")).toBeTruthy();
+	});
+
+	it("narrows a patient account to its own consultations", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("location", { assign });
+		const user = { id: "p1", email: "ana@ktb.test", name: "Ana", patientOnly: true };
+		const view = render(
+			<SessionMenu {...props({ user, labels: { myConsultations: "Minhas consultas" } })} />,
+		);
+		fireEvent.click(screen.getByText("Ana"));
+		fireEvent.click(await screen.findByText("Minhas consultas"));
+		expect(assign).toHaveBeenCalledWith("/portal");
+		view.unmount();
+
+		// No host label → English fallback; never the doctor shortcuts.
+		render(<SessionMenu {...props({ user, labels: {} })} />);
+		fireEvent.click(screen.getByText("Ana"));
+		expect(await screen.findByText("My consultations")).toBeTruthy();
+		expect(screen.queryByText("Switch doctor")).toBeNull();
+		expect(screen.queryByText("Secretaries")).toBeNull();
+		expect(screen.queryByText("Patient portal")).toBeNull();
 	});
 });

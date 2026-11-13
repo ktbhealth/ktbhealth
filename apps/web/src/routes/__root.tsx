@@ -108,6 +108,10 @@ const NAV_ACTIVE = "bg-muted text-foreground";
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const { user, pluginStates } = Route.useLoaderData();
+	// A patient account (no doctor profile to act as) only ever sees the
+	// patient portal: no doctor navigation, nothing that creates or
+	// switches doctor profiles.
+	const patientOnly = user?.patientOnly === true;
 	const pathname = useLocation({ select: (l) => l.pathname });
 	// /platform is a system console, not an app page — it owns the whole
 	// viewport (own chrome) so the marketing header/footer and the
@@ -130,6 +134,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			signOut: m.nav_sign_out(),
 			newConsultation: m.nav_new_consultation(),
 			langMenu: m.lang_menu_label(),
+			switchDoctor: m.nav_switch_doctor(),
+			secretaries: m.nav_secretaries(),
+			patientPortal: m.nav_patient_portal(),
+			myConsultations: m.nav_my_consultations(),
 		},
 		signOut: async () => {
 			await authClient.signOut();
@@ -160,7 +168,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		}
 	};
 	const brand = entries("app.header.brand").map(renderEntry);
-	const nav = entries("app.header.nav").map(renderEntry);
+	const nav = patientOnly
+		? [
+				<Link
+					key="portal"
+					to="/portal"
+					className={NAV_LINK}
+					activeProps={{ className: `${NAV_LINK} ${NAV_ACTIVE}` }}
+				>
+					{m.nav_my_consultations()}
+				</Link>,
+			]
+		: entries("app.header.nav").map(renderEntry);
 	const actions = entries("app.header.actions").map(renderEntry);
 	const session = entries("app.header.session").map(renderEntry);
 	const footerBlocks = entries("app.footer.blocks").flatMap((entry) =>

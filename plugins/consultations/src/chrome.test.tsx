@@ -40,4 +40,13 @@ describe("NewConsultationLink", () => {
 		render(<NewConsultationLink {...props({ labels: {} })} />);
 		expect(screen.getByRole("link", { name: "+ New consultation" })).toBeTruthy();
 	});
+
+	it("renders nothing for a patient account", () => {
+		render(
+			<NewConsultationLink
+				{...props({ user: { id: "p1", email: "paciente@ktb.test", patientOnly: true } })}
+			/>,
+		);
+		expect(screen.queryByRole("link")).toBeNull();
+	});
 });

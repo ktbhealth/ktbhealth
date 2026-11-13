@@ -19,10 +19,26 @@ export {
 	type ServerRuntime,
 } from "./runtime.ts";
 export {
+	NotADoctorError,
 	UnauthenticatedError,
+	ensureDoctorUser,
 	ensureSessionUser,
+	getDoctorAccess,
+	getDoctorContext,
+	getDoctorUser,
+	getPatientContext,
+	getSessionAccount,
 	getSessionUser,
 	getTenantSelector,
+	setDoctorSelection,
+	setPatientSelection,
+	type ActingUser,
+	type DoctorAccess,
+	type DoctorContext,
+	type DoctorProfile,
+	type PatientContext,
+	type PatientProfile,
+	type SessionAccount,
 	type SessionUser,
 } from "./session.ts";
 export { createPluginApiRoute, createPluginFileRoute, pluginEnabledFn } from "./plugin-route.ts";

@@ -15,6 +15,7 @@ import { PluginStates } from "@ktb/platform/plugin-states";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
+import { verificationEmail } from "./emails.ts";
 import { makeTenantDirectory } from "./tenant-directory.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
@@ -46,7 +47,7 @@ const tenantResolver = makeTenantResolver({
 	selectDefault: (memberships) => (memberships.length === 1 ? memberships[0] : undefined),
 });
 
-const app = createApp(appEnv as unknown as typeof env, { tenantResolver });
+const app = createApp(appEnv as unknown as typeof env, { tenantResolver, verificationEmail });
 
 export const {
 	BindingLive,
@@ -72,7 +73,7 @@ export const {
  * inherited into background work.
  */
 export const runAs = <A, E>(
-	user: { readonly id: string; readonly email?: string },
+	user: { readonly id: string; readonly email?: string; readonly actorId?: string },
 	effect: Effect.Effect<A, E, unknown>,
 	tenantSelector?: TenantSelector | null,
 ): Promise<A> => {

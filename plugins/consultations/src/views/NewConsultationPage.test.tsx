@@ -962,6 +962,178 @@ describe("NewConsultationPage", () => {
 		expect(dialog.textContent).toContain("for Maria");
 	});
 
+	describe("patient portal access question", () => {
+		type Access = NonNullable<NewConsultationApi["patientAccess"]>;
+		type Invite = NonNullable<NewConsultationApi["invitePatient"]>;
+
+		const accessApi = (overrides: Partial<NewConsultationApi> = {}) =>
+			makeApi({
+				patientAccess: vi.fn<Access>(async () => ({ email: "maria@ktb.test", hasAccess: false })),
+				invitePatient: vi.fn<Invite>(async () => ({ ok: true, emailed: true })),
+				...overrides,
+			});
+
+		/** Save a consultation, optionally linked to Maria, and wait for the dialog. */
+		async function saveFor(api: NewConsultationApi, patient: "Maria" | null = "Maria") {
+			const user = userEvent.setup();
+			renderPage(api);
+			if (patient) await choosePatient(user, patient);
+			await generateAnamnesis(user);
+			await user.click(screen.getByText("Save consultation"));
+			await screen.findByText("Anamnesis saved successfully");
+			return user;
+		}
+
+		const QUESTION = "Send Maria the patient portal access email?";
+		const emailInput = () => screen.getByLabelText(QUESTION) as HTMLInputElement;
+
+		it("asks after saving and sends the access email to the address on record", async () => {
+			const api = accessApi();
+			const user = await saveFor(api);
+			expect(api.patientAccess).toHaveBeenCalledWith({ data: 1 });
+			expect(emailInput().value).toBe("maria@ktb.test");
+			// Until answered, closing the dialog is the "no".
+			expect(screen.getByText("Not now")).toBeTruthy();
+			expect(screen.queryByText("Confirm")).toBeNull();
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText("Access email sent to maria@ktb.test.");
+			expect(api.invitePatient).toHaveBeenCalledWith({
+				data: { patientId: 1, email: "maria@ktb.test" },
+			});
+			expect(screen.queryByLabelText(QUESTION)).toBeNull();
+			expect(screen.getByText("Confirm")).toBeTruthy();
+		});
+
+		it("sends to the address the doctor types when the record has none", async () => {
+			const api = accessApi({
+				patientAccess: vi.fn<Access>(async () => ({ email: null, hasAccess: false })),
+			});
+			const user = await saveFor(api);
+			expect(emailInput().value).toBe("");
+			// Nothing to send to yet.
+			fireEvent.submit(emailInput().closest("form")!);
+			expect(api.invitePatient).not.toHaveBeenCalled();
+			await user.type(emailInput(), " maria@nova.test ");
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText("Access email sent to maria@nova.test.");
+			expect(api.invitePatient).toHaveBeenCalledWith({
+				data: { patientId: 1, email: "maria@nova.test" },
+			});
+		});
+
+		it("does not send anything when the doctor answers not now", async () => {
+			const api = accessApi();
+			const user = await saveFor(api);
+			await user.click(screen.getByText("Not now"));
+			const dialog = document.querySelector("dialog") as HTMLDialogElement;
+			await waitFor(() => expect(dialog.open).toBe(false));
+			expect(api.invitePatient).not.toHaveBeenCalled();
+		});
+
+		it("is not asked without a linked patient", async () => {
+			const api = accessApi();
+			await saveFor(api, null);
+			expect(api.patientAccess).not.toHaveBeenCalled();
+			expect(screen.queryByText("Send access email")).toBeNull();
+			expect(screen.getByText("Confirm")).toBeTruthy();
+		});
+
+		it("is not asked when the patient already has portal access", async () => {
+			const api = accessApi({
+				patientAccess: vi.fn<Access>(async () => ({ email: "maria@ktb.test", hasAccess: true })),
+			});
+			await saveFor(api);
+			expect(screen.queryByText("Send access email")).toBeNull();
+			expect(screen.getByText("Confirm")).toBeTruthy();
+		});
+
+		it.each([
+			["is unavailable", vi.fn<Access>(async () => null)],
+			[
+				"fails",
+				vi.fn<Access>(async () => {
+					throw new Error("network");
+				}),
+			],
+		])("saves without asking when the access lookup %s", async (_label, patientAccess) => {
+			await saveFor(accessApi({ patientAccess }));
+			expect(patientAccess).toHaveBeenCalled();
+			expect(screen.queryByText("Send access email")).toBeNull();
+		});
+
+		it("is not asked by hosts that wire no portal access api", async () => {
+			await saveFor(makeApi());
+			expect(screen.queryByText("Send access email")).toBeNull();
+			const lookupOnly = accessApi({ invitePatient: undefined });
+			cleanup();
+			await saveFor(lookupOnly);
+			expect(lookupOnly.patientAccess).not.toHaveBeenCalled();
+			expect(screen.queryByText("Send access email")).toBeNull();
+		});
+
+		it("says so when access was granted but the email could not be sent", async () => {
+			const api = accessApi({
+				invitePatient: vi.fn<Invite>(async () => ({ ok: true, emailed: false })),
+			});
+			const user = await saveFor(api);
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText(/Portal access granted to maria@ktb.test, but the email could not/);
+			expect(screen.queryByText(/Access email sent/)).toBeNull();
+			expect(screen.getByText("Confirm")).toBeTruthy();
+		});
+
+		it("keeps asking after a refused or failed send", async () => {
+			const invitePatient = vi
+				.fn<Invite>()
+				.mockResolvedValueOnce({ ok: false, error: "invalid_email" })
+				.mockResolvedValueOnce({ ok: false, error: "failed" })
+				.mockRejectedValueOnce(new Error("network"))
+				.mockResolvedValueOnce({ ok: true, emailed: true });
+			const user = await saveFor(accessApi({ invitePatient }));
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText("Enter a valid email address.");
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText("Could not send the access email. Please try again.");
+			await user.click(screen.getByText("Send access email"));
+			await waitFor(() => expect(invitePatient).toHaveBeenCalledTimes(3));
+			expect(screen.getByText("Could not send the access email. Please try again.")).toBeTruthy();
+			expect(screen.getByText("Not now")).toBeTruthy();
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText("Access email sent to maria@ktb.test.");
+		});
+
+		it("locks the send button and ignores a second submit while sending", async () => {
+			let release: (value: { ok: true; emailed: boolean }) => void = () => {};
+			const invitePatient = vi.fn<Invite>(
+				() => new Promise<{ ok: true; emailed: boolean }>((resolve) => (release = resolve)),
+			);
+			const user = await saveFor(accessApi({ invitePatient }));
+			await user.click(screen.getByText("Send access email"));
+			const button = screen.getByText("Send access email").closest("button")!;
+			expect(button.disabled).toBe(true);
+			fireEvent.submit(emailInput().closest("form")!);
+			expect(invitePatient).toHaveBeenCalledTimes(1);
+			await act(async () => release({ ok: true, emailed: true }));
+			await screen.findByText("Access email sent to maria@ktb.test.");
+		});
+
+		it("asks again on a later save only while the patient still has no access", async () => {
+			const patientAccess = vi
+				.fn<Access>()
+				.mockResolvedValueOnce({ email: "maria@ktb.test", hasAccess: false })
+				.mockResolvedValueOnce({ email: "maria@ktb.test", hasAccess: true });
+			const user = await saveFor(accessApi({ patientAccess }));
+			await user.click(screen.getByText("Send access email"));
+			await screen.findByText("Access email sent to maria@ktb.test.");
+			await user.click(screen.getByText("Confirm"));
+			await user.click(screen.getByText("Update consultation"));
+			await screen.findByText("Consultation updated");
+			expect(patientAccess).toHaveBeenCalledTimes(2);
+			expect(screen.queryByText("Send access email")).toBeNull();
+			expect(screen.queryByText(/Access email sent/)).toBeNull();
+		});
+	});
+
 	describe("post-consultation dictation", () => {
 		async function enterDictation(user: ReturnType<typeof userEvent.setup>) {
 			await user.click(screen.getByText("Post-consultation dictation"));

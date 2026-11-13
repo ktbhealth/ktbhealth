@@ -42,4 +42,43 @@ describe("makeAuth", () => {
 		expect(typeof auth.handler).toBe("function");
 		expect(auth.api).toBeDefined();
 	});
+
+	it("sends no verification email when the host supplies no sender", async () => {
+		const auth = makeAuth(makeDb(makeD1()));
+		const { emailVerification } = auth.options;
+		expect(emailVerification.sendOnSignUp).toBe(false);
+		await expect(
+			emailVerification.sendVerificationEmail({
+				user: { id: "u1", email: "a@ktb.test", name: "Ana" } as never,
+				url: "http://localhost:3000/verify",
+				token: "t",
+			}),
+		).resolves.toBeUndefined();
+	});
+
+	it("delegates verification emails to the host sender on sign-up", async () => {
+		const sent: unknown[] = [];
+		const auth = makeAuth(makeDb(makeD1()), {
+			sendVerificationEmail: async (input) => {
+				sent.push(input);
+			},
+		});
+		const { emailVerification } = auth.options;
+		expect(emailVerification.sendOnSignUp).toBe(true);
+		const url = "http://localhost:3000/verify";
+		await emailVerification.sendVerificationEmail({
+			user: { id: "u1", email: "a@ktb.test", name: "Ana" } as never,
+			url,
+			token: "t",
+		});
+		await emailVerification.sendVerificationEmail({
+			user: { id: "u2", email: "b@ktb.test" } as never,
+			url,
+			token: "t",
+		});
+		expect(sent).toEqual([
+			{ email: "a@ktb.test", name: "Ana", url },
+			{ email: "b@ktb.test", name: null, url },
+		]);
+	});
 });

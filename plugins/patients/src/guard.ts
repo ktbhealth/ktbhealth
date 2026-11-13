@@ -1,13 +1,15 @@
 import { redirect } from "@tanstack/react-router";
 
-import { sessionUserFn } from "./fns.ts";
+import { doctorAccessFn } from "./fns.ts";
 
 /**
- * Route guard for authenticated pages: anonymous visitors are sent to
- * /login. Data endpoints stay protected independently — server fns and
- * api handlers enforce the session themselves.
+ * Route guard for doctor pages: anonymous visitors are sent to /login,
+ * signed-in accounts with no doctor profile to act as to the profile
+ * chooser. Data endpoints stay protected independently — server fns and
+ * api handlers enforce the acting doctor themselves.
  */
-export async function requireSession() {
-	const user = await sessionUserFn();
-	if (!user) throw redirect({ to: "/login" });
+export async function requireDoctor() {
+	const access = await doctorAccessFn();
+	if (access === "anonymous") throw redirect({ to: "/login" });
+	if (access === "no-doctor") throw redirect({ to: "/doctors/select" });
 }

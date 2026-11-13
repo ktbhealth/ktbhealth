@@ -11,6 +11,8 @@
 	"dependencies": {
 		"@ktb/auth-better": "workspace:*",
 		"@ktb/captcha": "workspace:*",
+		"@ktb/doctors": "workspace:*",
+		"@ktb/email": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/server-fns": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",

@@ -9,7 +9,9 @@
 		"enabled": true,
 	},
 	// Local dev only: this file is not used by the Alchemy deploy. Selects
-	// @ktb/captcha-stub so credential endpoints pass without a real widget.
+	// @ktb/captcha-stub so credential endpoints pass without a real widget,
+	// and @ktb/email-stub so outbound email (verification links, invites)
+	// is written to the dev server log instead of being delivered.
 	// Unlike wrangler.jsonc it has NO "ai" binding: Workers AI has no local
 	// simulator, so the binding forces a remote (authenticated) dev session.
 	// AI resolution order instead: AI_STUB > AI_BASE_URL > env.AI — see
@@ -18,7 +20,7 @@
 	//   "AI_BASE_URL": "http://localhost:8080/v1" — OpenAI-compatible server
 	//     (whisper.cpp / llama.cpp) exposing /audio/transcriptions and
 	//     /chat/completions
-	"vars": { "CAPTCHA_STUB": "1" },
+	"vars": { "CAPTCHA_STUB": "1", "EMAIL_STUB": "1" },
 	"r2_buckets": [{ "binding": "AUDIO_BUCKET", "bucket_name": "ktb-audio" }],
 	"queues": {
 		"producers": [{ "binding": "AUDIO_QUEUE", "queue": "ktb-transcription" }],

@@ -14,6 +14,8 @@ export const user = sqliteTable("user", {
 	// setUserBanned; Auth.getSession returns null while true and all
 	// session rows are revoked on ban.
 	banned: integer("banned", { mode: "boolean" }).default(false).notNull(),
+	/** Digits only. Links the account to patient records by CPF match. */
+	cpf: text("cpf").unique(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),

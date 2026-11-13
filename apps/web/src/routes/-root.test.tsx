@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	pathname: "/",
-	user: null as { name?: string; email?: string } | null,
+	user: null as { name?: string; email?: string; patientOnly?: boolean } | null,
 	pluginStates: null as { enabled: string[] } | null,
 	enabledIds: [] as string[],
 	chromeExtra: [] as {
@@ -155,6 +155,28 @@ describe("root document", () => {
 		// portaled dropdown content (covered by plugins/session tests).
 		expect(html).toContain("Ada Lovelace");
 		expect(html).not.toContain('href="/login"');
+	});
+
+	it("offers a doctor the doctor navigation", () => {
+		state.user = { name: "Dra. Bia", email: "bia@ktb.test", patientOnly: false };
+		const html = render();
+		// The profile shortcuts live inside the portaled account menu
+		// (covered by plugins/session tests).
+		expect(html).toContain('href="/patients"');
+		expect(html).toContain('href="/consultations"');
+		expect(html).toContain('href="/consultations/new"');
+		expect(html).not.toContain('href="/portal"');
+		expect(html).not.toContain("My consultations");
+	});
+
+	it("narrows a patient account to the portal: no doctor navigation", () => {
+		state.user = { name: "Ana", email: "ana@ktb.test", patientOnly: true };
+		const html = render();
+		expect(html).toContain('href="/portal"');
+		expect(html).toContain("My consultations");
+		expect(html).not.toContain('href="/consultations"');
+		expect(html).not.toContain('href="/patients"');
+		expect(html).not.toContain('href="/consultations/new"');
 	});
 
 	it("hides a disabled plugin's chrome contributions (P-058)", () => {
