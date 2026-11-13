@@ -1,5 +1,5 @@
 import json, resource, time, os, sys
-import numpy as np
+from pathlib import Path
 import soundfile as sf
 
 os.environ["OMP_NUM_THREADS"] = "4"
@@ -9,7 +9,9 @@ def rss_mb():
 
 from faster_whisper import WhisperModel
 
-AUDIO = [f"/tmp/eval-bench/audio/{s}.wav" for s in ["s0","s1","s2","s3","s4"]]
+AUDIO_DIR = Path(os.environ.get("BENCH_AUDIO_DIR", Path(__file__).parent / "audio"))
+OUT_JSON = Path(os.environ.get("BENCH_RESULTS", Path(__file__).parent / "asr-results.json"))
+AUDIO = sorted(AUDIO_DIR.glob("s*.wav"))
 MODELS = sys.argv[1:] or ["tiny", "base", "small"]
 results = []
 
@@ -37,6 +39,6 @@ for name in MODELS:
     print(f"[{name}] load={load_s:.0f}s rtf={rtf:.2f} rss={rss_mb():.0f}MB", flush=True)
     del model
 
-with open("/tmp/eval-bench/asr_results.json","w") as f:
+with open(OUT_JSON,"w") as f:
     json.dump(results, f, ensure_ascii=False, indent=1)
 print("done")

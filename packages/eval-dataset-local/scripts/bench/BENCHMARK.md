@@ -4,15 +4,26 @@ Method: edge-tts synthesized 5 pt-BR clinical sentences (2 voices) →
 faster-whisper transcribed (beam 5, VAD on) → WER via
 `@ktb/eval-dataset` `metrics.ts` against the known scripts.
 
-Reproduce:
+Reproduce (from `packages/eval-dataset-local`):
 
 ```bash
-uv venv /tmp/eval-bench && uv pip install --python /tmp/eval-bench/bin/python faster-whisper edge-tts soundfile
-/tmp/eval-bench/bin/python scripts/bench/gen-audio.py     # writes audio/s*.mp3+.txt
-for f in scripts/bench/audio/s*.mp3; do ffmpeg -i "$f" -ar 16000 -ac 1 "${f%.mp3}.wav"; done
+# one-time: python env (uv) — faster-whisper + edge-tts + soundfile
+uv venv /tmp/eval-bench
+uv pip install --python /tmp/eval-bench/bin/python faster-whisper edge-tts soundfile
+
+# audio fixtures are committed (audio/s*.wav + gold s*.txt); to regen
+# them instead: `python scripts/bench/gen-audio.py` then ffmpeg→16kHz wav
+
+# run ASR candidates (models download from HF on first use)
 /tmp/eval-bench/bin/python scripts/bench/bench-asr.py tiny base small turbo
-bun scripts/bench/wer.ts scripts/bench/asr-results.json scripts/bench/audio
+
+# score against the gold scripts (uses our metrics.ts)
+bun scripts/bench/wer.ts
 ```
+
+Paths default to `scripts/bench/`; override with `BENCH_AUDIO_DIR` /
+`BENCH_RESULTS` env vars. CPU only — `OMP_NUM_THREADS=4` is set inside
+`bench-asr.py`.
 
 Caveat: clean TTS speech, n=5 — directional, not statistical. Real
 consultations will score worse.

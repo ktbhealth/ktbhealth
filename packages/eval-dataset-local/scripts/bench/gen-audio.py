@@ -1,4 +1,9 @@
-import asyncio, edge_tts
+import asyncio, os
+from pathlib import Path
+import edge_tts
+
+OUT = Path(os.environ.get("BENCH_AUDIO_DIR", Path(__file__).parent / "audio"))
+OUT.mkdir(parents=True, exist_ok=True)
 
 SAMPLES = [
     ("s0", "pt-BR-FranciscaNeural", "O paciente nega alergia a medicamentos e refere dor de cabeça há três dias."),
@@ -12,8 +17,8 @@ async def synth(sid, voice, text):
     for attempt in range(6):
         try:
             tts = edge_tts.Communicate(text, voice)
-            await tts.save(f"/tmp/eval-bench/audio/{sid}.mp3")
-            with open(f"/tmp/eval-bench/audio/{sid}.txt", "w") as f:
+            await tts.save(str(OUT / f"{sid}.mp3"))
+            with open(OUT / f"{sid}.txt", "w") as f:
                 f.write(text)
             print(f"{sid} ok (attempt {attempt+1})")
             return
