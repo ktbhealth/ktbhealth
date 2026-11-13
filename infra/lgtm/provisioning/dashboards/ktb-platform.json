@@ -1,59 +1,169 @@
 {
-	"uid": "ktb-platform",
-	"title": "KTB Platform",
-	"tags": ["ktb", "platform"],
 	"timezone": "browser",
+	"editable": false,
+	"graphTooltip": 1,
+	"fiscalYearStartMonth": 0,
 	"schemaVersion": 39,
-	"version": 1,
-	"refresh": "30s",
+	"templating": {
+		"list": [
+			{
+				"type": "query",
+				"name": "handlerType",
+				"skipUrlSync": false,
+				"multi": true,
+				"allowCustomValue": true,
+				"includeAll": true,
+				"auto": false,
+				"auto_min": "10s",
+				"auto_count": 30,
+				"label": "Handler type",
+				"description": "HTTP handler kind recorded on ktb_http_requests_total (serverFn | router).",
+				"datasource": {
+					"type": "prometheus",
+					"uid": "prometheus"
+				},
+				"query": "label_values(ktb_http_requests_total, handlerType)",
+				"refresh": 1,
+				"sort": 1,
+				"allValue": ".*"
+			},
+			{
+				"type": "query",
+				"name": "side",
+				"skipUrlSync": false,
+				"multi": true,
+				"allowCustomValue": true,
+				"includeAll": true,
+				"auto": false,
+				"auto_min": "10s",
+				"auto_count": 30,
+				"label": "CQRS side",
+				"description": "Dispatch side recorded on ktb_cqrs_* metrics (command | query).",
+				"datasource": {
+					"type": "prometheus",
+					"uid": "prometheus"
+				},
+				"query": "label_values(ktb_cqrs_dispatches_total, side)",
+				"refresh": 1,
+				"sort": 1,
+				"allValue": ".*"
+			}
+		]
+	},
+	"annotations": {},
+	"title": "KTB Platform — RED/USE",
+	"uid": "ktb-platform",
+	"description": "RED/USE signals for the KTB Workers app: HTTP edge, app runtime, CQRS dispatch and telemetry-edge saturation. Metrics are generated app-side (effect/Metric → OTLP → Prometheus) and are NOT affected by trace tail sampling.",
+	"tags": [
+		"ktb",
+		"platform",
+		"red"
+	],
 	"time": {
 		"from": "now-6h",
 		"to": "now"
 	},
-	"editable": false,
-	"graphTooltip": 1,
+	"refresh": "30s",
+	"version": 1,
 	"links": [
 		{
-			"type": "link",
 			"title": "Traces (Tempo)",
-			"url": "explore?schemaVersion=1&panes=%7B%22traces%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22queryType%22%3A%22traceqlSearch%22%2C%22query%22%3A%22%7B%20resource.service.name%20%3D%20%5C%22ktb%5C%22%20%7D%22%7D%5D%7D%7D&orgId=1",
+			"type": "link",
 			"icon": "external link",
-			"targetBlank": true
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": true,
+			"includeVars": false,
+			"keepTime": false,
+			"url": "explore?schemaVersion=1&panes=%7B%22traces%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22queryType%22%3A%22traceqlSearch%22%2C%22query%22%3A%22%7B%20resource.service.name%20%3D%20%5C%22ktb%5C%22%20%7D%22%7D%5D%7D%7D&orgId=1"
 		},
 		{
-			"type": "link",
 			"title": "Logs (Loki)",
-			"url": "explore?schemaVersion=1&panes=%7B%22logs%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bservice_name%3D%5C%22ktb%5C%22%7D%22%7D%5D%7D%7D&orgId=1",
+			"type": "link",
 			"icon": "external link",
-			"targetBlank": true
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": true,
+			"includeVars": false,
+			"keepTime": false,
+			"url": "explore?schemaVersion=1&panes=%7B%22logs%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bservice_name%3D%5C%22ktb%5C%22%7D%22%7D%5D%7D%7D&orgId=1"
+		},
+		{
+			"title": "Telemetry health",
+			"type": "link",
+			"icon": "",
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": false,
+			"includeVars": true,
+			"keepTime": true,
+			"url": "/d/ktb-telemetry-health"
+		},
+		{
+			"title": "Client telemetry",
+			"type": "link",
+			"icon": "",
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": false,
+			"includeVars": true,
+			"keepTime": true,
+			"url": "/d/ktb-client-events"
 		}
 	],
 	"panels": [
 		{
-			"id": 1,
 			"type": "row",
+			"collapsed": false,
+			"id": 1,
+			"panels": [],
 			"title": "HTTP edge (RED)",
 			"gridPos": {
-				"h": 1,
-				"w": 24,
 				"x": 0,
-				"y": 0
-			},
-			"collapsed": false
+				"y": 0,
+				"h": 1,
+				"w": 24
+			}
 		},
 		{
-			"id": 2,
 			"type": "stat",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "area",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 2,
 			"title": "Request rate",
+			"description": "HTTP requests per second across all handler types (ktb_http_requests_total).",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 4,
-				"w": 6,
 				"x": 0,
-				"y": 1
+				"y": 1,
+				"w": 6,
+				"h": 4
 			},
 			"fieldConfig": {
 				"defaults": {
@@ -62,34 +172,47 @@
 				},
 				"overrides": []
 			},
-			"options": {
-				"colorMode": "value",
-				"graphMode": "area",
-				"reduceOptions": {
-					"calcs": ["lastNotNull"]
-				}
-			},
 			"targets": [
 				{
+					"expr": "sum(rate(ktb_http_requests_total{handlerType=~\"$handlerType\"}[$__rate_interval]))",
 					"refId": "A",
-					"expr": "sum(rate(ktb_http_requests_total[5m]))",
+					"range": true,
+					"instant": false,
 					"legendFormat": "req/s"
 				}
 			]
 		},
 		{
-			"id": 3,
 			"type": "stat",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "area",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 3,
 			"title": "5xx ratio",
+			"description": "Share of responses with status 5xx over 5m. Alert threshold: >5% for 10m (ktb-http-5xx-ratio).",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 4,
-				"w": 6,
 				"x": 6,
-				"y": 1
+				"y": 1,
+				"w": 6,
+				"h": 4
 			},
 			"fieldConfig": {
 				"defaults": {
@@ -115,34 +238,46 @@
 				},
 				"overrides": []
 			},
-			"options": {
-				"colorMode": "value",
-				"graphMode": "area",
-				"reduceOptions": {
-					"calcs": ["lastNotNull"]
-				}
-			},
 			"targets": [
 				{
+					"expr": "sum(rate(ktb_http_requests_total{handlerType=~\"$handlerType\",status=~\"5..\"}[5m])) / sum(rate(ktb_http_requests_total{handlerType=~\"$handlerType\"}[5m]))",
 					"refId": "A",
-					"expr": "sum(rate(ktb_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(ktb_http_requests_total[5m]))",
-					"legendFormat": "5xx ratio"
+					"range": true,
+					"instant": false
 				}
 			]
 		},
 		{
-			"id": 4,
 			"type": "stat",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "area",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 4,
 			"title": "p95 latency",
+			"description": "HTTP p95 wall time in ms (histogram_quantile over ktb_http_request_duration_ms). Alert threshold: >2s for 15m.",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 4,
-				"w": 6,
 				"x": 12,
-				"y": 1
+				"y": 1,
+				"w": 6,
+				"h": 4
 			},
 			"fieldConfig": {
 				"defaults": {
@@ -157,7 +292,7 @@
 							},
 							{
 								"color": "yellow",
-								"value": 1000
+								"value": 500
 							},
 							{
 								"color": "red",
@@ -168,38 +303,51 @@
 				},
 				"overrides": []
 			},
-			"options": {
-				"colorMode": "value",
-				"graphMode": "area",
-				"reduceOptions": {
-					"calcs": ["lastNotNull"]
-				}
-			},
 			"targets": [
 				{
+					"expr": "histogram_quantile(0.95, sum by (le) (rate(ktb_http_request_duration_ms_bucket{handlerType=~\"$handlerType\"}[5m])))",
 					"refId": "A",
-					"expr": "histogram_quantile(0.95, sum by (le) (rate(ktb_http_request_duration_ms_bucket[5m])))",
-					"legendFormat": "p95"
+					"range": true,
+					"instant": false
 				}
 			]
 		},
 		{
-			"id": 5,
 			"type": "stat",
-			"title": "Telemetry export errors (15m)",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "none",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 5,
+			"title": "Error ratio (4xx + 5xx)",
+			"description": "Share of non-2xx responses. Client errors (4xx) included — watch for scanner noise vs real regressions.",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 4,
-				"w": 6,
 				"x": 18,
-				"y": 1
+				"y": 1,
+				"w": 6,
+				"h": 4
 			},
 			"fieldConfig": {
 				"defaults": {
-					"unit": "short",
+					"unit": "percentunit",
+					"decimals": 2,
 					"thresholds": {
 						"mode": "absolute",
 						"steps": [
@@ -208,515 +356,632 @@
 								"value": null
 							},
 							{
+								"color": "yellow",
+								"value": 0.05
+							},
+							{
 								"color": "red",
-								"value": 1
+								"value": 0.2
 							}
 						]
 					}
 				},
 				"overrides": []
 			},
-			"options": {
-				"colorMode": "value",
-				"graphMode": "none",
-				"reduceOptions": {
-					"calcs": ["lastNotNull"]
-				}
-			},
 			"targets": [
 				{
+					"expr": "sum(rate(ktb_http_requests_total{handlerType=~\"$handlerType\",status=~\"[45]..\"}[5m])) / sum(rate(ktb_http_requests_total{handlerType=~\"$handlerType\"}[5m]))",
 					"refId": "A",
-					"expr": "sum(increase(ktb_telemetry_errors_total{stage=\"export\"}[15m]))",
-					"legendFormat": "export errors"
+					"range": true,
+					"instant": false
 				}
 			]
 		},
 		{
-			"id": 6,
 			"type": "timeseries",
-			"title": "Request rate by handler type",
-			"datasource": {
-				"type": "prometheus",
-				"uid": "prometheus"
-			},
-			"gridPos": {
-				"h": 8,
-				"w": 12,
-				"x": 0,
-				"y": 5
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
 			},
 			"fieldConfig": {
 				"defaults": {
+					"custom": {},
 					"unit": "reqps",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
+					"decimals": 2,
+					"min": 0
 				},
 				"overrides": []
 			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
-			},
-			"targets": [
-				{
-					"refId": "A",
-					"expr": "sum by (handlerType) (rate(ktb_http_requests_total[5m]))",
-					"legendFormat": "{{handlerType}}"
-				}
-			]
-		},
-		{
-			"id": 7,
-			"type": "timeseries",
-			"title": "Error ratio by handler type",
+			"id": 6,
+			"title": "Request rate by handler type",
+			"description": "ktb_http_requests_total rate split by handlerType (serverFn vs router page loads).",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 8,
-				"w": 12,
-				"x": 12,
-				"y": 5
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "percentunit",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
-			},
-			"targets": [
-				{
-					"refId": "A",
-					"expr": "sum by (handlerType) (rate(ktb_http_requests_total{status=~\"5..\"}[5m])) / sum by (handlerType) (rate(ktb_http_requests_total[5m]))",
-					"legendFormat": "{{handlerType}}"
-				}
-			]
-		},
-		{
-			"id": 8,
-			"type": "timeseries",
-			"title": "Latency quantiles (p50 / p95 / p99)",
-			"datasource": {
-				"type": "prometheus",
-				"uid": "prometheus"
-			},
-			"gridPos": {
-				"h": 8,
-				"w": 12,
 				"x": 0,
-				"y": 13
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ms",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 0
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
+				"y": 5,
+				"w": 12,
+				"h": 8
 			},
 			"targets": [
 				{
+					"expr": "sum by (handlerType) (rate(ktb_http_requests_total{handlerType=~\"$handlerType\"}[$__rate_interval]))",
 					"refId": "A",
-					"expr": "histogram_quantile(0.50, sum by (le) (rate(ktb_http_request_duration_ms_bucket[5m])))",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{handlerType}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "percentunit",
+					"decimals": 2,
+					"max": 1,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 7,
+			"title": "5xx ratio by handler type",
+			"description": "5xx share per handlerType over the rate interval. A spike isolated to one handler type points at that code path, not the edge.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 5,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (handlerType) (rate(ktb_http_requests_total{handlerType=~\"$handlerType\",status=~\"5..\"}[$__rate_interval])) / sum by (handlerType) (rate(ktb_http_requests_total{handlerType=~\"$handlerType\"}[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{handlerType}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ms",
+					"decimals": 0,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 8,
+			"title": "Latency quantiles (p50 / p95 / p99)",
+			"description": "histogram_quantile over ktb_http_request_duration_ms buckets. p99 is tail-sensitive on low traffic — read it with p50/p95.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 13,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.50, sum by (le) (rate(ktb_http_request_duration_ms_bucket{handlerType=~\"$handlerType\"}[$__rate_interval])))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
 					"legendFormat": "p50"
 				},
 				{
+					"expr": "histogram_quantile(0.95, sum by (le) (rate(ktb_http_request_duration_ms_bucket{handlerType=~\"$handlerType\"}[$__rate_interval])))",
 					"refId": "B",
-					"expr": "histogram_quantile(0.95, sum by (le) (rate(ktb_http_request_duration_ms_bucket[5m])))",
+					"range": true,
+					"instant": false,
 					"legendFormat": "p95"
 				},
 				{
+					"expr": "histogram_quantile(0.99, sum by (le) (rate(ktb_http_request_duration_ms_bucket{handlerType=~\"$handlerType\"}[$__rate_interval])))",
 					"refId": "C",
-					"expr": "histogram_quantile(0.99, sum by (le) (rate(ktb_http_request_duration_ms_bucket[5m])))",
+					"range": true,
+					"instant": false,
 					"legendFormat": "p99"
 				}
 			]
 		},
 		{
-			"id": 9,
 			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ms",
+					"decimals": 0,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 9,
 			"title": "Latency p95 by handler type",
+			"description": "p95 per handlerType — separates slow server functions from slow page/router loads.",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 8,
-				"w": 12,
 				"x": 12,
-				"y": 13
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ms",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
+				"y": 13,
+				"w": 12,
+				"h": 8
 			},
 			"targets": [
 				{
+					"expr": "histogram_quantile(0.95, sum by (le, handlerType) (rate(ktb_http_request_duration_ms_bucket{handlerType=~\"$handlerType\"}[$__rate_interval])))",
 					"refId": "A",
-					"expr": "histogram_quantile(0.95, sum by (le, handlerType) (rate(ktb_http_request_duration_ms_bucket[5m])))",
+					"range": true,
+					"instant": false,
 					"legendFormat": "{{handlerType}}"
 				}
 			]
 		},
 		{
-			"id": 10,
 			"type": "row",
+			"collapsed": false,
+			"id": 10,
+			"panels": [],
 			"title": "App runtime & CQRS",
 			"gridPos": {
-				"h": 1,
-				"w": 24,
 				"x": 0,
-				"y": 21
-			},
-			"collapsed": false
+				"y": 21,
+				"w": 24,
+				"h": 1
+			}
 		},
 		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
 			"id": 11,
-			"type": "timeseries",
 			"title": "App invocations by kind",
+			"description": "ktb_app_invocations_total — Effect programs run through the app runtime, split by kind (run / runAs / …).",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 8,
-				"w": 8,
 				"x": 0,
-				"y": 22
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ops",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
+				"y": 22,
+				"w": 8,
+				"h": 8
 			},
 			"targets": [
 				{
+					"expr": "sum by (kind) (rate(ktb_app_invocations_total[$__rate_interval]))",
 					"refId": "A",
-					"expr": "sum by (kind) (rate(ktb_app_invocations_total[5m]))",
+					"range": true,
+					"instant": false,
 					"legendFormat": "{{kind}}"
 				}
 			]
 		},
 		{
-			"id": 12,
 			"type": "timeseries",
-			"title": "App invocation duration p95",
-			"datasource": {
-				"type": "prometheus",
-				"uid": "prometheus"
-			},
-			"gridPos": {
-				"h": 8,
-				"w": 8,
-				"x": 8,
-				"y": 22
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
 			},
 			"fieldConfig": {
 				"defaults": {
+					"custom": {},
 					"unit": "ms",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
+					"decimals": 0,
+					"min": 0
 				},
 				"overrides": []
 			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
-			},
-			"targets": [
-				{
-					"refId": "A",
-					"expr": "histogram_quantile(0.95, sum by (le, kind) (rate(ktb_app_invocation_duration_ms_bucket[5m])))",
-					"legendFormat": "{{kind}}"
-				}
-			]
-		},
-		{
-			"id": 13,
-			"type": "timeseries",
-			"title": "CQRS dispatches & failures",
+			"id": 12,
+			"title": "App invocation duration quantiles",
+			"description": "p50/p95/p99 wall time of app runtime invocations (ktb_app_invocation_duration_ms).",
 			"datasource": {
 				"type": "prometheus",
 				"uid": "prometheus"
 			},
 			"gridPos": {
-				"h": 8,
-				"w": 8,
-				"x": 16,
-				"y": 22
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ops",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
-			},
-			"targets": [
-				{
-					"refId": "A",
-					"expr": "sum by (side) (rate(ktb_cqrs_dispatches_total[5m]))",
-					"legendFormat": "{{side}}"
-				},
-				{
-					"refId": "B",
-					"expr": "sum by (side) (rate(ktb_cqrs_dispatch_failures_total[5m]))",
-					"legendFormat": "failures {{side}}"
-				}
-			]
-		},
-		{
-			"id": 14,
-			"type": "row",
-			"title": "Client telemetry & pipeline health",
-			"gridPos": {
-				"h": 1,
-				"w": 24,
-				"x": 0,
-				"y": 30
-			},
-			"collapsed": false
-		},
-		{
-			"id": 15,
-			"type": "timeseries",
-			"title": "Client events ingested vs dropped",
-			"datasource": {
-				"type": "prometheus",
-				"uid": "prometheus"
-			},
-			"gridPos": {
-				"h": 8,
-				"w": 8,
-				"x": 0,
-				"y": 31
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ops",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
-			},
-			"targets": [
-				{
-					"refId": "A",
-					"expr": "sum by (type) (rate(ktb_client_events_total[5m]))",
-					"legendFormat": "{{type}}"
-				},
-				{
-					"refId": "B",
-					"expr": "sum by (reason) (rate(ktb_client_events_dropped_total[5m]))",
-					"legendFormat": "dropped: {{reason}}"
-				}
-			]
-		},
-		{
-			"id": 16,
-			"type": "timeseries",
-			"title": "Telemetry pipeline errors by stage",
-			"datasource": {
-				"type": "prometheus",
-				"uid": "prometheus"
-			},
-			"gridPos": {
-				"h": 8,
-				"w": 8,
 				"x": 8,
-				"y": 31
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ops",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
+				"y": 22,
+				"w": 8,
+				"h": 8
 			},
 			"targets": [
 				{
+					"expr": "histogram_quantile(0.50, sum by (le) (rate(ktb_app_invocation_duration_ms_bucket[$__rate_interval])))",
 					"refId": "A",
-					"expr": "sum by (stage) (rate(ktb_telemetry_errors_total[5m]))",
+					"range": true,
+					"instant": false,
+					"legendFormat": "p50"
+				},
+				{
+					"expr": "histogram_quantile(0.95, sum by (le) (rate(ktb_app_invocation_duration_ms_bucket[$__rate_interval])))",
+					"refId": "B",
+					"range": true,
+					"instant": false,
+					"legendFormat": "p95"
+				},
+				{
+					"expr": "histogram_quantile(0.99, sum by (le) (rate(ktb_app_invocation_duration_ms_bucket[$__rate_interval])))",
+					"refId": "C",
+					"range": true,
+					"instant": false,
+					"legendFormat": "p99"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 13,
+			"title": "CQRS dispatch rate by side",
+			"description": "ktb_cqrs_dispatches_total — command vs query dispatches through the shared bus middleware.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 16,
+				"y": 22,
+				"w": 8,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (side) (rate(ktb_cqrs_dispatches_total{side=~\"$side\"}[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{side}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "percentunit",
+					"decimals": 2,
+					"max": 1,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 14,
+			"title": "CQRS failure ratio by side",
+			"description": "ktb_cqrs_dispatch_failures_total / ktb_cqrs_dispatches_total per side. Failures here are Effect failures, not HTTP 5xx — a handler may still map them to 4xx.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 30,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (side) (rate(ktb_cqrs_dispatch_failures_total{side=~\"$side\"}[$__rate_interval])) / sum by (side) (rate(ktb_cqrs_dispatches_total{side=~\"$side\"}[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{side}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ms",
+					"decimals": 0,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 15,
+			"title": "CQRS dispatch duration p95 by side",
+			"description": "p95 dispatch wall time per side (ktb_cqrs_dispatch_duration_ms). Slow queries usually dominate this panel.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 30,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.95, sum by (le, side) (rate(ktb_cqrs_dispatch_duration_ms_bucket{side=~\"$side\"}[$__rate_interval])))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{side}}"
+				}
+			]
+		},
+		{
+			"type": "row",
+			"collapsed": false,
+			"id": 16,
+			"panels": [],
+			"title": "Saturation (telemetry edge)",
+			"gridPos": {
+				"x": 0,
+				"y": 38,
+				"w": 24,
+				"h": 1
+			}
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 17,
+			"title": "Client events dropped by reason",
+			"description": "ktb_client_events_dropped_total — browser telemetry rejected at ingest. reason: disabled | invalid | rate-limited. 'disabled' means KTB_TELEMETRY_CLIENT is off, not a bug.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 39,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (reason) (rate(ktb_client_events_dropped_total[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{reason}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 18,
+			"title": "Telemetry pipeline errors by stage",
+			"description": "ktb_telemetry_errors_total — stage: ingest | export | flush. Export errors mean telemetry is being lost between the Worker and this collector; see the Telemetry health dashboard.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 39,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (stage) (rate(ktb_telemetry_errors_total[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
 					"legendFormat": "{{stage}}"
 				}
 			]
-		},
-		{
-			"id": 17,
-			"type": "timeseries",
-			"title": "Telemetry volume sanity (requests/min)",
-			"datasource": {
-				"type": "prometheus",
-				"uid": "prometheus"
-			},
-			"gridPos": {
-				"h": 8,
-				"w": 8,
-				"x": 16,
-				"y": 31
-			},
-			"fieldConfig": {
-				"defaults": {
-					"unit": "ops",
-					"custom": {
-						"drawStyle": "line",
-						"fillOpacity": 10
-					}
-				},
-				"overrides": []
-			},
-			"options": {
-				"legend": {
-					"displayMode": "list",
-					"placement": "bottom"
-				},
-				"tooltip": {
-					"mode": "multi"
-				}
-			},
-			"targets": [
-				{
-					"refId": "A",
-					"expr": "sum(rate(ktb_http_requests_total[1m])) * 60",
-					"legendFormat": "requests/min"
-				}
-			]
-		},
-		{
-			"id": 18,
-			"type": "row",
-			"title": "Traces & logs",
-			"gridPos": {
-				"h": 1,
-				"w": 24,
-				"x": 0,
-				"y": 39
-			},
-			"collapsed": false
-		},
-		{
-			"id": 19,
-			"type": "text",
-			"title": "How to explore traces and logs",
-			"gridPos": {
-				"h": 6,
-				"w": 24,
-				"x": 0,
-				"y": 40
-			},
-			"options": {
-				"mode": "markdown",
-				"content": "Use the **Traces (Tempo)** and **Logs (Loki)** links in the dashboard header.\n\n- **Tempo (TraceQL):** `{ resource.service.name = \"ktb\" }` — narrow with `{ span.http.route = \"...\" }`, `{ status = error }`, or `{ duration > 2s }`. Span names include `app.run`, `app.runAs`, `queue.audio.transcribe`.\n- **Loki:** `{ service_name = \"ktb\" } |= \"http.access\"` for the edge access log; add `| json | status >= 500` to filter errors. `client.event` / `client.error` records come from browser telemetry. Access records carry `traceId` — click through to the matching Tempo trace via the derived field.\n- Spans carry `traceId`/`requestId` annotations; logs carry `traceId` when the request propagated a `traceparent`."
-			}
 		}
-	],
-	"templating": {
-		"list": []
-	},
-	"annotations": {
-		"list": []
-	}
+	]
 }

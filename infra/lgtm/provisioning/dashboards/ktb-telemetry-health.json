@@ -1,0 +1,748 @@
+{
+	"timezone": "browser",
+	"editable": false,
+	"graphTooltip": 1,
+	"fiscalYearStartMonth": 0,
+	"schemaVersion": 39,
+	"templating": {
+		"list": [
+			{
+				"type": "query",
+				"name": "stage",
+				"skipUrlSync": false,
+				"multi": true,
+				"allowCustomValue": true,
+				"includeAll": true,
+				"auto": false,
+				"auto_min": "10s",
+				"auto_count": 30,
+				"label": "Error stage",
+				"description": "Bounded stage label on ktb_telemetry_errors_total (ingest | export | flush).",
+				"datasource": {
+					"type": "prometheus",
+					"uid": "prometheus"
+				},
+				"query": "label_values(ktb_telemetry_errors_total, stage)",
+				"refresh": 1,
+				"sort": 1,
+				"allValue": ".*"
+			},
+			{
+				"type": "query",
+				"name": "reason",
+				"skipUrlSync": false,
+				"multi": true,
+				"allowCustomValue": true,
+				"includeAll": true,
+				"auto": false,
+				"auto_min": "10s",
+				"auto_count": 30,
+				"label": "Drop reason",
+				"description": "Bounded reason label on ktb_client_events_dropped_total (disabled | invalid | rate-limited).",
+				"datasource": {
+					"type": "prometheus",
+					"uid": "prometheus"
+				},
+				"query": "label_values(ktb_client_events_dropped_total, reason)",
+				"refresh": 1,
+				"sort": 1,
+				"allValue": ".*"
+			},
+			{
+				"type": "query",
+				"name": "type",
+				"skipUrlSync": false,
+				"multi": true,
+				"allowCustomValue": true,
+				"includeAll": true,
+				"auto": false,
+				"auto_min": "10s",
+				"auto_count": 30,
+				"label": "Event type",
+				"description": "Event type recorded on ktb_client_events_total (event | error | navigation | request).",
+				"datasource": {
+					"type": "prometheus",
+					"uid": "prometheus"
+				},
+				"query": "label_values(ktb_client_events_total, type)",
+				"refresh": 1,
+				"sort": 1,
+				"allValue": ".*"
+			}
+		]
+	},
+	"annotations": {},
+	"title": "KTB Platform — Telemetry Health",
+	"uid": "ktb-telemetry-health",
+	"description": "Health of the telemetry pipeline itself: OTLP export errors, client-event ingest/drops, Loki log volume and Tempo trace arrival. Complements the RED/USE dashboard — a green app with a dead pipeline still pages via the ktb-telemetry-absent dead-man alert.",
+	"tags": [
+		"ktb",
+		"telemetry",
+		"pipeline"
+	],
+	"time": {
+		"from": "now-24h",
+		"to": "now"
+	},
+	"refresh": "1m",
+	"version": 1,
+	"links": [
+		{
+			"title": "Traces (Tempo)",
+			"type": "link",
+			"icon": "external link",
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": true,
+			"includeVars": false,
+			"keepTime": false,
+			"url": "explore?schemaVersion=1&panes=%7B%22traces%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22queryType%22%3A%22traceqlSearch%22%2C%22query%22%3A%22%7B%20resource.service.name%20%3D%20%5C%22ktb%5C%22%20%7D%22%7D%5D%7D%7D&orgId=1"
+		},
+		{
+			"title": "Logs (Loki)",
+			"type": "link",
+			"icon": "external link",
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": true,
+			"includeVars": false,
+			"keepTime": false,
+			"url": "explore?schemaVersion=1&panes=%7B%22logs%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bservice_name%3D%5C%22ktb%5C%22%7D%22%7D%5D%7D%7D&orgId=1"
+		},
+		{
+			"title": "RED/USE",
+			"type": "link",
+			"icon": "",
+			"tooltip": "",
+			"tags": [],
+			"asDropdown": false,
+			"placement": "inControlsMenu",
+			"targetBlank": false,
+			"includeVars": true,
+			"keepTime": true,
+			"url": "/d/ktb-platform"
+		}
+	],
+	"panels": [
+		{
+			"type": "row",
+			"collapsed": false,
+			"id": 1,
+			"panels": [],
+			"title": "Pipeline self-observability",
+			"gridPos": {
+				"x": 0,
+				"y": 0,
+				"h": 1,
+				"w": 24
+			}
+		},
+		{
+			"type": "stat",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "area",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 2,
+			"title": "OTLP export errors (15m)",
+			"description": "ktb_telemetry_errors_total{stage=\"export\"} increase over 15m. Counted per export attempt — retries can count more than once per batch. Alert: any sustained increase (ktb-telemetry-export-errors).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 1,
+				"w": 8,
+				"h": 4
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"decimals": 0,
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": null
+							},
+							{
+								"color": "red",
+								"value": 1
+							}
+						]
+					}
+				},
+				"overrides": []
+			},
+			"targets": [
+				{
+					"expr": "sum(increase(ktb_telemetry_errors_total{stage=\"export\"}[15m]))",
+					"refId": "A",
+					"range": true,
+					"instant": false
+				}
+			]
+		},
+		{
+			"type": "stat",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "area",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 3,
+			"title": "Ingest errors (15m)",
+			"description": "ktb_telemetry_errors_total{stage=\"ingest\"} increase — failures inside the /api/telemetry client-event ingest path.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 8,
+				"y": 1,
+				"w": 8,
+				"h": 4
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"decimals": 0
+				},
+				"overrides": []
+			},
+			"targets": [
+				{
+					"expr": "sum(increase(ktb_telemetry_errors_total{stage=\"ingest\"}[15m]))",
+					"refId": "A",
+					"range": true,
+					"instant": false
+				}
+			]
+		},
+		{
+			"type": "stat",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"graphMode": "area",
+				"colorMode": "value",
+				"justifyMode": "auto",
+				"textMode": "auto",
+				"wideLayout": true,
+				"showPercentChange": false,
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"percentChangeColorMode": "standard",
+				"orientation": "auto"
+			},
+			"id": 4,
+			"title": "Flush timeouts (15m)",
+			"description": "ktb_telemetry_errors_total{stage=\"flush\"} increase — bounded drain timeouts at worker shutdown/lifecycle flush.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 16,
+				"y": 1,
+				"w": 8,
+				"h": 4
+			},
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"decimals": 0
+				},
+				"overrides": []
+			},
+			"targets": [
+				{
+					"expr": "sum(increase(ktb_telemetry_errors_total{stage=\"flush\"}[15m]))",
+					"refId": "A",
+					"range": true,
+					"instant": false
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 5,
+			"title": "Telemetry pipeline errors by stage",
+			"description": "All ktb_telemetry_errors_total series. export = OTLP push failures (telemetry lost at source); ingest = client-event ingest failures; flush = drain timeouts.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 5,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (stage) (rate(ktb_telemetry_errors_total{stage=~\"$stage\"}[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{stage}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 6,
+			"title": "Client events ingested vs dropped",
+			"description": "Browser telemetry throughput: accepted events (ktb_client_events_total) vs rejected (ktb_client_events_dropped_total). A widening gap with flat traffic means the client SDK or ingest validation is rejecting payloads.",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 5,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum(rate(ktb_client_events_total[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "ingested"
+				},
+				{
+					"expr": "sum(rate(ktb_client_events_dropped_total[$__rate_interval]))",
+					"refId": "B",
+					"range": true,
+					"instant": false,
+					"legendFormat": "dropped"
+				}
+			]
+		},
+		{
+			"type": "row",
+			"collapsed": false,
+			"id": 7,
+			"panels": [],
+			"title": "Client telemetry",
+			"gridPos": {
+				"x": 0,
+				"y": 13,
+				"w": 24,
+				"h": 1
+			}
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 8,
+			"title": "Client events by type",
+			"description": "ktb_client_events_total split by event type: event (custom), error (client.error), navigation (web.navigation), request (web.request).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 14,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (type) (rate(ktb_client_events_total{type=~\"$type\"}[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{type}}"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "ops",
+					"decimals": 2,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 9,
+			"title": "Client events dropped by reason",
+			"description": "ktb_client_events_dropped_total — reason: disabled (KTB_TELEMETRY_CLIENT off), invalid (failed schema/sanitization), rate-limited (ingest cap hit).",
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 14,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum by (reason) (rate(ktb_client_events_dropped_total{reason=~\"$reason\"}[$__rate_interval]))",
+					"refId": "A",
+					"range": true,
+					"instant": false,
+					"legendFormat": "{{reason}}"
+				}
+			]
+		},
+		{
+			"type": "row",
+			"collapsed": false,
+			"id": 10,
+			"panels": [],
+			"title": "Logs (Loki)",
+			"gridPos": {
+				"x": 0,
+				"y": 22,
+				"w": 24,
+				"h": 1
+			}
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "short",
+					"decimals": 0,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 11,
+			"title": "Log volume",
+			"description": "Total log lines ingested per interval for service_name=ktb (OTLP logs → Loki). Includes http.access records — one per HTTP request — so this roughly tracks request volume plus app log lines.",
+			"datasource": {
+				"type": "loki",
+				"uid": "loki"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 23,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum(count_over_time({service_name=\"ktb\"}[$__interval]))",
+					"refId": "A",
+					"range": true,
+					"legendFormat": "lines/interval"
+				}
+			]
+		},
+		{
+			"type": "timeseries",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true,
+					"calcs": [
+						"lastNotNull"
+					]
+				},
+				"tooltip": {
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {},
+					"unit": "short",
+					"decimals": 0,
+					"min": 0
+				},
+				"overrides": []
+			},
+			"id": 12,
+			"title": "http.access 5xx lines",
+			"description": "Access-log records with status >= 500 per interval. Cross-check against the 5xx ratio on the RED dashboard — divergence means logs and metrics disagree (e.g. middleware ordering).",
+			"datasource": {
+				"type": "loki",
+				"uid": "loki"
+			},
+			"gridPos": {
+				"x": 12,
+				"y": 23,
+				"w": 12,
+				"h": 8
+			},
+			"targets": [
+				{
+					"expr": "sum(count_over_time({service_name=\"ktb\"} | json | status >= 500 [$__interval]))",
+					"refId": "A",
+					"range": true,
+					"legendFormat": "5xx lines/interval"
+				}
+			]
+		},
+		{
+			"type": "logs",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"showLabels": false,
+				"showCommonLabels": false,
+				"showTime": true,
+				"showLogContextToggle": false,
+				"wrapLogMessage": true,
+				"prettifyLogMessage": false,
+				"enableLogDetails": false,
+				"sortOrder": "Descending",
+				"dedupStrategy": "none"
+			},
+			"id": 13,
+			"title": "Recent client.* / error log records",
+			"description": "Raw Loki lines for client telemetry events (client.event / client.error / client.navigation / client.request) and pipeline errors. Each carries traceId when the request propagated a traceparent — click through to Tempo via the derived field.",
+			"datasource": {
+				"type": "loki",
+				"uid": "loki"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 31,
+				"w": 24,
+				"h": 9
+			},
+			"targets": [
+				{
+					"expr": "{service_name=\"ktb\"} |~ \"client\\.|telemetry\\.(ingest|flush)\"",
+					"refId": "A",
+					"range": true
+				}
+			]
+		},
+		{
+			"type": "row",
+			"collapsed": false,
+			"id": 14,
+			"panels": [],
+			"title": "Traces (Tempo)",
+			"gridPos": {
+				"x": 0,
+				"y": 40,
+				"w": 24,
+				"h": 1
+			}
+		},
+		{
+			"type": "table",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"frameIndex": 0,
+				"showHeader": true,
+				"showTypeIcons": false,
+				"footer": {
+					"show": false,
+					"reducer": [],
+					"countRows": false
+				},
+				"cellHeight": "sm"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"custom": {
+						"align": "auto",
+						"inspect": false
+					}
+				},
+				"overrides": []
+			},
+			"id": 15,
+			"title": "Recent error traces",
+			"description": "Tempo traceql search for service.name=ktb with status=error, newest first. Tail sampling keeps ALL error traces, so this list is complete even though only ~15% of healthy traffic is stored. Click a trace to open it in Explore.",
+			"datasource": {
+				"type": "tempo",
+				"uid": "tempo"
+			},
+			"gridPos": {
+				"x": 0,
+				"y": 41,
+				"w": 24,
+				"h": 10
+			},
+			"targets": [
+				{
+					"filters": [],
+					"refId": "A",
+					"queryType": "traceql",
+					"query": "{ resource.service.name = \"ktb\" && status = error }",
+					"tableType": "traces",
+					"limit": 20
+				}
+			]
+		},
+		{
+			"type": "text",
+			"transparent": false,
+			"repeatDirection": "h",
+			"options": {
+				"mode": "markdown",
+				"content": "Traces pass through a **tail_sampling** processor in the collector (`infra/lgtm/otelcol-config.yaml`):\n\n- **Keep** every trace containing an error span (`status_code = ERROR`)\n- **Keep** traces slower than **2s** end-to-end\n- **Sample** the remaining ~**15%** probabilistically\n\nMetrics are generated app-side (`effect/Metric` → OTLP metrics), **not** derived from traces — so sampling cannot skew the RED panels. For volume questions use metrics, not trace counts.\n\nSpan names include `app.run`, `app.runAs`, `queue.audio.transcribe`. Narrow searches with `{ span.http.route = \"...\" }`, `{ duration > 2s }` or `{ status = ok }`."
+			},
+			"id": 16,
+			"title": "Tail sampling context",
+			"description": "Why trace panels look sparse",
+			"gridPos": {
+				"x": 0,
+				"y": 51,
+				"w": 24,
+				"h": 6
+			}
+		}
+	]
+}

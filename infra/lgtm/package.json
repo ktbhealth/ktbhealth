@@ -6,7 +6,9 @@
 	"scripts": {
 		"up": "docker compose --env-file .env up -d",
 		"down": "docker compose --env-file .env down",
-		"logs": "docker compose --env-file .env logs -f lgtm"
+		"logs": "docker compose --env-file .env logs -f lgtm",
+		"gen:dashboards": "bun src/gen-dashboards.ts",
+		"test": "vitest run"
 	},
 	"devDependencies": {
 		"@grafana/grafana-foundation-sdk": "0.0.22",

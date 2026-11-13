@@ -95,12 +95,47 @@ self-contained and copy over.
 | `compose.yaml`              | `grafana/otel-lgtm:0.40.0` service, loopback ports, `/data` volume, resource limits               |
 | `.env.example`              | Grafana admin creds, retention args — copy to `.env` (gitignored)                                 |
 | `otelcol-config.yaml`       | Collector config; **replaces** the image default — superset of upstream v0.40.0 + `tail_sampling` |
-| `loki-config.yaml`          | Loki config; superset of image default + 7d retention (`limits_config` + `compactor`)              |
-| `tempo-config.yaml`         | Tempo config; superset of image default + 7d retention (`compactor.block_retention`)               |
+| `loki-config.yaml`          | Loki config; superset of image default + 7d retention (`limits_config` + `compactor`)             |
+| `tempo-config.yaml`         | Tempo config; superset of image default + 7d retention (`compactor.block_retention`)              |
 | `cloudflared/config.yml`    | Example ingress for a locally-managed tunnel (`otel.` + `grafana.` hostnames)                     |
 | `provisioning/datasources/` | Prometheus / Loki / Tempo datasources (uids `prometheus`, `loki`, `tempo`)                        |
-| `provisioning/dashboards/`  | `ktb-platform` dashboard (uid `ktb-platform`)                                                     |
+| `provisioning/dashboards/`  | Generated dashboard JSON (uids `ktb-platform`, `ktb-telemetry-health`, `ktb-client-events`)       |
 | `provisioning/alerting/`    | 5 alert rules + contact point placeholder + notification policy                                   |
+| `src/dashboards/`           | Dashboard sources — TypeScript via `@grafana/grafana-foundation-sdk` (see below)                  |
+| `src/gen-dashboards.ts`     | Generator: builds the dashboards and writes `provisioning/dashboards/*.json`                      |
+
+## Dashboards (dashboards-as-code)
+
+Dashboards are **defined in TypeScript** with
+[`@grafana/grafana-foundation-sdk`](https://github.com/grafana/grafana-foundation-sdk)
+(pinned `0.0.22` in `package.json` devDependencies) — not hand-edited JSON.
+The SDK builders live in `src/dashboards/`:
+
+| file                  | dashboard uid          | covers                                                                 |
+| --------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| `platform.ts`         | `ktb-platform`         | RED/USE: HTTP rate/errors/latency, app invocations, CQRS dispatch      |
+| `telemetry-health.ts` | `ktb-telemetry-health` | OTLP export errors, client-event drops, Loki volume, Tempo trace table |
+| `client-events.ts`    | `ktb-client-events`    | Browser telemetry: types, drop reasons, `client.*` log records         |
+| `shared.ts`           | —                      | datasource refs (`prometheus`/`loki`/`tempo`), query-target helpers    |
+
+Regenerate after editing sources:
+
+```sh
+cd infra/lgtm && bun run gen:dashboards   # writes provisioning/dashboards/*.json
+```
+
+The generator emits deterministic, tab-indented JSON — **commit the
+output** alongside the sources (same convention the old hand-written
+`ktb-platform.json` followed). The file provider in
+`provisioning/dashboards/provider.yaml` scans that directory every 30s,
+so a `docker compose restart lgtm` (or just waiting) picks up changes;
+`allowUiUpdates: false` means the UI can never drift from git.
+
+Metric names/labels come from `packages/observability/src/metrics.ts` —
+keep queries in sync when attributes change (the alert rules in
+`provisioning/alerting/alerting.yaml` have the same constraint).
+`uid: ktb-platform` is load-bearing: alert annotations link to
+`/d/ktb-platform`.
 
 ## OCI provisioning (Always-Free)
 
@@ -240,14 +275,14 @@ choice is deliberately left to a human, not wired into the adapter.
 
 ### Common failures
 
-| symptom                                 | likely cause                                                  | fix                                                                                                                              |
-| --------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Dashboard empty, `absent()` alert fires | tunnel down or wrong endpoint                                 | `cloudflared tunnel info ktb-lgtm`; verify `OTEL_EXPORTER_OTLP_ENDPOINT` has no path and is `https://`                           |
-| App logs warn about insecure endpoint   | `http://` non-loopback OTLP endpoint is dropped by the driver | use `https://otel.<domain>`                                                                                                      |
-| `stage="export"` errors climbing        | collector unreachable / 4xx from otelcol                      | check `docker logs`, otelcol receiver logs, Access policy on `otel.` hostname                                                    |
+| symptom                                 | likely cause                                                  | fix                                                                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dashboard empty, `absent()` alert fires | tunnel down or wrong endpoint                                 | `cloudflared tunnel info ktb-lgtm`; verify `OTEL_EXPORTER_OTLP_ENDPOINT` has no path and is `https://`                                                                         |
+| App logs warn about insecure endpoint   | `http://` non-loopback OTLP endpoint is dropped by the driver | use `https://otel.<domain>`                                                                                                                                                    |
+| `stage="export"` errors climbing        | collector unreachable / 4xx from otelcol                      | check `docker logs`, otelcol receiver logs, Access policy on `otel.` hostname                                                                                                  |
 | Disk full on VM                         | `/data` volume growth                                         | `docker system df`; retention is 7d across Loki/Tempo/Prometheus — see loki-config.yaml, tempo-config.yaml and PROMETHEUS_EXTRA_ARGS; `docker compose down` + prune old blocks |
-| Traces missing but metrics/logs fine    | tail_sampling is working as designed                          | errors + >2s traces + 15% sample are kept; check Tempo for `{ status = error }`                                                  |
-| Grafana login fails after recreate      | admin password only set at first boot                         | password lives in Grafana's sqlite under `/data`; reset via `GF_SECURITY_ADMIN_PASSWORD` env or `grafana cli`                    |
+| Traces missing but metrics/logs fine    | tail_sampling is working as designed                          | errors + >2s traces + 15% sample are kept; check Tempo for `{ status = error }`                                                                                                |
+| Grafana login fails after recreate      | admin password only set at first boot                         | password lives in Grafana's sqlite under `/data`; reset via `GF_SECURITY_ADMIN_PASSWORD` env or `grafana cli`                                                                  |
 
 ### Backup
 
