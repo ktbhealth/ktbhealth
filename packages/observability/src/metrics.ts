@@ -17,6 +17,9 @@ import * as Metric from "effect/Metric";
  * point every server fn, page loader, job and webhook passes through. */
 export const appInvocations = Metric.counter("ktb_app_invocations_total", {
 	description: "Effect programs executed through the app runtime",
+	// OTLP export maps isMonotonic from this flag — counters must be
+	// incremental-only to export as monotonic sums.
+	incremental: true,
 });
 export const appInvocationDuration = Metric.histogram("ktb_app_invocation_duration_ms", {
 	description: "Wall time of app runtime invocations",
@@ -27,6 +30,7 @@ export const appInvocationDuration = Metric.histogram("ktb_app_invocation_durati
  * in the shared bus middleware so every plugin group is covered. */
 export const cqrsDispatches = Metric.counter("ktb_cqrs_dispatches_total", {
 	description: "CQRS command/query dispatches",
+	incremental: true,
 });
 export const cqrsDispatchDuration = Metric.histogram("ktb_cqrs_dispatch_duration_ms", {
 	description: "CQRS dispatch wall time",
@@ -34,6 +38,7 @@ export const cqrsDispatchDuration = Metric.histogram("ktb_cqrs_dispatch_duration
 });
 export const cqrsDispatchFailures = Metric.counter("ktb_cqrs_dispatch_failures_total", {
 	description: "CQRS dispatches that ended in failure",
+	incremental: true,
 });
 
 /** HTTP edge signals from the request middleware — handlerType
@@ -50,15 +55,18 @@ export const httpRequestDuration = Metric.histogram("ktb_http_request_duration_m
 /** Client telemetry ingest — events/errors received at /api/telemetry. */
 export const clientEvents = Metric.counter("ktb_client_events_total", {
 	description: "Browser telemetry events ingested",
+	incremental: true,
 });
 export const clientEventsDropped = Metric.counter("ktb_client_events_dropped_total", {
 	description: "Browser telemetry events rejected (disabled, invalid, rate-limited)",
+	incremental: true,
 });
 
 /** Telemetry pipeline self-observability — export/ingest failures must
  * never be silent. */
 export const telemetryErrors = Metric.counter("ktb_telemetry_errors_total", {
 	description: "Telemetry pipeline errors (ingest, export, flush)",
+	incremental: true,
 });
 
 export type MetricAttributes = Readonly<Record<string, string | number | boolean>>;

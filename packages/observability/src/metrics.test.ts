@@ -38,4 +38,14 @@ describe("metric definitions", () => {
 			expect(Metric.isMetric(m)).toBe(true);
 		}
 	});
+
+	it("counters are incremental so OTLP exports them as monotonic sums", async () => {
+		// OtlpMetrics maps `isMonotonic` from the counter's `incremental`
+		// flag — dropping `incremental: true` silently exports counters
+		// as non-monotonic sums.
+		for (const m of [appInvocations, cqrsDispatches, clientEvents, telemetryErrors]) {
+			const state = await Effect.runPromise(Metric.value(m));
+			expect(state).toHaveProperty("incremental", true);
+		}
+	});
 });
