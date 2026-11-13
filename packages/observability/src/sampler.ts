@@ -6,11 +6,15 @@ import * as Tracer from "effect/Tracer";
  *
  * Effect computes `options.sampled` before `tracer.span` is invoked
  * (explicit flag → unsampled parent → `MinimumTraceLevel`), so sampling
- * can't be injected as an option — but the *returned span* is what
- * exporters inspect (`OtlpTracer` drops `span.sampled === false`) and
- * what children read for parent-based decisions. Wrapping the span and
- * reporting `sampled: false` therefore drops the whole trace consistently:
+ * can't be injected any earlier — but exporters inspect the *span's*
+ * `sampled` flag (`OtlpTracer` drops `span.sampled === false`) and
+ * children read their parent's flag for parent-based decisions. Passing
+ * `sampled: false` through to the underlying `tracer.span` therefore
+ * drops the whole trace consistently: the native span is born unsampled,
  * descendants see an unsampled parent and the runtime forces them off.
+ * (Wrapping the returned span instead does NOT work — `end()` delegates
+ * to the inner span, whose own `sampled` flag is what the exporter
+ * checks.)
  *
  * Decision order (OTel parent-based convention):
  * 1. Spans the runtime already marked unsampled pass through untouched.
@@ -18,26 +22,6 @@ import * as Tracer from "effect/Tracer";
  * 3. Root spans (no parent, or `root: true`) flip a weighted coin:
  *    `rate >= 1` keeps the tracer as-is, `rate <= 0` drops every trace.
  */
-const unsampled = (span: Tracer.Span): Tracer.Span => ({
-	_tag: "Span",
-	name: span.name,
-	spanId: span.spanId,
-	traceId: span.traceId,
-	parent: span.parent,
-	annotations: span.annotations,
-	get status() {
-		return span.status;
-	},
-	attributes: span.attributes,
-	links: span.links,
-	sampled: false,
-	kind: span.kind,
-	end: (endTime, exit) => span.end(endTime, exit),
-	attribute: (key, value) => span.attribute(key, value),
-	event: (name, startTime, attributes) => span.event(name, startTime, attributes),
-	addLinks: (links) => span.addLinks(links),
-});
-
 export const sampledTracer = (
 	tracer: Tracer.Tracer,
 	rate: number,
@@ -47,11 +31,10 @@ export const sampledTracer = (
 	return Tracer.make({
 		context: tracer.context,
 		span: (options) => {
-			const span = tracer.span(options);
-			if (!options.sampled) return span;
+			if (!options.sampled) return tracer.span(options);
 			const isRoot = options.root || Option.isNone(options.parent);
-			if (!isRoot) return span;
-			return random() < rate ? span : unsampled(span);
+			if (!isRoot) return tracer.span(options);
+			return tracer.span(random() < rate ? options : { ...options, sampled: false });
 		},
 	});
 };

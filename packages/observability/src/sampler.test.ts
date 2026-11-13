@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
 import * as Tracer from "effect/Tracer";
 
 import { sampledTracer } from "./sampler.ts";
@@ -84,20 +83,17 @@ describe("sampledTracer", () => {
 		expect(flag).toBe(false);
 	});
 
-	it("delegates lifecycle methods on the unsampled wrapper span", async () => {
+	it("marks the underlying span unsampled so exporters drop it", async () => {
 		const { tracer, spans } = makeTracer();
 		const sampled = sampledTracer(tracer, 0, () => 1);
 		await Effect.runPromise(
-			Effect.gen(function* () {
-				const span = yield* Effect.currentSpan;
-				span.attribute("probe.key", "v");
-				span.event("probe.event", 1n, { a: 1 });
-				span.addLinks([]);
-				span.end(2n, Exit.succeed("done"));
-			}).pipe(Effect.withSpan("wrapped"), Effect.provideService(Tracer.Tracer, sampled)),
+			Effect.void.pipe(Effect.withSpan("wrapped"), Effect.provideService(Tracer.Tracer, sampled)),
 		);
-		const inner = spans[0];
-		expect(inner).toBeDefined();
+		// Exporters (e.g. OtlpTracer) inspect the inner span's `sampled`
+		// flag on `end()` — it must be false natively, not just on a
+		// wrapper. Regression: a span wrapper reporting sampled:false
+		// still exported because end() delegated to the inner span.
+		expect(spans[0]?.sampled).toBe(false);
 	});
 
 	it("preserves tracer.context on the wrapper", () => {

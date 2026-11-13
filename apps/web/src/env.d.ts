@@ -21,9 +21,9 @@ declare namespace Cloudflare {
 		/** Deployment environment tag (production/staging/…). */
 		KTB_ENVIRONMENT?: string;
 		/** Trace sample ratio 0..1 (default 1). */
-		KTB_TRACE_SAMPLE_RATE?: string;
+		KTB_TELEMETRY_TRACES_SAMPLE_RATE?: string;
 		/** Client-event sample ratio 0..1 (default 1). */
-		KTB_CLIENT_SAMPLE_RATE?: string;
+		KTB_TELEMETRY_CLIENT_SAMPLE_RATE?: string;
 		/** "1" disables all telemetry export. */
 		OTEL_SDK_DISABLED?: string;
 		/** Bearer token guarding GET /api/metrics (secret). */

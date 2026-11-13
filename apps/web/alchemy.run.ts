@@ -80,11 +80,13 @@ export default Alchemy.Stack(
 					? { OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME }
 					: {}),
 				...(process.env.KTB_ENVIRONMENT ? { KTB_ENVIRONMENT: process.env.KTB_ENVIRONMENT } : {}),
-				...(process.env.KTB_TRACE_SAMPLE_RATE
-					? { KTB_TRACE_SAMPLE_RATE: process.env.KTB_TRACE_SAMPLE_RATE }
+				...(process.env.KTB_TELEMETRY_TRACES_SAMPLE_RATE
+					? { KTB_TELEMETRY_TRACES_SAMPLE_RATE: process.env.KTB_TELEMETRY_TRACES_SAMPLE_RATE }
 					: {}),
-				...(process.env.KTB_CLIENT_SAMPLE_RATE
-					? { KTB_CLIENT_SAMPLE_RATE: process.env.KTB_CLIENT_SAMPLE_RATE }
+				...(process.env.KTB_TELEMETRY_CLIENT_SAMPLE_RATE
+					? {
+							KTB_TELEMETRY_CLIENT_SAMPLE_RATE: process.env.KTB_TELEMETRY_CLIENT_SAMPLE_RATE,
+						}
 					: {}),
 				...(process.env.OTEL_SDK_DISABLED
 					? { OTEL_SDK_DISABLED: process.env.OTEL_SDK_DISABLED }
