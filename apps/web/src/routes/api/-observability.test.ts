@@ -119,7 +119,33 @@ describe("observability api routes", () => {
 			});
 		});
 
-		it("reports unavailable when the datastore probe fails", async () => {
+		it("reports ready when a transient datastore failure recovers on retry", async () => {
+			const enabledIds = vi
+				.fn<() => Effect.Effect<ReadonlySet<string>>>()
+				.mockReturnValueOnce(Effect.die(new Error("cold start")))
+				.mockReturnValue(Effect.succeed(new Set()));
+			mocks.run.mockImplementation(
+				runWith([PluginStates as never, { enabledIds }], [Telemetry as never, telemetry]),
+			);
+			const res = await handlersOf(ReadyRoute).GET!({} as never);
+			expect(res.status).toBe(200);
+			expect(enabledIds).toHaveBeenCalledTimes(2);
+		});
+
+		it("reports unavailable when the datastore probe keeps failing", async () => {
+			const enabledIds = vi
+				.fn<() => Effect.Effect<ReadonlySet<string>>>()
+				.mockReturnValue(Effect.die(new Error("db down")));
+			mocks.run.mockImplementation(
+				runWith([PluginStates as never, { enabledIds }], [Telemetry as never, telemetry]),
+			);
+			const res = await handlersOf(ReadyRoute).GET!({} as never);
+			expect(res.status).toBe(503);
+			// initial attempt + 2 bounded retries
+			expect(enabledIds).toHaveBeenCalledTimes(3);
+		});
+
+		it("reports unavailable when the datastore probe fails with a typed error", async () => {
 			mocks.run.mockImplementation(
 				runWith([PluginStates as never, { enabledIds: () => Effect.fail(new Error("db down")) }]),
 			);
