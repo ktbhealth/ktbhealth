@@ -47,6 +47,7 @@ const setup = (
 		<PortalPage
 			user={{ name: "Ana", email: "ana@ktb.test" }}
 			hasCpf
+			awaitingInvites={0}
 			profiles={[me]}
 			profile={record}
 			consultations={consultations}
@@ -106,6 +107,18 @@ describe("PortalPage", () => {
 		setup({ profiles: [], profile: null, consultations: [] });
 		expect(screen.getByText("No records linked yet")).toBeTruthy();
 		expect(screen.queryByText("Profiles")).toBeNull();
+	});
+
+	it("tells the user to confirm their email while invites wait on it", () => {
+		setup({ awaitingInvites: 1, profiles: [], profile: null, consultations: [] });
+		expect(screen.getByText("Confirm your email")).toBeTruthy();
+		const action = screen.getByRole("link", { name: "Resend verification link" });
+		expect(action.getAttribute("href")).toBe("/verify-email");
+	});
+
+	it("stays silent about verification when nothing waits on it", () => {
+		setup();
+		expect(screen.queryByText("Confirm your email")).toBeNull();
 	});
 
 	it("switches between profiles and reloads", async () => {

@@ -50,6 +50,7 @@ const portal = {
 	consultations: vi.fn(),
 	consultation: vi.fn(),
 	hasCpf: vi.fn(),
+	awaitingInvites: vi.fn<() => Effect.Effect<number, Forbidden>>(),
 	setCpf: vi.fn(),
 };
 const denied = Effect.fail(new Forbidden({ path: "portal.read" }));
@@ -65,6 +66,7 @@ beforeEach(() => {
 	portal.consultations.mockReturnValue(Effect.succeed(listed));
 	portal.consultation.mockReturnValue(Effect.succeed(consultation));
 	portal.hasCpf.mockReturnValue(Effect.succeed(true));
+	portal.awaitingInvites.mockReturnValue(Effect.succeed(0));
 	portal.setCpf.mockReturnValue(Effect.void);
 });
 
@@ -87,6 +89,7 @@ describe("portalFn", () => {
 		await expect(portalFn()).resolves.toEqual({
 			user: { name: "Ana", email: "ana@ktb.test" },
 			hasCpf: true,
+			awaitingInvites: 0,
 			profiles: [me, kid],
 			profile,
 			consultations: listed,
@@ -97,12 +100,19 @@ describe("portalFn", () => {
 		expect(portal.consultations).toHaveBeenCalledWith(1);
 	});
 
+	it("reports invites still waiting on email verification", async () => {
+		mocks.getPatientContext.mockResolvedValue({ user, profiles: [], active: null });
+		portal.awaitingInvites.mockReturnValue(Effect.succeed(2));
+		await expect(portalFn()).resolves.toMatchObject({ awaitingInvites: 2 });
+	});
+
 	it("opens nothing while a profile choice is pending", async () => {
 		mocks.getPatientContext.mockResolvedValue({ user, profiles: [me, kid], active: null });
 		portal.hasCpf.mockReturnValue(Effect.succeed(false));
 		await expect(portalFn()).resolves.toEqual({
 			user: { name: "Ana", email: "ana@ktb.test" },
 			hasCpf: false,
+			awaitingInvites: 0,
 			profiles: [me, kid],
 			profile: null,
 			consultations: [],
@@ -117,6 +127,7 @@ describe("portalFn", () => {
 		await expect(portalFn()).resolves.toEqual({
 			user: { name: "Ana", email: "ana@ktb.test" },
 			hasCpf: true,
+			awaitingInvites: 0,
 			profiles: [],
 			profile: null,
 			consultations: [],

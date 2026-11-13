@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { ClipboardListIcon, FileHeartIcon } from "lucide-react";
 
-import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
+import { Alert, AlertDescription, AlertTitle } from "@ktbhealth/ui/components/alert";
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button, buttonVariants } from "@ktbhealth/ui/components/button";
 import {
@@ -54,6 +54,7 @@ export interface PortalApi {
 export function PortalPage({
 	user,
 	hasCpf,
+	awaitingInvites,
 	profiles,
 	profile,
 	consultations,
@@ -64,6 +65,9 @@ export function PortalPage({
 	user: { readonly name: string | null; readonly email: string };
 	/** Whether the account already carries a CPF to match records by. */
 	hasCpf: boolean;
+	/** Invites for this email still waiting on email verification — the
+	 * reason a portal can look empty right after sign-up. */
+	awaitingInvites: number;
 	profiles: readonly PortalProfileItem[];
 	/** The record currently open, if any. */
 	profile: PortalRecord | null;
@@ -113,6 +117,17 @@ export function PortalPage({
 			{error ? (
 				<Alert variant="destructive">
 					<AlertDescription>{t.errors[error]}</AlertDescription>
+				</Alert>
+			) : null}
+			{awaitingInvites > 0 ? (
+				<Alert>
+					<AlertTitle>{t.verifyEmailTitle}</AlertTitle>
+					<AlertDescription>
+						{t.verifyEmailDescription}{" "}
+						<Link to="/verify-email" className="font-medium underline underline-offset-4">
+							{t.verifyEmailAction}
+						</Link>
+					</AlertDescription>
 				</Alert>
 			) : null}
 			{hasCpf ? null : (

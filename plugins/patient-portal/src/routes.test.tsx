@@ -81,6 +81,7 @@ describe("/portal", () => {
 	const portal = {
 		user: { name: "Ana", email: "ana@ktb.test" },
 		hasCpf: true,
+		awaitingInvites: 0,
 		profiles: [{ patientId: 1 }],
 		profile: { patientId: 1 },
 		consultations: [{ id: 10 }],

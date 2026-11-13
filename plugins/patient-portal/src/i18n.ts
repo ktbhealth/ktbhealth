@@ -40,6 +40,10 @@ export interface PortalMessages {
 	readonly sections: Record<AnamnesisSectionKey, string>;
 	readonly emptyTitle: string;
 	readonly emptyDescription: string;
+	/** Notice shown while invites wait on email verification. */
+	readonly verifyEmailTitle: string;
+	readonly verifyEmailDescription: string;
+	readonly verifyEmailAction: string;
 	readonly cpfTitle: string;
 	readonly cpfDescription: string;
 	readonly cpfLabel: string;
@@ -80,6 +84,10 @@ const en: PortalMessages = {
 	emptyTitle: "No records linked yet",
 	emptyDescription:
 		"When a doctor registers you with this CPF or invites this email, your consultations appear here. Some links wait for the doctor's approval.",
+	verifyEmailTitle: "Confirm your email",
+	verifyEmailDescription:
+		"A doctor invited this address — the consultations shared with you unlock once your email is confirmed.",
+	verifyEmailAction: "Resend verification link",
 	cpfTitle: "Tell us your CPF",
 	cpfDescription: "We use your CPF to find the consultations your doctors recorded for you.",
 	cpfLabel: "CPF",
@@ -125,6 +133,10 @@ const ptBR: PortalMessages = {
 	emptyTitle: "Nenhuma ficha vinculada ainda",
 	emptyDescription:
 		"Quando um médico cadastrar você com este CPF ou convidar este e-mail, suas consultas aparecem aqui. Alguns vínculos aguardam a aprovação do médico.",
+	verifyEmailTitle: "Confirme seu e-mail",
+	verifyEmailDescription:
+		"Um médico convidou este endereço — as consultas compartilhadas com você são liberadas assim que o e-mail for confirmado.",
+	verifyEmailAction: "Reenviar link de verificação",
 	cpfTitle: "Informe seu CPF",
 	cpfDescription:
 		"Usamos seu CPF para encontrar as consultas que seus médicos registraram para você.",
@@ -171,6 +183,10 @@ const es: PortalMessages = {
 	emptyTitle: "Aún no hay fichas vinculadas",
 	emptyDescription:
 		"Cuando un médico te registre con este CPF o invite este correo, tus consultas aparecerán aquí. Algunos vínculos esperan la aprobación del médico.",
+	verifyEmailTitle: "Confirma tu correo",
+	verifyEmailDescription:
+		"Un médico invitó esta dirección — las consultas compartidas contigo se desbloquean cuando confirmes el correo.",
+	verifyEmailAction: "Reenviar enlace de verificación",
 	cpfTitle: "Indica tu CPF",
 	cpfDescription: "Usamos tu CPF para encontrar las consultas que tus médicos registraron para ti.",
 	cpfLabel: "CPF",

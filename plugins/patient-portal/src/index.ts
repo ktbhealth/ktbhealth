@@ -11,6 +11,7 @@ import { SECTION_LABELS, type Anamnesis, type AnamnesisSectionKey } from "@ktb/a
 import { Forbidden, Principal } from "@ktb/authz";
 import { Db, type DbClient } from "@ktb/db";
 import { consultations, doctors, patientAccess, patients, user } from "@ktb/db/schema";
+import { normalizeEmail } from "@ktb/patient-access";
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { isValidCpf } from "@ktb/patients/record";
 
@@ -177,6 +178,32 @@ export async function getPortalConsultation(
 	return { ...consultation, sections: portalSections(parsed) };
 }
 
+/**
+ * Invites addressed to the user's account email still sitting unclaimed
+ * because the address is not verified — how many records wait on the
+ * verification step. Zero for a verified address: every matching invite
+ * is claimed by `syncLinks` on the next entry point, so a lingering one
+ * can only belong to an unverified account. The email comparison uses
+ * the same normalization the invite write path applies.
+ */
+export async function countAwaitingInvites(db: DbClient, userId: string): Promise<number> {
+	const [account] = await db
+		.select({ email: user.email, emailVerified: user.emailVerified })
+		.from(user)
+		.where(eq(user.id, userId));
+	if (account === undefined || account.emailVerified) return 0;
+	const rows = await db
+		.select({ id: patientAccess.id })
+		.from(patientAccess)
+		.where(
+			and(
+				eq(patientAccess.email, normalizeEmail(account.email)),
+				eq(patientAccess.status, "invited"),
+			),
+		);
+	return rows.length;
+}
+
 /** Digits of a CPF. */
 export const cpfDigits = (cpf: string): string => cpf.replace(/\D/g, "");
 
@@ -208,6 +235,9 @@ export class PatientPortal extends Context.Service<
 		readonly consultation: (id: number) => Effect.Effect<PortalConsultation, Forbidden>;
 		/** Whether the caller's account already carries a CPF. */
 		readonly hasCpf: () => Effect.Effect<boolean, Forbidden>;
+		/** Invites addressed to the caller's email still waiting on email
+		 * verification — the count behind the "confirm your email" notice. */
+		readonly awaitingInvites: () => Effect.Effect<number, Forbidden>;
 		/** Store the caller's CPF — it drives the match against records. */
 		readonly setCpf: (cpf: string) => Effect.Effect<void, Forbidden | CpfRejected>;
 	}
@@ -247,6 +277,10 @@ export const PatientPortalLive = Layer.effect(
 					db.select({ cpf: user.cpf }).from(user).where(eq(user.id, userId)),
 				);
 				return Boolean(account?.cpf);
+			}),
+			awaitingInvites: Effect.fn("PatientPortal.awaitingInvites")(function* () {
+				const userId = yield* self("portal.read");
+				return yield* Effect.promise(() => countAwaitingInvites(db, userId));
 			}),
 			setCpf: Effect.fn("PatientPortal.setCpf")(function* (raw: string) {
 				const userId = yield* self("portal.update");

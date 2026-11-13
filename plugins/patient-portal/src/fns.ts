@@ -41,6 +41,7 @@ export const portalFn = createServerFn({ method: "GET" }).handler(async () => {
 			return {
 				user: { name: user.name, email: user.email },
 				hasCpf: yield* portal.hasCpf(),
+				awaitingInvites: yield* portal.awaitingInvites(),
 				profiles,
 				profile: active === null ? null : yield* portal.profile(active.patientId),
 				consultations: active === null ? [] : yield* portal.consultations(active.patientId),
@@ -51,6 +52,7 @@ export const portalFn = createServerFn({ method: "GET" }).handler(async () => {
 				Effect.succeed({
 					user: { name: user.name, email: user.email },
 					hasCpf: true,
+					awaitingInvites: 0,
 					profiles: [],
 					profile: null,
 					consultations: [],

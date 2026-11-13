@@ -9,6 +9,7 @@ import { Db, makeDb } from "@ktb/db";
 import { makeD1 } from "@ktb/db/testing";
 
 import {
+	countAwaitingInvites,
 	cpfDigits,
 	getPortalConsultation,
 	getPortalProfile,
@@ -45,27 +46,32 @@ const json = (a: Anamnesis) => JSON.stringify(a).replaceAll("'", "''");
 
 // "ana" is the patient Ana (record 1, kept by Dra. Bia) and guardian of
 // Leo (record 2, kept by a doctor with no profile row). Her link to Rui
-// (record 3) is still pending and the one to Ivo (record 4) revoked.
+// (record 3) is still pending and the one to Ivo (record 4) revoked. Her
+// email is unverified, so the invite for record 5 addressed to it sits
+// "invited" — eva's verified address sees no such wait.
 // Consultations: 10 and 11 are Ana's saved records, 12 is still being
 // transcribed (no anamnesis), 13 holds JSON that no longer decodes, 15
 // is not JSON at all, 14 was saved with no chief complaint, 20 is
 // Leo's, 30 Rui's and 40 Ivo's.
 const DDL = `
-CREATE TABLE user (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, cpf TEXT, updated_at INTEGER);
-INSERT INTO user (id, name, email, cpf) VALUES
-  ('ana', 'Ana', 'ana@ktb.test', NULL),
-  ('eva', 'Eva', 'eva@ktb.test', '52998224725');
+CREATE TABLE user (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL DEFAULT 0, cpf TEXT, updated_at INTEGER);
+INSERT INTO user (id, name, email, email_verified, cpf) VALUES
+  ('ana', 'Ana', 'ana@ktb.test', 0, NULL),
+  ('eva', 'Eva', 'eva@ktb.test', 1, '52998224725');
 CREATE TABLE doctors (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, display_name TEXT NOT NULL);
 INSERT INTO doctors (user_id, display_name) VALUES ('doc', 'Dra. Bia');
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL);
 INSERT INTO patients (id, owner_id, name) VALUES
-  (1, 'doc', 'Ana'), (2, 'other', 'Leo'), (3, 'doc', 'Rui'), (4, 'doc', 'Ivo');
+  (1, 'doc', 'Ana'), (2, 'other', 'Leo'), (3, 'doc', 'Rui'), (4, 'doc', 'Ivo'), (5, 'doc', 'Sia');
 CREATE TABLE patient_access (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER NOT NULL, user_id TEXT, email TEXT, relation TEXT NOT NULL, status TEXT NOT NULL, source TEXT NOT NULL, granted_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 INSERT INTO patient_access (patient_id, user_id, relation, status, source, created_at, updated_at) VALUES
   (1, 'ana', 'self', 'active', 'invite', 0, 0),
   (2, 'ana', 'guardian', 'active', 'invite', 0, 0),
   (3, 'ana', 'self', 'pending', 'cpf', 0, 0),
   (4, 'ana', 'guardian', 'revoked', 'invite', 0, 0);
+INSERT INTO patient_access (patient_id, user_id, email, relation, status, source, created_at, updated_at) VALUES
+  (5, NULL, 'ana@ktb.test', 'self', 'invited', 'invite', 0, 0),
+  (5, NULL, 'nobody@ktb.test', 'self', 'invited', 'invite', 0, 0);
 CREATE TABLE consultations (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, patient_id INTEGER, transcript TEXT NOT NULL, anamnesis TEXT, created_at INTEGER NOT NULL);
 INSERT INTO consultations (id, user_id, patient_id, transcript, anamnesis, created_at) VALUES
   (10, 'doc', 1, 'fala da consulta', '${json(anamnesis())}', 1000),
@@ -197,6 +203,19 @@ describe("getPortalConsultation", () => {
 	});
 });
 
+describe("countAwaitingInvites", () => {
+	const db = makeDb(makeD1(DDL));
+
+	it("counts the invites an unverified address cannot claim yet", async () => {
+		expect(await countAwaitingInvites(db, "ana")).toBe(1);
+	});
+
+	it("is zero for a verified address and for a stranger or unknown account", async () => {
+		expect(await countAwaitingInvites(db, "eva")).toBe(0);
+		expect(await countAwaitingInvites(db, "ghost")).toBe(0);
+	});
+});
+
 describe("cpfDigits", () => {
 	it("strips the mask", () => {
 		expect(cpfDigits("529.982.247-25")).toBe("52998224725");
@@ -253,6 +272,17 @@ describe("PatientPortalLive", () => {
 		});
 	});
 
+	it("reports invites waiting on email verification", async () => {
+		expect(await as(ana, (p) => p.awaitingInvites())).toMatchObject({
+			_tag: "Success",
+			success: 1,
+		});
+		expect(await as({ userId: "eva" }, (p) => p.awaitingInvites())).toMatchObject({
+			_tag: "Success",
+			success: 0,
+		});
+	});
+
 	it("refuses anonymous callers and anyone acting for a doctor", async () => {
 		for (const who of [null, { userId: "ana", actorId: "sec" }]) {
 			for (const result of [
@@ -260,6 +290,7 @@ describe("PatientPortalLive", () => {
 				await as(who, (p) => p.consultations(1)),
 				await as(who, (p) => p.consultation(10)),
 				await as(who, (p) => p.hasCpf()),
+				await as(who, (p) => p.awaitingInvites()),
 				await as(who, (p) => p.setCpf("529.982.247-25")),
 			]) {
 				expect(result).toMatchObject({ _tag: "Failure", failure: { _tag: "Forbidden" } });

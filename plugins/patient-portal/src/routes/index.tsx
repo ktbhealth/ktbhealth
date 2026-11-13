@@ -20,12 +20,14 @@ export const Route = createPluginFileRoute("patient-portal.routes")("/portal/")(
 		return { ...portal, locale };
 	},
 	component: function PortalRoute() {
-		const { user, hasCpf, profiles, profile, consultations, locale } = Route.useLoaderData();
+		const { user, hasCpf, awaitingInvites, profiles, profile, consultations, locale } =
+			Route.useLoaderData();
 		const router = useRouter();
 		return (
 			<PortalPage
 				user={user}
 				hasCpf={hasCpf}
+				awaitingInvites={awaitingInvites}
 				profiles={profiles}
 				profile={profile}
 				consultations={consultations}
