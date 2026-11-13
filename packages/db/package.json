@@ -8,7 +8,8 @@
 		"./testing": "./src/testing.ts"
 	},
 	"scripts": {
-		"db:generate": "drizzle-kit generate && node scripts/sync-alchemy-migrations.mjs"
+		"db:generate": "drizzle-kit generate && node scripts/sync-alchemy-migrations.mjs",
+		"db:studio": "bun scripts/local-studio-db.mjs && drizzle-kit studio"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.45.1",
