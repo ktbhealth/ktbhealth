@@ -43,9 +43,14 @@ export const cqrsDispatchFailures = Metric.counter("ktb_cqrs_dispatch_failures_t
 
 /** HTTP edge signals from the request middleware — handlerType
  * (`serverFn` | `router`) keeps server-fn traffic separable from page
- * loads; status is the response code (bounded). */
-export const httpRequests = Metric.frequency("ktb_http_requests_total", {
+ * loads; status is the response code (bounded).
+ * NOTE: must be a counter, not Metric.frequency — the OTLP exporter
+ * serializes a frequency's key as an attribute literally named `key`,
+ * so `status` would never appear as a label and every status-based
+ * dashboard/alert would silently read empty. */
+export const httpRequests = Metric.counter("ktb_http_requests_total", {
 	description: "HTTP requests by handler type and status",
+	incremental: true,
 });
 export const httpRequestDuration = Metric.histogram("ktb_http_request_duration_ms", {
 	description: "HTTP request wall time",

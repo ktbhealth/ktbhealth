@@ -54,7 +54,7 @@ const telemetryMiddleware = createMiddleware().server(
 					: undefined;
 		const status = response?.status ?? 0;
 
-		recordUnsafe(tagged(httpRequests, { handlerType }), `${status}`);
+		recordUnsafe(tagged(httpRequests, { handlerType, status }), 1);
 		recordUnsafe(tagged(httpRequestDuration, { handlerType }), durationMs);
 
 		// Structured access log — emitted through the app runtime's logger
