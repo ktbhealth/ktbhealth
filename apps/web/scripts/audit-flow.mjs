@@ -45,6 +45,16 @@ await dump("AFTER-PATIENT-SAVE", 1200);
 // --- consult ---
 await page.goto("/consultations/new");
 await settle();
+// link the patient created above via the patient Select
+const patientSelect = page.getByRole("combobox").or(page.locator('[data-slot="select-trigger"]')).first();
+if (await patientSelect.count()) {
+	await patientSelect.click();
+	await page.waitForTimeout(400);
+	const opt = page.getByRole("option", { name: /Maria Silva/i }).or(page.getByText("Maria Silva")).first();
+	if (await opt.count()) { await opt.click(); console.log("linked patient: Maria Silva"); }
+	else console.log("WARN: patient option not found");
+} else console.log("WARN: no patient select found");
+await dump("CONSULT-LINKED", 800);
 // The consent control is a Base UI checkbox: a `role="checkbox"` element
 // plus a visually-hidden `input[type="checkbox"]` (BubbleInput). Clicking
 // the hidden input does NOT toggle React state — target role=checkbox.
@@ -73,4 +83,19 @@ for (const label of [/save|finish|sign|concluir|salvar|approve|send/i]) {
 		break;
 	}
 }
+
+// --- detail page + PDF ---
+const consultHref = await page
+	.locator('a[href^="/consultations/"]')
+	.evaluateAll((els) =>
+		els.map((e) => e.getAttribute("href")).find((h) => /^\/consultations\/\d+$/.test(h ?? "")),
+	);
+if (consultHref) {
+	await page.goto(consultHref);
+	await settle();
+	await dump("CONSULT-DETAIL", 3000);
+	const pdf = await ctx.request.get(`/api/consultations/${consultHref.split("/").pop()}/pdf`);
+	const body = await pdf.body();
+	console.log(`PDF: ${pdf.status()} ${pdf.headers()["content-type"]} ${body.length}B ${body.slice(0, 5).toString()}`);
+} else console.log("WARN: no consultation detail link found");
 await browser.close();
