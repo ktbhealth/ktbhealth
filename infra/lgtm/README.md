@@ -206,6 +206,34 @@ state is needed, switch to Pulumi Cloud or a DIY backend (e.g.
 S3-compatible OCI Object Storage via `pulumi login s3://…`) — that
 choice is deliberately left to a human, not wired into the adapter.
 
+**First deploy (2026-11-13, stack `ktb-lgtm-iac`)**: the adapter path
+was exercised end-to-end via `makeOciDeployHost` (spec →
+`ktb.spec.json` → `pulumi stack select --create` → `pulumi up` →
+`stack output`). OCI auth worked out of the box from `~/.oci/config`
+(DEFAULT profile). Passphrase secrets provider: the passphrase is
+stored in the vault at `cuora://ktb/pulumi-passphrase` (prod env) —
+inject it as `PULUMI_PASSPHRASE`/`passphrase` on first deploy
+(`CUORA_IDENTITY_BACKEND=file cuora get --env prod
+cuora://ktb/pulumi-passphrase` works non-interactively; the default
+keyring backend hangs without a session).
+
+Result: **no instance yet — Always-Free capacity/quota blocked both
+shapes** in sa-saopaulo-1:
+
+- `VM.Standard.A1.Flex` (1 OCPU / 6 GB, aarch64 Ubuntu 24.04 image
+  `ocid1.image.oc1.sa-saopaulo-1.aaaaaaaaw5a236wd55o7ecdrk5xmyuuiobzyidi2trqrgexeyt4rm3ytl7sa`):
+  `500-Out of host capacity` — the known A1.Flex shortage.
+- `VM.Standard.E2.1.Micro` (x86_64, same image as `ktb-lgtm`):
+  `400-LimitExceeded, standard-e2-micro-core-count` — the tenancy
+  already runs the 2 Always-Free AMD micros.
+
+The network resources the program created first (VCN/IGW/route
+table/security list/subnet, all named `ktb-lgtm-pulumi-*`) remain in
+the stack — $0 and reused on retry; nothing was destroyed and the
+manual `ktb-lgtm` VM is untouched. To retry, re-run the adapter with
+`shape: "VM.Standard.A1.Flex"` (or wait for E2 micro quota) against
+the same stack — only the instance is missing.
+
 ## One-time host setup (human steps)
 
 1. **VM**: any small Linux box (2 vCPU / 4 GiB RAM is the floor — the
