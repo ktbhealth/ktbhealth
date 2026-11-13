@@ -13,6 +13,7 @@ export * from "./config.ts";
 export * from "./context.ts";
 export * from "./ingest.ts";
 export * from "./metrics.ts";
+export * from "./rate-limit.ts";
 export * from "./redact.ts";
 export * from "./sampler.ts";
 export * from "./service.ts";

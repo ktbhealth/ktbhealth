@@ -9,6 +9,7 @@ import {
 	Telemetry,
 } from "@ktb/observability";
 import { run } from "#/lib/platform.ts";
+import { checkTelemetryIngestRateLimit } from "#/lib/telemetry-rate-limit.ts";
 
 /**
  * POST /api/telemetry — browser telemetry ingest. The client batches
@@ -16,9 +17,27 @@ import { run } from "#/lib/platform.ts";
  * the Telemetry service sanitizes, logs and counts them. Unauthenticated
  * by design (anonymous visitors generate telemetry too) — payloads are
  * schema-validated, sanitized and rate-shaped by construction; abuse is
- * bounded by batch size caps and the disabled flag.
+ * bounded by batch size caps, the disabled flag, and the fixed-window
+ * ingest rate limit (per client IP + global ceiling — see
+ * lib/telemetry-rate-limit.ts).
  */
 async function handle({ request }: { request: Request }) {
+	// Shed over-limit traffic before touching the body — invalid-payload
+	// floods are rate-limited too. Limiter failures fail open (telemetry
+	// is best-effort); a denied hit counts as a dropped batch.
+	const rateLimit = checkTelemetryIngestRateLimit(request);
+	if (!rateLimit.allowed) {
+		recordUnsafe(tagged(clientEventsDropped, { reason: "rate_limited" }), 1);
+		return Response.json(
+			{ error: "rate limited" },
+			{
+				status: 429,
+				headers: {
+					"retry-after": String(Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1_000))),
+				},
+			},
+		);
+	}
 	let body: unknown;
 	try {
 		body = await request.json();

@@ -27,6 +27,10 @@ export interface ObservabilityEnv {
 	readonly KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS?: string;
 	readonly KTB_TELEMETRY_CLIENT?: string;
 	readonly KTB_TELEMETRY_CLIENT_SAMPLE_RATE?: string;
+	/** /api/telemetry ingest rate limits — max requests per minute,
+	 * per client IP (`cf-connecting-ip`) and globally. "0" disables. */
+	readonly KTB_TELEMETRY_RATE_LIMIT_PER_IP?: string;
+	readonly KTB_TELEMETRY_RATE_LIMIT_GLOBAL?: string;
 	/** Minimum log level — "Debug"|"Info"|"Warning"|"Error"|"Trace"|"All"|"None".
 	 * Unset keeps Effect's default (Info). */
 	readonly KTB_LOG_LEVEL?: string;
@@ -50,6 +54,8 @@ export const OBSERVABILITY_ENV_KEYS = [
 	"KTB_TELEMETRY_CLIENT_SAMPLE_RATE",
 	"KTB_TELEMETRY_EXPORT_INTERVAL_MS",
 	"KTB_TELEMETRY_MAX_BATCH_SIZE",
+	"KTB_TELEMETRY_RATE_LIMIT_GLOBAL",
+	"KTB_TELEMETRY_RATE_LIMIT_PER_IP",
 	"KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS",
 	"KTB_TELEMETRY_TRACES_SAMPLE_RATE",
 	"OTEL_EXPORTER_OTLP_COMPRESSION",
@@ -102,6 +108,15 @@ export interface TelemetryConfig {
 	readonly clientTelemetry: {
 		readonly enabled: boolean;
 		readonly sampleRate: number;
+		/**
+		 * Ingest rate limits (requests/minute, fixed window) enforced at
+		 * /api/telemetry before the payload is even parsed — per client
+		 * IP and as a global ceiling. <= 0 disables that limit.
+		 */
+		readonly rateLimit: {
+			readonly perIpPerMinute: number;
+			readonly globalPerMinute: number;
+		};
 	};
 	/** KTB_LOG_LEVEL — minimum severity for emitted logs. */
 	readonly logLevel?: string;
@@ -333,6 +348,13 @@ export const telemetryConfigFromEnv = (env: ObservabilityEnv): TelemetryConfig =
 		clientTelemetry: {
 			enabled: !falsy(env.KTB_TELEMETRY_CLIENT),
 			sampleRate: parseFloatClamped(env.KTB_TELEMETRY_CLIENT_SAMPLE_RATE, 1, 0, 1),
+			rateLimit: {
+				// Generous vs. real browser bursts (a page view emits a
+				// handful of batched events); the cap exists to stop log
+				// spam, not to shape legitimate traffic.
+				perIpPerMinute: parseIntClamped(env.KTB_TELEMETRY_RATE_LIMIT_PER_IP, 120, 0, 1_000_000),
+				globalPerMinute: parseIntClamped(env.KTB_TELEMETRY_RATE_LIMIT_GLOBAL, 6_000, 0, 10_000_000),
+			},
 		},
 		logLevel: parseLogLevel(env.KTB_LOG_LEVEL),
 		warnings,

@@ -120,6 +120,8 @@ export default Alchemy.Stack(
 						"KTB_TELEMETRY_MAX_BATCH_SIZE",
 						"KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS",
 						"KTB_TELEMETRY_CLIENT",
+						"KTB_TELEMETRY_RATE_LIMIT_PER_IP",
+						"KTB_TELEMETRY_RATE_LIMIT_GLOBAL",
 						"KTB_LOG_LEVEL",
 					]
 						.filter((k) => process.env[k])

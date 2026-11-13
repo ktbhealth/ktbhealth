@@ -21,6 +21,8 @@ describe("OBSERVABILITY_ENV_KEYS", () => {
 				"KTB_TELEMETRY_CLIENT_SAMPLE_RATE",
 				"KTB_TELEMETRY_EXPORT_INTERVAL_MS",
 				"KTB_TELEMETRY_MAX_BATCH_SIZE",
+				"KTB_TELEMETRY_RATE_LIMIT_GLOBAL",
+				"KTB_TELEMETRY_RATE_LIMIT_PER_IP",
 				"KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS",
 				"KTB_TELEMETRY_TRACES_SAMPLE_RATE",
 				"OTEL_EXPORTER_OTLP_COMPRESSION",
@@ -107,7 +109,11 @@ describe("telemetryConfigFromEnv", () => {
 		expect(config.environment).toBe("development");
 		expect(config.otlp.endpoints).toEqual({});
 		expect(config.tracesSampleRate).toBe(1);
-		expect(config.clientTelemetry).toEqual({ enabled: true, sampleRate: 1 });
+		expect(config.clientTelemetry).toEqual({
+			enabled: true,
+			sampleRate: 1,
+			rateLimit: { perIpPerMinute: 120, globalPerMinute: 6_000 },
+		});
 	});
 
 	it("expands a base OTLP endpoint into per-signal /v1/<signal> URLs", () => {
@@ -192,8 +198,23 @@ describe("telemetryConfigFromEnv", () => {
 		expect(config.otlp.exportIntervalMs).toBe(5_000);
 		expect(config.otlp.maxBatchSize).toBe(128);
 		expect(config.otlp.shutdownTimeoutMs).toBe(1_500);
-		expect(config.clientTelemetry).toEqual({ enabled: false, sampleRate: 0.5 });
+		expect(config.clientTelemetry).toEqual({
+			enabled: false,
+			sampleRate: 0.5,
+			rateLimit: { perIpPerMinute: 120, globalPerMinute: 6_000 },
+		});
 		expect(config.logLevel).toBe("Debug");
+	});
+
+	it("parses client telemetry rate limits, 0 disables", () => {
+		const config = telemetryConfigFromEnv({
+			KTB_TELEMETRY_RATE_LIMIT_PER_IP: "30",
+			KTB_TELEMETRY_RATE_LIMIT_GLOBAL: "0",
+		});
+		expect(config.clientTelemetry.rateLimit).toEqual({
+			perIpPerMinute: 30,
+			globalPerMinute: 0,
+		});
 	});
 
 	it("clamps out-of-range numerics to safe bounds", () => {

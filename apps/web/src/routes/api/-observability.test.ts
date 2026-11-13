@@ -60,6 +60,8 @@ describe("observability api routes", () => {
 		vi.clearAllMocks();
 		mocks.getSessionUser.mockResolvedValue(null);
 		delete (env as unknown as Record<string, unknown>).METRICS_SCRAPE_TOKEN;
+		delete (env as unknown as Record<string, unknown>).KTB_TELEMETRY_RATE_LIMIT_PER_IP;
+		delete (env as unknown as Record<string, unknown>).KTB_TELEMETRY_RATE_LIMIT_GLOBAL;
 	});
 
 	describe("POST /api/telemetry", () => {
@@ -89,6 +91,26 @@ describe("observability api routes", () => {
 		it("rejects non-POST methods with 405", async () => {
 			const res = await handlersOf(TelemetryRoute).GET!({} as never);
 			expect(res.status).toBe(405);
+		});
+
+		it("rate-limits per client IP with 429 + Retry-After", async () => {
+			(env as unknown as Record<string, unknown>).KTB_TELEMETRY_RATE_LIMIT_PER_IP = "1";
+			(env as unknown as Record<string, unknown>).KTB_TELEMETRY_RATE_LIMIT_GLOBAL = "100";
+			mocks.run.mockImplementation(runWith([Telemetry as never, telemetry]));
+			const limited = (ip: string) =>
+				handlersOf(TelemetryRoute).POST!({
+					request: new Request("http://localhost/api/telemetry", {
+						method: "POST",
+						headers: { "content-type": "application/json", "cf-connecting-ip": ip },
+						body: JSON.stringify({ events: [{ type: "event", name: "x" }] }),
+					}),
+				} as never);
+			expect((await limited("9.9.9.1")).status).toBe(204);
+			const res = await limited("9.9.9.1");
+			expect(res.status).toBe(429);
+			expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+			// A different IP is unaffected.
+			expect((await limited("9.9.9.2")).status).toBe(204);
 		});
 	});
 

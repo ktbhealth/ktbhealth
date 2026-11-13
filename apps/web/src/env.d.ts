@@ -38,6 +38,9 @@ declare namespace Cloudflare {
 		KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS?: string;
 		/** "0"/"false" disables browser-event ingest. */
 		KTB_TELEMETRY_CLIENT?: string;
+		/** /api/telemetry rate limits — requests/minute per client IP and globally ("0" disables). */
+		KTB_TELEMETRY_RATE_LIMIT_PER_IP?: string;
+		KTB_TELEMETRY_RATE_LIMIT_GLOBAL?: string;
 		/** Minimum Effect log level (Info/Warning/…). */
 		KTB_LOG_LEVEL?: string;
 		/** "1" disables all telemetry export. */
