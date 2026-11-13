@@ -111,7 +111,9 @@ export function NewConsultationPage({
 	const t = consultationMessages(locale);
 	const nc = t.newConsultation;
 	const [recording, setRecording] = useState(false);
-	const [supported] = useState(() => backend.mic().supported);
+	// `supported` probes browser APIs, so it differs between the SSR pass
+	// (no window → unsupported) and hydration — resolve it after mount.
+	const [supported, setSupported] = useState(false);
 	const [transcript, setTranscript] = useState("");
 	const [partial, setPartial] = useState("");
 	const [anamnesis, setAnamnesis] = useState<Anamnesis | null>(null);
@@ -180,6 +182,7 @@ export function NewConsultationPage({
 		const tr = backend.mic();
 		transcriberRef.current = tr;
 		tabRef.current = backend.tab();
+		setSupported(tr.supported);
 		return () => {
 			tr.stop();
 			tabRef.current?.stop();
