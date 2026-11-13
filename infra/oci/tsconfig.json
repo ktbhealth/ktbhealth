@@ -1,5 +1,6 @@
 {
 	"include": ["**/*.ts"],
+	"exclude": ["pulumi"],
 	"compilerOptions": {
 		"target": "ES2023",
 		"module": "ESNext",

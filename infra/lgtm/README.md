@@ -126,19 +126,26 @@ up to 4 OCPU / 24 GB) — far more than this stack needs. The
 ## IaC (infra/oci, P-068)
 
 The manual console path above remains the documented default until the
-adapter is proven. For repeatability there is now an OpenTofu adapter
-behind the infra ports:
+adapter is proven. For repeatability there is a Pulumi adapter behind
+the infra ports:
 
 - `infra/ports` (`@ktb/infra-ports`) defines `DeployHost`/`HostSpec`.
-- `infra/oci` (`@ktb/infra-oci`) implements it with OpenTofu + the
-  official `oracle/oci` provider (`infra/oci/tofu/*.tf`): VCN, IGW,
-  route table, security list (SSH-only ingress), public subnet and a
-  compute instance pinned to Always-Free shapes by default
+- `infra/oci` (`@ktb/infra-oci`) implements it as an Effect wrapper
+  around the `pulumi` CLI; the Pulumi program lives in
+  `infra/oci/pulumi/` (`Pulumi.yaml` + `index.ts`, deps
+  `@pulumi/pulumi` + `@pulumi/oci` — the Terraform-bridge provider,
+  which covers the full `oracle/oci` surface): VCN, IGW, route table,
+  security list (SSH-only ingress), public subnet and a compute
+  instance pinned to Always-Free shapes by default
   (`VM.Standard.A1.Flex`, `VM.Standard.E2.1.Micro`; `freeTierOnly`
-  enforces the 4 OCPU / 24 GB A1 ceiling).
+  enforces the 4 OCPU / 24 GB A1 ceiling). The adapter writes the
+  validated spec to `ktb.spec.json` (gitignored), the program reads it
+  via `KTB_HOST_SPEC_FILE`.
 
-Usage (needs `tofu` on PATH + OCI credentials via env or
-`~/.oci/config` — see `infra/oci/src/oci.ts` docstring):
+Usage (needs `pulumi` on PATH, `bun install` once inside
+`infra/oci/pulumi`, OCI credentials via env or `~/.oci/config`, and a
+passphrase secrets provider on first deploy — see
+`infra/oci/src/oci.ts` docstring):
 
 ```ts
 import { deployHost } from "@ktb/infra-oci";
@@ -157,11 +164,12 @@ const host = await Effect.runPromise(
 // host.id = instance OCID, host.publicIp = ephemeral IPv4 | undefined
 ```
 
-**State backend decision**: local state (`infra/oci/tofu/terraform.tfstate`,
-gitignored) is the default — right for a single VM. When a second host or
-shared state is needed, switch the module to the OCI Object Storage
-S3-compatible backend (skeleton in `tofu/versions.tf`) — that choice is
-deliberately left to a human, not wired into the adapter yet.
+**State backend decision**: Pulumi state lives wherever `pulumi login`
+points — the default local file backend (`file://~`, checkpoints under
+`~/.pulumi`) is right for a single VM. When a second host or shared
+state is needed, switch to Pulumi Cloud or a DIY backend (e.g.
+S3-compatible OCI Object Storage via `pulumi login s3://…`) — that
+choice is deliberately left to a human, not wired into the adapter.
 
 ## One-time host setup (human steps)
 

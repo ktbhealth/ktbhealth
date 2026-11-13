@@ -1,0 +1,4 @@
+name: ktb-oci
+runtime: nodejs
+description: KTB OCI host — VCN, subnet, security list and compute instance (P-068)
+main: .

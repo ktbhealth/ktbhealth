@@ -1,0 +1,15 @@
+{
+	"name": "ktb-oci-pulumi",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Pulumi program for @ktb/infra-oci (DeployHost port, P-068/T-114). Not a workspace member — install deps here before `pulumi up`.",
+	"main": "index.ts",
+	"dependencies": {
+		"@pulumi/oci": "^5.7.0",
+		"@pulumi/pulumi": "^3.276.0"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"typescript": "^6.0.2"
+	}
+}

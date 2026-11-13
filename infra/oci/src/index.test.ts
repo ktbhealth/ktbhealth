@@ -6,137 +6,168 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { HostSpec } from "@ktb/infra-ports";
 import { makeOciDeployHost, ociDeployHost } from "./oci.ts";
 import { parseDeployOutputs } from "./outputs.ts";
-import { specToVars } from "./vars.ts";
+import { specToDeploySpec } from "./spec.ts";
 
 const run = <A>(e: Effect.Effect<A, never, unknown>): Promise<A> =>
 	Effect.runPromise(e as Effect.Effect<A, never, never>);
 
 const baseSpec: HostSpec = {
 	name: "lgtm",
+	compartmentOcid: "ocid1.compartment.oc1..x",
+	availabilityDomain: "aBCd:SA-SAOPAULO-1-AD-1",
 	imageName: "Canonical-Ubuntu-24.04-aarch64-2025.10.0-0",
 	sshPublicKeys: ["ssh-ed25519 AAAA test@example"],
 };
 
-describe("specToVars", () => {
+describe("specToDeploySpec", () => {
 	it("maps a minimal spec with defaults", () => {
-		const vars = specToVars(baseSpec);
-		expect(vars).toMatchObject({
+		const spec = specToDeploySpec(baseSpec);
+		expect(spec).toMatchObject({
 			name: "lgtm",
+			compartmentOcid: "ocid1.compartment.oc1..x",
+			availabilityDomain: "aBCd:SA-SAOPAULO-1-AD-1",
 			shape: "VM.Standard.A1.Flex",
-			assign_public_ip: false,
-			image_name: "Canonical-Ubuntu-24.04-aarch64-2025.10.0-0",
-			ssh_public_keys: ["ssh-ed25519 AAAA test@example"],
+			assignPublicIp: false,
+			imageName: "Canonical-Ubuntu-24.04-aarch64-2025.10.0-0",
+			sshPublicKeys: ["ssh-ed25519 AAAA test@example"],
+			vcnCidr: "10.0.0.0/16",
+			sshIngressCidr: "0.0.0.0/0",
 		});
-		// Optional fields stay undefined so tfvars JSON omits them and the
-		// module defaults apply.
-		expect(vars.region).toBeUndefined();
-		expect(vars.compartment_ocid).toBeUndefined();
-		expect(vars.user_data).toBeUndefined();
-		expect(vars.ocpus).toBeUndefined();
+		// Optional fields stay undefined so the spec JSON omits them and
+		// the program defaults apply.
+		expect(spec.region).toBeUndefined();
+		expect(spec.tenancyOcid).toBeUndefined();
+		expect(spec.userData).toBeUndefined();
+		expect(spec.ocpus).toBeUndefined();
 	});
 
 	it("maps a full spec", () => {
-		const vars = specToVars({
+		const spec = specToDeploySpec({
 			...baseSpec,
 			region: "sa-saopaulo-1",
-			availabilityDomain: "aBCd:SA-SAOPAULO-1-AD-1",
 			tenancyOcid: "ocid1.tenancy.oc1..x",
-			compartmentOcid: "ocid1.compartment.oc1..x",
 			shape: "VM.Standard.E2.1.Micro",
 			imageOcid: "ocid1.image.oc1..x",
 			userData: "#!/bin/sh\necho hi",
 			assignPublicIp: true,
 			freeTierOnly: true,
 		});
-		expect(vars).toMatchObject({
+		expect(spec).toMatchObject({
 			region: "sa-saopaulo-1",
-			availability_domain: "aBCd:SA-SAOPAULO-1-AD-1",
-			tenancy_ocid: "ocid1.tenancy.oc1..x",
-			compartment_ocid: "ocid1.compartment.oc1..x",
+			tenancyOcid: "ocid1.tenancy.oc1..x",
 			shape: "VM.Standard.E2.1.Micro",
-			image_ocid: "ocid1.image.oc1..x",
-			user_data: "#!/bin/sh\necho hi",
-			assign_public_ip: true,
-			ssh_public_keys: ["ssh-ed25519 AAAA test@example"],
+			imageOcid: "ocid1.image.oc1..x",
+			userData: "#!/bin/sh\necho hi",
+			assignPublicIp: true,
+			sshPublicKeys: ["ssh-ed25519 AAAA test@example"],
 		});
 	});
 
 	it("copies sshPublicKeys instead of aliasing the spec array", () => {
 		const keys = ["ssh-ed25519 AAAA test@example"];
-		const vars = specToVars({ ...baseSpec, sshPublicKeys: keys });
-		expect(vars.ssh_public_keys).toEqual(keys);
-		expect(vars.ssh_public_keys).not.toBe(keys);
+		const spec = specToDeploySpec({ ...baseSpec, sshPublicKeys: keys });
+		expect(spec.sshPublicKeys).toEqual(keys);
+		expect(spec.sshPublicKeys).not.toBe(keys);
 	});
 
 	it("rejects non-free-tier shapes by default", () => {
-		expect(() => specToVars({ ...baseSpec, shape: "VM.Standard.E4.Flex" })).toThrow(/freeTierOnly/);
+		expect(() => specToDeploySpec({ ...baseSpec, shape: "VM.Standard.E4.Flex" })).toThrow(
+			/freeTierOnly/,
+		);
 	});
 
 	it("allows non-free-tier shapes when freeTierOnly is false", () => {
-		const vars = specToVars({
+		const spec = specToDeploySpec({
 			...baseSpec,
 			shape: "VM.Standard.E4.Flex",
 			ocpus: 2,
 			memoryInGbs: 16,
 			freeTierOnly: false,
 		});
-		expect(vars.shape).toBe("VM.Standard.E4.Flex");
-		expect(vars.ocpus).toBe(2);
-		expect(vars.memory_in_gbs).toBe(16);
+		expect(spec.shape).toBe("VM.Standard.E4.Flex");
+		expect(spec.ocpus).toBe(2);
+		expect(spec.memoryInGbs).toBe(16);
 	});
 
 	it("enforces A1.Flex free-tier limits", () => {
-		expect(() => specToVars({ ...baseSpec, ocpus: 5 })).toThrow(/at most 4 OCPUs/);
-		expect(() => specToVars({ ...baseSpec, memoryInGbs: 25 })).toThrow(/at most 24 GB/);
+		expect(() => specToDeploySpec({ ...baseSpec, ocpus: 5 })).toThrow(/at most 4 OCPUs/);
+		expect(() => specToDeploySpec({ ...baseSpec, memoryInGbs: 25 })).toThrow(/at most 24 GB/);
 	});
 
 	it("does not apply A1 limits to E2.1.Micro", () => {
-		const vars = specToVars({ ...baseSpec, shape: "VM.Standard.E2.1.Micro", ocpus: 8 });
-		expect(vars.shape).toBe("VM.Standard.E2.1.Micro");
+		const spec = specToDeploySpec({
+			...baseSpec,
+			shape: "VM.Standard.E2.1.Micro",
+			ocpus: 8,
+		});
+		expect(spec.shape).toBe("VM.Standard.E2.1.Micro");
+	});
+
+	it("requires a compartment OCID", () => {
+		const { compartmentOcid: _omit, ...rest } = baseSpec;
+		expect(() => specToDeploySpec(rest)).toThrow(/compartmentOcid/);
+	});
+
+	it("requires availabilityDomain or tenancyOcid", () => {
+		const { availabilityDomain: _omit, ...rest } = baseSpec;
+		expect(() => specToDeploySpec(rest)).toThrow(/availabilityDomain or tenancyOcid/);
+		// tenancyOcid alone is enough — the program resolves the first AD.
+		expect(specToDeploySpec({ ...rest, tenancyOcid: "ocid1.tenancy.oc1..x" })).toBeDefined();
 	});
 
 	it("requires an image selector", () => {
-		expect(() => specToVars({ name: "x", sshPublicKeys: ["k"] })).toThrow(/imageOcid or imageName/);
+		expect(() =>
+			specToDeploySpec({ name: "x", compartmentOcid: "c", availabilityDomain: "ad" }),
+		).toThrow(/imageOcid or imageName/);
 	});
 
 	it("requires ssh keys or userData", () => {
-		expect(() => specToVars({ name: "x", imageOcid: "ocid1.image.oc1..x" })).toThrow(
-			/sshPublicKeys or userData/,
-		);
+		expect(() =>
+			specToDeploySpec({
+				name: "x",
+				compartmentOcid: "c",
+				availabilityDomain: "ad",
+				imageOcid: "ocid1.image.oc1..x",
+			}),
+		).toThrow(/sshPublicKeys or userData/);
 		expect(
-			specToVars({ name: "x", imageOcid: "ocid1.image.oc1..x", userData: "echo hi" }),
+			specToDeploySpec({
+				name: "x",
+				compartmentOcid: "c",
+				availabilityDomain: "ad",
+				imageOcid: "ocid1.image.oc1..x",
+				userData: "echo hi",
+			}),
 		).toBeDefined();
 	});
 });
 
 describe("parseDeployOutputs", () => {
-	it("parses instance_id and public_ip", () => {
+	it("parses instanceId and publicIp", () => {
 		const host = parseDeployOutputs(
 			JSON.stringify({
-				instance_id: { sensitive: false, type: "string", value: "ocid1.instance.oc1..x" },
-				public_ip: { sensitive: false, type: "string", value: "203.0.113.10" },
+				instanceId: "ocid1.instance.oc1..x",
+				publicIp: "203.0.113.10",
 			}),
 		);
 		expect(host).toEqual({ id: "ocid1.instance.oc1..x", publicIp: "203.0.113.10" });
 	});
 
-	it("omits publicIp when null or empty", () => {
-		for (const value of [null, "", 0]) {
-			const host = parseDeployOutputs(
-				JSON.stringify({
-					instance_id: { value: "ocid1.instance.oc1..x" },
-					public_ip: { value },
-				}),
-			);
+	it("omits publicIp when absent, null or empty", () => {
+		for (const outputs of [
+			{ instanceId: "ocid1.instance.oc1..x" },
+			{ instanceId: "ocid1.instance.oc1..x", publicIp: null },
+			{ instanceId: "ocid1.instance.oc1..x", publicIp: "" },
+			{ instanceId: "ocid1.instance.oc1..x", publicIp: 0 },
+		]) {
+			const host = parseDeployOutputs(JSON.stringify(outputs));
 			expect(host.publicIp).toBeUndefined();
 		}
 	});
 
-	it("throws when instance_id is missing or not a string", () => {
-		expect(() => parseDeployOutputs("{}")).toThrow(/instance_id/);
-		expect(() => parseDeployOutputs(JSON.stringify({ instance_id: { value: 42 } }))).toThrow(
-			/instance_id/,
-		);
+	it("throws when instanceId is missing or not a string", () => {
+		expect(() => parseDeployOutputs("{}")).toThrow(/instanceId/);
+		expect(() => parseDeployOutputs(JSON.stringify({ instanceId: 42 }))).toThrow(/instanceId/);
 	});
 
 	it("throws on invalid JSON", () => {
@@ -146,20 +177,20 @@ describe("parseDeployOutputs", () => {
 
 describe("ociDeployHost", () => {
 	let dir: string;
-	let varsFile: string;
+	let specFile: string;
 
 	beforeEach(async () => {
 		dir = await mkdtemp(join(tmpdir(), "ktb-oci-test-"));
-		varsFile = join(dir, "ktb.tfvars.json");
-		// Fake tofu: records invocations, emits canned `output -json`.
-		const fake = join(dir, "tofu");
+		specFile = join(dir, "ktb.spec.json");
+		// Fake pulumi: records invocations, emits canned `stack output --json`.
+		const fake = join(dir, "pulumi");
 		await writeFile(
 			fake,
 			[
 				"#!/bin/sh",
 				'echo "$@" >> "' + join(dir, "calls.log") + '"',
-				'if [ "$1" = "output" ]; then',
-				'  echo \'{"instance_id":{"sensitive":false,"type":"string","value":"ocid1.instance.oc1..fake"},"public_ip":{"sensitive":false,"type":"string","value":"203.0.113.10"}}\'',
+				'if [ "$1" = "stack" ] && [ "$2" = "output" ]; then',
+				'  echo \'{"instanceId":"ocid1.instance.oc1..fake","publicIp":"203.0.113.10"}\'',
 				"fi",
 				"exit 0",
 				"",
@@ -176,31 +207,46 @@ describe("ociDeployHost", () => {
 		expect(typeof ociDeployHost).toBe("function");
 	});
 
-	it("runs init → apply → output and returns the deployed host", async () => {
+	it("runs stack select --create → up → stack output and returns the host", async () => {
 		const deploy = makeOciDeployHost({
-			tofuBin: join(dir, "tofu"),
-			moduleDir: dir,
-			stateFile: join(dir, "state.tfstate"),
-			varsFile,
+			pulumiBin: join(dir, "pulumi"),
+			programDir: dir,
+			specFile,
 		});
 		const host = await run(deploy(baseSpec));
 		expect(host).toEqual({ id: "ocid1.instance.oc1..fake", publicIp: "203.0.113.10" });
 
 		const log = await readFile(join(dir, "calls.log"), "utf8");
-		expect(log).toContain("init -input=false -no-color -backend-config=path=");
-		expect(log).toContain("apply -auto-approve -input=false -no-color -var-file=");
-		expect(log).toContain("output -json");
+		expect(log).toContain("stack select --create dev --non-interactive");
+		expect(log).toContain("up --yes --non-interactive --stack dev");
+		expect(log).toContain("stack output --json --stack dev");
 
-		const written = JSON.parse(await readFile(varsFile, "utf8")) as Record<string, unknown>;
+		const written = JSON.parse(await readFile(specFile, "utf8")) as Record<string, unknown>;
 		expect(written).toMatchObject({
 			name: "lgtm",
+			compartmentOcid: "ocid1.compartment.oc1..x",
 			shape: "VM.Standard.A1.Flex",
-			assign_public_ip: false,
+			assignPublicIp: false,
+			vcnCidr: "10.0.0.0/16",
 		});
 	});
 
-	it("dies on invalid spec before invoking tofu", async () => {
-		const deploy = makeOciDeployHost({ tofuBin: join(dir, "tofu"), moduleDir: dir });
-		await expect(run(deploy({ name: "bad" }))).rejects.toThrow(/imageOcid or imageName/);
+	it("honours stack and passphrase options", async () => {
+		const deploy = makeOciDeployHost({
+			pulumiBin: join(dir, "pulumi"),
+			programDir: dir,
+			specFile,
+			stack: "lgtm",
+			passphrase: "test-passphrase",
+		});
+		await run(deploy(baseSpec));
+		const log = await readFile(join(dir, "calls.log"), "utf8");
+		expect(log).toContain("stack select --create lgtm --non-interactive");
+		expect(log).toContain("--stack lgtm");
+	});
+
+	it("dies on invalid spec before invoking pulumi", async () => {
+		const deploy = makeOciDeployHost({ pulumiBin: join(dir, "pulumi"), programDir: dir });
+		await expect(run(deploy({ name: "bad" }))).rejects.toThrow(/invalid HostSpec/);
 	});
 });

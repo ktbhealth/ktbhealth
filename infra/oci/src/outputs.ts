@@ -1,26 +1,20 @@
 import type { DeployedHost } from "@ktb/infra-ports";
 
 /**
- * Parses `tofu output -json` into a DeployedHost.
+ * Parses `pulumi stack output --json` into a DeployedHost.
  *
- * Shape: `{ "<name>": { "sensitive": bool, "type": string, "value": any } }`.
- * The module exposes `instance_id` (always) and `public_ip` (null when the
- * host has no public IP).
+ * Shape: `{ "<name>": <value> }` — plain values, unlike tofu's
+ * `{value, type, sensitive}` wrapper. The program exports `instanceId`
+ * (always) and `publicIp` (absent when the host has no public IP).
  */
 
-interface TofuOutput {
-	readonly sensitive?: boolean;
-	readonly type?: string;
-	readonly value?: unknown;
-}
-
 export function parseDeployOutputs(json: string): DeployedHost {
-	const outputs = JSON.parse(json) as Record<string, TofuOutput | undefined>;
-	const id = outputs.instance_id?.value;
+	const outputs = JSON.parse(json) as Record<string, unknown>;
+	const id = outputs.instanceId;
 	if (typeof id !== "string" || id === "") {
-		throw new Error("tofu output is missing a string instance_id");
+		throw new Error("pulumi stack output is missing a string instanceId");
 	}
-	const publicIp = outputs.public_ip?.value;
+	const publicIp = outputs.publicIp;
 	return {
 		id,
 		publicIp: typeof publicIp === "string" && publicIp !== "" ? publicIp : undefined,

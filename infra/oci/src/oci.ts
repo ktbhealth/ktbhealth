@@ -1,58 +1,74 @@
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as Effect from "effect/Effect";
 import type { DeployHost } from "@ktb/infra-ports";
 import { parseDeployOutputs } from "./outputs.ts";
-import { specToVars } from "./vars.ts";
+import { specToDeploySpec } from "./spec.ts";
 
 /**
- * OpenTofu adapter for the DeployHost port (@ktb/infra-ports, P-068).
+ * Pulumi adapter for the DeployHost port (@ktb/infra-ports, P-068/T-114).
  *
- * Each call runs `tofu init` → writes a generated tfvars JSON →
- * `tofu apply -auto-approve` → `tofu output -json` against the module in
- * `infra/oci/tofu`. One adapter instance maps to one tofu state (one
- * host); instantiate `makeOciDeployHost` per host or per state file.
+ * Each call validates the HostSpec, writes it as JSON, then runs
+ * `pulumi stack select --create` → `pulumi up --yes` →
+ * `pulumi stack output --json` against the program in `infra/oci/pulumi`
+ * (@pulumi/oci — the Terraform-bridge provider, full oracle/oci
+ * coverage). One adapter instance maps to one Pulumi stack (one host);
+ * instantiate `makeOciDeployHost` per host or per `stack`/`specFile`.
  *
- * State backend: local state (`terraform.tfstate` next to the module,
- * gitignored) is the default — right for a single Always-Free VM. When
- * the host count grows or state must survive machine loss, point
- * `stateFile` at an OCI Object Storage backend configured in the module
- * (see tofu/versions.tf comment) — a human decision, not wired yet.
+ * State backend: whatever `pulumi login` selected — the default local
+ * file backend (file://~) keeps checkpoints under ~/.pulumi, which is
+ * right for a single Always-Free VM. Pulumi Cloud or a DIY backend
+ * (e.g. S3-compatible OCI Object Storage via `pulumi login s3://…`)
+ * is a human decision, not wired here — see infra/lgtm/README.md.
  *
- * Credentials: the oracle/oci provider reads them from the environment
- * or `~/.oci/config` (API signing key or `OCI_CLI_AUTH`). Nothing secret
- * is stored in this package or the tfvars file.
+ * Credentials: the oci provider plugin reads them from the environment
+ * or `~/.oci/config` (API signing key or OCI_CLI_AUTH) — same contract
+ * the oracle/oci Terraform provider had. Stack secrets use the
+ * passphrase secrets provider; set `passphrase` or
+ * PULUMI_CONFIG_PASSPHRASE before the first deploy.
+ *
+ * The Pulumi program's npm deps are not a workspace member — run
+ * `bun install` inside infra/oci/pulumi once before the first deploy.
  */
 
-export interface OciTofuOptions {
-	/** tofu binary; default "tofu" (must be on PATH). */
-	readonly tofuBin?: string;
-	/** Directory containing the *.tf module. Default: <pkg>/tofu. */
-	readonly moduleDir?: string;
+export interface OciPulumiOptions {
+	/** pulumi binary; default "pulumi" (must be on PATH). */
+	readonly pulumiBin?: string;
+	/** Directory containing Pulumi.yaml + index.ts. Default: <pkg>/pulumi. */
+	readonly programDir?: string;
+	/** Pulumi stack name; created on first use. Default "dev". */
+	readonly stack?: string;
 	/**
-	 * Local-backend state file, passed to `tofu init` as
-	 * `-backend-config=path=...`. Default: <moduleDir>/terraform.tfstate.
+	 * Where the generated spec JSON is written; the program reads it via
+	 * KTB_HOST_SPEC_FILE. Default: <programDir>/ktb.spec.json (gitignored).
 	 */
-	readonly stateFile?: string;
+	readonly specFile?: string;
 	/**
-	 * Where the generated tfvars JSON is written. Default:
-	 * <dirname(stateFile)>/ktb.tfvars.json (gitignored).
+	 * Passphrase for the stack secrets provider, exported as
+	 * PULUMI_CONFIG_PASSPHRASE for every pulumi invocation. Only needed
+	 * on first `stack select --create`; harmless afterwards. Falls back
+	 * to the ambient environment when unset.
 	 */
-	readonly varsFile?: string;
+	readonly passphrase?: string;
 }
 
-const DEFAULT_MODULE_DIR = fileURLToPath(new URL("../tofu/", import.meta.url));
+const DEFAULT_PROGRAM_DIR = fileURLToPath(new URL("../pulumi/", import.meta.url));
 
-interface TofuResult {
+interface PulumiResult {
 	readonly stdout: string;
 	readonly stderr: string;
 }
 
-const execTofu = (bin: string, args: readonly string[], cwd: string): Promise<TofuResult> =>
+const execPulumi = (
+	bin: string,
+	args: readonly string[],
+	cwd: string,
+	env: NodeJS.ProcessEnv,
+): Promise<PulumiResult> =>
 	new Promise((resolve, reject) => {
-		const child = spawn(bin, [...args], { cwd });
+		const child = spawn(bin, [...args], { cwd, env });
 		let stdout = "";
 		let stderr = "";
 		child.stdout.on("data", (chunk: Buffer) => {
@@ -68,39 +84,41 @@ const execTofu = (bin: string, args: readonly string[], cwd: string): Promise<To
 			} else {
 				reject(
 					new Error(
-						`tofu ${args.join(" ")} exited with code ${code}\n${stderr.trim() || stdout.trim()}`,
+						`pulumi ${args.join(" ")} exited with code ${code}\n${stderr.trim() || stdout.trim()}`,
 					),
 				);
 			}
 		});
 	});
 
-export const makeOciDeployHost = (options: OciTofuOptions = {}): DeployHost<never> =>
+export const makeOciDeployHost = (options: OciPulumiOptions = {}): DeployHost<never> =>
 	Effect.fnUntraced(function* (spec) {
-		const vars = yield* Effect.sync(() => specToVars(spec));
-		const bin = options.tofuBin ?? "tofu";
-		const moduleDir = options.moduleDir ?? DEFAULT_MODULE_DIR;
-		const stateFile = options.stateFile ?? join(moduleDir, "terraform.tfstate");
-		const varsFile = options.varsFile ?? join(dirname(stateFile), "ktb.tfvars.json");
+		const deploySpec = yield* Effect.sync(() => specToDeploySpec(spec));
+		const bin = options.pulumiBin ?? "pulumi";
+		const programDir = options.programDir ?? DEFAULT_PROGRAM_DIR;
+		const stack = options.stack ?? "dev";
+		const specFile = options.specFile ?? join(programDir, "ktb.spec.json");
 
+		yield* Effect.promise(() => writeFile(specFile, `${JSON.stringify(deploySpec, null, 2)}\n`));
+
+		const env: NodeJS.ProcessEnv = {
+			...process.env,
+			KTB_HOST_SPEC_FILE: specFile,
+			...(options.passphrase === undefined ? {} : { PULUMI_CONFIG_PASSPHRASE: options.passphrase }),
+		};
+
+		// Create the stack on first use; select is a no-op afterwards.
 		yield* Effect.promise(() =>
-			execTofu(
-				bin,
-				["init", "-input=false", "-no-color", `-backend-config=path=${stateFile}`],
-				moduleDir,
-			),
+			execPulumi(bin, ["stack", "select", "--create", stack, "--non-interactive"], programDir, env),
 		);
-		yield* Effect.promise(() => writeFile(varsFile, `${JSON.stringify(vars, null, 2)}\n`));
 		yield* Effect.promise(() =>
-			execTofu(
-				bin,
-				["apply", "-auto-approve", "-input=false", "-no-color", `-var-file=${varsFile}`],
-				moduleDir,
-			),
+			execPulumi(bin, ["up", "--yes", "--non-interactive", "--stack", stack], programDir, env),
 		);
-		const { stdout } = yield* Effect.promise(() => execTofu(bin, ["output", "-json"], moduleDir));
+		const { stdout } = yield* Effect.promise(() =>
+			execPulumi(bin, ["stack", "output", "--json", "--stack", stack], programDir, env),
+		);
 		return yield* Effect.sync(() => parseDeployOutputs(stdout));
 	});
 
-/** Default adapter: bundled tofu/ module, local state, `tofu` on PATH. */
+/** Default adapter: bundled pulumi/ program, "dev" stack, `pulumi` on PATH. */
 export const ociDeployHost: DeployHost<never> = makeOciDeployHost();
