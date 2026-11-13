@@ -15,17 +15,32 @@ datasources:
     uid: loki
     access: proxy
     url: http://localhost:3100
+    jsonData:
+      # Log → trace correlation: Loki's OTLP endpoint stores each log
+      # record's W3C trace context as the `trace_id` stream label /
+      # structured metadata field. The label matcher turns it into a
+      # "View trace" link on every correlated log line (Explore logs
+      # pane and the Logs panel inside a Tempo trace view).
+      derivedFields:
+        - name: TraceID
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: tempo
+          url: "$${__value.raw}"
+          urlDisplayLabel: "View trace"
   - name: Tempo
     type: tempo
     uid: tempo
     access: proxy
     url: http://localhost:3200
     jsonData:
-      # Trace→logs correlation: http.access / client.* records carry a
-      # `traceId` attribute (32-hex OTel trace id) which lands in the JSON
-      # log line; this extracts it for the "View matching logs" jump.
-      derivedFields:
-        - datasourceUid: loki
-          matcherRegex: '"traceId":"([0-9a-f]{32})"'
-          name: TraceID
-          url: "$${__value.raw}"
+      # Trace → logs correlation: the "Logs for this span" panel queries
+      # Loki filtered by the span's trace id, scoped to the service via
+      # the service.name → service_name label mapping.
+      tracesToLogsV2:
+        datasourceUid: loki
+        filterByTraceID: true
+        filterBySpanID: false
+        tags:
+          - key: service.name
+            value: service_name

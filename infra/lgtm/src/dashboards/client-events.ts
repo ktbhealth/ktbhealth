@@ -70,7 +70,7 @@ export const clientEventsDashboard = () =>
 			new QueryVariableBuilder("reason")
 				.label("Drop reason")
 				.description(
-					"Drop reason on ktb_client_events_dropped_total (disabled | invalid | rate-limited).",
+					"Drop reason on ktb_client_events_dropped_total (disabled | invalid | rate_limited | oversized | sampled).",
 				)
 				.datasource(DS_PROMETHEUS)
 				.query("label_values(ktb_client_events_dropped_total, reason)")
@@ -122,7 +122,7 @@ export const clientEventsDashboard = () =>
 				.id(3)
 				.title("Client events dropped (1h)")
 				.description(
-					"ktb_client_events_dropped_total increase over the last hour — events rejected before ingest (disabled | invalid | rate-limited).",
+					"ktb_client_events_dropped_total increase over the last hour — events rejected before ingest (disabled | invalid | rate_limited | oversized | sampled).",
 				)
 				.datasource(DS_PROMETHEUS)
 				.gridPos(grid(8, 1, 8, 4))

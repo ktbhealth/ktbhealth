@@ -76,7 +76,7 @@ export const telemetryHealthDashboard = () =>
 			new QueryVariableBuilder("reason")
 				.label("Drop reason")
 				.description(
-					"Bounded reason label on ktb_client_events_dropped_total (disabled | invalid | rate-limited).",
+					"Bounded reason label on ktb_client_events_dropped_total (disabled | invalid | rate_limited | oversized | sampled).",
 				)
 				.datasource(DS_PROMETHEUS)
 				.query("label_values(ktb_client_events_dropped_total, reason)")
@@ -255,7 +255,7 @@ export const telemetryHealthDashboard = () =>
 					.id(9)
 					.title("Client events dropped by reason")
 					.description(
-						"ktb_client_events_dropped_total — reason: disabled (KTB_TELEMETRY_CLIENT off), invalid (failed schema/sanitization), rate-limited (ingest cap hit).",
+						"ktb_client_events_dropped_total — reason: disabled (KTB_TELEMETRY_CLIENT off), invalid (failed schema/sanitization), rate_limited (ingest cap hit), oversized (body over the byte cap), sampled (client sample rate).",
 					)
 					.datasource(DS_PROMETHEUS)
 					.gridPos(grid(12, 14, 12, 8))
@@ -307,9 +307,13 @@ export const telemetryHealthDashboard = () =>
 					.unit("short")
 					.decimals(0)
 					.withTarget(
+						// OTLP log attributes land in Loki as structured
+						// metadata, not in the JSON body — `| json` would
+						// parse nothing. A bare label filter matches both
+						// stream labels and structured metadata.
 						loki(
 							"A",
-							'sum(count_over_time({service_name="ktb"} | json | status >= 500 [$__interval]))',
+							'sum(count_over_time({service_name="ktb"} | status >= 500 [$__interval]))',
 							"5xx lines/interval",
 						),
 					),

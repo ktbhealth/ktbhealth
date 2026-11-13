@@ -118,7 +118,7 @@ groups:
           team: platform
         annotations:
           summary: "The app is failing to export telemetry (stage=export)"
-          description: 'ktb_telemetry_errors_total{stage="export"} is increasing — telemetry is being dropped at the source. Check OTEL_EXPORTER_OTLP_ENDPOINT reachability and the otel.example.com tunnel.'
+          description: 'ktb_telemetry_errors_total{stage="export"} is increasing — telemetry is being dropped at the source. Check OTEL_EXPORTER_OTLP_ENDPOINT reachability and the ktb-otel.luisfuturist.com tunnel.'
           dashboard: "/d/ktb-platform"
         data:
           - refId: A
@@ -150,14 +150,17 @@ groups:
         title: "KTB: no telemetry received (dead-man)"
         condition: C
         for: 30m
-        noDataState: Alerting
+        # absent() returns an EMPTY vector when the metric exists — that
+        # empty result is the healthy state, so NoData must map to OK.
+        # (Alerting here would page continuously while telemetry flows.)
+        noDataState: OK
         execErrState: Alerting
         labels:
           severity: critical
           team: platform
         annotations:
           summary: "ktb_http_requests_total has been absent for 30m"
-          description: "No app metrics have arrived. Either the app is down, the OTLP endpoint is wrong/unreachable, or traffic is genuinely zero — check /api/ready and the otel.example.com tunnel before assuming an outage."
+          description: "No app metrics have arrived. Either the app is down, the OTLP endpoint is wrong/unreachable, or traffic is genuinely zero — check /api/ready and the ktb-otel.luisfuturist.com tunnel before assuming an outage."
           dashboard: "/d/ktb-platform"
         data:
           - refId: A
@@ -196,7 +199,7 @@ groups:
           team: platform
         annotations:
           summary: "Browser telemetry events are being dropped at ingest"
-          description: "ktb_client_events_dropped_total increased by {{ $values.A }} in 30m. Check the reason label (disabled | invalid | rate-limited) on the dashboard — 'disabled' means KTB_TELEMETRY_CLIENT is off."
+          description: "ktb_client_events_dropped_total increased by {{ $values.A }} in 30m. Check the reason label (disabled | invalid | rate_limited | oversized | sampled) on the dashboard — 'disabled' means KTB_TELEMETRY_CLIENT is off."
           dashboard: "/d/ktb-platform"
         data:
           - refId: A

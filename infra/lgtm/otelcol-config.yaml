@@ -5,9 +5,13 @@
 # docker/otelcol-config.yaml (v0.40.0) plus:
 #   * `tail_sampling` processor on the traces pipeline (T-107): keep all
 #     errors, keep slow traces (>2s), probabilistic fallback for the rest.
+#   * `memory_limiter` processor FIRST in every pipeline: backpressure
+#     before the collector OOMs the shared container (compose limit 4 GiB;
+#     limit_mib sized to ~62% leaving headroom for Prometheus/Loki/Tempo/
+#     Grafana in the same container).
 #
 # When bumping the image tag, diff this file against the new upstream
-# default and re-apply the tail_sampling block.
+# default and re-apply the memory_limiter + tail_sampling blocks.
 #
 # Trace sampling rationale: metrics are generated app-side (Effect
 # Metric -> OTLP metrics), NOT derived from traces, so tail sampling
@@ -37,6 +41,17 @@ extensions:
     path: "/ready"
 
 processors:
+  # memory_limiter MUST be the first processor in every pipeline — it
+  # refuses new data once the collector's own memory crosses the soft
+  # limit, which is the only graceful backpressure an otelcol has.
+  # Sized against the container's 4 GiB deploy limit (compose.yaml):
+  # 2560 MiB ≈ 62% — the collector shares the container with
+  # Prometheus/Loki/Tempo/Grafana, which need the rest. spike_limit_mib
+  # is the GC headroom allowed above the soft limit under burst.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 2560
+    spike_limit_mib: 512
   batch:
   # T-107 tail sampling — evaluated per trace after decision_wait so all
   # spans of a trace are seen before the keep/drop decision. Policies are
@@ -92,21 +107,22 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      # tail_sampling MUST run before batch so the batch only carries
-      # sampled spans.
-      processors: [tail_sampling, batch]
+      # memory_limiter first (backpressure), then tail_sampling BEFORE
+      # batch so the batch only carries sampled spans.
+      processors: [memory_limiter, tail_sampling, batch]
       exporters: [otlp_http/traces]
       #exporters: [otlp_http/traces,debug/traces]
     metrics:
       receivers: [otlp, prometheus/collector]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlp_http/metrics]
       #exporters: [otlp_http/metrics,debug/metrics]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [otlp_http/logs]
       #exporters: [otlp_http/logs,debug/logs]
     profiles:
       receivers: [otlp]
+      processors: [memory_limiter]
       exporters: [otlp_grpc/profiles]

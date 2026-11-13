@@ -453,7 +453,7 @@ export const platformDashboard = () =>
 					.id(17)
 					.title("Client events dropped by reason")
 					.description(
-						"ktb_client_events_dropped_total — browser telemetry rejected at ingest. reason: disabled | invalid | rate-limited. 'disabled' means KTB_TELEMETRY_CLIENT is off, not a bug.",
+						"ktb_client_events_dropped_total — browser telemetry rejected at ingest. reason: disabled | invalid | rate_limited | oversized | sampled. 'disabled' means KTB_TELEMETRY_CLIENT is off, not a bug.",
 					)
 					.datasource(DS_PROMETHEUS)
 					.gridPos(grid(0, 39, 12, 8))

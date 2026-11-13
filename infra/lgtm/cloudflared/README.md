@@ -13,5 +13,8 @@ Two operating modes — pick one:
   dashboard/`cloudflared tunnel create --token` and manage ingress there,
   or uncomment the `cloudflared` service in `../compose.yaml`.
 
-Hostnames to replace: `otel.example.com` (OTLP ingest) and
-`grafana.example.com` (Grafana UI — put Cloudflare Access in front).
+Hostnames (P-067, already real — see `config.yml`):
+`ktb-otel.luisfuturist.com` (OTLP ingest) and
+`ktb-grafana.luisfuturist.com` (Grafana UI — put Cloudflare Access in
+front). The `ktb-` prefix is required: Cloudflare Universal SSL only
+covers one subdomain level.
