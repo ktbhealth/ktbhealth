@@ -262,6 +262,33 @@
         "effect": "4.1.2",
       },
     },
+    "packages/eval-dataset": {
+      "name": "@ktb/eval-dataset",
+      "dependencies": {
+        "effect": "4.1.2",
+      },
+    },
+    "packages/eval-dataset-local": {
+      "name": "@ktb/eval-dataset-local",
+      "dependencies": {
+        "@ktb/eval-dataset": "workspace:*",
+        "better-sqlite3": "^13.0.3",
+        "effect": "4.1.2",
+      },
+      "devDependencies": {
+        "@ktb/eval-dataset-stub": "workspace:*",
+        "@types/better-sqlite3": "^9.6.0",
+        "@types/node": "^22.10.2",
+        "vitest": "5.1.0",
+      },
+    },
+    "packages/eval-dataset-stub": {
+      "name": "@ktb/eval-dataset-stub",
+      "dependencies": {
+        "@ktb/eval-dataset": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
     "packages/export-pdf": {
       "name": "@ktb/export-pdf",
       "dependencies": {
@@ -1207,6 +1234,12 @@
     "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
+
+    "@ktb/eval-dataset": ["@ktb/eval-dataset@workspace:packages/eval-dataset"],
+
+    "@ktb/eval-dataset-local": ["@ktb/eval-dataset-local@workspace:packages/eval-dataset-local"],
+
+    "@ktb/eval-dataset-stub": ["@ktb/eval-dataset-stub@workspace:packages/eval-dataset-stub"],
 
     "@ktb/export-pdf": ["@ktb/export-pdf@workspace:packages/export-pdf"],
 

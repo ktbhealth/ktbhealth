@@ -45,10 +45,12 @@ function mockAudioContext() {
 }
 
 function installMedia(stream: unknown) {
-	vi.stubGlobal("navigator", {
-		...navigator,
-		mediaDevices: { getDisplayMedia: vi.fn(async () => stream) },
-	});
+	vi.stubGlobal(
+		"navigator",
+		Object.assign(Object.create(navigator), {
+			mediaDevices: { getDisplayMedia: vi.fn(async () => stream) },
+		}),
+	);
 	vi.stubGlobal(
 		"AudioContext",
 		vi.fn(function (this: unknown) {
@@ -112,10 +114,12 @@ describe("capture-test", () => {
 	});
 
 	it("shows error when getDisplayMedia fails", async () => {
-		vi.stubGlobal("navigator", {
-			...navigator,
-			mediaDevices: { getDisplayMedia: vi.fn(async () => Promise.reject(new Error("denied"))) },
-		});
+		vi.stubGlobal(
+			"navigator",
+			Object.assign(Object.create(navigator), {
+				mediaDevices: { getDisplayMedia: vi.fn(async () => Promise.reject(new Error("denied"))) },
+			}),
+		);
 		render(createElement(Page));
 		await act(async () => {
 			fireEvent.click(screen.getByRole("button", { name: /start/i }));
@@ -124,10 +128,12 @@ describe("capture-test", () => {
 	});
 
 	it("shows string error for non-Error rejection", async () => {
-		vi.stubGlobal("navigator", {
-			...navigator,
-			mediaDevices: { getDisplayMedia: vi.fn(async () => Promise.reject("nope")) },
-		});
+		vi.stubGlobal(
+			"navigator",
+			Object.assign(Object.create(navigator), {
+				mediaDevices: { getDisplayMedia: vi.fn(async () => Promise.reject("nope")) },
+			}),
+		);
 		render(createElement(Page));
 		await act(async () => {
 			fireEvent.click(screen.getByRole("button", { name: /start/i }));

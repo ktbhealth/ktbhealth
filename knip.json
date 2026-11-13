@@ -33,6 +33,16 @@
 			// deps are intentionally not declared on @ktb/infra-oci.
 			"ignore": ["pulumi/**"]
 		},
+		"packages/eval-dataset-local": {
+			// Runnable demo — `bun scripts/demo.ts`, not imported anywhere.
+			"entry": ["scripts/**/*.ts"]
+		},
+		"infra/oci": {
+			// pulumi/ is a standalone Pulumi program — not a workspace
+			// member, with its own package.json/lockfile; its @pulumi/*
+			// deps are intentionally not declared on @ktb/infra-oci.
+			"ignore": ["pulumi/**"]
+		},
 		"plugins/notifications": {
 			// Only referenced by generated src/route-types.d.ts
 			// (`import type {} from "@tanstack/react-start"` / `AnyRoute`

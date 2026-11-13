@@ -1,0 +1,62 @@
+[
+	{
+		"model": "tiny",
+		"load_s": 0.5,
+		"peak_rss_mb": 279,
+		"audio_s": 26.8,
+		"infer_s": 1.7,
+		"rtf": 0.063,
+		"hyps": [
+			"O paciente nega a legia medicamentos e referingor de cabeça a três dias.",
+			"Prescrivo de Pirona 500mg, um comprimido de 8 em 8 horas.",
+			"A senhora toma a Los Artanas 50 miligramas uma vez ao dia pela manhã.",
+			"Nega febre, nega de Espleia, mas refere episódios de tontura ao levantar.",
+			"Solista é uma grama completo,  glicemia de jege 1 e retorne em 15 dias."
+		]
+	},
+	{
+		"model": "base",
+		"load_s": 0.4,
+		"peak_rss_mb": 443,
+		"audio_s": 26.8,
+		"infer_s": 2.3,
+		"rtf": 0.087,
+		"hyps": [
+			"O paciente nega alergia a medicamentos e refere dor de cabeça a três dias.",
+			"Prescrevo de pirona 500mg, um comprimido de 8 em 8 horas.",
+			"A senhora toma Los Artanas 50mg uma vez ao dia pela manhã.",
+			"Nega Febre, nega display-a, mais refere episódios de tontura ao levantar.",
+			"Solista, hemograma completo, glissemia de jejum e retorno em 15 dias."
+		]
+	},
+	{
+		"model": "small",
+		"load_s": 0.7,
+		"peak_rss_mb": 1081,
+		"audio_s": 26.8,
+		"infer_s": 5.4,
+		"rtf": 0.201,
+		"hyps": [
+			"O paciente nega alergia a medicamentos e refere dor de cabeça há três dias.",
+			"Prescrevo de pirona 500mg, um comprimido de 8 em 8 horas.",
+			"A senhora toma a losartana 50mg uma vez ao dia pela manhã.",
+			"Nega a febre, nega a displeia, mas refere episódios de tontura ao levantar.",
+			"Solis temograma completo, glicemia de jejum e retorno em 15 dias."
+		]
+	},
+	{
+		"model": "turbo",
+		"load_s": 2.0,
+		"peak_rss_mb": 2763,
+		"audio_s": 26.8,
+		"infer_s": 19.2,
+		"rtf": 0.714,
+		"hyps": [
+			"O paciente nega alergia a medicamentos e refere dor de cabeça há três dias.",
+			"Prescrevo de pirona 500mg, um comprimido de 8 em 8 horas.",
+			"A senhora toma losartana 50 miligramas uma vez ao dia pela manhã.",
+			"Nega a febre, nega a displeia, mas refere episódios de tontura ao levantar.",
+			"Solisto hemograma completo, glicemia de jejum e retorno em 15 dias."
+		]
+	}
+]

@@ -1314,7 +1314,7 @@ describe("NewConsultationPage", () => {
 			// generate uses the text on the viewed (corrected) tab
 			await user.click(screen.getByText("Generate anamnesis →"));
 			await waitFor(() =>
-				expect(api.extractAnamnesis).toHaveBeenLastCalledWith({
+				expect(api["extractAnamnesis"]).toHaveBeenLastCalledWith({
 					data: { transcript: "clean corrected", patientId: undefined },
 				}),
 			);

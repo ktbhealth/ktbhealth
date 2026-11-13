@@ -35,6 +35,9 @@ const PORT_PACKAGE_NAMES = [
 	"rbac",
 	// The server-fn runtime registry is port infrastructure, not an adapter.
 	"server-fns",
+	// Eval platform (P-066): domain package; its -stub/-local/-cloud
+	// adapters live in ADAPTER_PACKAGE_NAMES below.
+	"eval-dataset",
 	// Host infrastructure below the plugin system (admin gate, console
 	// shell, plugin_state) — held to the same boundary it had under
 	// plugins/ before the T-088 move to packages/platform.
@@ -68,6 +71,8 @@ export const PROVIDER_LITERAL_PATTERNS = [
 	/^@cf\//, // Cloudflare Workers AI model ids
 	/\bapi\.anthropic\.com\b/,
 	/\bapi\.openai\.com\b/,
+	/\btypesafe\.ai\b/, // Jev decision-model endpoint (P-066 eval port)
+	/\/v1\/systemone\b/, // Jev API path — belongs in adapters
 ];
 
 /** Adapter packages — implementations of ports, allowed platform APIs
@@ -85,6 +90,11 @@ const ADAPTER_PACKAGE_NAMES = [
 	"transcription-whisper",
 	"transcription-webspeech",
 	"db-sqlite",
+	// Eval platform adapters (P-066) — -local/-cloud land in later
+	// milestones; registered now so the boundary already covers them.
+	"eval-dataset-stub",
+	"eval-dataset-local",
+	"eval-dataset-cloud",
 ];
 
 /**

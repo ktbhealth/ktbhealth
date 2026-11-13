@@ -20,7 +20,7 @@ describe("turnstile verifier", () => {
 		const v = makeTurnstileVerifier("secret");
 		expect(await v.verify("tok", "1.2.3.4")).toBe(true);
 		const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
-		expect(String(init.body)).toContain("remoteip=1.2.3.4");
+		expect((init.body as URLSearchParams).toString()).toContain("remoteip=1.2.3.4");
 	});
 
 	it("omits remoteip when absent", async () => {
@@ -30,7 +30,7 @@ describe("turnstile verifier", () => {
 		);
 		await makeTurnstileVerifier("s").verify("tok");
 		const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
-		expect(String(init.body)).not.toContain("remoteip");
+		expect((init.body as URLSearchParams).toString()).not.toContain("remoteip");
 	});
 
 	it("returns false on http error, non-success and network failure", async () => {

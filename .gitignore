@@ -29,3 +29,7 @@ data/
 # alchemy local state
 .alchemy/
 coverage/
+
+# python bytecode (bench scripts)
+__pycache__/
+*.pyc
