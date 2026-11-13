@@ -22,7 +22,8 @@ page.on("requestfinished", (req) => {
 });
 page.on("requestfailed", (req) => {
 	const u = req.url();
-	if (u.includes("/api/cdn/")) console.log(`CDN FAIL: ${u.slice(0, 140)} ${req.failure()?.errorText}`);
+	if (u.includes("/api/cdn/"))
+		console.log(`CDN FAIL: ${u.slice(0, 140)} ${req.failure()?.errorText}`);
 });
 
 let n = 0;
@@ -60,5 +61,8 @@ for (let i = 0; i < 90; i++) {
 		console.log(`t=${i * 2}s cdnFiles=${cdn.size} chip=${JSON.stringify(chip)}`);
 	await page.waitForTimeout(2000);
 }
-console.log("CDN files:", [...cdn.entries()].map(([u, v]) => `${v.status} ${v.len}B ${u.split("/").pop()}`).join("\n  "));
+console.log(
+	"CDN files:",
+	[...cdn.entries()].map(([u, v]) => `${v.status} ${v.len}B ${u.split("/").pop()}`).join("\n  "),
+);
 await browser.close();

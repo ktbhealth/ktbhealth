@@ -23,9 +23,7 @@ if (existsSync(DB) && statSync(DB).mtimeMs >= newest) {
 	try {
 		const probe = new Database(DB, { readonly: true });
 		usable =
-			probe
-				.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table'")
-				.get().n > 0;
+			probe.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type = 'table'").get().n > 0;
 		probe.close();
 	} catch {
 		usable = false;

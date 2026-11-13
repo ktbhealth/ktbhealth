@@ -46,13 +46,21 @@ await dump("AFTER-PATIENT-SAVE", 1200);
 await page.goto("/consultations/new");
 await settle();
 // link the patient created above via the patient Select
-const patientSelect = page.getByRole("combobox").or(page.locator('[data-slot="select-trigger"]')).first();
+const patientSelect = page
+	.getByRole("combobox")
+	.or(page.locator('[data-slot="select-trigger"]'))
+	.first();
 if (await patientSelect.count()) {
 	await patientSelect.click();
 	await page.waitForTimeout(400);
-	const opt = page.getByRole("option", { name: /Maria Silva/i }).or(page.getByText("Maria Silva")).first();
-	if (await opt.count()) { await opt.click(); console.log("linked patient: Maria Silva"); }
-	else console.log("WARN: patient option not found");
+	const opt = page
+		.getByRole("option", { name: /Maria Silva/i })
+		.or(page.getByText("Maria Silva"))
+		.first();
+	if (await opt.count()) {
+		await opt.click();
+		console.log("linked patient: Maria Silva");
+	} else console.log("WARN: patient option not found");
 } else console.log("WARN: no patient select found");
 await dump("CONSULT-LINKED", 800);
 // The consent control is a Base UI checkbox: a `role="checkbox"` element
@@ -96,6 +104,8 @@ if (consultHref) {
 	await dump("CONSULT-DETAIL", 3000);
 	const pdf = await ctx.request.get(`/api/consultations/${consultHref.split("/").pop()}/pdf`);
 	const body = await pdf.body();
-	console.log(`PDF: ${pdf.status()} ${pdf.headers()["content-type"]} ${body.length}B ${body.slice(0, 5).toString()}`);
+	console.log(
+		`PDF: ${pdf.status()} ${pdf.headers()["content-type"]} ${body.length}B ${body.slice(0, 5).toString()}`,
+	);
 } else console.log("WARN: no consultation detail link found");
 await browser.close();
