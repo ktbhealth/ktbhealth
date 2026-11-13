@@ -49,6 +49,28 @@ describe("createApp", () => {
 		await expect(app.flushTelemetry()).resolves.toBeUndefined();
 	});
 
+	it("logAccess emits http.access through the runtime logger set", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		await app.logAccess({ method: "GET", path: "/x", status: 200, requestId: "r1" });
+		const line = log.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.find((l: string) => l.includes("http.access"));
+		expect(line).toBeDefined();
+		// Fields land as log annotations — the same projection OTLP
+		// exporters turn into log-record attributes.
+		expect(JSON.parse(line!)).toMatchObject({
+			message: "http.access",
+			level: "INFO",
+			annotations: { method: "GET", path: "/x", status: 200, requestId: "r1" },
+		});
+	});
+
+	it("logAccess never rejects, even after the runtime is disposed", async () => {
+		const disposed = createApp(env);
+		await disposed.runtime.dispose();
+		await expect(disposed.logAccess({ method: "GET" })).resolves.toBeUndefined();
+	});
+
 	it("run accepts a telemetry seed with route and traceparent", async () => {
 		await expect(
 			app.run(Effect.succeed("ok"), {

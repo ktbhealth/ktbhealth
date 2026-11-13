@@ -503,6 +503,21 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 			}).pipe(Effect.ignore),
 		);
 
+	/**
+	 * Edge access log (T-105): emits `http.access` through the configured
+	 * logger set (console JSON + OTLP) for EVERY request — including
+	 * routes that never enter `run`/`runAs`. The request middleware runs
+	 * outside the Effect runtime, so it reaches this via the app's
+	 * registered sink; the record flows through `CurrentLoggers` like
+	 * any other log line and lands as OTLP log attributes. Never
+	 * rejects: observability must not break the request path.
+	 */
+	const logAccess = (fields: Readonly<Record<string, unknown>>): Promise<void> =>
+		runtime.runPromise(Effect.logInfo("http.access").pipe(Effect.annotateLogs({ ...fields }))).then(
+			() => undefined,
+			() => undefined,
+		);
+
 	return {
 		plugins,
 		BindingLive,
@@ -513,6 +528,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		runAs,
 		correctTranscript,
 		flushTelemetry,
+		logAccess,
 		db,
 		auth,
 	};

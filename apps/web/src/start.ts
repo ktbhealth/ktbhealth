@@ -4,6 +4,7 @@ import {
 	overwriteServerAsyncLocalStorage,
 } from "#/paraglide/runtime.js";
 import { requestLocale } from "#/lib/i18n.ts";
+import { accessLog } from "#/lib/access-log.ts";
 import {
 	newRequestId,
 	recordUnsafe,
@@ -56,21 +57,19 @@ const telemetryMiddleware = createMiddleware().server(
 		recordUnsafe(tagged(httpRequests, { handlerType }), `${status}`);
 		recordUnsafe(tagged(httpRequestDuration, { handlerType }), durationMs);
 
-		// Structured access log — single-line JSON like the Effect logger
-		// output, so workerd Logs / collectors see one uniform stream.
-		console.info(
-			JSON.stringify({
-				message: "http.access",
-				level: "INFO",
-				method: request.method,
-				path: pathname,
-				status,
-				handlerType,
-				durationMs,
-				requestId,
-				traceId: traceparent?.split("-")[1],
-			}),
-		);
+		// Structured access log — emitted through the app runtime's logger
+		// set (console JSON + OTLP) via the sink platform.ts registers, so
+		// the record reaches exporters, not just Workers Logs. Falls back
+		// to a raw console line before composition (see access-log.ts).
+		await accessLog({
+			method: request.method,
+			path: pathname,
+			status,
+			handlerType,
+			durationMs,
+			requestId,
+			traceId: traceparent?.split("-")[1],
+		});
 
 		// Echo correlation ids back so clients/support can quote them.
 		// Response headers on a constructed Response are mutable pre-send.

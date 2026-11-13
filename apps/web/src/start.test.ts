@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getLocale } from "#/paraglide/runtime.js";
+import { setAccessLogSink } from "#/lib/access-log.ts";
 import { startInstance } from "./start.ts";
 
 type ServerFn = (options: {
@@ -126,5 +127,55 @@ describe("telemetry request middleware", () => {
 			response: "not-a-response",
 		}));
 		expect(result.response).toBe("not-a-response");
+	});
+
+	it("emits an http.access record with request context", async () => {
+		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+		const request = new Request("http://localhost/x", {
+			headers: {
+				"x-request-id": "rid-9",
+				traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+			},
+		});
+		await run(request);
+		const line = info.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.find((l: string) => l.includes("http.access"));
+		expect(line).toBeDefined();
+		expect(JSON.parse(line!)).toMatchObject({
+			message: "http.access",
+			method: "GET",
+			path: "/x",
+			status: 201,
+			handlerType: "router",
+			requestId: "rid-9",
+			traceId: "0af7651916cd43dd8448eb211c80319c",
+		});
+		vi.restoreAllMocks();
+	});
+
+	it("routes the access record through the registered sink when present", async () => {
+		const sink = vi.fn().mockResolvedValue(undefined);
+		setAccessLogSink(sink);
+		try {
+			const info = vi.spyOn(console, "info").mockImplementation(() => {});
+			const request = new Request("http://localhost/x", {
+				headers: { "x-request-id": "rid-sink" },
+			});
+			await run(request);
+			expect(sink).toHaveBeenCalledTimes(1);
+			expect(sink.mock.calls[0]![0]).toMatchObject({
+				method: "GET",
+				path: "/x",
+				status: 201,
+				requestId: "rid-sink",
+			});
+			expect(
+				info.mock.calls.map((c: unknown[]) => String(c[0])).some((l) => l.includes("http.access")),
+			).toBe(false);
+		} finally {
+			setAccessLogSink(undefined);
+			vi.restoreAllMocks();
+		}
 	});
 });

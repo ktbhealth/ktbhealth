@@ -17,6 +17,7 @@ import { getLocale } from "#/paraglide/runtime.js";
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { makeTenantDirectory } from "./tenant-directory.ts";
 import { requestTelemetryContext } from "./telemetry.ts";
+import { setAccessLogSink } from "./access-log.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
 import { fhirR4Exporter } from "@ktb/interop-fhir";
@@ -48,6 +49,11 @@ const tenantResolver = makeTenantResolver({
 });
 
 const app = createApp(appEnv as unknown as typeof env, { tenantResolver });
+
+// T-105: hand the request middleware (start.ts — outside the Effect
+// runtime, and client-safe so it can't import this module) a way to
+// emit `http.access` through the configured logger set, OTLP included.
+setAccessLogSink(app.logAccess);
 
 export const {
 	BindingLive,
