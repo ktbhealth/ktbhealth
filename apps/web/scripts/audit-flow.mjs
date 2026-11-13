@@ -45,8 +45,11 @@ await dump("AFTER-PATIENT-SAVE", 1200);
 // --- consult ---
 await page.goto("/consultations/new");
 await settle();
-const consent = page.locator('input[type="checkbox"]').first();
-if (await consent.count()) await consent.check().catch(() => consent.click({ force: true }));
+// The consent control is a Base UI checkbox: a `role="checkbox"` element
+// plus a visually-hidden `input[type="checkbox"]` (BubbleInput). Clicking
+// the hidden input does NOT toggle React state — target role=checkbox.
+const consent = page.getByRole("checkbox").first();
+if (await consent.count()) await consent.click();
 await page.getByRole("button", { name: "Use sample" }).click();
 await page.waitForTimeout(400);
 const gen = page.getByRole("button", { name: /Generate anamnesis/ });
