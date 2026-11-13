@@ -141,8 +141,8 @@ describe("observability api routes", () => {
 			);
 			const res = await handlersOf(ReadyRoute).GET!({} as never);
 			expect(res.status).toBe(503);
-			// initial attempt + 2 bounded retries
-			expect(enabledIds).toHaveBeenCalledTimes(3);
+			// initial attempt + 4 bounded retries
+			expect(enabledIds).toHaveBeenCalledTimes(5);
 		});
 
 		it("reports unavailable when the datastore probe fails with a typed error", async () => {

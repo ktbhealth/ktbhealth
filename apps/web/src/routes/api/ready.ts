@@ -12,9 +12,9 @@ import { run } from "#/lib/platform.ts";
  * not flap readiness. `enabledIds` reaches the DB through
  * `Effect.promise`, so a rejected query surfaces as a defect, not a
  * typed error — `sandbox` folds the full cause into the error channel
- * so `Effect.retry` can see it. The schedule is small (2 retries, 100ms
- * apart): it absorbs transient cold-start latency while a genuinely
- * down database still exhausts it and reports 503.
+ * so `Effect.retry` can see it. The schedule is exponential (4 retries,
+ * 150ms → 2.4s worst case): it absorbs transient cold-start latency
+ * while a genuinely down database still exhausts it and reports 503.
  */
 const datastoreProbe = Effect.gen(function* () {
 	const states = yield* PluginStates;
@@ -22,8 +22,8 @@ const datastoreProbe = Effect.gen(function* () {
 });
 
 const resilientProbe = Effect.retry(Effect.sandbox(datastoreProbe), {
-	times: 2,
-	schedule: Schedule.spaced("100 millis"),
+	times: 4,
+	schedule: Schedule.exponential("150 millis"),
 });
 
 /**
