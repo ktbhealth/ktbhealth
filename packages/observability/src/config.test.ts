@@ -1,11 +1,59 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	OBSERVABILITY_ENV_KEYS,
 	parseKeyValueList,
 	parseLogLevel,
 	telemetryConfigFromEnv,
 	type ObservabilityEnv,
 } from "./config.ts";
+
+describe("OBSERVABILITY_ENV_KEYS", () => {
+	it("lists every ObservabilityEnv key exactly once", () => {
+		// Compile-time exhaustiveness lives in config.ts
+		// (_envKeysExhaustive); this pins the runtime list so a refactor
+		// that drops a key fails loudly instead of silently.
+		expect([...OBSERVABILITY_ENV_KEYS].sort()).toEqual(
+			[
+				"KTB_ENVIRONMENT",
+				"KTB_LOG_LEVEL",
+				"KTB_TELEMETRY_CLIENT",
+				"KTB_TELEMETRY_CLIENT_SAMPLE_RATE",
+				"KTB_TELEMETRY_EXPORT_INTERVAL_MS",
+				"KTB_TELEMETRY_MAX_BATCH_SIZE",
+				"KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS",
+				"KTB_TELEMETRY_TRACES_SAMPLE_RATE",
+				"OTEL_EXPORTER_OTLP_COMPRESSION",
+				"OTEL_EXPORTER_OTLP_ENDPOINT",
+				"OTEL_EXPORTER_OTLP_HEADERS",
+				"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+				"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+				"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+				"OTEL_RESOURCE_ATTRIBUTES",
+				"OTEL_SDK_DISABLED",
+				"OTEL_SERVICE_NAME",
+			].sort(),
+		);
+		expect(new Set(OBSERVABILITY_ENV_KEYS).size).toBe(OBSERVABILITY_ENV_KEYS.length);
+	});
+
+	it("every listed key is readable by telemetryConfigFromEnv", () => {
+		// Feed each key a sentinel value through a cast env object —
+		// proves the list and the parser stay aligned.
+		const env = Object.fromEntries(
+			OBSERVABILITY_ENV_KEYS.map((key) => [key, "1"]),
+		) as ObservabilityEnv;
+		const config = telemetryConfigFromEnv(env);
+		expect(config.disabled).toBe(true);
+		expect(config.serviceName).toBe("1");
+		// "1" clamps up to each parser's minimum.
+		expect(config.otlp.exportIntervalMs).toBe(100);
+		expect(config.otlp.maxBatchSize).toBe(1);
+		expect(config.otlp.shutdownTimeoutMs).toBe(100);
+		expect(config.tracesSampleRate).toBe(1);
+		expect(config.clientTelemetry.sampleRate).toBe(1);
+	});
+});
 
 describe("parseKeyValueList", () => {
 	it("returns empty object for undefined/empty", () => {

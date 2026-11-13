@@ -32,6 +32,41 @@ export interface ObservabilityEnv {
 	readonly KTB_LOG_LEVEL?: string;
 }
 
+/**
+ * Canonical list of every env var `ObservabilityEnv` declares — the
+ * single source for "which process.env keys are telemetry config".
+ * Composition edges that forward env into the worker binding shape
+ * (the dev:node `cloudflare:workers` shim in apps/web, the OPTIONAL
+ * list in scripts/dev-secrets.mjs) consume this instead of
+ * hand-maintaining parallel lists that silently drift.
+ *
+ * `satisfies` rejects unknown keys; `_envKeysExhaustive` fails
+ * typecheck if `ObservabilityEnv` ever grows a key missing here.
+ */
+export const OBSERVABILITY_ENV_KEYS = [
+	"KTB_ENVIRONMENT",
+	"KTB_LOG_LEVEL",
+	"KTB_TELEMETRY_CLIENT",
+	"KTB_TELEMETRY_CLIENT_SAMPLE_RATE",
+	"KTB_TELEMETRY_EXPORT_INTERVAL_MS",
+	"KTB_TELEMETRY_MAX_BATCH_SIZE",
+	"KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS",
+	"KTB_TELEMETRY_TRACES_SAMPLE_RATE",
+	"OTEL_EXPORTER_OTLP_COMPRESSION",
+	"OTEL_EXPORTER_OTLP_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_HEADERS",
+	"OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+	"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+	"OTEL_RESOURCE_ATTRIBUTES",
+	"OTEL_SDK_DISABLED",
+	"OTEL_SERVICE_NAME",
+] as const satisfies readonly (keyof ObservabilityEnv)[];
+
+type _EnvKeysMissing = Exclude<keyof ObservabilityEnv, (typeof OBSERVABILITY_ENV_KEYS)[number]>;
+const _envKeysExhaustive: [_EnvKeysMissing] extends [never] ? true : never = true;
+void _envKeysExhaustive;
+
 export interface OtlpSignalEndpoints {
 	readonly logs?: string;
 	readonly traces?: string;

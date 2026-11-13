@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { makeSqliteDatabase } from "@ktb/db-sqlite";
+import { OBSERVABILITY_ENV_KEYS } from "@ktb/observability";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { loadDevVars } from "./dev-vars.ts";
@@ -66,13 +67,10 @@ const ENV_KEYS = [
 	"AUDIO_TRANSCRIBE_MODEL",
 	"AI_STUB",
 	"AI_BASE_URL",
-	"OTEL_EXPORTER_OTLP_ENDPOINT",
-	"OTEL_EXPORTER_OTLP_HEADERS",
-	"OTEL_SERVICE_NAME",
-	"KTB_ENVIRONMENT",
-	"KTB_TELEMETRY_TRACES_SAMPLE_RATE",
-	"KTB_TELEMETRY_CLIENT_SAMPLE_RATE",
-	"OTEL_SDK_DISABLED",
+	// Every ObservabilityEnv key — telemetryConfigFromEnv reads them off
+	// the worker env, so dev:node must forward the full canonical list
+	// (single source in @ktb/observability, pinned by its tests).
+	...OBSERVABILITY_ENV_KEYS,
 	"METRICS_SCRAPE_TOKEN",
 ] as const;
 
