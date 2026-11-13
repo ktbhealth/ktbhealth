@@ -7,6 +7,7 @@
 	"main": "./src/server.ts",
 	"observability": {
 		"enabled": true,
+		"traces": { "enabled": true },
 	},
 	// LOCAL EMULATION ONLY — never `wrangler deploy`/`wrangler dev --remote`
 	// this file. Production is deployed exclusively by Alchemy

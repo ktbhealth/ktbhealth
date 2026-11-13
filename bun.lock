@@ -37,6 +37,7 @@
         "@ktb/jobs": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/notifications": "workspace:*",
+        "@ktb/observability": "workspace:*",
         "@ktb/patients": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/platform-header": "workspace:*",
@@ -128,6 +129,8 @@
         "@ktb/db": "workspace:*",
         "@ktb/driver-framework": "workspace:*",
         "@ktb/kernel": "workspace:*",
+        "@ktb/observability": "workspace:*",
+        "@ktb/observability-otlp": "workspace:*",
         "@ktb/platform": "workspace:*",
         "@ktb/tenant": "workspace:*",
         "effect": "4.1.2",
@@ -284,6 +287,21 @@
         "drizzle-orm": "^0.45.4",
         "effect": "4.1.2",
         "react": "^19.2.0",
+      },
+    },
+    "packages/observability": {
+      "name": "@ktb/observability",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/observability-otlp": {
+      "name": "@ktb/observability-otlp",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/observability": "workspace:*",
+        "effect": "4.1.2",
       },
     },
     "packages/platform": {
@@ -1184,6 +1202,10 @@
     "@ktb/manager": ["@ktb/manager@workspace:plugins/manager"],
 
     "@ktb/notifications": ["@ktb/notifications@workspace:plugins/notifications"],
+
+    "@ktb/observability": ["@ktb/observability@workspace:packages/observability"],
+
+    "@ktb/observability-otlp": ["@ktb/observability-otlp@workspace:packages/observability-otlp"],
 
     "@ktb/pages": ["@ktb/pages@workspace:plugins/pages"],
 

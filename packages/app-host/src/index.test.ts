@@ -45,6 +45,20 @@ describe("createApp", () => {
 		await expect(app.run(Effect.succeed("ok"))).resolves.toBe("ok");
 	});
 
+	it("flushTelemetry drains exporters without rejecting", async () => {
+		await expect(app.flushTelemetry()).resolves.toBeUndefined();
+	});
+
+	it("run accepts a telemetry seed with route and traceparent", async () => {
+		await expect(
+			app.run(Effect.succeed("ok"), {
+				requestId: "r-seed",
+				route: "/patients",
+				traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+			}),
+		).resolves.toBe("ok");
+	});
+
 	it("binds an app-supplied tenant resolver into runAs", async () => {
 		const seen: unknown[] = [];
 		const tenantApp = createApp(env, {

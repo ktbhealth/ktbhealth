@@ -7,6 +7,7 @@
 	"main": "./src/server.ts",
 	"observability": {
 		"enabled": true,
+		"traces": { "enabled": true },
 	},
 	// Local dev only: this file is not used by the Alchemy deploy. Selects
 	// @ktb/captcha-stub so credential endpoints pass without a real widget.

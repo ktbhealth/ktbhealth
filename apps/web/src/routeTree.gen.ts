@@ -15,8 +15,12 @@ import { Route as captureTestRouteImport } from './routes/capture-test'
 import { Route as DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport } from './../../../plugins/auth/src/routes/login'
 import { Route as platformRouteImport } from './routes/platform'
 import { Route as ApiBotsRouteImport } from './../../../plugins/consultations/src/api-routes/bots'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiJobsRouteImport } from './../../../plugins/jobs/src/api-routes/jobs'
+import { Route as ApiMetricsRouteImport } from './routes/api/metrics'
 import { Route as ApiNotificationsRouteImport } from './../../../plugins/notifications/src/api-routes/notifications'
+import { Route as ApiReadyRouteImport } from './routes/api/ready'
+import { Route as ApiTelemetryRouteImport } from './routes/api/telemetry'
 import { Route as ApiTranscribeRouteImport } from './../../../plugins/consultations/src/api-routes/transcribe'
 import { Route as ConsultationsIndexRouteImport } from './../../../plugins/consultations/src/routes/index'
 import { Route as ConsultationsIdRouteImport } from './../../../plugins/consultations/src/routes/$id'
@@ -65,14 +69,34 @@ const ApiBotsRoute = ApiBotsRouteImport.update({
   path: '/api/bots',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiJobsRoute = ApiJobsRouteImport.update({
   id: '/api/jobs',
   path: '/api/jobs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMetricsRoute = ApiMetricsRouteImport.update({
+  id: '/api/metrics',
+  path: '/api/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiNotificationsRoute = ApiNotificationsRouteImport.update({
   id: '/api/notifications',
   path: '/api/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReadyRoute = ApiReadyRouteImport.update({
+  id: '/api/ready',
+  path: '/api/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTelemetryRoute = ApiTelemetryRouteImport.update({
+  id: '/api/telemetry',
+  path: '/api/telemetry',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
@@ -166,8 +190,12 @@ export interface FileRoutesByFullPath {
   '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/api/jobs': typeof ApiJobsRoute
+  '/api/metrics': typeof ApiMetricsRoute
   '/api/notifications': typeof ApiNotificationsRoute
+  '/api/ready': typeof ApiReadyRoute
+  '/api/telemetry': typeof ApiTelemetryRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
@@ -191,8 +219,12 @@ export interface FileRoutesByTo {
   '/capture-test': typeof captureTestRoute
   '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/api/jobs': typeof ApiJobsRoute
+  '/api/metrics': typeof ApiMetricsRoute
   '/api/notifications': typeof ApiNotificationsRoute
+  '/api/ready': typeof ApiReadyRoute
+  '/api/telemetry': typeof ApiTelemetryRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
@@ -218,8 +250,12 @@ export interface FileRoutesById {
   '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
   '/api/bots': typeof ApiBotsRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/api/jobs': typeof ApiJobsRoute
+  '/api/metrics': typeof ApiMetricsRoute
   '/api/notifications': typeof ApiNotificationsRoute
+  '/api/ready': typeof ApiReadyRoute
+  '/api/telemetry': typeof ApiTelemetryRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
@@ -246,8 +282,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/platform'
     | '/api/bots'
+    | '/api/health'
     | '/api/jobs'
+    | '/api/metrics'
     | '/api/notifications'
+    | '/api/ready'
+    | '/api/telemetry'
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
@@ -271,8 +311,12 @@ export interface FileRouteTypes {
     | '/capture-test'
     | '/login'
     | '/api/bots'
+    | '/api/health'
     | '/api/jobs'
+    | '/api/metrics'
     | '/api/notifications'
+    | '/api/ready'
+    | '/api/telemetry'
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
@@ -297,8 +341,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/platform'
     | '/api/bots'
+    | '/api/health'
     | '/api/jobs'
+    | '/api/metrics'
     | '/api/notifications'
+    | '/api/ready'
+    | '/api/telemetry'
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
@@ -324,8 +372,12 @@ export interface RootRouteChildren {
   DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute: typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   platformRoute: typeof platformRouteWithChildren
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiJobsRoute: typeof ApiJobsRoute
+  ApiMetricsRoute: typeof ApiMetricsRoute
   ApiNotificationsRoute: typeof ApiNotificationsRoute
+  ApiReadyRoute: typeof ApiReadyRoute
+  ApiTelemetryRoute: typeof ApiTelemetryRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ConsultationsIdRoute: typeof ConsultationsIdRoute
   ConsultationsNewRoute: typeof ConsultationsNewRoute
@@ -385,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBotsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/jobs': {
       id: '/api/jobs'
       path: '/api/jobs'
@@ -392,11 +451,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/metrics': {
+      id: '/api/metrics'
+      path: '/api/metrics'
+      fullPath: '/api/metrics'
+      preLoaderRoute: typeof ApiMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/notifications': {
       id: '/api/notifications'
       path: '/api/notifications'
       fullPath: '/api/notifications'
       preLoaderRoute: typeof ApiNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ready': {
+      id: '/api/ready'
+      path: '/api/ready'
+      fullPath: '/api/ready'
+      preLoaderRoute: typeof ApiReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/telemetry': {
+      id: '/api/telemetry'
+      path: '/api/telemetry'
+      fullPath: '/api/telemetry'
+      preLoaderRoute: typeof ApiTelemetryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/transcribe': {
@@ -547,8 +627,12 @@ const rootRouteChildren: RootRouteChildren = {
     DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute,
   platformRoute: platformRouteWithChildren,
   ApiBotsRoute: ApiBotsRouteWithChildren,
+  ApiHealthRoute: ApiHealthRoute,
   ApiJobsRoute: ApiJobsRoute,
+  ApiMetricsRoute: ApiMetricsRoute,
   ApiNotificationsRoute: ApiNotificationsRoute,
+  ApiReadyRoute: ApiReadyRoute,
+  ApiTelemetryRoute: ApiTelemetryRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   ConsultationsIdRoute: ConsultationsIdRoute,
   ConsultationsNewRoute: ConsultationsNewRoute,

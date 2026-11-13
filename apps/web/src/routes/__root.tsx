@@ -1,4 +1,5 @@
 import { authClient } from "@ktb/auth-better/client";
+import { initClientTelemetry, instrumentRouter } from "@ktb/observability/client";
 import { TooltipProvider } from "@ktbhealth/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
@@ -8,10 +9,11 @@ import {
 	Link,
 	Scripts,
 	useLocation,
+	useRouter,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { SearchXIcon, TriangleAlertIcon } from "lucide-react";
-import { createElement, type ReactNode } from "react";
+import { createElement, useEffect, type ReactNode } from "react";
 import * as m from "#/paraglide/messages.js";
 import { getLocale, locales } from "#/paraglide/runtime.js";
 import { changeLocale, localeName, pluginFooterNote, pluginNavLabel } from "#/lib/i18n.ts";
@@ -106,6 +108,23 @@ const NAV_LINK =
 	"rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground";
 const NAV_ACTIVE = "bg-muted text-foreground";
 
+/**
+ * Browser telemetry bootstrap (P-099): instruments fetch (injects
+ * traceparent/request-id, records request timings), window errors and
+ * router navigations, and batches events to /api/telemetry. Runs once
+ * per document; `initClientTelemetry` is idempotent across HMR.
+ */
+function TelemetryInit() {
+	const router = useRouter();
+	useEffect(() => {
+		initClientTelemetry({ endpoint: "/api/telemetry" });
+		// RouterCore's subscribe is generic/overloaded — the structural
+		// InstrumentableRouter view only needs the two events we read.
+		instrumentRouter(router as unknown as Parameters<typeof instrumentRouter>[0]);
+	}, [router]);
+	return null;
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
 	const { user, pluginStates } = Route.useLoaderData();
 	const pathname = useLocation({ select: (l) => l.pathname });
@@ -178,6 +197,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			</head>
 			<body className="flex min-h-screen flex-col bg-background text-foreground antialiased">
 				<TooltipProvider>
+					<TelemetryInit />
 					{isConsole ? (
 						children
 					) : (

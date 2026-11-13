@@ -4,6 +4,13 @@ import {
 	overwriteServerAsyncLocalStorage,
 } from "#/paraglide/runtime.js";
 import { requestLocale } from "#/lib/i18n.ts";
+import {
+	newRequestId,
+	recordUnsafe,
+	tagged,
+	httpRequests,
+	httpRequestDuration,
+} from "@ktb/observability";
 
 // Runs every request inside paraglide's AsyncLocalStorage so getLocale()
 // resolves the ktb-locale cookie during SSR — the cookie strategy cannot
@@ -20,6 +27,61 @@ const localeMiddleware = createMiddleware().server(async ({ request, next }) => 
 	return als.run({ locale, origin: new URL(request.url).origin }, () => next());
 });
 
+/**
+ * Edge observability middleware: request id + trace correlation, RED
+ * metrics (rate/errors/duration) and a structured access log for EVERY
+ * request — including non-Effect routes (auth, api, static) that never
+ * reach `run`/`runAs`. Effect-level telemetry (spans, domain logs) is
+ * seeded separately inside platform.ts from the same headers.
+ */
+const telemetryMiddleware = createMiddleware().server(
+	async ({ request, next, handlerType, pathname }) => {
+		const requestId = request.headers.get("x-request-id") ?? newRequestId();
+		const traceparent = request.headers.get("traceparent") ?? undefined;
+		const started = Date.now();
+		const result = await next();
+		const durationMs = Date.now() - started;
+
+		// `next()` resolves to the shared pipeline result; `response` is
+		// typed `Response` but SSR may hand back a wrapper carrying one.
+		const exposed: unknown = result?.response;
+		const response =
+			exposed instanceof Response
+				? exposed
+				: exposed !== null && typeof exposed === "object" && "response" in exposed
+					? ((exposed as { response?: unknown }).response as Response | undefined)
+					: undefined;
+		const status = response?.status ?? 0;
+
+		recordUnsafe(tagged(httpRequests, { handlerType }), `${status}`);
+		recordUnsafe(tagged(httpRequestDuration, { handlerType }), durationMs);
+
+		// Structured access log — single-line JSON like the Effect logger
+		// output, so workerd Logs / collectors see one uniform stream.
+		console.info(
+			JSON.stringify({
+				message: "http.access",
+				level: "INFO",
+				method: request.method,
+				path: pathname,
+				status,
+				handlerType,
+				durationMs,
+				requestId,
+				traceId: traceparent?.split("-")[1],
+			}),
+		);
+
+		// Echo correlation ids back so clients/support can quote them.
+		// Response headers on a constructed Response are mutable pre-send.
+		if (response) {
+			response.headers.set("x-request-id", requestId);
+			if (traceparent !== undefined) response.headers.set("x-traceparent", traceparent);
+		}
+		return result;
+	},
+);
+
 export const startInstance = createStart(() => ({
-	requestMiddleware: [localeMiddleware],
+	requestMiddleware: [localeMiddleware, telemetryMiddleware],
 }));

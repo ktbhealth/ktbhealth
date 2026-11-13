@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import { groupMembers, groups } from "@ktb/db/schema";
 import { Tenant } from "@ktb/tenant";
 
-import { ai, auth, BindingLive, db, runAs } from "./platform.ts";
+import { ai, auth, BindingLive, db, flushTelemetry, runAs } from "./platform.ts";
 
 // Tenant fixtures (P-053): u1 belongs to exactly one tenant (clinic-a) so
 // the resolver's selectDefault auto-picks it; u-multi belongs to two and
@@ -40,6 +40,10 @@ describe("platform", () => {
 		expect(typeof auth.api.getSession).toBe("function");
 		expect(ai?.run).toBeDefined();
 		expect(BindingLive).toBeDefined();
+	});
+
+	it("flushTelemetry resolves without rejecting", async () => {
+		await expect(flushTelemetry()).resolves.toBeUndefined();
 	});
 
 	it("runAs resolves an explicit tenant selector through the directory", async () => {

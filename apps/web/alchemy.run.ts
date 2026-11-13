@@ -65,6 +65,33 @@ export default Alchemy.Stack(
 				...(process.env.AUDIO_TRANSCRIBE_MODEL
 					? { AUDIO_TRANSCRIBE_MODEL: process.env.AUDIO_TRANSCRIBE_MODEL }
 					: {}),
+				// Observability (T-099): OTLP collector config — endpoint and
+				// service name are plain config; headers + scrape token are
+				// secrets. Unset endpoint → console/Prometheus fallback.
+				...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT
+					? { OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT }
+					: {}),
+				...(process.env.OTEL_EXPORTER_OTLP_HEADERS
+					? {
+							OTEL_EXPORTER_OTLP_HEADERS: Redacted.make(process.env.OTEL_EXPORTER_OTLP_HEADERS),
+						}
+					: {}),
+				...(process.env.OTEL_SERVICE_NAME
+					? { OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME }
+					: {}),
+				...(process.env.KTB_ENVIRONMENT ? { KTB_ENVIRONMENT: process.env.KTB_ENVIRONMENT } : {}),
+				...(process.env.KTB_TRACE_SAMPLE_RATE
+					? { KTB_TRACE_SAMPLE_RATE: process.env.KTB_TRACE_SAMPLE_RATE }
+					: {}),
+				...(process.env.KTB_CLIENT_SAMPLE_RATE
+					? { KTB_CLIENT_SAMPLE_RATE: process.env.KTB_CLIENT_SAMPLE_RATE }
+					: {}),
+				...(process.env.OTEL_SDK_DISABLED
+					? { OTEL_SDK_DISABLED: process.env.OTEL_SDK_DISABLED }
+					: {}),
+				...(process.env.METRICS_SCRAPE_TOKEN
+					? { METRICS_SCRAPE_TOKEN: Redacted.make(process.env.METRICS_SCRAPE_TOKEN) }
+					: {}),
 			},
 			// No nodejs_compat: worker-runtime code reads secrets only via
 			// bindings (.dev.vars in dev, these bindings in prod).

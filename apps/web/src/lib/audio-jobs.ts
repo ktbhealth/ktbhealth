@@ -299,7 +299,11 @@ export async function handleAudioQueueBatch(
 			await run(
 				runAsTenantId(
 					job.tenantId,
-					Effect.promise(() => processAudioJob(job, deps)),
+					Effect.promise(() => processAudioJob(job, deps)).pipe(
+						Effect.withSpan("queue.audio.transcribe", {
+							attributes: { "ktb.job.kind": "audio.transcribe" },
+						}),
+					),
 				),
 			);
 			message.ack();

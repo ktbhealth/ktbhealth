@@ -21,6 +21,8 @@
 		"@ktb/db": "workspace:*",
 		"@ktb/driver-framework": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/observability": "workspace:*",
+		"@ktb/observability-otlp": "workspace:*",
 		"@ktb/platform": "workspace:*",
 		"@ktb/tenant": "workspace:*",
 		"effect": "4.1.2"

@@ -1,4 +1,22 @@
 import { discoverPlugins, orderPlugins, requireDriver, type Driver } from "@ktb/driver-framework";
+import {
+	appInvocationDuration,
+	appInvocations,
+	cqrsDispatchDuration,
+	cqrsDispatches,
+	cqrsDispatchFailures,
+	externalSpanFromTraceparent,
+	newRequestId,
+	record,
+	tagged,
+	Telemetry,
+	TelemetryContext,
+	telemetryAnnotations,
+	type ObservabilityEnv,
+	type TelemetryContextValue,
+} from "@ktb/observability";
+import { otlpTelemetryDriver } from "@ktb/observability-otlp";
+import { telemetryConsoleDriver } from "@ktb/observability";
 import type { Plugin } from "@ktb/kernel";
 import {
 	makePlatformAdminGate,
@@ -10,9 +28,10 @@ import { makePluginStatesLive, PluginDisabled, PluginStates } from "@ktb/platfor
 import { Bot, stubBotDriver } from "@ktb/bot";
 import { recallDriver } from "@ktb/bot-recall";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Clock from "effect/Clock";
 import { Binding, DbLive, makeDb, type SqlDatabase } from "@ktb/db";
 import { makeAuth, makeAuthService } from "@ktb/auth-better";
 import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
@@ -84,7 +103,7 @@ const commandGroups = apiEntries.flatMap(({ pkg, value }) =>
 
 /** Minimal binding surface the host needs. Any platform (workerd, bun,
  * future adapters) supplies these; the host never touches cloudflare:*. */
-export interface AppEnv {
+export interface AppEnv extends ObservabilityEnv {
 	readonly DB: SqlDatabase;
 	readonly RECALL_API_KEY?: string;
 	readonly BETTER_AUTH_SECRET?: string;
@@ -175,6 +194,10 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		turnstileCaptchaDriver,
 		nullCaptchaDriver,
 		...llmDrivers,
+		// Telemetry port: OTLP exporter wins when an endpoint is bound;
+		// the console driver is the always-eligible local/DX fallback.
+		otlpTelemetryDriver,
+		telemetryConsoleDriver,
 	];
 	// Drivers are type-erased (Layer.Any); each port maps to exactly one
 	// service, so the concrete layer type is restored here — same shape
@@ -216,6 +239,10 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		workersAiModel: env.WORKERS_AI_MODEL,
 	};
 	const AnamnesisEngineLive = layerFor<AnamnesisEngine>(AnamnesisEngine.key, llmConfig);
+	// Telemetry port: driver-selected exporter set (OTLP when configured,
+	// console JSON otherwise) — provides Logger/Tracer references, the
+	// Telemetry service, metric instrumentation and KTB_LOG_LEVEL.
+	const TelemetryLive = layerFor<Telemetry>(Telemetry.key, env);
 	// Platform admin gate (P-026): env allowlist resolved once here; the
 	// gate fails closed (Forbidden) when the list is unset/empty.
 	const PlatformAdminLive = Layer.succeed(
@@ -242,6 +269,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		DbLive,
 		AuthServiceLive,
 		AnamnesisEngineLive,
+		TelemetryLive,
 		PlatformAdminLive,
 		PluginStatesLive,
 		// Cross-plugin event bus — plugins publish/subscribe via EventBus
@@ -264,20 +292,26 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	const busMiddleware: ReadonlyArray<Middleware.Middleware> = [
 		(dispatch, { tag, side }) =>
 			(payload) =>
-				dispatch(payload).pipe(
-					Effect.tap(() =>
-						side === "command"
+				Effect.gen(function* () {
+					const start = yield* Clock.currentTimeMillis;
+					const exit = yield* Effect.exit(dispatch(payload));
+					const elapsed = (yield* Clock.currentTimeMillis) - start;
+					yield* record(tagged(cqrsDispatches, { side }), 1);
+					yield* record(tagged(cqrsDispatchDuration, { side }), elapsed);
+					if (Exit.isSuccess(exit)) {
+						yield* side === "command"
 							? Effect.logInfo("cqrs command", { tag })
-							: Effect.logDebug("cqrs query", { tag }),
-					),
-					Effect.tapError((error) =>
-						Effect.logWarning("cqrs dispatch failed", {
-							tag,
-							side,
-							error: String(error),
-						}),
-					),
-				),
+							: Effect.logDebug("cqrs query", { tag });
+						return exit.value;
+					}
+					yield* record(tagged(cqrsDispatchFailures, { side }), 1);
+					yield* Effect.logWarning("cqrs dispatch failed", {
+						tag,
+						side,
+						error: String(exit.cause),
+					});
+					return yield* Effect.failCause(exit.cause);
+				}),
 	];
 	// Enabled-state gate (P-058): services layers always compose
 	// (ManagedRuntime can't recompose per toggle), so dispatch is the
@@ -332,12 +366,53 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	).pipe(Layer.provide(pluginLayer.pipe(Layer.provide(core))));
 	const AppLive = Layer.mergeAll(core, pluginLayer.pipe(Layer.provide(core)), busesLive).pipe(
 		Layer.provideMerge(BindingLive),
-		// Single-line JSON logs → workerd console / wrangler observability.
-		Layer.provideMerge(Logger.layer([Logger.consoleJson])),
+		// Logger/Tracer references come from the Telemetry driver layer
+		// (console JSON + redaction locally, OTLP when configured) — no
+		// hardcoded logger here so exporters stay deploy-configurable.
 	);
 	// Heterogeneous plugin layers can't be proven RIn-free at the type
 	// level; unsatisfied requirements still fail at layer build time.
 	const runtime = ManagedRuntime.make(AppLive as Layer.Layer<unknown, unknown, never>);
+
+	/**
+	 * Telemetry wrapper around every runtime invocation: binds the merged
+	 * `TelemetryContext` (ambient + caller seed), stamps log annotations
+	 * for correlation, opens an `app.<kind>` span parented to any inbound
+	 * `traceparent`, and records invocation count/duration metrics — on
+	 * success AND failure (`onExit`). Everything degrades silently when
+	 * unconfigured: native tracer, console logger, prometheus scrape.
+	 */
+	const instrument = <A, E, R>(
+		kind: "run" | "runAs",
+		effect: Effect.Effect<A, E, R>,
+		seed: TelemetryContextValue = {},
+	): Effect.Effect<A, E, R> =>
+		Effect.gen(function* () {
+			const ambient = yield* TelemetryContext;
+			const ctx: TelemetryContextValue = { ...ambient, ...seed };
+			const start = yield* Clock.currentTimeMillis;
+			const parent = externalSpanFromTraceparent(ctx.traceparent);
+			const program = effect.pipe(
+				Effect.provideService(TelemetryContext, ctx),
+				Effect.annotateLogs(telemetryAnnotations(ctx)),
+				Effect.withSpan(`app.${kind}`, {
+					attributes: {
+						"app.kind": kind,
+						...(ctx.route === undefined ? {} : { "app.route": ctx.route }),
+					},
+					...(parent === undefined ? {} : { parent }),
+				}),
+			);
+			return yield* program.pipe(
+				Effect.onExit(() =>
+					Effect.gen(function* () {
+						const elapsed = (yield* Clock.currentTimeMillis) - start;
+						yield* record(tagged(appInvocations, { kind }), 1);
+						yield* record(tagged(appInvocationDuration, { kind }), elapsed);
+					}),
+				),
+			);
+		});
 
 	/**
 	 * Run an Effect program against the composed app runtime.
@@ -347,9 +422,22 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	 * without a session. No `Principal` is bound — domain services that
 	 * require a user will fail `Forbidden`; bot-channel methods that are
 	 * authorized out-of-band (botId binding) are designed for this.
+	 *
+	 * `telemetry` seeds request-scoped context (request id, inbound
+	 * traceparent) extracted by the app edge; a fresh id is generated
+	 * when the caller supplies none so every invocation correlates.
 	 */
-	const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
-		runtime.runPromise(effect);
+	const run = <A, E>(
+		effect: Effect.Effect<A, E, unknown>,
+		telemetry?: TelemetryContextValue,
+	): Promise<A> =>
+		runtime.runPromise(
+			instrument("run", effect, telemetry ?? { requestId: newRequestId() }) as Effect.Effect<
+				A,
+				E,
+				never
+			>,
+		);
 
 	/**
 	 * Run an Effect program as an authenticated user: binds `Principal`,
@@ -370,16 +458,26 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		user: { readonly id: string; readonly email?: string },
 		effect: Effect.Effect<A, E, unknown>,
 		tenantSelector?: TenantSelector | null,
+		telemetry?: TelemetryContextValue,
 	): Promise<A> =>
 		runtime.runPromise(
 			Effect.gen(function* () {
 				const resolver = yield* TenantResolver;
 				const tenant = yield* resolver.resolve(tenantSelector ?? null, user.id);
-				return yield* effect.pipe(
-					Effect.provideService(Principal, { userId: user.id, email: user.email }),
-					Effect.provideService(Tenant, tenant),
-					Effect.provide(AuthzLive(user.id)),
-				);
+				return yield* instrument(
+					"runAs",
+					effect.pipe(
+						Effect.provideService(Principal, { userId: user.id, email: user.email }),
+						Effect.provideService(Tenant, tenant),
+						Effect.provide(AuthzLive(user.id)),
+					),
+					{
+						requestId: newRequestId(),
+						...telemetry,
+						userId: user.id,
+						tenantId: tenant?.id ?? null,
+					},
+				) as Effect.Effect<A, E, never>;
 			}),
 		);
 
@@ -391,6 +489,20 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	const correctTranscript = (transcript: string) =>
 		runtime.runPromise(correctTranscriptEffect(llmConfig, transcript));
 
+	/**
+	 * Drain telemetry exporters (OTLP batch queues) — bounded by each
+	 * exporter's shutdown timeout, never rejects. Called by the worker
+	 * entry via `ctx.waitUntil` after fetches and queue batches so
+	 * buffered spans/logs/metrics aren't lost when an isolate freezes.
+	 */
+	const flushTelemetry = (): Promise<void> =>
+		runtime.runPromise(
+			Effect.gen(function* () {
+				const telemetry = yield* Telemetry;
+				yield* telemetry.flush;
+			}).pipe(Effect.ignore),
+		);
+
 	return {
 		plugins,
 		BindingLive,
@@ -400,6 +512,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		run,
 		runAs,
 		correctTranscript,
+		flushTelemetry,
 		db,
 		auth,
 	};

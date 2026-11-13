@@ -16,6 +16,7 @@ import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { makeTenantDirectory } from "./tenant-directory.ts";
+import { requestTelemetryContext } from "./telemetry.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
 import { fhirR4Exporter } from "@ktb/interop-fhir";
@@ -50,7 +51,6 @@ const app = createApp(appEnv as unknown as typeof env, { tenantResolver });
 
 export const {
 	BindingLive,
-	run,
 	correctTranscript,
 	db,
 	auth,
@@ -60,6 +60,16 @@ export const {
 	// be imported by client-reachable module scope.
 	plugins: serverPlugins,
 } = app;
+
+/**
+ * `run`/`runAs` with telemetry seeding: every invocation gets a
+ * request-scoped `TelemetryContext` (request id + inbound traceparent
+ * from the HTTP request, or a fresh id outside one) so logs, spans and
+ * metrics correlate end-to-end. `runAs` additionally binds user/tenant
+ * inside app-host.
+ */
+export const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
+	requestTelemetryContext().then((telemetry) => app.run(effect, telemetry));
 
 /**
  * `runAs` with tenant-selector extraction (P-053): when the caller does
@@ -77,7 +87,9 @@ export const runAs = <A, E>(
 	tenantSelector?: TenantSelector | null,
 ): Promise<A> => {
 	if (tenantSelector !== undefined) {
-		return app.runAs(user, effect, tenantSelector);
+		return requestTelemetryContext().then((telemetry) =>
+			app.runAs(user, effect, tenantSelector, telemetry),
+		);
 	}
 	return (async () => {
 		let selector: TenantSelector | null = null;
@@ -86,7 +98,8 @@ export const runAs = <A, E>(
 		} catch {
 			// No request context — personal scope.
 		}
-		return app.runAs(user, effect, selector);
+		const telemetry = await requestTelemetryContext();
+		return app.runAs(user, effect, selector, telemetry);
 	})();
 };
 
@@ -152,3 +165,7 @@ setServerRuntime({
 // Raw platform binding passthrough — not composed, just exposed.
 export const ai = aiBinding;
 export const audioBucket = env.AUDIO_BUCKET;
+
+/** Drain OTLP exporters after request/batch handling — bounded and
+ * never rejects; the worker entry schedules it via `ctx.waitUntil`. */
+export const flushTelemetry = (): Promise<void> => app.flushTelemetry();

@@ -12,5 +12,21 @@ declare namespace Cloudflare {
 		AUDIO_BUCKET?: R2Bucket;
 		/** Queue producer for async transcription jobs (P-016). */
 		AUDIO_QUEUE?: Queue;
+		/** Observability (T-099): OTLP endpoint, e.g. https://otlp.example.com. */
+		OTEL_EXPORTER_OTLP_ENDPOINT?: string;
+		/** OTLP auth headers, e.g. "Authorization=Bearer x" (secret). */
+		OTEL_EXPORTER_OTLP_HEADERS?: string;
+		/** Service name reported to the collector. */
+		OTEL_SERVICE_NAME?: string;
+		/** Deployment environment tag (production/staging/…). */
+		KTB_ENVIRONMENT?: string;
+		/** Trace sample ratio 0..1 (default 1). */
+		KTB_TRACE_SAMPLE_RATE?: string;
+		/** Client-event sample ratio 0..1 (default 1). */
+		KTB_CLIENT_SAMPLE_RATE?: string;
+		/** "1" disables all telemetry export. */
+		OTEL_SDK_DISABLED?: string;
+		/** Bearer token guarding GET /api/metrics (secret). */
+		METRICS_SCRAPE_TOKEN?: string;
 	}
 }
