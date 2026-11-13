@@ -35,4 +35,4 @@ VITE_TURNSTILE_SITE_KEY = "cuora://ktb/turnstile-site-key"
 # fails when a declared ref doesn't resolve. Non-secret OTLP config
 # (endpoint, service name, sample rates, KTB_*) is plain env, not cuora.
 # OTEL_EXPORTER_OTLP_HEADERS = "cuora://ktb/otel-exporter-otlp-headers"
-# METRICS_SCRAPE_TOKEN = "cuora://ktb/metrics-scrape-token"
+METRICS_SCRAPE_TOKEN = "cuora://ktb/metrics-scrape-token"
