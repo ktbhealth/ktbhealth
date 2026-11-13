@@ -77,6 +77,8 @@ describe("createApp", () => {
 			method: "GET",
 			path: "/x",
 			status: 200,
+			// Non-scalar whitelisted keys are skipped as span attributes.
+			durationMs: { unexpected: true },
 			requestId: "r1",
 			traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
 		});
