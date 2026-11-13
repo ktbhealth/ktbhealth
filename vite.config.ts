@@ -265,6 +265,8 @@ export default defineConfig({
 								"@ktb/db-sqlite/**",
 								"@ktb/infra-cloudflare",
 								"@ktb/infra-cloudflare/**",
+								"@ktb/infra-oci",
+								"@ktb/infra-oci/**",
 								"@ktb/app-host",
 								"@ktb/app-host/**",
 							],

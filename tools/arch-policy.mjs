@@ -100,6 +100,8 @@ export const IMPL_IMPORT_PATTERNS = [
 	"@ktb/app-host/**",
 	"@ktb/infra-cloudflare",
 	"@ktb/infra-cloudflare/**",
+	"@ktb/infra-oci",
+	"@ktb/infra-oci/**",
 	"cloudflare:*",
 	...ADAPTER_PACKAGE_NAMES.flatMap((name) => [`@ktb/${name}`, `@ktb/${name}/**`]),
 ];

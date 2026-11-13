@@ -1,0 +1,17 @@
+{
+	"name": "@ktb/infra-oci",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./oci": "./src/oci.ts"
+	},
+	"dependencies": {
+		"@ktb/infra-ports": "workspace:*",
+		"effect": "4.1.2"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"vitest": "5.1.0"
+	}
+}

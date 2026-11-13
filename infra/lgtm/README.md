@@ -121,6 +121,46 @@ up to 4 OCPU / 24 GB) — far more than this stack needs. The
    `sudo usermod -aG docker $USER` (re-login).
 3. Everything else is identical — the stack doesn't know it's on OCI.
 
+## IaC (infra/oci, P-068)
+
+The manual console path above remains the documented default until the
+adapter is proven. For repeatability there is now an OpenTofu adapter
+behind the infra ports:
+
+- `infra/ports` (`@ktb/infra-ports`) defines `DeployHost`/`HostSpec`.
+- `infra/oci` (`@ktb/infra-oci`) implements it with OpenTofu + the
+  official `oracle/oci` provider (`infra/oci/tofu/*.tf`): VCN, IGW,
+  route table, security list (SSH-only ingress), public subnet and a
+  compute instance pinned to Always-Free shapes by default
+  (`VM.Standard.A1.Flex`, `VM.Standard.E2.1.Micro`; `freeTierOnly`
+  enforces the 4 OCPU / 24 GB A1 ceiling).
+
+Usage (needs `tofu` on PATH + OCI credentials via env or
+`~/.oci/config` — see `infra/oci/src/oci.ts` docstring):
+
+```ts
+import { deployHost } from "@ktb/infra-oci";
+
+const host = await Effect.runPromise(
+	deployHost({
+		name: "ktb-lgtm",
+		region: "sa-saopaulo-1",
+		compartmentOcid: "ocid1.compartment.oc1..…",
+		tenancyOcid: "ocid1.tenancy.oc1..…", // only if availabilityDomain unset
+		imageName: "Canonical-Ubuntu-24.04-aarch64-…", // or imageOcid
+		sshPublicKeys: ["ssh-ed25519 AAAA…"],
+		assignPublicIp: true, // optional — tunnel-only needs none
+	}),
+);
+// host.id = instance OCID, host.publicIp = ephemeral IPv4 | undefined
+```
+
+**State backend decision**: local state (`infra/oci/tofu/terraform.tfstate`,
+gitignored) is the default — right for a single VM. When a second host or
+shared state is needed, switch the module to the OCI Object Storage
+S3-compatible backend (skeleton in `tofu/versions.tf`) — that choice is
+deliberately left to a human, not wired into the adapter yet.
+
 ## One-time host setup (human steps)
 
 1. **VM**: any small Linux box (2 vCPU / 4 GiB RAM is the floor — the
