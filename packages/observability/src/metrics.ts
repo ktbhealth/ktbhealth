@@ -63,7 +63,11 @@ export const clientEventsDropped = Metric.counter("ktb_client_events_dropped_tot
 });
 
 /** Telemetry pipeline self-observability — export/ingest failures must
- * never be silent. */
+ * never be silent. Attribute `stage` is bounded: `ingest` (client-event
+ * ingest failure), `export` (OTLP export attempt failure — counted per
+ * attempt, so exporter retries may count more than once per batch),
+ * `flush` (bounded drain timeout/failure, `reason: "timeout"` on
+ * timeout). Client-side drops stay on `ktb_client_events_dropped_total`. */
 export const telemetryErrors = Metric.counter("ktb_telemetry_errors_total", {
 	description: "Telemetry pipeline errors (ingest, export, flush)",
 	incremental: true,
@@ -107,3 +111,13 @@ export const recordUnsafe = <Input, State>(
 		// Metrics are best-effort at the edge.
 	}
 };
+
+/**
+ * Like `record`, but also swallows defects — for failure-reporting paths
+ * where the metric update itself must never fail the caller (e.g. the
+ * `ktb_telemetry_errors_total` increments inside error handlers).
+ */
+export const recordSafe = <Input, State>(
+	metric: Metric.Metric<Input, State>,
+	input: Input,
+): Effect.Effect<void> => Metric.update(metric, input).pipe(Effect.catchCause(() => Effect.void));

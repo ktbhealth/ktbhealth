@@ -500,7 +500,12 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 			Effect.gen(function* () {
 				const telemetry = yield* Telemetry;
 				yield* telemetry.flush;
-			}).pipe(Effect.ignore),
+			}).pipe(
+				// `ignoreCause`, not `ignore`: a defect (e.g. a dying logger
+				// inside the flush path) must not reject the promise handed
+				// to `ctx.waitUntil`.
+				Effect.ignoreCause,
+			),
 		);
 
 	/**

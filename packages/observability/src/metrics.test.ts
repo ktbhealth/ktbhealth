@@ -8,6 +8,7 @@ import {
 	clientEvents,
 	httpRequests,
 	record,
+	recordSafe,
 	recordUnsafe,
 	tagged,
 	telemetryErrors,
@@ -29,6 +30,25 @@ describe("recordUnsafe", () => {
 	it("updates metrics outside Effect and never throws", () => {
 		expect(() => recordUnsafe(httpRequests, "200")).not.toThrow();
 		expect(() => recordUnsafe(cqrsDispatches, 1)).not.toThrow();
+	});
+});
+
+describe("recordSafe", () => {
+	it("updates metrics inside Effect", async () => {
+		const registry = new Map();
+		await Effect.runPromise(
+			Effect.provideService(recordSafe(clientEvents, 1), Metric.MetricRegistry, registry),
+		);
+	});
+
+	it("swallows defects so error-reporting paths never fail", async () => {
+		// A registry without Map methods defects inside Metric.update —
+		// recordSafe must still resolve.
+		await expect(
+			Effect.runPromise(
+				Effect.provideService(recordSafe(clientEvents, 1), Metric.MetricRegistry, {} as never),
+			),
+		).resolves.toBeUndefined();
 	});
 });
 

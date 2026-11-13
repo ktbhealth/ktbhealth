@@ -4,7 +4,7 @@ import * as Metric from "effect/Metric";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 
 import { telemetryConfigFromEnv } from "./config.ts";
-import { clientEvents, clientEventsDropped, tagged } from "./metrics.ts";
+import { clientEvents, clientEventsDropped, tagged, telemetryErrors } from "./metrics.ts";
 import {
 	ingestClientEvents,
 	makeLocalTelemetry,
@@ -45,6 +45,27 @@ describe("ingestClientEvents", () => {
 		const program = Effect.gen(function* () {
 			yield* ingestClientEvents(disabled)(batch([{ type: "event", name: "x" }]));
 			return yield* countOf(tagged(clientEventsDropped, { reason: "disabled" }));
+		});
+		const count = await Effect.runPromise(
+			Effect.provideService(program, Metric.MetricRegistry, registry),
+		);
+		expect(count).toBe(1);
+	});
+
+	it("counts ingest defects on telemetryErrors and never fails", async () => {
+		const registry = new Map();
+		// A throwing attribute getter defects inside sanitizeClientEvent —
+		// the batch must still resolve and count once on stage=ingest.
+		const evil = {
+			attributes: {
+				get boom(): string {
+					throw new Error("getter exploded");
+				},
+			},
+		};
+		const program = Effect.gen(function* () {
+			yield* ingestClientEvents(config)(batch([{ type: "event", name: "x", ...evil }]));
+			return yield* countOf(tagged(telemetryErrors, { stage: "ingest" }));
 		});
 		const count = await Effect.runPromise(
 			Effect.provideService(program, Metric.MetricRegistry, registry),

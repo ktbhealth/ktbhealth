@@ -3,11 +3,11 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Metric from "effect/Metric";
-import { HttpClient, HttpClientResponse } from "effect/http";
+import { HttpClient, HttpClientError, HttpClientResponse } from "effect/http";
 import { OtlpExporter } from "effect/observability";
 import * as Tracer from "effect/Tracer";
 
-import { telemetryConfigFromEnv, Telemetry } from "@ktb/observability";
+import { tagged, telemetryConfigFromEnv, telemetryErrors, Telemetry } from "@ktb/observability";
 
 import { makeOtlpLayers, otlpTelemetryDriver, TelemetryOtlpLive } from "./index.ts";
 
@@ -102,6 +102,20 @@ const flushAll = Effect.gen(function* () {
 	const flusher = yield* OtlpExporter.Flusher;
 	yield* flusher.flush;
 });
+
+const countOf = <S extends { readonly count: number | bigint }>(metric: Metric.Metric<never, S>) =>
+	Effect.map(Metric.value(metric), (state) => Number(state.count));
+
+/** Poll a metric until it exceeds `baseline` — export attempts are
+ * forked by the exporter, so tests wait for the first failure to land
+ * instead of sleeping a fixed amount. */
+const waitForIncrease = async (read: () => Promise<number>, baseline: number): Promise<void> => {
+	for (let i = 0; i < 200; i++) {
+		if ((await read()) > baseline) return;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error("metric did not increase");
+};
 
 describe("makeOtlpLayers", () => {
 	it("exports logs, traces and metrics to their OTLP endpoints", async () => {
@@ -226,6 +240,117 @@ describe("makeOtlpLayers", () => {
 			expect(urls).toContain(`${ENDPOINT}/v1/logs`);
 			expect(urls).toContain(`${ENDPOINT}/v1/metrics`);
 			expect(urls.some((u) => u.includes("traces.example.com"))).toBe(false);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("flush drains signals without counting an error on success", async () => {
+		const config = telemetryConfigFromEnv(fullEnv);
+		const stub = makeStubHttp();
+		const runtime = ManagedRuntime.make(makeOtlpLayers(config, stub.layer));
+		try {
+			const before = await runtime.runPromise(
+				countOf(tagged(telemetryErrors, { stage: "flush", reason: "timeout" })),
+			);
+			await runtime.runPromise(
+				Effect.gen(function* () {
+					const t = yield* Telemetry;
+					yield* Effect.logInfo("flush succeeds");
+					yield* Metric.update(testMetric, 1);
+					yield* t.flush;
+				}),
+			);
+			const after = await runtime.runPromise(
+				countOf(tagged(telemetryErrors, { stage: "flush", reason: "timeout" })),
+			);
+			expect(after).toBe(before);
+			expect(stub.requests.length).toBeGreaterThan(0);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("counts flush timeouts on telemetryErrors", async () => {
+		const config = telemetryConfigFromEnv({
+			...fullEnv,
+			KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS: "100",
+		});
+		// A transport that never answers makes every export hang — the
+		// bounded drain must time out and count stage=flush.
+		const hanging = HttpClient.make(() => Effect.never);
+		const runtime = ManagedRuntime.make(
+			makeOtlpLayers(config, Layer.succeed(HttpClient.HttpClient, hanging)),
+		);
+		try {
+			const read = () =>
+				runtime.runPromise(countOf(tagged(telemetryErrors, { stage: "flush", reason: "timeout" })));
+			const before = await read();
+			await runtime.runPromise(
+				Effect.gen(function* () {
+					const t = yield* Telemetry;
+					yield* Effect.logInfo("flush will time out");
+					yield* Metric.update(testMetric, 1);
+					yield* t.flush;
+				}),
+			);
+			expect(await read()).toBe(before + 1);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("counts failed export attempts (HTTP error status) on telemetryErrors", async () => {
+		const config = telemetryConfigFromEnv({
+			...fullEnv,
+			// One-item batches fork the export immediately on push — the
+			// test polls for the first failed attempt instead of waiting
+			// out the exporter's retry schedule.
+			KTB_TELEMETRY_MAX_BATCH_SIZE: "1",
+			KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS: "200",
+		});
+		const serverError = HttpClient.make((request) =>
+			Effect.succeed(
+				HttpClientResponse.fromWeb(request, new Response("collector down", { status: 500 })),
+			),
+		);
+		const runtime = ManagedRuntime.make(
+			makeOtlpLayers(config, Layer.succeed(HttpClient.HttpClient, serverError)),
+		);
+		try {
+			const read = () => runtime.runPromise(countOf(tagged(telemetryErrors, { stage: "export" })));
+			const before = await read();
+			await runtime.runPromise(Effect.logInfo("export will get a 500"));
+			await waitForIncrease(read, before);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("counts transport-level export failures on telemetryErrors", async () => {
+		const config = telemetryConfigFromEnv({
+			...fullEnv,
+			KTB_TELEMETRY_MAX_BATCH_SIZE: "1",
+			KTB_TELEMETRY_SHUTDOWN_TIMEOUT_MS: "200",
+		});
+		const unreachable = HttpClient.make((request) =>
+			Effect.fail(
+				new HttpClientError.HttpClientError({
+					reason: new HttpClientError.TransportError({
+						request,
+						description: "connection reset",
+					}),
+				}),
+			),
+		);
+		const runtime = ManagedRuntime.make(
+			makeOtlpLayers(config, Layer.succeed(HttpClient.HttpClient, unreachable)),
+		);
+		try {
+			const read = () => runtime.runPromise(countOf(tagged(telemetryErrors, { stage: "export" })));
+			const before = await read();
+			await runtime.runPromise(Effect.logInfo("export will reset"));
+			await waitForIncrease(read, before);
 		} finally {
 			await runtime.dispose();
 		}

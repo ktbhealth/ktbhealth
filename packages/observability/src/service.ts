@@ -1,7 +1,7 @@
+import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Metric from "effect/Metric";
 import { PrometheusMetrics } from "effect/observability";
 
 import type { TelemetryConfig } from "./config.ts";
@@ -10,7 +10,14 @@ import {
 	type ClientTelemetryBatch,
 	type ClientTelemetryEvent,
 } from "./ingest.ts";
-import { clientEvents, clientEventsDropped, record, tagged } from "./metrics.ts";
+import {
+	clientEvents,
+	clientEventsDropped,
+	record,
+	recordSafe,
+	tagged,
+	telemetryErrors,
+} from "./metrics.ts";
 
 /**
  * Telemetry port — the app-facing surface for observability lifecycle and
@@ -95,7 +102,20 @@ export const ingestClientEvents =
 				}
 				yield* record(tagged(clientEvents, { type: event.type }), 1);
 			}
-		});
+		}).pipe(
+			// Best-effort by contract: any failure or defect while logging
+			// or counting events counts once on ktb_telemetry_errors_total
+			// and never reaches the caller. `recordSafe` keeps the counter
+			// itself from re-failing the handler.
+			Effect.catchCause((cause) =>
+				Effect.andThen(
+					recordSafe(tagged(telemetryErrors, { stage: "ingest" }), 1),
+					Effect.logError("telemetry.ingest.failed").pipe(
+						Effect.annotateLogs({ cause: Cause.pretty(cause) }),
+					),
+				),
+			),
+		);
 
 /**
  * Local driver implementation — console JSON logs + Prometheus scrape.

@@ -1,7 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as Effect from "effect/Effect";
 
-import { decodeClientTelemetryBatch, Telemetry } from "@ktb/observability";
+import {
+	clientEventsDropped,
+	decodeClientTelemetryBatch,
+	recordUnsafe,
+	tagged,
+	Telemetry,
+} from "@ktb/observability";
 import { run } from "#/lib/platform.ts";
 
 /**
@@ -17,10 +23,12 @@ async function handle({ request }: { request: Request }) {
 	try {
 		body = await request.json();
 	} catch {
+		recordUnsafe(tagged(clientEventsDropped, { reason: "invalid" }), 1);
 		return Response.json({ error: "invalid json" }, { status: 400 });
 	}
 	const decoded = decodeClientTelemetryBatch(body);
 	if (decoded._tag === "Failure") {
+		recordUnsafe(tagged(clientEventsDropped, { reason: "invalid" }), 1);
 		return Response.json({ error: "invalid payload" }, { status: 400 });
 	}
 	await run(

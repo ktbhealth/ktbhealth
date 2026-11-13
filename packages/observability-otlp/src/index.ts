@@ -3,8 +3,11 @@ import {
 	consoleJsonLogger,
 	ingestClientEvents,
 	logLevelLayer,
+	recordSafe,
 	sampledTracer,
+	tagged,
 	telemetryConfigFromEnv,
+	telemetryErrors,
 	telemetryWarningsLayer,
 	Telemetry,
 	type ObservabilityEnv,
@@ -102,7 +105,18 @@ export const makeOtlpTelemetryLayer = (config: TelemetryConfig) => {
 				flush: active
 					? flusher.flush.pipe(
 							Effect.timeoutOption(Duration.millis(config.otlp.shutdownTimeoutMs)),
-							Effect.asVoid,
+							// `Flusher.flush` is contractually infallible — export
+							// failures are swallowed inside the exporter (60s
+							// disable window) — so the only observable flush
+							// failure is the bounded-drain timeout.
+							Effect.flatMap((option) =>
+								option._tag === "None"
+									? Effect.andThen(
+											recordSafe(tagged(telemetryErrors, { stage: "flush", reason: "timeout" }), 1),
+											Effect.logWarning("telemetry.flush.timeout"),
+										)
+									: Effect.void,
+							),
 						)
 					: Effect.void,
 				scrape: PrometheusMetrics.format(),
@@ -175,6 +189,27 @@ export const makeOtlpLayers = (
 			? OtlpMetrics.layer({ url: endpoints.metrics, ...base })
 			: Layer.empty;
 
+	// Export self-observability: `OtlpExporter` swallows every export
+	// failure into a 60-second disable window plus a `logDebug`, so the
+	// transport is the only place failures are still observable. This
+	// wrapper counts each failed attempt on `ktb_telemetry_errors_total`
+	// — HTTP error statuses via `tap`, transport errors via `tapError`.
+	// It sits UNDER the exporter's own retry, so a transient failure that
+	// later succeeds still counts once per attempt (error-rate signal,
+	// not batch-failure count). `recordSafe` keeps counting from ever
+	// breaking the export itself.
+	const countedHttpLayer = Layer.effect(
+		HttpClient.HttpClient,
+		Effect.gen(function* () {
+			const client = yield* HttpClient.HttpClient;
+			const countExportError = recordSafe(tagged(telemetryErrors, { stage: "export" }), 1);
+			return client.pipe(
+				HttpClient.tap((response) => (response.status >= 400 ? countExportError : Effect.void)),
+				HttpClient.tapError(() => countExportError),
+			);
+		}),
+	).pipe(Layer.provide(httpClientLayer));
+
 	const signals = Layer.mergeAll(
 		logLevelLayer(config),
 		// Config warnings (e.g. insecure http endpoints dropped during
@@ -193,8 +228,9 @@ export const makeOtlpLayers = (
 		Layer.provideMerge(OtlpExporter.layerFlusher),
 		// Serialization + transport are consumed internally; keeping them
 		// out of the merged output avoids leaking an HttpClient the app
-		// may want to provide differently.
-		Layer.provide(Layer.mergeAll(OtlpSerialization.layerJson, httpClientLayer)),
+		// may want to provide differently. The transport is the error-
+		// counting wrapper around the caller-supplied client.
+		Layer.provide(Layer.mergeAll(OtlpSerialization.layerJson, countedHttpLayer)),
 	);
 };
 
