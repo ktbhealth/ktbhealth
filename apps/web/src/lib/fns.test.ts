@@ -709,18 +709,19 @@ describe("server fns", () => {
 			loader: () => Effect.succeed("never"),
 		};
 		const pages = consolePages as unknown as Map<string, { page: PanelPage; pluginId: string }>;
-		pages.set(page.path, { page, pluginId: "platform.routes" });
+		// platform.* plugins are system:true (P-062) — isEnabled ignores
+		// rows for them, so the disable probe needs a disableable owner.
+		pages.set(page.path, { page, pluginId: "consultations.services" });
 		// Direct row write: the dep invariant lives in PluginStates.setEnabled
-		// and would (correctly) refuse to disable platform.routes while
-		// platform.panel depends on it — the gate only reads the row.
+		// and the gate only reads the row.
 		await db
 			.insert(pluginState)
-			.values({ pluginId: "platform.routes", enabled: false, updatedAt: new Date() });
+			.values({ pluginId: "consultations.services", enabled: false, updatedAt: new Date() });
 		try {
 			expect(await platformPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
 		} finally {
 			pages.delete(page.path);
-			await db.delete(pluginState).where(eq(pluginState.pluginId, "platform.routes"));
+			await db.delete(pluginState).where(eq(pluginState.pluginId, "consultations.services"));
 		}
 	});
 
@@ -782,15 +783,17 @@ describe("server fns", () => {
 			string,
 			{ page: Page; pluginId: string; context?: string }
 		>;
-		pages.set(page.path, { page, pluginId: "platform.routes", context: "app" });
+		// platform.* plugins are system:true (P-062) — isEnabled ignores
+		// rows for them, so the disable probe needs a disableable owner.
+		pages.set(page.path, { page, pluginId: "consultations.services", context: "app" });
 		await db
 			.insert(pluginState)
-			.values({ pluginId: "platform.routes", enabled: false, updatedAt: new Date() });
+			.values({ pluginId: "consultations.services", enabled: false, updatedAt: new Date() });
 		try {
 			expect(await appPageDataFn({ data: page.path })).toEqual({ status: "notfound" });
 		} finally {
 			pages.delete(page.path);
-			await db.delete(pluginState).where(eq(pluginState.pluginId, "platform.routes"));
+			await db.delete(pluginState).where(eq(pluginState.pluginId, "consultations.services"));
 		}
 	});
 

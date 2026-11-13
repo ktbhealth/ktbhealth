@@ -13,7 +13,11 @@ import { definePlugin, type Plugin } from "@ktb/kernel";
  * apps/web/src/plugins.test.ts.
  */
 export const plugins: readonly Plugin[] = [
-	definePlugin({ id: "platform.admin" }),
-	definePlugin({ id: "platform.routes" }),
-	definePlugin({ id: "platform.panel", requiredDeps: ["platform.routes"] }),
+	definePlugin({ id: "platform.admin", system: true }),
+	definePlugin({ id: "platform.routes", system: true }),
+	definePlugin({
+		id: "platform.panel",
+		system: true,
+		requiredDeps: ["platform.routes"],
+	}),
 ];

@@ -16,7 +16,8 @@ const NAV_LINK =
 	"rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground";
 
 /**
- * Session chrome contributed to `app.header.session` (P-060): a sign-in
+ * Session chrome contributed to `app.header.session` (P-060, merged
+ * into the auth plugin by P-062): a sign-in
  * link when anonymous, otherwise the account menu (avatar + name/email +
  * profile shortcuts + sign out). A patient account (`user.patientOnly`)
  * gets no doctor shortcuts — only its own consultations. Labels come

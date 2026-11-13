@@ -25,6 +25,7 @@ const ctx: PanelPageContext = {
 const entry = (pluginId: string, config: unknown): PluginStateEntry => ({
 	pluginId,
 	enabled: true,
+	system: true,
 	config,
 });
 

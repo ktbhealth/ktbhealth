@@ -20,6 +20,12 @@ import type { Plugin, PluginConfigSchema } from "@ktb/kernel";
  * Semantics: no `plugin_state` row means ENABLED with schema-default
  * config (opt-out — toggling a plugin off is the exception, not the
  * rule). `config` NULL means "use meta defaults".
+ *
+ * System plugins (`system: true` on the manifest, P-062) are always
+ * enabled: `isEnabled`/`enabledIds`/`entries` ignore `plugin_state`
+ * rows for them entirely (a stale disabled row is dead data), and
+ * `setEnabled(…, false)` fails with `PluginSystemLocked`. Config writes
+ * stay allowed — config is not enablement.
  */
 
 /** Dispatch/UI reached for a plugin (or whole plugin package) that is
@@ -47,9 +53,18 @@ export class PluginDepsUnsatisfied extends Data.TaggedError("PluginDepsUnsatisfi
 	readonly missingDeps: readonly string[];
 }> {}
 
+/** A `setEnabled(…, false)` write targeted a `system: true` plugin —
+ * system plugins can never be disabled (P-062). */
+export class PluginSystemLocked extends Data.TaggedError("PluginSystemLocked")<{
+	readonly pluginId: string;
+}> {}
+
 export interface PluginStateEntry {
 	readonly pluginId: string;
 	readonly enabled: boolean;
+	/** `system: true` on the manifest — the plugin can never be
+	 * disabled; `enabled` is always true for these. */
+	readonly system: boolean;
 	/** Merged config: schema defaults overlaid with the stored JSON. */
 	readonly config: unknown;
 }
@@ -66,7 +81,7 @@ export interface PluginStatesShape {
 	readonly setEnabled: (
 		ids: readonly string[],
 		enabled: boolean,
-	) => Effect.Effect<void, UnknownPlugin | PluginDepsUnsatisfied>;
+	) => Effect.Effect<void, UnknownPlugin | PluginDepsUnsatisfied | PluginSystemLocked>;
 	/** Schema-validated config write; missing keys fill defaults. */
 	readonly setConfig: (
 		pluginId: string,
@@ -246,15 +261,22 @@ export const makePluginStatesLive = (plugins: readonly Plugin[]) =>
 			};
 
 			return PluginStates.of({
-				isEnabled: (pluginId) => Effect.promise(async () => isEnabledRow(await rowFor(pluginId))),
+				isEnabled: (pluginId) =>
+					Effect.promise(async () => {
+						// System plugins are always on — no row lookup, so a
+						// stale disabled row can never turn one off.
+						const plugin = known.get(pluginId);
+						if (plugin !== undefined && plugin.system === true) return true;
+						return isEnabledRow(await rowFor(pluginId));
+					}),
 
 				enabledIds: () =>
 					Effect.promise(async () => {
 						const rows = await allRows();
 						const byId = new Map(rows.map((r) => [r.pluginId, r.enabled] as const));
 						const enabled = new Set<string>();
-						for (const id of known.keys()) {
-							if (byId.get(id) ?? true) enabled.add(id);
+						for (const [id, plugin] of known) {
+							if (plugin.system === true || (byId.get(id) ?? true)) enabled.add(id);
 						}
 						return enabled;
 					}),
@@ -274,8 +296,15 @@ export const makePluginStatesLive = (plugins: readonly Plugin[]) =>
 				setEnabled: (ids, enabled) =>
 					Effect.gen(function* () {
 						for (const id of ids) {
-							if (!known.has(id)) {
+							const plugin = known.get(id);
+							if (plugin === undefined) {
 								return yield* Effect.fail(new UnknownPlugin({ pluginId: id }));
+							}
+							// System plugins can never be disabled — reject the
+							// write before any row is touched. Re-enabling one is
+							// a harmless no-op write and stays allowed.
+							if (!enabled && plugin.system === true) {
+								return yield* Effect.fail(new PluginSystemLocked({ pluginId: id }));
 							}
 						}
 						// Validate the POST-write state in memory BEFORE touching
@@ -284,7 +313,12 @@ export const makePluginStatesLive = (plugins: readonly Plugin[]) =>
 						const rows = yield* Effect.promise(() => allRows());
 						const byId = new Map(rows.map((r) => [r.pluginId, r.enabled] as const));
 						const state = new Map<string, boolean>();
-						for (const id of known.keys()) state.set(id, byId.get(id) ?? true);
+						// System plugins read as enabled here regardless of
+						// stored rows, so they can never satisfy a "missing
+						// dep" violation for a dependent.
+						for (const [id, plugin] of known) {
+							state.set(id, plugin.system === true ? true : (byId.get(id) ?? true));
+						}
 						for (const id of ids) state.set(id, enabled);
 						const violation = depViolation(state);
 						if (violation !== null) {
@@ -352,11 +386,12 @@ export const makePluginStatesLive = (plugins: readonly Plugin[]) =>
 						const rows = yield* Effect.promise(() => allRows());
 						const byId = new Map(rows.map((r) => [r.pluginId, r] as const));
 						const out: PluginStateEntry[] = [];
-						for (const pluginId of known.keys()) {
+						for (const [pluginId, plugin] of known) {
 							const row = byId.get(pluginId);
 							out.push({
 								pluginId,
-								enabled: isEnabledRow(row),
+								enabled: plugin.system === true || isEnabledRow(row),
+								system: plugin.system === true,
 								config: mergePluginConfig(
 									configDocs.get(pluginId),
 									parseStoredConfig(row?.config ?? null),

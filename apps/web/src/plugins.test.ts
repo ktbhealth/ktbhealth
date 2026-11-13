@@ -15,6 +15,7 @@ import { plugins as clientPlugins } from "./plugins.ts";
  */
 const clientView = (p: Plugin) => ({
 	id: p.id,
+	system: p.system ?? null,
 	meta: p.meta ?? null,
 	requiredDeps: p.requiredDeps ?? [],
 	optionalDeps: p.optionalDeps ?? [],

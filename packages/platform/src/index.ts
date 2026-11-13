@@ -61,6 +61,7 @@ export const makePlatformAdminGate = (emails: ReadonlySet<string>): PlatformAdmi
 /** Marker plugin for the env-composed admin gate — see PlatformAdmin. */
 export const platformAdminPlugin = definePlugin({
 	id: "platform.admin",
+	system: true,
 });
 
 // Route subtree composed into the host's virtualRouteConfig. `platform.tsx`
@@ -71,11 +72,13 @@ export const platformAdminPlugin = definePlugin({
 // import apps (arch lint).
 export const platformRoutesPlugin = definePlugin({
 	id: "platform.routes",
+	system: true,
 	routes: [route("platform", "platform.tsx", [physical("", "platform")])],
 });
 
 export const platformPanelPlugin = definePlugin({
 	id: "platform.panel",
+	system: true,
 	requiredDeps: [platformRoutesPlugin.id],
 	// No sidebar entry of its own — the dashboard plugin owns the
 	// /platform landing item; this plugin is the dep anchor other

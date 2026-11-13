@@ -15,6 +15,9 @@ import { managerConfig, managerConfigSchema } from "./config.tsx";
  */
 export const managerChromePlugin = definePlugin({
 	id: "manager.chrome",
+	// The manager is the only UI that can re-enable plugins — disabling
+	// it would strand the console, so both entries are system plugins.
+	system: true,
 	requiredDeps: [platformPanelPlugin.id],
 	meta: {
 		name: "Plugin manager",
@@ -49,6 +52,7 @@ export const managerChromePlugin = definePlugin({
  */
 export const managerPanelPlugin = definePlugin({
 	id: "manager.panel",
+	system: true,
 	requiredDeps: [platformPanelPlugin.id],
 	meta: {
 		name: "Plugin manager",

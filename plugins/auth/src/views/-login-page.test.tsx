@@ -22,8 +22,6 @@ vi.mock("@ktb/auth-better/client", () => ({
 }));
 
 const loaderData = { emailEnabled: false };
-const emailEnabledFn = vi.fn<() => Promise<boolean>>(async () => true);
-vi.mock("#/lib/fns.ts", () => ({ emailEnabledFn: () => emailEnabledFn() }));
 
 type DoctorContext = { profiles: { doctorId: number }[]; activeDoctorId: number | null } | null;
 const ownProfile: DoctorContext = { profiles: [{ doctorId: 1 }], activeDoctorId: 1 };
@@ -34,25 +32,25 @@ vi.mock("@ktb/doctors/fns", () => ({
 	ensureDoctorProfileFn: () => ensureDoctorProfileFn(),
 }));
 
-// The page renders outside a router: loader data comes from the mutable
-// `loaderData` above and Link degrades to a plain anchor.
+// The view renders outside a router: Link degrades to a plain anchor and
+// `emailEnabled` arrives via the mutable `loaderData` above.
 vi.mock("@tanstack/react-router", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
 	const React = await import("react");
 	return {
 		...actual,
-		createFileRoute: () => (opts: Record<string, unknown>) => ({
-			options: opts,
-			useLoaderData: () => loaderData,
-		}),
 		Link: ({ to, children, className }: { to: string; children?: unknown; className?: string }) =>
 			React.createElement("a", { href: to, className }, children as never),
 	};
 });
 
-import { Route } from "./login.tsx";
+import { LoginPage } from "../views/LoginPage.tsx";
 
-const Page = (Route as unknown as { options: { component: () => ReactElement } }).options.component;
+const Page = () =>
+	createElement(LoginPage, {
+		locale: "en",
+		emailEnabled: loaderData.emailEnabled,
+	}) as ReactElement;
 
 async function fillAndSubmit() {
 	fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
@@ -159,7 +157,6 @@ describe("sign-in page", () => {
 
 	it("ignores submit while pending or empty", async () => {
 		render(createElement(Page));
-		// empty submit: button disabled? form onSubmit guards
 		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 		expect(signInEmail).not.toHaveBeenCalled();
 	});
@@ -174,14 +171,11 @@ describe("sign-in page", () => {
 		);
 		const { container } = render(createElement(Page));
 		const form = container.querySelector("form")!;
-		// empty email+password → guard returns before pending matters
 		fireEvent.submit(form);
 		expect(signInEmail).not.toHaveBeenCalled();
-		// valid email, empty password → second guard operand
 		fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
 		fireEvent.submit(form);
 		expect(signInEmail).not.toHaveBeenCalled();
-		// valid fields → pending starts; submit again while pending → third operand
 		fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
 		fireEvent.submit(form);
 		await waitFor(() => expect(signInEmail).toHaveBeenCalledTimes(1));
@@ -226,19 +220,6 @@ describe("sign-in page", () => {
 				fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 			});
 		};
-
-		it("declares the page title and loads whether email can be sent", async () => {
-			const { head, loader } = (
-				Route as unknown as {
-					options: {
-						head: () => { meta: { title: string }[] };
-						loader: () => Promise<unknown>;
-					};
-				}
-			).options;
-			expect(head().meta[0]!.title).toBe("Sign in | KTB Health");
-			expect(await loader()).toEqual({ emailEnabled: true });
-		});
 
 		it("creates the doctor profile, then sends a new account to the verification step", async () => {
 			loaderData.emailEnabled = true;

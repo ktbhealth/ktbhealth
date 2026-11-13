@@ -8,7 +8,7 @@ vi.mock("@tanstack/react-start/server", () => ({
 
 import { auth } from "#/lib/platform.ts";
 import { signUpDoctor } from "#/test/doctor.ts";
-import { Route as BotsRoute } from "./bots.ts";
+import { Route as BotsRoute } from "@ktb/consultations/api-route-bots";
 
 // No RECALL_API_KEY → the Bot driver selects the stub provider. Outside dev
 // (import.meta.env.DEV false) the route must refuse to simulate a call.

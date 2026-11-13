@@ -4,7 +4,6 @@ import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { recordSummary } from "@ktb/patients/record";
 import { createPluginApiRoute, getDoctorUser, runAs } from "@ktb/server-fns";
-import { renderAnamnesisPdf } from "@ktb/export-pdf";
 
 /**
  * GET /api/consultations/:id/pdf — owner-only download of the anamnesis PDF.
@@ -43,6 +42,10 @@ export const Route = createPluginApiRoute("consultations.routes")("/api/consulta
 				if (!detail.anamnesis)
 					return Response.json({ error: "consultation has no saved anamnesis" }, { status: 409 });
 
+				// Lazy: this module sits in the client route tree, so a static
+				// import would bundle pdfkit (Node lib) into the browser and
+				// crash hydration on every page.
+				const { renderAnamnesisPdf } = await import("@ktb/export-pdf");
 				const pdf = await renderAnamnesisPdf({
 					consultationId: detail.id,
 					createdAt: detail.createdAt,

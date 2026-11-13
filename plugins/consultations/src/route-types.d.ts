@@ -19,6 +19,20 @@ import type {} from "@tanstack/react-start";
 
 declare module "@tanstack/react-router" {
 	interface FileRoutesByPath {
+		"/api/bots": {
+			id: "/api/bots";
+			path: "/api/bots";
+			fullPath: "/api/bots";
+			preLoaderRoute: AnyRoute;
+			parentRoute: AnyRoute;
+		};
+		"/api/bots/webhook": {
+			id: "/api/bots/webhook";
+			path: "/webhook";
+			fullPath: "/api/bots/webhook";
+			preLoaderRoute: AnyRoute;
+			parentRoute: AnyRoute;
+		};
 		"/api/consultations/$id/audio": {
 			id: "/api/consultations/$id/audio";
 			path: "/api/consultations/$id/audio";

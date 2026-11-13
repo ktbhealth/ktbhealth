@@ -51,7 +51,6 @@ const app = createApp(appEnv as unknown as typeof env, { tenantResolver, verific
 
 export const {
 	BindingLive,
-	CaptchaLive,
 	run,
 	correctTranscript,
 	db,
@@ -145,6 +144,10 @@ setServerRuntime({
 				return yield* states.isEnabled(pluginId);
 			}),
 		),
+	// P-062: the auth plugin's /api/auth/* catch-all reaches the
+	// better-auth instance through this capability — plugins never
+	// import the adapter.
+	authHandler: (request) => auth.handler(request),
 });
 
 // Raw platform binding passthrough — not composed, just exposed.

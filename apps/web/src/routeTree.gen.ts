@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as indexRouteImport } from './routes/index'
 import { Route as splatRouteImport } from './routes/$'
 import { Route as captureTestRouteImport } from './routes/capture-test'
-import { Route as loginRouteImport } from './routes/login'
+import { Route as DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport } from './../../../plugins/auth/src/routes/login'
 import { Route as platformRouteImport } from './routes/platform'
 import { Route as verifyEmailRouteImport } from './routes/verify-email'
-import { Route as ApiBotsRouteImport } from './routes/api/bots'
+import { Route as ApiBotsRouteImport } from './../../../plugins/consultations/src/api-routes/bots'
 import { Route as ApiJobsRouteImport } from './../../../plugins/jobs/src/api-routes/jobs'
 import { Route as ApiNotificationsRouteImport } from './../../../plugins/notifications/src/api-routes/notifications'
 import { Route as ApiTranscribeRouteImport } from './../../../plugins/consultations/src/api-routes/transcribe'
@@ -31,8 +31,8 @@ import { Route as SplatRouteImport } from './routes/platform/$'
 import { Route as PortalIndexRouteImport } from './../../../plugins/patient-portal/src/routes/index'
 import { Route as portalLoginRouteImport } from './routes/portal-login'
 import { Route as SecretariesIndexRouteImport } from './../../../plugins/secretaries/src/routes/index'
-import { Route as ApiAuthDotsplatRouteImport } from './routes/api/auth.$'
-import { Route as ApiBotsDotwebhookRouteImport } from './routes/api/bots.webhook'
+import { Route as ApiAuthDotsplatRouteImport } from './../../../plugins/auth/src/api-routes/auth.$'
+import { Route as ApiBotsDotwebhookRouteImport } from './../../../plugins/consultations/src/api-routes/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
 import { Route as PatientsIdIndexRouteImport } from './../../../plugins/patients/src/routes/$id/index'
 import { Route as PatientsIdEditRouteImport } from './../../../plugins/patients/src/routes/$id/edit'
@@ -56,11 +56,12 @@ const captureTestRoute = captureTestRouteImport.update({
   path: '/capture-test',
   getParentRoute: () => rootRouteImport,
 } as any)
-const loginRoute = loginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute =
+  DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport.update({
+    id: '/login',
+    path: '/login',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const platformRoute = platformRouteImport.update({
   id: '/platform',
   path: '/platform',
@@ -205,7 +206,7 @@ export interface FileRoutesByFullPath {
   '/': typeof indexRoute
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
-  '/login': typeof loginRoute
+  '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
   '/verify-email': typeof verifyEmailRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
@@ -238,7 +239,7 @@ export interface FileRoutesByTo {
   '/': typeof indexRoute
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
-  '/login': typeof loginRoute
+  '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/verify-email': typeof verifyEmailRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/jobs': typeof ApiJobsRoute
@@ -271,7 +272,7 @@ export interface FileRoutesById {
   '/': typeof indexRoute
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
-  '/login': typeof loginRoute
+  '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
   '/verify-email': typeof verifyEmailRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
@@ -405,7 +406,7 @@ export interface RootRouteChildren {
   indexRoute: typeof indexRoute
   splatRoute: typeof splatRoute
   captureTestRoute: typeof captureTestRoute
-  loginRoute: typeof loginRoute
+  DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute: typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   platformRoute: typeof platformRouteWithChildren
   verifyEmailRoute: typeof verifyEmailRoute
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
@@ -459,7 +460,7 @@ declare module '@tanstack/react-router' {
       id: '/login'
       path: '/login'
       fullPath: '/login'
-      preLoaderRoute: typeof loginRouteImport
+      preLoaderRoute: typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/platform': {
@@ -683,7 +684,8 @@ const rootRouteChildren: RootRouteChildren = {
   indexRoute: indexRoute,
   splatRoute: splatRoute,
   captureTestRoute: captureTestRoute,
-  loginRoute: loginRoute,
+  DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute:
+    DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute,
   platformRoute: platformRouteWithChildren,
   verifyEmailRoute: verifyEmailRoute,
   ApiBotsRoute: ApiBotsRouteWithChildren,

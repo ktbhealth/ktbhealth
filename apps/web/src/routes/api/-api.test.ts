@@ -48,9 +48,9 @@ import { auth, db } from "#/lib/platform.ts";
 import { signUpDoctor } from "#/test/doctor.ts";
 import { consultations } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
-import { Route as AuthRoute } from "./auth.$.ts";
-import { Route as BotsRoute } from "./bots.ts";
-import { Route as WebhookRoute } from "./bots.webhook.ts";
+import { Route as AuthRoute } from "@ktb/auth-plugin/api-route";
+import { Route as BotsRoute } from "@ktb/consultations/api-route-bots";
+import { Route as WebhookRoute } from "@ktb/consultations/api-route-bots-webhook";
 
 const handlersOf = (r: unknown) =>
 	(r as { options: { server: { handlers: Record<string, (a: never) => Promise<Response>> } } })

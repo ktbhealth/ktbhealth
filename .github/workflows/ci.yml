@@ -52,3 +52,33 @@ jobs:
       # smoke test proving the ktb-arch boundary rules still fire.
       - run: bunx vp run ci:knip
       - run: bunx vp run ci:arch
+
+  # ERD drift: regenerate the database docs (they live in the sibling public
+  # docs repo) and fail if the committed output is stale. generate-erd.mjs
+  # resolves the docs repo as ../../../docs relative to packages/db, i.e.
+  # a sibling of this checkout — clone it anonymously (public repo, no
+  # token needed) at $GITHUB_WORKSPACE/../docs.
+  erd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TBLS_VERSION: v1.96.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone docs repo (sibling of this checkout)
+        run: git clone --depth 1 https://github.com/ktbhealth/docs.git "$GITHUB_WORKSPACE/../docs"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - name: Install tbls
+        run: |
+          curl -fsSL "https://github.com/k1LoW/tbls/releases/download/${TBLS_VERSION}/tbls_${TBLS_VERSION}_linux_amd64.tar.gz" -o /tmp/tbls.tar.gz
+          tar -xzf /tmp/tbls.tar.gz -C /tmp tbls
+          sudo install -m 0755 /tmp/tbls /usr/local/bin/tbls
+      - run: bun run db:erd:check

@@ -65,11 +65,14 @@ describe("makePlatformAdminGate", () => {
 });
 
 describe("plugins", () => {
-	it("declares the gate marker, routes and panel plugins", () => {
+	it("declares the gate marker, routes and panel plugins — all system", () => {
 		expect(platformAdminPlugin.id).toBe("platform.admin");
+		expect(platformAdminPlugin.system).toBe(true);
 		expect(platformRoutesPlugin.id).toBe("platform.routes");
+		expect(platformRoutesPlugin.system).toBe(true);
 		expect(platformRoutesPlugin.routes).toHaveLength(1);
 		expect(platformPanelPlugin.id).toBe("platform.panel");
+		expect(platformPanelPlugin.system).toBe(true);
 		expect(platformPanelPlugin.requiredDeps).toEqual(["platform.routes"]);
 		expect("panel" in platformPanelPlugin).toBe(false);
 	});

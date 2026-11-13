@@ -9,7 +9,9 @@
 		"./apis": "./src/apis.ts",
 		"./fns": "./src/fns.ts",
 		"./i18n": "./src/i18n.ts",
-		"./views": "./src/views/index.ts"
+		"./views": "./src/views/index.ts",
+		"./api-route-bots": "./src/api-routes/bots.ts",
+		"./api-route-bots-webhook": "./src/api-routes/bots.webhook.ts"
 	},
 	"dependencies": {
 		"@effect-server-utils/cqrs": "0.1.0-beta.10",
@@ -17,6 +19,7 @@
 		"@ktb/audit": "workspace:*",
 		"@ktb/auth": "workspace:*",
 		"@ktb/authz": "workspace:*",
+		"@ktb/bot": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/export-pdf": "workspace:*",
 		"@ktb/interop": "workspace:*",

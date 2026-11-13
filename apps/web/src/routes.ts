@@ -1,3 +1,4 @@
+import { plugins as authPlugins } from "@ktb/auth-plugin";
 import { plugins as consultationsPlugins } from "@ktb/consultations";
 import { plugins as doctorsPlugins } from "@ktb/doctors";
 import { plugins as jobsPlugins } from "@ktb/jobs";
@@ -13,6 +14,7 @@ import { index, physical, rootRoute, route } from "@tanstack/virtual-file-routes
 // import.meta.glob (used by @ktb/app-host plugin discovery) is unavailable —
 // so plugin entries are imported statically here instead of via `plugins`.
 const routePlugins = [
+	...authPlugins,
 	...consultationsPlugins,
 	...doctorsPlugins,
 	...jobsPlugins,
@@ -33,7 +35,6 @@ export const routes = rootRoute("__root.tsx", [
 	index("index.tsx"),
 	...routePlugins.flatMap((p) => p.routes ?? []),
 	route("capture-test", "capture-test.tsx"),
-	route("login", "login.tsx"),
 	route("portal/login", "portal-login.tsx"),
 	route("verify-email", "verify-email.tsx"),
 	physical("/api", "api"),

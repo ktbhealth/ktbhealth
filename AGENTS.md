@@ -58,7 +58,9 @@ old URLs redirect).
   contribute tables/services/routes/nav/chrome/pages/panel AND can add
   capabilities other plugins consume (services, CQRS groups, events)
   with `requiredDeps`/`optionalDeps` ordering (see patients.services →
-  consultations). `packages/` = infra BELOW the plugin system: ports,
+  consultations). Plugin ids follow `<domain>.<concern>`
+  (`patients.services`, `platform.routes`) and deps always target those
+  concern-level ids — never package names. `packages/` = infra BELOW the plugin system: ports,
   adapters, drivers, env composition (db, authz, tenant, bot, captcha)
   that plugins consume but that never join the registry. Rule of thumb:
   needs registry contributions or plugin-graph deps → `plugins/`;

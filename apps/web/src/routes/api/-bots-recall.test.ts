@@ -15,7 +15,7 @@ env.RECALL_API_KEY = "recall-key";
 
 const { auth } = await import("#/lib/platform.ts");
 const { signUpDoctor } = await import("#/test/doctor.ts");
-const { Route: BotsRoute } = await import("./bots.ts");
+const { Route: BotsRoute } = await import("@ktb/consultations/api-route-bots");
 
 const handlersOf = (r: unknown) =>
 	(r as { options: { server: { handlers: Record<string, (a: never) => Promise<Response>> } } })

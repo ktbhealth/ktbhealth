@@ -246,6 +246,9 @@ function PluginRow({
 	onToggle: (enabled: boolean) => void;
 }) {
 	const status: RowStatus = statusOf(enabled, missing);
+	// `system: true` manifest plugins (P-062) can never be disabled —
+	// the toggle renders locked with a "System" badge and hint.
+	const system = plugin.system === true;
 	const name = pluginDisplayName(plugin);
 	const kinds = contributionKinds(plugin).join(", ");
 	return (
@@ -263,18 +266,23 @@ function PluginRow({
 					<div className="flex items-center gap-2">
 						<Switch
 							checked={enabled}
-							disabled={busy}
+							disabled={system || busy}
 							onCheckedChange={onToggle}
 							aria-label={name}
 						/>
-						<Badge variant={status === "enabled" ? "default" : "secondary"}>
-							{status === "enabled"
-								? t.statusEnabled
-								: status === "disabled"
-									? t.statusDisabled
-									: t.statusBlocked}
-						</Badge>
+						{system ? (
+							<Badge variant="secondary">{t.statusSystem}</Badge>
+						) : (
+							<Badge variant={status === "enabled" ? "default" : "secondary"}>
+								{status === "enabled"
+									? t.statusEnabled
+									: status === "disabled"
+										? t.statusDisabled
+										: t.statusBlocked}
+							</Badge>
+						)}
 					</div>
+					{system ? <div className="mt-1 text-xs text-muted-foreground">{t.systemHint}</div> : null}
 					{missing.length > 0 ? (
 						<div className="mt-1 text-xs text-muted-foreground">
 							{t.blockedHint(missing.join(", "))}
