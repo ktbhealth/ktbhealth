@@ -12,6 +12,7 @@
  *   cat <root>/reports/run.jsonl
  */
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import * as Effect from "effect/Effect";
@@ -65,9 +66,16 @@ import { makeLocalReportLayer, makeLocalStoreLayer } from "../src/index.ts";
 
 const root = process.argv[2] ?? path.resolve(process.cwd(), "tmp", "demo-dataset");
 // The demo wipes its output dir — refuse anything that is not clearly a
-// scratch path, so a bad argv cannot nuke a real directory.
-if (!path.resolve(root).includes(`${path.sep}tmp${path.sep}`)) {
-	throw new Error(`demo root must live under a tmp/ directory, got: ${root}`);
+// scratch path, so a bad argv cannot nuke a real directory. Must be
+// under os.tmpdir() or <cwd>/tmp — a bare "/tmp/" substring check would
+// also pass for e.g. /home/user/stuff/tmp/data.
+const resolved = path.resolve(root);
+const scratchRoots = [path.resolve(os.tmpdir()), path.resolve(process.cwd(), "tmp")];
+const isScratch = scratchRoots.some(
+	(r) => resolved === r || resolved.startsWith(`${r}${path.sep}`),
+);
+if (!isScratch) {
+	throw new Error(`demo root must live under ${scratchRoots.join(" or ")}, got: ${root}`);
 }
 fs.rmSync(root, { recursive: true, force: true });
 

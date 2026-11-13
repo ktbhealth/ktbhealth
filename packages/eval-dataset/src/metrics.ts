@@ -105,7 +105,10 @@ const numberToWords = (n: number): string => {
 const expandNumbers = (s: string): string =>
 	s.replace(/\d+/g, (n) => ` ${numberToWords(Number.parseInt(n, 10))} `);
 
-const SPEAKER_RE = /\b(doctor|patient|médico|medico|paciente|doutor|doutora|dr|dra)\s*:/g;
+// Case-insensitive + tolerant of "Dr."-style abbreviations; runs after
+// lowercasing in the default profile but must also work when callers
+// disable `lowercase`.
+const SPEAKER_RE = /\b(doctor|patient|médico|medico|paciente|doutor|doutora|dr|dra)\.?\s*:/gi;
 
 export const normalize = (s: string, opts: NormalizeOpts = {}): string => {
 	const o = { ...DEFAULT_OPTS, ...opts };
@@ -115,9 +118,13 @@ export const normalize = (s: string, opts: NormalizeOpts = {}): string => {
 	if (o.stripSpeakers) out = out.replace(SPEAKER_RE, " ");
 	// Decimal guard BEFORE punctuation strip: "2,5 mg" must not
 	// collapse to "25 mg" — that is a dosage error the metric would
-	// invent. Comma between digits → " vírgula ".
+	// invent. Digit[.,]digit → " vírgula ". ASR emits both separators
+	// ("2,5" pt-BR gold, "2.5" engine output) — guard both or the same
+	// dose scores differently per formatting. Known v1 gap: pt-BR
+	// thousands ("1.000,00") still mangles; revisit with the unit-alias
+	// work noted in BENCHMARK.md.
 	if (o.expandNumbers) {
-		out = out.replace(/(\d),(\d)/g, "$1 virgula $2");
+		out = out.replace(/(\d)[.,](\d)/g, "$1 virgula $2");
 		out = expandNumbers(out);
 	}
 	if (o.stripPunct) out = out.replace(/[^\p{L}\p{N}\s]/gu, " ");
@@ -173,8 +180,15 @@ export const checkEntities = (
 	hyp: string,
 ): EntityVerdict[] => {
 	const h = normalize(hyp);
+	// Space-padded token match: substring search would let "dor" match
+	// inside "dormir" — a false "correct" on a clinical entity is the
+	// worst silent error this platform can produce.
+	const padded = h ? ` ${h} ` : "";
 	return entities.map((e) => {
-		const present = h.includes(normalize(e.value));
+		const needle = normalize(e.value);
+		// An entity that normalizes to nothing can never be verified —
+		// it is not "present".
+		const present = needle !== "" && padded.includes(` ${needle} `);
 		const status = !present
 			? ("dropped" as const)
 			: e.category === "negation"
@@ -212,7 +226,10 @@ export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05
 	let unscored = { count: 0, correct: 0 };
 	// +1e-9 before floor: 0.7/0.1 is 6.9999… in fp and would land one
 	// bucket low.
-	const idxOf = (c: number) => Math.min(Math.floor((c + 1e-9) / size), Math.round(1 / size) - 1);
+	// Clamp at 0: a negative confidence would otherwise floor into a
+	// negative bucket index rendered as a normal low band.
+	const idxOf = (c: number) =>
+		Math.max(0, Math.min(Math.floor((c + 1e-9) / size), Math.round(1 / size) - 1));
 	for (const s of segments) {
 		if (s.confidence === undefined) {
 			unscored = {
@@ -251,10 +268,11 @@ export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05
 
 /**
  * Precision-first auto-accept threshold: the lowest cutoff where every
- * bucket at-or-above is itself ≥ target AND the cumulative precision
- * meets `targetPrecision`. A bad marginal band stops the descent —
- * accepting it would let weak segments ride the average. Returns 1
- * (accept nothing blindly) when no cutoff qualifies.
+ * bucket at-or-above is itself ≥ target. A bad marginal band stops the
+ * descent — accepting it would let weak segments ride the average.
+ * Cumulative precision at the cutoff is then ≥ target automatically
+ * (a weighted mean of bands each ≥ target). Returns 1 (accept nothing
+ * blindly) when no cutoff qualifies.
  */
 export const recommendThreshold = (
 	segments: readonly ConfSegment[],
@@ -263,13 +281,9 @@ export const recommendThreshold = (
 ): number => {
 	const buckets = bucketByConfidence(segments, size).filter((b) => b.lo >= 0);
 	let candidate: number | null = null;
-	let count = 0;
-	let correct = 0;
 	for (let i = buckets.length - 1; i >= 0; i--) {
 		const b = buckets[i]!;
 		if (b.precision < targetPrecision) break;
-		count += b.count;
-		correct += b.correct;
 		candidate = b.lo;
 	}
 	return candidate ?? 1;

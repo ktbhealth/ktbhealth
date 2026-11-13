@@ -7,6 +7,7 @@ import {
 	EvalPort,
 	LlmPort,
 	ReportPort,
+	renderRunMarkdown,
 	TtsPort,
 	type AsrResult,
 	type AudioRef,
@@ -172,7 +173,9 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		ReportPort,
 		ReportPort.of({
 			append: (r) => Effect.sync(() => void records.push(r)),
-			render: (runId) => Effect.succeed(JSON.stringify(records.filter((r) => r.runId === runId))),
+			// Same markdown shape as the local adapter — render format is
+			// part of the port contract, not adapter-defined.
+			render: (runId) => Effect.succeed(renderRunMarkdown(runId, records)),
 		}),
 	);
 

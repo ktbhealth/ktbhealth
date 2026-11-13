@@ -194,8 +194,10 @@ describe("stub store + report ports", () => {
 				layer,
 			),
 		);
-		expect(md).toContain('"runId":"keep"');
-		expect(md).not.toContain('"runId":"drop"');
+		// Markdown table — same shape as the local adapter's render.
+		expect(md).toContain("# run keep");
+		expect(md).toContain("| - | stub | stub | - | 0 | - |");
+		expect(md).not.toContain("# run drop");
 		expect(records).toHaveLength(2);
 	});
 });

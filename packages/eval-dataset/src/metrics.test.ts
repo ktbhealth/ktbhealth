@@ -35,6 +35,11 @@ describe("normalize", () => {
 		expect(normalize("2,5 mg")).toBe("dois virgula cinco mg");
 	});
 
+	it("guards decimal doses with a dot too — '2.5' scores like '2,5'", () => {
+		expect(normalize("2.5 mg")).toBe("dois virgula cinco mg");
+		expect(normalize("tome 2.5 mg de dipirona")).toBe("tome dois virgula cinco mg de dipirona");
+	});
+
 	it("strips speaker labels so labeled gold doesn't inflate WER", () => {
 		expect(normalize("Doctor: como vai? Patient: bem")).toBe("como vai bem");
 		expect(normalize("Paciente: dor")).toBe("dor");
@@ -84,6 +89,22 @@ describe("checkEntities", () => {
 			"o paciente nega febre",
 		);
 		expect(verdicts[0]?.status).toBe("unverified");
+	});
+
+	it("matches on token boundaries — 'dor' is not inside 'dormir'", () => {
+		const verdicts = checkEntities(
+			[{ category: "medication", value: "dor" }],
+			"o paciente vai dormir bem esta noite",
+		);
+		expect(verdicts[0]?.status).toBe("dropped");
+	});
+
+	it("an entity that normalizes to empty is never 'correct'", () => {
+		const verdicts = checkEntities(
+			[{ category: "medication", value: "!!!" }],
+			"qualquer texto serve aqui",
+		);
+		expect(verdicts[0]?.status).toBe("dropped");
 	});
 });
 
@@ -174,6 +195,11 @@ describe("confidence edge cases", () => {
 		expect(scored.precision).toBe(0.5);
 		const unscored = out.find((b) => b.lo === -1)!;
 		expect(unscored.correct).toBe(0);
+	});
+
+	it("clamps negative confidence into the lowest bucket", () => {
+		const out = bucketByConfidence([{ confidence: -0.5, correct: true }]);
+		expect(out[0]).toMatchObject({ lo: 0, count: 1, correct: 1 });
 	});
 
 	it("recommendThreshold returns 1 when no band qualifies", () => {

@@ -131,8 +131,9 @@ export const Sample = Schema.Struct({
 				s.origin !== "real_anonymized" ||
 				(s.provenance?.consentRef !== undefined &&
 					s.provenance?.anonymizationMethod !== undefined &&
-					s.provenance?.sourcePartner !== undefined) ||
-				"real_anonymized samples require provenance: sourcePartner, anonymizationMethod, consentRef",
+					s.provenance?.sourcePartner !== undefined &&
+					s.provenance?.lgpdBasis !== undefined) ||
+				"real_anonymized samples require provenance: sourcePartner, anonymizationMethod, consentRef, lgpdBasis",
 		),
 	),
 );
@@ -208,6 +209,9 @@ export type EvalAnswer = typeof EvalAnswer.Type;
 
 export const EntityStatus = Schema.Literals([
 	"correct",
+	// "substituted"/"invented" are reserved for judge verdicts — the
+	// current noul-only question set cannot distinguish them from
+	// "dropped" yet (richer questions are future work).
 	"substituted",
 	"dropped",
 	"invented",
@@ -265,6 +269,9 @@ export const StageMetrics = Schema.Struct({
 	stage: Schema.optionalKey(Schema.String),
 	sampleId: Schema.optionalKey(Schema.String),
 	runId: Schema.optionalKey(Schema.String),
+	/** NORMALIZATION_PROFILE the wer/cer were computed under — a
+	 * stored score is meaningless without it. */
+	normalization: Schema.optionalKey(Schema.String),
 });
 export type StageMetrics = typeof StageMetrics.Type;
 

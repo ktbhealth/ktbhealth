@@ -10,6 +10,7 @@ import * as Layer from "effect/Layer";
 import {
 	DatasetStorePort,
 	PortError,
+	renderRunMarkdown,
 	ReportPort,
 	Sample,
 	SampleResult,
@@ -165,8 +166,11 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 						try: () => {
 							try {
 								return new Uint8Array(fs.readFileSync(blobPath(rootDir, uri)));
-							} catch {
-								return null; // ENOENT — missing blob is a legal answer
+							} catch (err) {
+								// Only a missing blob is a legal null — EACCES,
+								// EISDIR etc. are real failures, not "absent".
+								if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+								throw err;
 							}
 						},
 						catch: fail("store-local", "getBlob"),
@@ -174,10 +178,13 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 				putResult: (result) =>
 					Effect.try({
 						try: () => {
+							// Same write-side decode as putSample — a malformed
+							// row fails here, not silently at listResults.
+							const validated = decodeResult(result);
 							upsertResult.run({
-								run_id: result.runId,
-								sample_id: result.sampleId,
-								doc: JSON.stringify(result),
+								run_id: validated.runId,
+								sample_id: validated.sampleId,
+								doc: JSON.stringify(validated),
 							});
 						},
 						catch: fail("store-local", "putResult"),
@@ -214,26 +221,14 @@ export const makeLocalReportLayer = (filePath: string) =>
 			render: (runId) =>
 				Effect.try({
 					try: () => {
-						if (!fs.existsSync(filePath)) return `# run ${runId}\n\nno records\n`;
-						const rows = fs
-							.readFileSync(filePath, "utf8")
-							.split("\n")
-							.filter((l) => l.trim())
-							.map((l) => JSON.parse(l) as RunRecord)
-							.filter((r) => r.runId === runId);
-						const lines = rows.map(
-							(r) =>
-								`| ${r.sampleId ?? "-"} | ${r.stage} | ${r.engine} | ${r.model ?? "-"} | ` +
-								`${r.latencyMs ?? "-"} | ${r.estCostUsd ?? "-"} |`,
-						);
-						return [
-							`# run ${runId}`,
-							"",
-							"| sample | stage | engine | model | latency ms | est cost $ |",
-							"|---|---|---|---|---|---|",
-							...lines,
-							"",
-						].join("\n");
+						const records: RunRecord[] = fs.existsSync(filePath)
+							? fs
+									.readFileSync(filePath, "utf8")
+									.split("\n")
+									.filter((l) => l.trim())
+									.map((l) => JSON.parse(l) as RunRecord)
+							: [];
+						return renderRunMarkdown(runId, records);
 					},
 					catch: fail("report-local", "render"),
 				}),

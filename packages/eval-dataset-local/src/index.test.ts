@@ -149,6 +149,39 @@ describe("local store layer", () => {
 		);
 		expect(String(err)).toContain("provenance");
 	});
+
+	it("getBlob surfaces non-ENOENT fs errors instead of null", async () => {
+		const layer = makeLocalStoreLayer(root);
+		// Plant a directory where the blob file would live — readFileSync
+		// then fails with EISDIR, which must NOT masquerade as "missing".
+		const { createHash } = await import("node:crypto");
+		const blobDir = path.join(root, "blobs", createHash("sha256").update("dir-uri").digest("hex"));
+		fs.mkdirSync(blobDir, { recursive: true });
+		const err = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					return yield* s.getBlob("dir-uri");
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				layer,
+			),
+		);
+		expect(String(err)).toContain("getBlob");
+	});
+
+	it("putResult rejects a malformed result on write", async () => {
+		const layer = makeLocalStoreLayer(root);
+		const err = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putResult({ runId: "r" } as never);
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				layer,
+			),
+		);
+		expect(String(err)).toContain("putResult");
+	});
 });
 
 describe("local report layer", () => {

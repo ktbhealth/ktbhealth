@@ -31,7 +31,9 @@ const applyOne = (out: string, op: EditOp): string => {
 };
 
 /** Apply ops right-to-left — earlier `at` offsets stay valid. Throws
- * `EditApplyError` when an op's `remove` does not match the base. */
+ * `EditApplyError` when an op's `remove` does not match the base.
+ * Ops sharing the same `at` apply in input order — producers must
+ * emit non-overlapping ops (diffTexts does). */
 export const applyEdits = (base: string, ops: readonly EditOp[]): string => {
 	let out = base;
 	for (const op of [...ops].sort((a, b) => b.at - a.at)) {

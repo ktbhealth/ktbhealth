@@ -4,6 +4,7 @@ import { applyEdits, EditApplyError, type EditList } from "./diff.ts";
 import {
 	cer,
 	checkEntities,
+	NORMALIZATION_PROFILE,
 	normalize,
 	wer,
 	type ConfSegment,
@@ -144,6 +145,9 @@ const verdictsFromAnswers = (
 ): EntityVerdict[] =>
 	entities.map((e, i) => {
 		const a = answers.find((x) => x.id === `entity:${stage}:${e.category}:${i}`);
+		// Noul answers only distinguish preserved/not — "substituted" and
+		// "invented" stay unreachable here until richer question kinds
+		// land (see EntityStatus in schema.ts).
 		const kept = a?.value === true;
 		return {
 			category: e.category,
@@ -201,7 +205,9 @@ export const processSample = (input: {
 }) =>
 	Effect.gen(function* () {
 		const entities = input.entities ?? input.sample.gold.entities ?? [];
-		const runId = input.runId ?? `run-${input.sample.id}`;
+		// Include datasetVersion — the same sample.id re-run under a new
+		// dataset version must not collide with the old run's records.
+		const runId = input.runId ?? `run-${input.sample.datasetVersion}-${input.sample.id}`;
 		const tag = (r: RunRecord): RunRecord => ({
 			...r,
 			runId,
@@ -276,6 +282,7 @@ export const processSample = (input: {
 			stage: "asr",
 			sampleId: input.sample.id,
 			runId,
+			normalization: NORMALIZATION_PROFILE,
 		};
 		const correctedMetrics: StageMetrics = {
 			wer: wer(input.sample.script, corrected),
@@ -285,6 +292,7 @@ export const processSample = (input: {
 			stage: "corrected",
 			sampleId: input.sample.id,
 			runId,
+			normalization: NORMALIZATION_PROFILE,
 		};
 		// Honest floor until real segment↔gold alignment lands: a
 		// segment counts correct when its normalized text appears in

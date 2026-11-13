@@ -9,7 +9,7 @@ Used by unit tests and the default CI path — the expensive suite
 ```ts
 const { layer, records } = makeStubLayer({
 	asr: { text: "custom transcript" }, // optional fixture overrides
-	audio: { uri: "stub://x", size: 4, durationMs: 100 },
+	audio: { uri: "stub://x", size: 4 },
 	script: "custom script",
 	answers: [{ id: "q", kind: "noul", value: true, probability: 0.9 }],
 });

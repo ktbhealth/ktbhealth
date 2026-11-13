@@ -12,7 +12,8 @@ uv venv /tmp/eval-bench
 uv pip install --python /tmp/eval-bench/bin/python faster-whisper edge-tts soundfile
 
 # audio fixtures are committed (audio/s*.wav + gold s*.txt); to regen
-# them instead: `python scripts/bench/gen-audio.py` then ffmpeg→16kHz wav
+# them instead: `python scripts/bench/gen-audio.py` (writes s*.wav
+# directly via ffmpeg — requires ffmpeg on PATH)
 
 # run ASR candidates (models download from HF on first use)
 /tmp/eval-bench/bin/python scripts/bench/bench-asr.py tiny base small turbo

@@ -1,4 +1,4 @@
-import asyncio, os
+import asyncio, os, subprocess
 from pathlib import Path
 import edge_tts
 
@@ -17,7 +17,14 @@ async def synth(sid, voice, text):
     for attempt in range(6):
         try:
             tts = edge_tts.Communicate(text, voice)
-            await tts.save(str(OUT / f"{sid}.mp3"))
+            mp3 = OUT / f"{sid}.mp3"
+            await tts.save(str(mp3))
+            # bench-asr.py only reads s*.wav — downmix to 16 kHz mono.
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(mp3), "-ar", "16000", "-ac", "1", str(OUT / f"{sid}.wav")],
+                check=True, capture_output=True,
+            )
+            mp3.unlink()
             with open(OUT / f"{sid}.txt", "w") as f:
                 f.write(text)
             print(f"{sid} ok (attempt {attempt+1})")

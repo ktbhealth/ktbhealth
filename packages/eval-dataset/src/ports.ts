@@ -124,7 +124,8 @@ export class ReportPort extends Context.Service<
 	ReportPort,
 	{
 		readonly append: (record: RunRecord) => Effect.Effect<void, PortError>;
-		/** Render a run's report — markdown for humans, JSONL for CI. */
+		/** Render a run's report — markdown table via `renderRunMarkdown`
+		 * (the shape is part of the contract, not adapter-defined). */
 		readonly render: (runId: string) => Effect.Effect<string, PortError>;
 	}
 >()("@ktb/eval-dataset/ReportPort") {}

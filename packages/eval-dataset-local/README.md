@@ -7,7 +7,7 @@ filesystem blobs**, reports as **JSONL/Markdown** on disk.
 
 ```ts
 makeLocalStoreLayer(root); // DatasetStorePort — {root}/manifest.sqlite + {root}/blobs/
-makeLocalReportLayer(dir); // ReportPort — appends run.jsonl, renders summary.md
+makeLocalReportLayer(file); // ReportPort — appends run.jsonl; render returns the markdown table (same shape as the stub)
 ```
 
 Store properties: WAL + `busy_timeout`, atomic blob writes (tmp +

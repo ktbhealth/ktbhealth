@@ -27,6 +27,20 @@ describe("Sample schema", () => {
 		).toThrowError(/provenance/);
 	});
 
+	it("rejects real_anonymized without an LGPD legal basis", () => {
+		expect(() =>
+			decode({
+				...base,
+				origin: "real_anonymized",
+				provenance: {
+					sourcePartner: "clinica-x",
+					anonymizationMethod: "redaction-v1",
+					consentRef: "c-123",
+				},
+			}),
+		).toThrowError(/lgpdBasis/);
+	});
+
 	it("accepts real_anonymized with full provenance", () => {
 		const s = decode({
 			...base,
@@ -35,6 +49,7 @@ describe("Sample schema", () => {
 				sourcePartner: "clinica-x",
 				anonymizationMethod: "redaction-v1",
 				consentRef: "c-123",
+				lgpdBasis: "consentimento",
 			},
 		});
 		expect(s.provenance?.sourcePartner).toBe("clinica-x");
