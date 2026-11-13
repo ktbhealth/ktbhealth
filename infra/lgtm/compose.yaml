@@ -1,0 +1,81 @@
+# Self-hosted LGTM backend for the KTB platform (P-066).
+#
+# Single `grafana/otel-lgtm` container: OpenTelemetry Collector +
+# Prometheus + Loki + Tempo + Pyroscope + Grafana. See README.md for
+# architecture, cloudflared tunnel setup and runbook.
+#
+# Image is pinned to a dated release tag — bump deliberately and re-test
+# dashboards/alerts after upgrades (otelcol config below is version-coupled
+# to the bundled collector).
+name: ktb-lgtm
+
+services:
+  lgtm:
+    image: grafana/otel-lgtm:0.40.0
+    container_name: ktb-lgtm
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Grafana hardening: no open sign-up; auth still required.
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Require login even on the tunnel-exposed UI (defense in depth
+      # alongside Cloudflare Access).
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Prometheus/Loki retention args from .env.
+      PROMETHEUS_EXTRA_ARGS: ${PROMETHEUS_EXTRA_ARGS:-}
+      LOKI_EXTRA_ARGS: ${LOKI_EXTRA_ARGS:-}
+    ports:
+      # Bind to loopback only — public exposure goes through cloudflared
+      # (or an SSH tunnel for debugging). Never publish 9090/3100/3200/4317
+      # without an auth decision.
+      - "127.0.0.1:3000:3000" # Grafana UI
+      - "127.0.0.1:4318:4318" # OTLP/HTTP (logs, traces, metrics)
+      # - "127.0.0.1:4317:4317" # OTLP/gRPC — app only uses HTTP/JSON
+    volumes:
+      # All backends persist under /data.
+      - lgtm-data:/data
+      # Custom collector config — REPLACES the bundled default, so this
+      # file must stay a superset of it (kept in sync with image 0.40.0).
+      - ./otelcol-config.yaml:/otel-lgtm/otelcol-config.yaml:ro
+      # Grafana provisioning (datasources, dashboards, alerting).
+      - ./provisioning/datasources:/otel-lgtm/grafana/conf/provisioning/datasources:ro
+      - ./provisioning/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards:ro
+      - ./provisioning/alerting:/otel-lgtm/grafana/conf/provisioning/alerting:ro
+    healthcheck:
+      # The image drops /tmp/ready once every backend is up — cheaper and
+      # more accurate than probing Grafana.
+      test: ["CMD", "test", "-f", "/tmp/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          # The all-in-one image is heavy (Prometheus+Loki+Tempo+Grafana);
+          # size for the VM. 2 vCPU / 4 GiB is a sane floor for low traffic.
+          cpus: "2.0"
+          memory: 4G
+
+  # Optional: run cloudflared as a compose service instead of installing
+  # it on the host. Two modes:
+  #
+  #  A) Remotely-managed tunnel (recommended for IaC): create the tunnel in
+  #     the CF dashboard/`cloudflared tunnel create`, copy the token into
+  #     .env as CLOUDFLARED_TUNNEL_TOKEN, and manage ingress rules in the
+  #     dashboard (or via API). Uncomment:
+  #
+  #  cloudflared:
+  #    image: cloudflare/cloudflared:2025.11.1
+  #    container_name: ktb-cloudflared
+  #    restart: unless-stopped
+  #    command: tunnel --no-autoupdate run
+  #    environment:
+  #      TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN}
+  #
+  #  B) Locally-managed tunnel: keep cloudflared on the host with
+  #     cloudflared/config.yml (see cloudflared/README notes in the main
+  #     README) so ingress lives in git.
+
+volumes:
+  lgtm-data:

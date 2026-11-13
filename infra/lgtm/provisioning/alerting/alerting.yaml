@@ -1,0 +1,252 @@
+# Grafana unified-alerting provisioning for the KTB platform.
+#
+# All rules evaluate against the `prometheus` datasource (uid pinned in
+# provisioning/datasources/datasources.yaml). Metric names/labels come
+# from packages/observability/src/metrics.ts — keep this file in sync
+# when metric attributes change.
+#
+# Tuning notes (read before "fixing" a noisy alert):
+#  * The app is a Workers push model: metrics arrive in batches on the
+#    OTLP export interval, and low-traffic windows legitimately produce
+#    gaps. Every `for:` below is deliberately >= 2x the export interval
+#    to absorb jitter; do not shorten without checking
+#    KTB_TELEMETRY_EXPORT_INTERVAL_MS.
+#  * `status` is the raw HTTP status string; the 5xx matcher uses a
+#    regex because the label is not numeric.
+#  * Histogram metrics export as _bucket/_sum/_count — quantiles need
+#    histogram_quantile over `le`.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: ktb-http
+    folder: KTB
+    interval: 1m
+    rules:
+      - uid: ktb-http-5xx-ratio
+        title: "KTB: HTTP 5xx ratio > 5%"
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "More than 5% of HTTP responses are 5xx over 10m"
+          description: "5xx ratio is {{ $values.A }} across all handler types. Check Tempo for error traces and Loki for http.access records."
+          dashboard: "/d/ktb-platform"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              expr: "sum(rate(ktb_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(ktb_http_requests_total[5m]))"
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: { from: 0, to: 0 }
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [0.05] }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { type: last }
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+      - uid: ktb-http-p95-latency
+        title: "KTB: HTTP p95 latency > 2s"
+        condition: C
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "HTTP p95 latency above 2s for 15m"
+          description: "p95 is {{ $values.A }}ms. Compare against the KTB Platform dashboard latency panels; check downstream deps (DB, transcription, LLM)."
+          dashboard: "/d/ktb-platform"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              expr: "histogram_quantile(0.95, sum by (le) (rate(ktb_http_request_duration_ms_bucket[5m])))"
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: { from: 0, to: 0 }
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [2000] }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { type: last }
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+  - orgId: 1
+    name: ktb-telemetry
+    folder: KTB
+    interval: 1m
+    rules:
+      - uid: ktb-telemetry-export-errors
+        title: "KTB: OTLP export failures"
+        condition: C
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "The app is failing to export telemetry (stage=export)"
+          description: "ktb_telemetry_errors_total{stage=\"export\"} is increasing — telemetry is being dropped at the source. Check OTEL_EXPORTER_OTLP_ENDPOINT reachability and the otel.example.com tunnel."
+          dashboard: "/d/ktb-platform"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: { from: 1800, to: 0 }
+            model:
+              refId: A
+              expr: "sum(rate(ktb_telemetry_errors_total{stage=\"export\"}[10m]))"
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: { from: 0, to: 0 }
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { type: last }
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+      - uid: ktb-telemetry-absent
+        title: "KTB: no telemetry received (dead-man)"
+        condition: C
+        for: 30m
+        noDataState: Alerting
+        execErrState: Alerting
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "ktb_http_requests_total has been absent for 30m"
+          description: "No app metrics have arrived. Either the app is down, the OTLP endpoint is wrong/unreachable, or traffic is genuinely zero — check /api/ready and the otel.example.com tunnel before assuming an outage."
+          dashboard: "/d/ktb-platform"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: { from: 3600, to: 0 }
+            model:
+              refId: A
+              expr: "absent(ktb_http_requests_total)"
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: { from: 0, to: 0 }
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { type: last }
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+      - uid: ktb-client-events-dropped
+        title: "KTB: client telemetry drops spiking"
+        condition: C
+        for: 30m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Browser telemetry events are being dropped at ingest"
+          description: "ktb_client_events_dropped_total increased by {{ $values.A }} in 30m. Check the reason label (disabled | invalid | rate-limited) on the dashboard — 'disabled' means KTB_TELEMETRY_CLIENT is off."
+          dashboard: "/d/ktb-platform"
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: { from: 3600, to: 0 }
+            model:
+              refId: A
+              expr: "sum(increase(ktb_client_events_dropped_total[30m]))"
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange: { from: 0, to: 0 }
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - type: query
+                  evaluator: { type: gt, params: [50] }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { type: last }
+              intervalMs: 1000
+              maxDataPoints: 43200
+
+# --- Notification routing -------------------------------------------------
+# The contact point is a PLACEHOLDER: provision SMTP via env
+# (GF_SMTP_ENABLED/GF_SMTP_HOST/GF_SMTP_USER/GF_SMTP_PASSWORD) and set the
+# address below, or swap `type: email` for `type: webhook` pointing at an
+# internal endpoint (Slack/Discord/PagerDuty relay). Nothing here sends
+# anywhere until a real receiver is configured.
+
+contactPoints:
+  - orgId: 1
+    name: ktb-platform
+    receivers:
+      - uid: ktb-platform-email
+        type: email
+        settings:
+          # TODO(provisioning): real on-call address.
+          addresses: oncall@example.com
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: ktb-platform
+    # Group per folder+alertname so a flapping rule doesn't page per-series.
+    group_by: [grafana_folder, alertname]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

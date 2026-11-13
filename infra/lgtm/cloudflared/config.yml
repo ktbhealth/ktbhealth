@@ -1,0 +1,29 @@
+# cloudflared ingress for the LGTM stack (locally-managed tunnel mode).
+#
+# This file is an EXAMPLE — copy to the cloudflared config directory on
+# the host (typically /etc/cloudflared/config.yml or ~/.cloudflared/)
+# and replace the placeholders. See README.md "Tunnel setup".
+#
+# Prereqs (one-time, human steps):
+#   cloudflared tunnel login                      # writes cert.pem
+#   cloudflared tunnel create ktb-lgtm            # prints tunnel UUID
+#   cloudflared tunnel route dns ktb-lgtm otel.example.com
+#   cloudflared tunnel route dns ktb-lgtm grafana.example.com
+
+tunnel: TUNNEL_UUID
+credentials-file: /etc/cloudflared/TUNNEL_UUID.json
+
+ingress:
+  # OTLP/HTTP ingest — the app pushes logs/traces/metrics here.
+  # KTB worker env: OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.com
+  # (config.ts appends /v1/<signal> per signal).
+  - hostname: otel.example.com
+    service: http://localhost:4318
+
+  # Grafana UI. Put Cloudflare Access in front of this hostname —
+  # Grafana's own login is the second factor, not the only one.
+  - hostname: grafana.example.com
+    service: http://localhost:3000
+
+  # Catch-all: refuse anything else that reaches the tunnel.
+  - service: http_status:404

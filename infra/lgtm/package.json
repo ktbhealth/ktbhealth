@@ -1,0 +1,11 @@
+{
+	"name": "@ktb/infra-lgtm",
+	"private": true,
+	"type": "module",
+	"description": "Self-hosted LGTM observability backend (config-as-code): compose, otelcol, Grafana provisioning. Not a runtime package — see README.md.",
+	"scripts": {
+		"up": "docker compose --env-file .env up -d",
+		"down": "docker compose --env-file .env down",
+		"logs": "docker compose --env-file .env logs -f lgtm"
+	}
+}

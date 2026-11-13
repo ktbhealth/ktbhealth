@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# File-provisioned dashboard provider. JSON lives next to this file;
+# dashboards are deleted/updated only via git (provisioning `allowUiUpdates`
+# stays false so the UI can't drift from the repo).
+providers:
+  - name: ktb
+    orgId: 1
+    folder: KTB
+    type: file
+    disableDeletion: false
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /otel-lgtm/grafana/conf/provisioning/dashboards
+      foldersFromFilesStructure: false

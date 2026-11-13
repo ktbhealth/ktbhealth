@@ -90,6 +90,9 @@
         "vitest": "5.1.0",
       },
     },
+    "infra/lgtm": {
+      "name": "@ktb/infra-lgtm",
+    },
     "infra/ports": {
       "name": "@ktb/infra-ports",
       "dependencies": {
@@ -1186,6 +1189,8 @@
     "@ktb/groups": ["@ktb/groups@workspace:plugins/groups"],
 
     "@ktb/infra-cloudflare": ["@ktb/infra-cloudflare@workspace:infra/cloudflare"],
+
+    "@ktb/infra-lgtm": ["@ktb/infra-lgtm@workspace:infra/lgtm"],
 
     "@ktb/infra-ports": ["@ktb/infra-ports@workspace:infra/ports"],
 

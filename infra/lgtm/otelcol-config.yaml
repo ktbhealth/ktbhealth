@@ -1,0 +1,112 @@
+# OpenTelemetry Collector config for grafana/otel-lgtm:0.40.0.
+#
+# This file REPLACES the image's bundled default when mounted at
+# /otel-lgtm/otelcol-config.yaml — it is a superset of the upstream
+# docker/otelcol-config.yaml (v0.40.0) plus:
+#   * `tail_sampling` processor on the traces pipeline (T-107): keep all
+#     errors, keep slow traces (>2s), probabilistic fallback for the rest.
+#
+# When bumping the image tag, diff this file against the new upstream
+# default and re-apply the tail_sampling block.
+#
+# Trace sampling rationale: metrics are generated app-side (Effect
+# Metric -> OTLP metrics), NOT derived from traces, so tail sampling
+# here cannot skew RED metrics. Sample rate applies to Tempo storage only.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://*
+  prometheus/collector:
+    config:
+      scrape_configs:
+        - job_name: "opentelemetry-collector"
+          scrape_interval: 1s
+          static_configs:
+            - targets: ["127.0.0.1:8888"]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: "/ready"
+
+processors:
+  batch:
+  # T-107 tail sampling — evaluated per trace after decision_wait so all
+  # spans of a trace are seen before the keep/drop decision. Policies are
+  # OR'd: first match wins.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 100
+    policies:
+      # Keep every trace containing an error span.
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      # Keep slow traces regardless of status — latency outliers are where
+      # regressions hide.
+      - name: slow-traces
+        type: latency
+        latency:
+          threshold_ms: 2000
+      # Probabilistic fallback for everything else.
+      - name: probabilistic-fallback
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 15
+
+exporters:
+  otlp_http/metrics:
+    endpoint: http://127.0.0.1:9090/api/v1/otlp
+    tls:
+      insecure: true
+  otlp_http/traces:
+    endpoint: http://127.0.0.1:4418
+    tls:
+      insecure: true
+  otlp_http/logs:
+    endpoint: http://127.0.0.1:3100/otlp
+    tls:
+      insecure: true
+  otlp_grpc/profiles:
+    endpoint: http://127.0.0.1:4040
+    tls:
+      insecure: true
+  debug/metrics:
+    verbosity: detailed
+  debug/traces:
+    verbosity: detailed
+  debug/logs:
+    verbosity: detailed
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      # tail_sampling MUST run before batch so the batch only carries
+      # sampled spans.
+      processors: [tail_sampling, batch]
+      exporters: [otlp_http/traces]
+      #exporters: [otlp_http/traces,debug/traces]
+    metrics:
+      receivers: [otlp, prometheus/collector]
+      processors: [batch]
+      exporters: [otlp_http/metrics]
+      #exporters: [otlp_http/metrics,debug/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/logs]
+      #exporters: [otlp_http/logs,debug/logs]
+    profiles:
+      receivers: [otlp]
+      exporters: [otlp_grpc/profiles]
