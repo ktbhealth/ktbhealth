@@ -18,12 +18,16 @@ collector + storage + UI that receives it.
   up to 4 OCPU / 24 GB ARM — the `otel-lgtm` image is multi-arch) or any
   small Linux VM. See "OCI provisioning" below.
 - **Domain**: `luisfuturist.com` (on Cloudflare) — hostnames
-  `otel.luisfuturist.com` (OTLP ingest) and `grafana.luisfuturist.com`
-  (UI). `<domain>` below means this.
+  `ktb-otel.luisfuturist.com` (OTLP ingest) and `ktb-grafana.luisfuturist.com`
+  (UI). `<domain>` below means this. The `ktb-` prefix is required:
+  Cloudflare Universal SSL only covers ONE subdomain level, so
+  `otel.ktb.luisfuturist.com` fails TLS at the edge (needs Advanced
+  Certificate Manager, paid). If a dedicated zone (e.g. `ktbhealth.com`)
+  is added later, `otel.`/`grafana.` first-level names work as-is.
 - **Tunnel**: locally-managed `cloudflared` tunnel `ktb-lgtm`, ingress
   in `cloudflared/config.yml`.
 - **App endpoint**: committed in `apps/web/alchemy.run.ts` — prod stage
-  defaults `OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.luisfuturist.com`
+  defaults `OTEL_EXPORTER_OTLP_ENDPOINT=https://ktb-otel.luisfuturist.com`
   and `KTB_ENVIRONMENT=production`; explicit env vars still win.
 - **Alert receiver**: ntfy webhook contact point is provisioned
   (commented) in `provisioning/alerting/alerting.yaml`; enable by

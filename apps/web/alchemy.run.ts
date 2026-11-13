@@ -23,7 +23,7 @@ export default Alchemy.Stack(
 		const transcriptionQueue = yield* Cloudflare.Queues.Queue("transcription");
 
 		// Prod defaults to the self-hosted LGTM collector behind the CF
-		// tunnel (P-066/P-067, infra/lgtm → otel.luisfuturist.com); an
+		// tunnel (P-066/P-067, infra/lgtm → ktb-otel.luisfuturist.com); an
 		// explicit OTEL_EXPORTER_OTLP_ENDPOINT always wins so local or
 		// staging collectors can be targeted without code changes.
 		// `Stage` is the alchemy-provided service — ALCHEMY_STAGE is NOT
@@ -31,7 +31,7 @@ export default Alchemy.Stack(
 		const stage = yield* Alchemy.Stage;
 		const otelEndpoint =
 			process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
-			(stage === "prod" ? "https://otel.luisfuturist.com" : undefined);
+			(stage === "prod" ? "https://ktb-otel.luisfuturist.com" : undefined);
 		const ktbEnvironment =
 			process.env.KTB_ENVIRONMENT ?? (stage === "prod" ? "production" : undefined);
 
