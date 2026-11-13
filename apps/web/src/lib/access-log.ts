@@ -23,6 +23,7 @@ export interface AccessLogFields {
 	readonly durationMs: number;
 	readonly requestId: string;
 	readonly traceId?: string;
+	readonly traceparent?: string;
 }
 
 type AccessLogSink = (fields: Readonly<Record<string, unknown>>) => Promise<void> | void;

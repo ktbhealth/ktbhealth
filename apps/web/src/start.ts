@@ -65,6 +65,7 @@ const telemetryMiddleware = createMiddleware().server(
 				durationMs,
 				requestId,
 				traceId: traceparent?.split("-")[1],
+				traceparent,
 			});
 		};
 
