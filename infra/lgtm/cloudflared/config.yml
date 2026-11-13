@@ -1,29 +1,37 @@
 # cloudflared ingress for the LGTM stack (locally-managed tunnel mode).
 #
-# This file is an EXAMPLE — copy to the cloudflared config directory on
-# the host (typically /etc/cloudflared/config.yml or ~/.cloudflared/)
-# and replace the placeholders. See README.md "Tunnel setup".
+# Hostnames are real (P-067): luisfuturist.com is on Cloudflare.
+# Copy to the cloudflared config directory on the host (typically
+# /etc/cloudflared/config.yml or ~/.cloudflared/) and replace
+# TUNNEL_UUID + the credentials-file path. See README.md "Tunnel setup".
 #
 # Prereqs (one-time, human steps):
 #   cloudflared tunnel login                      # writes cert.pem
 #   cloudflared tunnel create ktb-lgtm            # prints tunnel UUID
-#   cloudflared tunnel route dns ktb-lgtm otel.example.com
-#   cloudflared tunnel route dns ktb-lgtm grafana.example.com
+#   cloudflared tunnel route dns ktb-lgtm otel.luisfuturist.com
+#   cloudflared tunnel route dns ktb-lgtm grafana.luisfuturist.com
 
 tunnel: TUNNEL_UUID
 credentials-file: /etc/cloudflared/TUNNEL_UUID.json
 
 ingress:
   # OTLP/HTTP ingest — the app pushes logs/traces/metrics here.
-  # KTB worker env: OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.com
+  # KTB worker env (prod default in alchemy.run.ts):
+  #   OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.luisfuturist.com
   # (config.ts appends /v1/<signal> per signal).
-  - hostname: otel.example.com
+  - hostname: otel.luisfuturist.com
     service: http://localhost:4318
 
   # Grafana UI. Put Cloudflare Access in front of this hostname —
   # Grafana's own login is the second factor, not the only one.
-  - hostname: grafana.example.com
+  - hostname: grafana.luisfuturist.com
     service: http://localhost:3000
+
+  # Optional: ntfy alert receiver (P-067) if ntfy runs on this host —
+  # uncomment and create the DNS route. The topic path is the only auth;
+  # use a long random topic name.
+  # - hostname: ntfy.luisfuturist.com
+  #   service: http://localhost:80
 
   # Catch-all: refuse anything else that reaches the tunnel.
   - service: http_status:404

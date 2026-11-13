@@ -12,6 +12,23 @@ collector + storage + UI that receives it.
 > **Status: infrastructure-as-code only.** Nothing here is deployed.
 > Provisioning the VM, tunnel and DNS is a human step (see below).
 
+## Decisions (P-066 / P-067 — applied)
+
+- **Host**: Oracle Cloud **Always-Free** Ampere A1 (`VM.Standard.A1.Flex`,
+  up to 4 OCPU / 24 GB ARM — the `otel-lgtm` image is multi-arch) or any
+  small Linux VM. See "OCI provisioning" below.
+- **Domain**: `luisfuturist.com` (on Cloudflare) — hostnames
+  `otel.luisfuturist.com` (OTLP ingest) and `grafana.luisfuturist.com`
+  (UI). `<domain>` below means this.
+- **Tunnel**: locally-managed `cloudflared` tunnel `ktb-lgtm`, ingress
+  in `cloudflared/config.yml`.
+- **App endpoint**: committed in `apps/web/alchemy.run.ts` — prod stage
+  defaults `OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.luisfuturist.com`
+  and `KTB_ENVIRONMENT=production`; explicit env vars still win.
+- **Alert receiver**: ntfy webhook contact point is provisioned
+  (commented) in `provisioning/alerting/alerting.yaml`; enable by
+  uncommenting + DNS route when ntfy is exposed.
+
 ## Architecture
 
 ```
@@ -60,7 +77,7 @@ so sampling traces cannot skew metrics. The `tail_sampling` processor
 2s, and a 15% probabilistic sample of the rest — applied per-trace after
 a 10s `decision_wait`. Corollary for app config: keep
 `KTB_TELEMETRY_TRACES_SAMPLE_RATE=1` (the default) — head-sampling in
-the Worker throws away traces *before* the collector can apply error/
+the Worker throws away traces _before_ the collector can apply error/
 latency policies, which defeats tail sampling. Volume control belongs
 at the collector, where the full trace (status, duration, attributes)
 is visible. If trace volume ever demands it, move sampling to a
@@ -69,15 +86,36 @@ self-contained and copy over.
 
 ## Layout
 
-| path | what |
-| --- | --- |
-| `compose.yaml` | `grafana/otel-lgtm:0.40.0` service, loopback ports, `/data` volume, resource limits |
-| `.env.example` | Grafana admin creds, retention args — copy to `.env` (gitignored) |
-| `otelcol-config.yaml` | Collector config; **replaces** the image default — superset of upstream v0.40.0 + `tail_sampling` |
-| `cloudflared/config.yml` | Example ingress for a locally-managed tunnel (`otel.` + `grafana.` hostnames) |
-| `provisioning/datasources/` | Prometheus / Loki / Tempo datasources (uids `prometheus`, `loki`, `tempo`) |
-| `provisioning/dashboards/` | `ktb-platform` dashboard (uid `ktb-platform`) |
-| `provisioning/alerting/` | 5 alert rules + contact point placeholder + notification policy |
+| path                        | what                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `compose.yaml`              | `grafana/otel-lgtm:0.40.0` service, loopback ports, `/data` volume, resource limits               |
+| `.env.example`              | Grafana admin creds, retention args — copy to `.env` (gitignored)                                 |
+| `otelcol-config.yaml`       | Collector config; **replaces** the image default — superset of upstream v0.40.0 + `tail_sampling` |
+| `cloudflared/config.yml`    | Example ingress for a locally-managed tunnel (`otel.` + `grafana.` hostnames)                     |
+| `provisioning/datasources/` | Prometheus / Loki / Tempo datasources (uids `prometheus`, `loki`, `tempo`)                        |
+| `provisioning/dashboards/`  | `ktb-platform` dashboard (uid `ktb-platform`)                                                     |
+| `provisioning/alerting/`    | 5 alert rules + contact point placeholder + notification policy                                   |
+
+## OCI provisioning (Always-Free)
+
+Oracle Cloud Always-Free includes `VM.Standard.A1.Flex` (Ampere ARM,
+up to 4 OCPU / 24 GB) — far more than this stack needs. The
+`otel-lgtm` image is multi-arch, so ARM works natively.
+
+1. OCI Console → Compute → Instances → Create instance:
+   - Image: **Ubuntu 24.04 aarch64** (or Oracle Linux 9 aarch64)
+   - Shape: `VM.Standard.A1.Flex` — 1 OCPU / 6 GB is plenty (2/8 for
+     headroom); stays inside free tier
+   - Networking: default VCN; a **public IPv4 is optional** — cloudflared
+     is outbound-only and compose binds loopback, so the most locked-down
+     option is no public IP + OCI Cloud Shell session for management.
+     If you want SSH, assign an ephemeral public IP and restrict the
+     security list to your IP on :22 only.
+2. SSH in (or Cloud Shell) and run the "One-time host setup" steps
+   below — Docker install for ARM:
+   `curl -fsSL https://get.docker.com | sh` then
+   `sudo usermod -aG docker $USER` (re-login).
+3. Everything else is identical — the stack doesn't know it's on OCI.
 
 ## One-time host setup (human steps)
 
@@ -95,7 +133,7 @@ self-contained and copy over.
    ~900 MB and takes a couple of minutes; `docker compose ps` should
    show `healthy` once `/tmp/ready` exists.
 5. **Tunnel** (pick one):
-   - *Locally-managed (ingress in git)*: install `cloudflared` on the
+   - _Locally-managed (ingress in git)_: install `cloudflared` on the
      host, then `cloudflared tunnel login` (writes `cert.pem` — browser
      auth, human step), `cloudflared tunnel create ktb-lgtm`,
      `cloudflared tunnel route dns ktb-lgtm otel.<domain>` and
@@ -103,7 +141,7 @@ self-contained and copy over.
      `TUNNEL_UUID` / hostname / credentials path, then
      `cloudflared tunnel run ktb-lgtm` (or install as a service:
      `cloudflared service install`).
-   - *Remotely-managed (token)*: create the tunnel in the CF dashboard,
+   - _Remotely-managed (token)_: create the tunnel in the CF dashboard,
      copy its token to `.env` as `CLOUDFLARED_TUNNEL_TOKEN` and
      uncomment the `cloudflared` service in `compose.yaml`. Ingress
      rules then live in the dashboard/API, not git.
@@ -148,14 +186,14 @@ self-contained and copy over.
 
 ### Common failures
 
-| symptom | likely cause | fix |
-| --- | --- | --- |
-| Dashboard empty, `absent()` alert fires | tunnel down or wrong endpoint | `cloudflared tunnel info ktb-lgtm`; verify `OTEL_EXPORTER_OTLP_ENDPOINT` has no path and is `https://` |
-| App logs warn about insecure endpoint | `http://` non-loopback OTLP endpoint is dropped by the driver | use `https://otel.<domain>` |
-| `stage="export"` errors climbing | collector unreachable / 4xx from otelcol | check `docker logs`, otelcol receiver logs, Access policy on `otel.` hostname |
-| Disk full on VM | `/data` volume growth | `docker system df`; tune `PROMETHEUS_EXTRA_ARGS`/`LOKI_EXTRA_ARGS` retention in `.env`; `docker compose down` + prune old blocks |
-| Traces missing but metrics/logs fine | tail_sampling is working as designed | errors + >2s traces + 15% sample are kept; check Tempo for `{ status = error }` |
-| Grafana login fails after recreate | admin password only set at first boot | password lives in Grafana's sqlite under `/data`; reset via `GF_SECURITY_ADMIN_PASSWORD` env or `grafana cli` |
+| symptom                                 | likely cause                                                  | fix                                                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard empty, `absent()` alert fires | tunnel down or wrong endpoint                                 | `cloudflared tunnel info ktb-lgtm`; verify `OTEL_EXPORTER_OTLP_ENDPOINT` has no path and is `https://`                           |
+| App logs warn about insecure endpoint   | `http://` non-loopback OTLP endpoint is dropped by the driver | use `https://otel.<domain>`                                                                                                      |
+| `stage="export"` errors climbing        | collector unreachable / 4xx from otelcol                      | check `docker logs`, otelcol receiver logs, Access policy on `otel.` hostname                                                    |
+| Disk full on VM                         | `/data` volume growth                                         | `docker system df`; tune `PROMETHEUS_EXTRA_ARGS`/`LOKI_EXTRA_ARGS` retention in `.env`; `docker compose down` + prune old blocks |
+| Traces missing but metrics/logs fine    | tail_sampling is working as designed                          | errors + >2s traces + 15% sample are kept; check Tempo for `{ status = error }`                                                  |
+| Grafana login fails after recreate      | admin password only set at first boot                         | password lives in Grafana's sqlite under `/data`; reset via `GF_SECURITY_ADMIN_PASSWORD` env or `grafana cli`                    |
 
 ### Backup
 

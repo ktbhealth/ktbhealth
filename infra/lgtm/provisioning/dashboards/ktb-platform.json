@@ -1,10 +1,7 @@
 {
 	"uid": "ktb-platform",
 	"title": "KTB Platform",
-	"tags": [
-		"ktb",
-		"platform"
-	],
+	"tags": ["ktb", "platform"],
 	"timezone": "browser",
 	"schemaVersion": 39,
 	"version": 1,
@@ -69,9 +66,7 @@
 				"colorMode": "value",
 				"graphMode": "area",
 				"reduceOptions": {
-					"calcs": [
-						"lastNotNull"
-					]
+					"calcs": ["lastNotNull"]
 				}
 			},
 			"targets": [
@@ -124,9 +119,7 @@
 				"colorMode": "value",
 				"graphMode": "area",
 				"reduceOptions": {
-					"calcs": [
-						"lastNotNull"
-					]
+					"calcs": ["lastNotNull"]
 				}
 			},
 			"targets": [
@@ -179,9 +172,7 @@
 				"colorMode": "value",
 				"graphMode": "area",
 				"reduceOptions": {
-					"calcs": [
-						"lastNotNull"
-					]
+					"calcs": ["lastNotNull"]
 				}
 			},
 			"targets": [
@@ -229,9 +220,7 @@
 				"colorMode": "value",
 				"graphMode": "none",
 				"reduceOptions": {
-					"calcs": [
-						"lastNotNull"
-					]
+					"calcs": ["lastNotNull"]
 				}
 			},
 			"targets": [

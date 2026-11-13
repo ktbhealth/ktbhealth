@@ -43,7 +43,7 @@ groups:
             relativeTimeRange: { from: 900, to: 0 }
             model:
               refId: A
-              expr: "sum(rate(ktb_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(ktb_http_requests_total[5m]))"
+              expr: 'sum(rate(ktb_http_requests_total{status=~"5.."}[5m])) / sum(rate(ktb_http_requests_total[5m]))'
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -118,7 +118,7 @@ groups:
           team: platform
         annotations:
           summary: "The app is failing to export telemetry (stage=export)"
-          description: "ktb_telemetry_errors_total{stage=\"export\"} is increasing — telemetry is being dropped at the source. Check OTEL_EXPORTER_OTLP_ENDPOINT reachability and the otel.example.com tunnel."
+          description: 'ktb_telemetry_errors_total{stage="export"} is increasing — telemetry is being dropped at the source. Check OTEL_EXPORTER_OTLP_ENDPOINT reachability and the otel.example.com tunnel.'
           dashboard: "/d/ktb-platform"
         data:
           - refId: A
@@ -126,7 +126,7 @@ groups:
             relativeTimeRange: { from: 1800, to: 0 }
             model:
               refId: A
-              expr: "sum(rate(ktb_telemetry_errors_total{stage=\"export\"}[10m]))"
+              expr: 'sum(rate(ktb_telemetry_errors_total{stage="export"}[10m]))'
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200

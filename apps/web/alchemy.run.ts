@@ -22,6 +22,17 @@ export default Alchemy.Stack(
 		const audioBucket = yield* Cloudflare.R2.Bucket("audio");
 		const transcriptionQueue = yield* Cloudflare.Queues.Queue("transcription");
 
+		// Prod defaults to the self-hosted LGTM collector behind the CF
+		// tunnel (P-066/P-067, infra/lgtm → otel.luisfuturist.com); an
+		// explicit OTEL_EXPORTER_OTLP_ENDPOINT always wins so local or
+		// staging collectors can be targeted without code changes.
+		const otelEndpoint =
+			process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
+			(process.env.ALCHEMY_STAGE === "prod" ? "https://otel.luisfuturist.com" : undefined);
+		const ktbEnvironment =
+			process.env.KTB_ENVIRONMENT ??
+			(process.env.ALCHEMY_STAGE === "prod" ? "production" : undefined);
+
 		const site = yield* deployWorker({
 			name: "web",
 			outdir: "dist/client",
@@ -67,10 +78,8 @@ export default Alchemy.Stack(
 					: {}),
 				// Observability (T-099): OTLP collector config — endpoint and
 				// service name are plain config; headers + scrape token are
-				// secrets. Unset endpoint → console/Prometheus fallback.
-				...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT
-					? { OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT }
-					: {}),
+				// secrets. Unset everywhere → console/Prometheus fallback.
+				...(otelEndpoint ? { OTEL_EXPORTER_OTLP_ENDPOINT: otelEndpoint } : {}),
 				...(process.env.OTEL_EXPORTER_OTLP_HEADERS
 					? {
 							OTEL_EXPORTER_OTLP_HEADERS: Redacted.make(process.env.OTEL_EXPORTER_OTLP_HEADERS),
@@ -79,7 +88,7 @@ export default Alchemy.Stack(
 				...(process.env.OTEL_SERVICE_NAME
 					? { OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME }
 					: {}),
-				...(process.env.KTB_ENVIRONMENT ? { KTB_ENVIRONMENT: process.env.KTB_ENVIRONMENT } : {}),
+				...(ktbEnvironment ? { KTB_ENVIRONMENT: ktbEnvironment } : {}),
 				...(process.env.KTB_TELEMETRY_TRACES_SAMPLE_RATE
 					? { KTB_TELEMETRY_TRACES_SAMPLE_RATE: process.env.KTB_TELEMETRY_TRACES_SAMPLE_RATE }
 					: {}),
