@@ -228,33 +228,29 @@ groups:
               maxDataPoints: 43200
 
 # --- Notification routing -------------------------------------------------
-# The contact point is a PLACEHOLDER: provision SMTP via env
-# (GF_SMTP_ENABLED/GF_SMTP_HOST/GF_SMTP_USER/GF_SMTP_PASSWORD) and set the
-# address below, or swap `type: email` for `type: webhook` pointing at an
-# internal endpoint (Slack/Discord/PagerDuty relay). Nothing here sends
-# anywhere until a real receiver is configured.
+# The contact point uses an ntfy webhook (see receiver below). To use a
+# different channel, provision SMTP via env
+# (GF_SMTP_ENABLED/GF_SMTP_HOST/GF_SMTP_USER/GF_SMTP_PASSWORD) and swap
+# `type: webhook` for `type: email`, or point the webhook at another
+# HTTP endpoint.
 
 contactPoints:
   - orgId: 1
     name: ktb-platform
     receivers:
-      - uid: ktb-platform-email
-        type: email
+      # ntfy push notifications: Grafana POSTs its alert JSON to the
+      # topic URL; ntfy stores the body as the push message. Works with
+      # ntfy.sh (free hosted) or a self-hosted instance — the webhook is
+      # plain HTTP, no vendor SDK. The topic URL is the only auth, so it
+      # is injected via NTFY_URL (see .env.example / cuora ktb/ntfy-url),
+      # never committed. If NTFY_URL is unset the receiver URL expands
+      # empty and notifications silently no-op.
+      - uid: ktb-platform-ntfy
+        type: webhook
         settings:
-          # TODO(provisioning): real on-call address.
-          addresses: oncall@example.com
+          url: $__env{NTFY_URL}
+          httpMethod: POST
         disableResolveMessage: false
-      # P-067 recommended receiver: ntfy (org already self-hosts it).
-      # Grafana POSTs its alert JSON to the topic URL; ntfy stores the
-      # body as the push message. Expose ntfy via the same cloudflared
-      # tunnel pattern (ntfy.<domain> -> localhost:80) and pick a
-      # non-guessable topic name — the URL is the only auth.
-      # - uid: ktb-platform-ntfy
-      #   type: webhook
-      #   settings:
-      #     url: https://ntfy.example.com/ktb-alerts-<random>
-      #     httpMethod: POST
-      #   disableResolveMessage: false
 
 policies:
   - orgId: 1
