@@ -93,6 +93,10 @@ async function doLoad() {
 	});
 	// skip the doomed WebGPU attempt when no adapter exists
 	const devices = (await hasWebGpu()) ? ["webgpu", "wasm"] : ["wasm"];
+	// transformers.js fires the progress callback once per chunk per file —
+	// thousands of events per load. Only forward when the rendered message
+	// actually changes.
+	let lastProgressMessage: string | null = null;
 	let lastErr: unknown = null;
 	for (const d of devices) {
 		// Model files are large and come from a remote CDN — a single
@@ -110,11 +114,22 @@ async function doLoad() {
 					// quantized weights: much smaller download
 					dtype: d === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8",
 					progress_callback: (p: { status?: string; progress?: number }) => {
-						if (!cached && typeof p.progress === "number")
-							postMessage({
-								type: "progress",
-								message: `downloading model ${Math.round(p.progress)}%`,
-							});
+						if (cached || p.status !== "progress_total" || typeof p.progress !== "number")
+							return;
+						const pct = Math.round(p.progress);
+						// transformers.js emits per-file events alongside the
+						// aggregate `progress_total`; per-file events sit at
+						// 100% once their file lands, which pinned the status
+						// text at "downloading model 100%" for the whole load.
+						// At 100% the bytes are done — the remaining wait is
+						// wasm/session init — so switch back to a loading
+						// message instead of claiming the download is stuck.
+						const message =
+							pct >= 100 ? `loading model (${d})…` : `downloading model ${pct}%`;
+						if (message !== lastProgressMessage) {
+							lastProgressMessage = message;
+							postMessage({ type: "progress", message });
+						}
 					},
 				})) as unknown as TranscriberFn;
 				loadedDevice = d;

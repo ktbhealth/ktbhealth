@@ -129,6 +129,35 @@ describe("whisper-worker", () => {
 		expect(posted.some((m) => m.type === "ready" && m.device === "wasm")).toBe(true);
 	});
 
+	it("reports aggregate download progress once per distinct message", async () => {
+		pipelineImpl = vi.fn(async (_t: string, _m: string, opts: Record<string, unknown>) => {
+			pipelineCalls.push({ model: _m, opts });
+			const cb = opts.progress_callback as (p: Record<string, unknown>) => void;
+			// per-file events are ignored — they sit at 100% and caused the
+			// stuck "downloading model 100%" status text
+			cb({ status: "progress", file: "a.onnx", progress: 100 });
+			cb({ status: "progress_total", progress: 40 });
+			cb({ status: "progress_total", progress: 40 });
+			cb({ status: "progress_total", progress: 100 });
+			cb({ status: "progress_total", progress: 100 });
+			cb({ status: "ready" });
+			return async () => ({ text: "ok" });
+		}) as never;
+		const self = await importWorker();
+		await dispatch(self, { type: "load" });
+		const messages = posted
+			.filter((m) => m.type === "progress")
+			.map((m) => m.message)
+			.filter((m) => String(m).startsWith("downloading") || String(m).startsWith("loading model ("));
+		// the pre-pipeline "loading model (wasm)…" is posted once before
+		// the callback runs; the 100% aggregate reuses the same text
+		expect(messages).toEqual([
+			"loading model (wasm)…",
+			"downloading model 40%",
+			"loading model (wasm)…",
+		]);
+	});
+
 	it("posts load-failed and error when all devices fail", async () => {
 		pipelineImpl = vi.fn(async () => {
 			throw new Error("total failure");
