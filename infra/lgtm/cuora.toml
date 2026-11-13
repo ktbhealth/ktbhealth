@@ -1,0 +1,29 @@
+# infra/lgtm — cuora secret surface (scoped to the LGTM stack).
+# Refs are committed; values live in the vault, never in the repo.
+# Store with: printf '%s' "$VAL" | cuora put --env prod cuora://ktb/<name>
+#
+# Usage on the LGTM host:
+#   cd infra/lgtm
+#   cuora run --env prod --config cuora.toml -- sh -c \
+#     'GF_SECURITY_ADMIN_PASSWORD="$GF_SECURITY_ADMIN_PASSWORD" docker compose up -d'
+# (compose reads .env too — cuora run injects the var into the compose
+# process env, which takes precedence over .env for interpolation.)
+
+[vaults.ktb]
+kind = "cf"
+url = "https://cuora.ktbhealth.workers.dev"
+token_env = "CUORA_CF_TOKEN"
+cache = ["dev", "preview"]
+
+[vaults.ktb.tokens]
+dev = "cuora://ktb/cf-token-dev"
+preview = "cuora://ktb/cf-token-dev"
+prod = "cuora://ktb/cf-token-prod"
+
+[envs]
+dev = { vault = "ktb" }
+preview = { vault = "ktb" }
+prod = { vault = "ktb" }
+
+[secrets]
+GF_SECURITY_ADMIN_PASSWORD = "cuora://ktb/grafana-admin-password"

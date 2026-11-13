@@ -58,8 +58,13 @@ RED metrics app-side (`effect/Metric` → OTLP metrics), not from traces,
 so sampling traces cannot skew metrics. The `tail_sampling` processor
 (`otelcol-config.yaml`) keeps every error trace, every trace slower than
 2s, and a 15% probabilistic sample of the rest — applied per-trace after
-a 10s `decision_wait`. If trace volume ever demands it, move sampling to
-a dedicated collector in front of this one; the policies are
+a 10s `decision_wait`. Corollary for app config: keep
+`KTB_TELEMETRY_TRACES_SAMPLE_RATE=1` (the default) — head-sampling in
+the Worker throws away traces *before* the collector can apply error/
+latency policies, which defeats tail sampling. Volume control belongs
+at the collector, where the full trace (status, duration, attributes)
+is visible. If trace volume ever demands it, move sampling to a
+dedicated collector in front of this one; the policies are
 self-contained and copy over.
 
 ## Layout
@@ -80,8 +85,12 @@ self-contained and copy over.
    image is ~900 MB and runs five backends). Install Docker + compose
    plugin. Open no inbound ports; everything is outbound via tunnel.
 2. **Checkout**: clone this repo (or copy `infra/lgtm/`) onto the VM.
-3. **Env**: `cp .env.example .env` and set `GF_SECURITY_ADMIN_PASSWORD`
-   to a long random value.
+3. **Env**: `cp .env.example .env`. The Grafana admin password is in
+   the cuora vault (`cuora://ktb/grafana-admin-password`, prod+dev) —
+   either fill `.env` manually or inject at runtime:
+   `cuora run --env prod --config cuora.toml -- docker compose up -d`
+   (requires the cuora CLI + `CUORA_CF_TOKEN` on the host; see
+   `cuora.toml` here). `GF_SECURITY_ADMIN_USER` stays `admin`.
 4. **Start**: `docker compose --env-file .env up -d` — first boot pulls
    ~900 MB and takes a couple of minutes; `docker compose ps` should
    show `healthy` once `/tmp/ready` exists.
@@ -114,6 +123,7 @@ self-contained and copy over.
    OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
    # optional:
    # OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer <token>
+   # KTB_TELEMETRY_TRACES_SAMPLE_RATE=1   # keep at 1.0 — see sampling note
    ```
    `packages/observability/src/config.ts` appends `/v1/<signal>` per
    signal, so the base URL must have **no path**. Insecure `http://`
