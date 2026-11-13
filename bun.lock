@@ -278,6 +278,7 @@
       "devDependencies": {
         "@ktb/eval-dataset-stub": "workspace:*",
         "@types/better-sqlite3": "^9.6.0",
+        "@types/node": "^22.10.2",
         "vitest": "5.1.0",
       },
     },
