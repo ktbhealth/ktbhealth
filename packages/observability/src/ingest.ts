@@ -47,10 +47,78 @@ export type ClientTelemetryBatch = typeof ClientTelemetryBatch.Type;
  * (success carries the typed batch; failure carries `SchemaError`). */
 export const decodeClientTelemetryBatch = Schema.decodeUnknownExit(ClientTelemetryBatch);
 
+/**
+ * Hard cap on `POST /api/telemetry` request bodies, enforced BEFORE
+ * JSON parsing. Sized above the worst legal batch — 100 events ×
+ * bounded fields (120-char name, 500-char message, 4 000-char stack,
+ * attributes) is ≈600 KiB — with headroom for JSON overhead.
+ */
+export const MAX_CLIENT_TELEMETRY_BODY_BYTES = 1_048_576;
+
+/**
+ * Read a request body as text with a hard byte cap. `Content-Length`
+ * is only a hint (it can be absent on chunked uploads or simply lie),
+ * so the stream itself is bounded: reading stops and `null` is returned
+ * as soon as `maxBytes` is exceeded. Returns `""` for bodyless
+ * requests; never throws on stream errors — a failed read yields `null`
+ * (treated like an oversized/aborted body by the caller).
+ */
+export const readRequestBodyLimited = async (
+	request: Request,
+	maxBytes: number,
+): Promise<string | null> => {
+	const declared = Number(request.headers.get("content-length") ?? "");
+	if (Number.isFinite(declared) && declared > maxBytes) return null;
+	const stream = request.body;
+	if (stream === null) return "";
+	const reader = stream.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	try {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			if (value === undefined) continue;
+			total += value.byteLength;
+			if (total > maxBytes) {
+				await reader.cancel().catch(() => {});
+				return null;
+			}
+			chunks.push(value);
+		}
+	} catch {
+		return null;
+	} finally {
+		reader.releaseLock();
+	}
+	const bytes = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return new TextDecoder().decode(bytes);
+};
+
 const truncate = (value: string, max: number): string =>
 	value.length > max ? `${value.slice(0, max)}…` : value;
 
 const PATH_LIKE = /^\/?[A-Za-z0-9_\-./~%]*$/;
+
+/** Client timestamps are wall-clock claims from an untrusted browser —
+ * only a plausible window survives: not before 2000-01-01 and not more
+ * than 5 minutes ahead of server time (clock skew tolerance). Anything
+ * else is dropped rather than propagated into logs/traces. */
+const MIN_PLAUSIBLE_TIMESTAMP_MS = 946_684_800_000; // 2000-01-01T00:00:00Z
+const MAX_CLOCK_SKEW_MS = 5 * 60_000;
+
+const plausibleTimestamp = (value: number | undefined): number | undefined =>
+	value !== undefined &&
+	Number.isFinite(value) &&
+	value >= MIN_PLAUSIBLE_TIMESTAMP_MS &&
+	value <= Date.now() + MAX_CLOCK_SKEW_MS
+		? value
+		: undefined;
 
 /**
  * Final scrub before a client event becomes a log record: paths must look
@@ -75,6 +143,7 @@ export const sanitizeClientEvent = (event: ClientTelemetryEvent): ClientTelemetr
 	const path = event.path?.split("?")[0];
 	return {
 		...event,
+		timestamp: plausibleTimestamp(event.timestamp),
 		name: truncate(event.name, 120),
 		message: event.message === undefined ? undefined : truncate(event.message, 500),
 		stack: event.stack === undefined ? undefined : truncate(event.stack, 4_000),

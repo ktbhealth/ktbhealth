@@ -17,6 +17,7 @@ import { getLocale } from "#/paraglide/runtime.js";
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { makeTenantDirectory } from "./tenant-directory.ts";
 import { requestTelemetryContext } from "./telemetry.ts";
+import { makeFlushThrottler } from "./telemetry-flush.ts";
 import { setAccessLogSink } from "./access-log.ts";
 import { createApp } from "@ktb/app-host";
 import type { ExportFormat, RecordExporter } from "@ktb/interop";
@@ -172,6 +173,12 @@ setServerRuntime({
 export const ai = aiBinding;
 export const audioBucket = env.AUDIO_BUCKET;
 
+/** Coalesced flush (see telemetry-flush.ts): at most one real drain per
+ * min-interval across ALL callers — the worker entry invokes this after
+ * every fetch and queue batch, and per-request draining would multiply
+ * OTLP export subrequests under load. */
+const throttledFlush = makeFlushThrottler();
+
 /** Drain OTLP exporters after request/batch handling — bounded and
  * never rejects; the worker entry schedules it via `ctx.waitUntil`. */
-export const flushTelemetry = (): Promise<void> => app.flushTelemetry();
+export const flushTelemetry = (): Promise<void> => throttledFlush(app.flushTelemetry);

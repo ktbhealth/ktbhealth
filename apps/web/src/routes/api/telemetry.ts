@@ -4,6 +4,8 @@ import * as Effect from "effect/Effect";
 import {
 	clientEventsDropped,
 	decodeClientTelemetryBatch,
+	MAX_CLIENT_TELEMETRY_BODY_BYTES,
+	readRequestBodyLimited,
 	recordUnsafe,
 	tagged,
 	Telemetry,
@@ -17,7 +19,8 @@ import { checkTelemetryIngestRateLimit } from "#/lib/telemetry-rate-limit.ts";
  * the Telemetry service sanitizes, logs and counts them. Unauthenticated
  * by design (anonymous visitors generate telemetry too) — payloads are
  * schema-validated, sanitized and rate-shaped by construction; abuse is
- * bounded by batch size caps, the disabled flag, and the fixed-window
+ * bounded by the payload size cap, batch size caps, the disabled flag,
+ * client-event sampling, and the fixed-window
  * ingest rate limit (per client IP + global ceiling — see
  * lib/telemetry-rate-limit.ts).
  */
@@ -38,9 +41,17 @@ async function handle({ request }: { request: Request }) {
 			},
 		);
 	}
+	// Body-size guard before any parsing: Content-Length is only a hint,
+	// so the read itself is bounded (chunked/lied lengths can't smuggle
+	// an unbounded payload into JSON.parse).
+	const raw = await readRequestBodyLimited(request, MAX_CLIENT_TELEMETRY_BODY_BYTES);
+	if (raw === null) {
+		recordUnsafe(tagged(clientEventsDropped, { reason: "oversized" }), 1);
+		return Response.json({ error: "payload too large" }, { status: 413 });
+	}
 	let body: unknown;
 	try {
-		body = await request.json();
+		body = JSON.parse(raw);
 	} catch {
 		recordUnsafe(tagged(clientEventsDropped, { reason: "invalid" }), 1);
 		return Response.json({ error: "invalid json" }, { status: 400 });

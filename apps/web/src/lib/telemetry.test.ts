@@ -31,6 +31,27 @@ describe("requestTelemetryContext", () => {
 		expect(ctx.traceparent).toBeUndefined();
 	});
 
+	it("drops malformed correlation headers instead of propagating them", async () => {
+		headers.current = new Headers({
+			"x-request-id": "bad id with spaces",
+			"x-trace-id": "also bad",
+			traceparent: "not-a-traceparent",
+		});
+		const ctx = await requestTelemetryContext();
+		expect(ctx.requestId).toMatch(/^[0-9a-f-]{36}$|^req-/);
+		expect(ctx.requestId).not.toBe("bad id with spaces");
+		expect(ctx.traceparent).toBeUndefined();
+	});
+
+	it("falls back to x-trace-id when x-request-id is absent or invalid", async () => {
+		headers.current = new Headers({
+			"x-request-id": "has space",
+			"x-trace-id": "trace-legacy",
+		});
+		const ctx = await requestTelemetryContext();
+		expect(ctx.requestId).toBe("trace-legacy");
+	});
+
 	it("generates a fresh request id outside a request context", async () => {
 		headers.current = null;
 		const ctx = await requestTelemetryContext();

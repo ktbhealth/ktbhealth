@@ -93,6 +93,42 @@ describe("observability api routes", () => {
 			expect(res.status).toBe(405);
 		});
 
+		it("rejects oversized Content-Length with 413 before parsing", async () => {
+			const res = await handlersOf(TelemetryRoute).POST!({
+				request: new Request("http://localhost/api/telemetry", {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						"content-length": String(2 * 1024 * 1024),
+					},
+					body: JSON.stringify({ events: [{ type: "event", name: "x" }] }),
+				}),
+			} as never);
+			expect(res.status).toBe(413);
+			expect(mocks.run).not.toHaveBeenCalled();
+		});
+
+		it("rejects streamed bodies exceeding the cap with 413", async () => {
+			// Content-Length absent/lying: the bounded read is the guard.
+			const chunk = new TextEncoder().encode("x".repeat(64 * 1024));
+			const stream = new ReadableStream<Uint8Array>({
+				start(controller) {
+					for (let i = 0; i < 20; i++) controller.enqueue(chunk); // 1.25 MiB
+					controller.close();
+				},
+			});
+			const request = new Request("http://localhost/api/telemetry", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: stream,
+				// @ts-expect-error duplex is required for streamed request bodies in node
+				duplex: "half",
+			});
+			const res = await handlersOf(TelemetryRoute).POST!({ request } as never);
+			expect(res.status).toBe(413);
+			expect(mocks.run).not.toHaveBeenCalled();
+		});
+
 		it("rate-limits per client IP with 429 + Retry-After", async () => {
 			(env as unknown as Record<string, unknown>).KTB_TELEMETRY_RATE_LIMIT_PER_IP = "1";
 			(env as unknown as Record<string, unknown>).KTB_TELEMETRY_RATE_LIMIT_GLOBAL = "100";

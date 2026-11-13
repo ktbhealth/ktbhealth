@@ -5,6 +5,7 @@ import { Telemetry } from "@ktb/observability";
 import { PlatformAdmin } from "@ktb/platform";
 import { getSessionUser } from "#/lib/auth.ts";
 import { run } from "#/lib/platform.ts";
+import { timingSafeEqual } from "#/lib/timing-safe.ts";
 import { env } from "cloudflare:workers";
 
 /**
@@ -16,10 +17,14 @@ import { env } from "cloudflare:workers";
  */
 async function handle({ request }: { request: Request }) {
 	const token = (env as { METRICS_SCRAPE_TOKEN?: string }).METRICS_SCRAPE_TOKEN;
+	// Timing-safe compare: plain string equality would leak the token
+	// through early-exit timing on a scrape endpoint.
+	const provided = request.headers.get("authorization");
 	const authorized =
 		token !== undefined &&
 		token !== "" &&
-		request.headers.get("authorization") === `Bearer ${token}`;
+		provided !== null &&
+		(await timingSafeEqual(provided, `Bearer ${token}`));
 	// Platform admins may also scrape — metrics reveal traffic shapes, so
 	// they're never world-readable.
 	const isAdmin = authorized

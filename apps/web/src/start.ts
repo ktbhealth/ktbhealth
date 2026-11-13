@@ -6,8 +6,10 @@ import {
 import { requestLocale } from "#/lib/i18n.ts";
 import { accessLog } from "#/lib/access-log.ts";
 import {
+	isValidTraceparent,
 	newRequestId,
 	recordUnsafe,
+	sanitizeRequestId,
 	tagged,
 	httpRequests,
 	httpRequestDuration,
@@ -37,11 +39,45 @@ const localeMiddleware = createMiddleware().server(async ({ request, next }) => 
  */
 const telemetryMiddleware = createMiddleware().server(
 	async ({ request, next, handlerType, pathname }) => {
-		const requestId = request.headers.get("x-request-id") ?? newRequestId();
-		const traceparent = request.headers.get("traceparent") ?? undefined;
+		// Correlation headers are client-controlled — validate before
+		// propagating into logs, response headers and trace context.
+		// Malformed values are replaced by a fresh id / dropped parent.
+		const requestId = sanitizeRequestId(request.headers.get("x-request-id")) ?? newRequestId();
+		const rawTraceparent = request.headers.get("traceparent");
+		const traceparent = isValidTraceparent(rawTraceparent) ? rawTraceparent : undefined;
 		const started = Date.now();
-		const result = await next();
-		const durationMs = Date.now() - started;
+
+		// RED metrics + structured access log — shared by the success and
+		// the thrown-request paths so errors can't go unobserved.
+		const emit = async (status: number): Promise<void> => {
+			const durationMs = Date.now() - started;
+			recordUnsafe(tagged(httpRequests, { handlerType, status }), 1);
+			recordUnsafe(tagged(httpRequestDuration, { handlerType }), durationMs);
+			// Emitted through the app runtime's logger set (console JSON +
+			// OTLP) via the sink platform.ts registers, so the record
+			// reaches exporters, not just Workers Logs. Falls back to a
+			// raw console line before composition (see access-log.ts).
+			await accessLog({
+				method: request.method,
+				path: pathname,
+				status,
+				handlerType,
+				durationMs,
+				requestId,
+				traceId: traceparent?.split("-")[1],
+			});
+		};
+
+		let result: Awaited<ReturnType<typeof next>>;
+		try {
+			result = await next();
+		} catch (error) {
+			// A throwing handler still produces metrics + an access record
+			// (status 500) — then the error propagates to the framework's
+			// error handling unchanged.
+			await emit(500);
+			throw error;
+		}
 
 		// `next()` resolves to the shared pipeline result; `response` is
 		// typed `Response` but SSR may hand back a wrapper carrying one.
@@ -54,22 +90,7 @@ const telemetryMiddleware = createMiddleware().server(
 					: undefined;
 		const status = response?.status ?? 0;
 
-		recordUnsafe(tagged(httpRequests, { handlerType, status }), 1);
-		recordUnsafe(tagged(httpRequestDuration, { handlerType }), durationMs);
-
-		// Structured access log — emitted through the app runtime's logger
-		// set (console JSON + OTLP) via the sink platform.ts registers, so
-		// the record reaches exporters, not just Workers Logs. Falls back
-		// to a raw console line before composition (see access-log.ts).
-		await accessLog({
-			method: request.method,
-			path: pathname,
-			status,
-			handlerType,
-			durationMs,
-			requestId,
-			traceId: traceparent?.split("-")[1],
-		});
+		await emit(status);
 
 		// Echo correlation ids back so clients/support can quote them.
 		// Response headers on a constructed Response are mutable pre-send.

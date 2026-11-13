@@ -129,6 +129,39 @@ describe("telemetry request middleware", () => {
 		expect(result.response).toBe("not-a-response");
 	});
 
+	it("replaces malformed correlation headers with fresh values", async () => {
+		const request = new Request("http://localhost/x", {
+			headers: {
+				"x-request-id": "bad id with spaces",
+				traceparent: "not-a-traceparent",
+			},
+		});
+		const result = await run(request);
+		const echoed = result.response.headers.get("x-request-id");
+		expect(echoed).toBeTruthy();
+		expect(echoed).not.toBe("bad id with spaces");
+		expect(result.response.headers.get("x-traceparent")).toBeNull();
+	});
+
+	it("records metrics and an access log with status 500 when next() throws", async () => {
+		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+		const request = new Request("http://localhost/x", {
+			headers: { "x-request-id": "rid-throw" },
+		});
+		const failure = new Error("handler exploded");
+		await expect(run(request, () => Promise.reject(failure))).rejects.toBe(failure);
+		const line = info.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.find((l: string) => l.includes("http.access"));
+		expect(line).toBeDefined();
+		expect(JSON.parse(line!)).toMatchObject({
+			message: "http.access",
+			status: 500,
+			requestId: "rid-throw",
+		});
+		vi.restoreAllMocks();
+	});
+
 	it("emits an http.access record with request context", async () => {
 		const info = vi.spyOn(console, "info").mockImplementation(() => {});
 		const request = new Request("http://localhost/x", {

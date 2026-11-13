@@ -68,16 +68,29 @@ const LOG_LEVEL_BY_TYPE = {
 } as const;
 
 /** Shared ingest implementation — both drivers use it; only the
- * surrounding exporters differ. */
+ * surrounding exporters differ.
+ *
+ * `KTB_TELEMETRY_CLIENT_SAMPLE_RATE` is enforced HERE, server-side, per
+ * event: each event flips a weighted coin (`random() < rate`), the same
+ * convention `sampledTracer` uses for root spans. Server-side (not
+ * client-side) because the env binding never reaches the browser and a
+ * misconfigured/hostile client can't bypass it; `random` is injectable
+ * for tests. */
 export const ingestClientEvents =
-	(config: TelemetryConfig) =>
+	(config: TelemetryConfig, random: () => number = Math.random) =>
 	(batch: ClientTelemetryBatch): Effect.Effect<void> =>
 		Effect.gen(function* () {
-			if (!config.clientTelemetry.enabled) {
+			const { enabled, sampleRate } = config.clientTelemetry;
+			if (!enabled) {
 				yield* record(tagged(clientEventsDropped, { reason: "disabled" }), 1);
 				return;
 			}
+			let sampledOut = 0;
 			for (const raw of batch.events) {
+				if (sampleRate < 1 && random() >= sampleRate) {
+					sampledOut += 1;
+					continue;
+				}
 				const event: ClientTelemetryEvent = sanitizeClientEvent(raw);
 				const attrs: Record<string, string | number | boolean> = {
 					type: event.type,
@@ -90,6 +103,7 @@ export const ingestClientEvents =
 				const message = `client.${event.type}`;
 				const annotations: Record<string, unknown> = { ...attrs };
 				if (event.message !== undefined) annotations["event.message"] = event.message;
+				if (event.timestamp !== undefined) annotations["event.timestamp"] = event.timestamp;
 				if (event.requestId !== undefined) annotations["telemetry.request_id"] = event.requestId;
 				// annotateLogs (not a log* arg) so fields land in real log
 				// annotations — OTLP attributes and the redactor both see them.
@@ -101,6 +115,9 @@ export const ingestClientEvents =
 					yield* Effect.logDebug("client.error.stack", { stack: event.stack });
 				}
 				yield* record(tagged(clientEvents, { type: event.type }), 1);
+			}
+			if (sampledOut > 0) {
+				yield* record(tagged(clientEventsDropped, { reason: "sampled" }), sampledOut);
 			}
 		}).pipe(
 			// Best-effort by contract: any failure or defect while logging

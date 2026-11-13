@@ -5,6 +5,8 @@ import * as Metric from "effect/Metric";
 
 import {
 	decodeClientTelemetryBatch,
+	MAX_CLIENT_TELEMETRY_BODY_BYTES,
+	readRequestBodyLimited,
 	sanitizeClientEvent,
 	type ClientTelemetryEvent,
 } from "./ingest.ts";
@@ -105,6 +107,90 @@ describe("sanitizeClientEvent", () => {
 		const out = sanitizeClientEvent({ type: "event", name: "x" });
 		expect(out.attributes).toBeUndefined();
 		expect(out.path).toBeUndefined();
+	});
+});
+
+describe("sanitizeClientEvent timestamp", () => {
+	it("keeps plausible client timestamps", () => {
+		const now = Date.now();
+		const out = sanitizeClientEvent({
+			type: "event",
+			name: "x",
+			timestamp: now - 1_000,
+		});
+		expect(out.timestamp).toBe(now - 1_000);
+	});
+
+	it("drops implausible, future and non-finite timestamps", () => {
+		const now = Date.now();
+		for (const timestamp of [
+			0,
+			946_684_799_999, // before 2000-01-01
+			now + 6 * 60_000, // beyond clock-skew tolerance
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+		]) {
+			const out = sanitizeClientEvent({ type: "event", name: "x", timestamp });
+			expect(out.timestamp).toBeUndefined();
+		}
+	});
+});
+
+describe("readRequestBodyLimited", () => {
+	const post = (body: BodyInit | null, headers: Record<string, string> = {}) =>
+		new Request("http://localhost/api/telemetry", { method: "POST", headers, body });
+
+	it("returns the body text under the cap", async () => {
+		await expect(readRequestBodyLimited(post('{"events":[]}'), 1_024)).resolves.toBe(
+			'{"events":[]}',
+		);
+	});
+
+	it("returns empty string for a bodyless request", async () => {
+		await expect(readRequestBodyLimited(post(null), 1_024)).resolves.toBe("");
+	});
+
+	it("rejects via Content-Length before reading", async () => {
+		await expect(
+			readRequestBodyLimited(post("x".repeat(10), { "content-length": "999999" }), 100),
+		).resolves.toBeNull();
+	});
+
+	it("rejects streamed bodies that exceed the cap despite a small Content-Length", async () => {
+		// Content-Length lies (or is absent): the bounded read is the guard.
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode("x".repeat(60)));
+				controller.enqueue(new TextEncoder().encode("y".repeat(60)));
+				controller.close();
+			},
+		});
+		const request = new Request("http://localhost/api/telemetry", {
+			method: "POST",
+			body: stream,
+			// @ts-expect-error duplex is required for streamed request bodies in node
+			duplex: "half",
+		});
+		await expect(readRequestBodyLimited(request, 100)).resolves.toBeNull();
+	});
+
+	it("returns null when the stream errors mid-read", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.error(new Error("boom"));
+			},
+		});
+		const request = new Request("http://localhost/api/telemetry", {
+			method: "POST",
+			body: stream,
+			// @ts-expect-error duplex is required for streamed request bodies in node
+			duplex: "half",
+		});
+		await expect(readRequestBodyLimited(request, 1_024)).resolves.toBeNull();
+	});
+
+	it("exposes the production cap sized above the max legal batch", () => {
+		expect(MAX_CLIENT_TELEMETRY_BODY_BYTES).toBeGreaterThanOrEqual(600 * 1024);
 	});
 });
 

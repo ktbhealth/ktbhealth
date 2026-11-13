@@ -71,6 +71,55 @@ describe("createApp", () => {
 		await expect(disposed.logAccess({ method: "GET" })).resolves.toBeUndefined();
 	});
 
+	it("logAccess emits inside a span when trace context fields are present", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		await app.logAccess({
+			method: "GET",
+			path: "/x",
+			status: 200,
+			requestId: "r1",
+			traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+		});
+		const line = log.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.find((l: string) => l.includes("http.access"));
+		expect(line).toBeDefined();
+		expect(JSON.parse(line!)).toMatchObject({ message: "http.access", level: "INFO" });
+	});
+
+	it("logAccess accepts a traceId + spanId pair without a raw traceparent", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		await app.logAccess({
+			method: "GET",
+			path: "/x",
+			status: 200,
+			requestId: "r1",
+			traceId: "0af7651916cd43dd8448eb211c80319c",
+			spanId: "b7ad6b7169203331",
+		});
+		const line = log.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.find((l: string) => l.includes("http.access"));
+		expect(line).toBeDefined();
+	});
+
+	it("logAccess ignores malformed trace context instead of failing", async () => {
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		await app.logAccess({
+			method: "GET",
+			path: "/x",
+			status: 200,
+			requestId: "r1",
+			traceparent: "not-a-traceparent",
+			traceId: "short",
+			spanId: "b7ad6b7169203331",
+		});
+		const line = log.mock.calls
+			.map((c: unknown[]) => String(c[0]))
+			.find((l: string) => l.includes("http.access"));
+		expect(line).toBeDefined();
+	});
+
 	it("run accepts a telemetry seed with route and traceparent", async () => {
 		await expect(
 			app.run(Effect.succeed("ok"), {

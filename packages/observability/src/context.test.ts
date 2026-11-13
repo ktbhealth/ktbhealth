@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import * as Effect from "effect/Effect";
 
 import {
+	isValidTraceparent,
+	sanitizeRequestId,
 	telemetryAnnotations,
 	telemetryContext,
 	TelemetryContext,
@@ -140,6 +142,47 @@ describe("newRequestId", () => {
 	});
 });
 
+describe("isValidTraceparent", () => {
+	it("accepts well-formed W3C traceparent values", () => {
+		expect(isValidTraceparent("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")).toBe(
+			true,
+		);
+		expect(isValidTraceparent("ff-ABCDEF0123456789ABCDEF0123456789-0123456789ABCDEF-00")).toBe(
+			true,
+		);
+	});
+
+	it("rejects missing and malformed values", () => {
+		expect(isValidTraceparent(undefined)).toBe(false);
+		expect(isValidTraceparent(null)).toBe(false);
+		expect(isValidTraceparent("")).toBe(false);
+		expect(isValidTraceparent("not-a-traceparent")).toBe(false);
+		expect(isValidTraceparent("00-short-01")).toBe(false);
+		expect(isValidTraceparent("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01 ")).toBe(
+			true, // trailing OWS trimmed before the check
+		);
+	});
+});
+
+describe("sanitizeRequestId", () => {
+	it("keeps printable-ASCII ids within the length cap", () => {
+		expect(sanitizeRequestId("rid-1")).toBe("rid-1");
+		expect(sanitizeRequestId("req-inbound")).toBe("req-inbound");
+		expect(sanitizeRequestId("  padded-id  ")).toBe("padded-id");
+		expect(sanitizeRequestId("a".repeat(128))).toBe("a".repeat(128));
+	});
+
+	it("rejects unsafe or oversize values", () => {
+		expect(sanitizeRequestId(undefined)).toBeUndefined();
+		expect(sanitizeRequestId(null)).toBeUndefined();
+		expect(sanitizeRequestId("")).toBeUndefined();
+		expect(sanitizeRequestId("   ")).toBeUndefined();
+		expect(sanitizeRequestId("has space")).toBeUndefined();
+		expect(sanitizeRequestId("line\nbreak")).toBeUndefined();
+		expect(sanitizeRequestId("a".repeat(129))).toBeUndefined();
+	});
+});
+
 describe("withTelemetryContext traceparent", () => {
 	it("sets traceparent when provided", async () => {
 		const ctx = await Effect.runPromise(
@@ -149,5 +192,53 @@ describe("withTelemetryContext traceparent", () => {
 			),
 		);
 		expect(ctx.traceparent).toBe("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+	});
+});
+
+describe("externalSpanFromLogFields", () => {
+	it("prefers a valid traceparent field (sampled flag preserved)", async () => {
+		const { externalSpanFromLogFields } = await import("./context.ts");
+		const span = externalSpanFromLogFields({
+			traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-00",
+		});
+		expect(span?.traceId).toBe("0af7651916cd43dd8448eb211c80319c");
+		expect(span?.spanId).toBe("b7ad6b7169203331");
+		expect(span?.sampled).toBe(false);
+	});
+
+	it("falls back to a traceId + spanId pair", async () => {
+		const { externalSpanFromLogFields } = await import("./context.ts");
+		const span = externalSpanFromLogFields({
+			traceId: "0af7651916cd43dd8448eb211c80319c",
+			spanId: "b7ad6b7169203331",
+		});
+		expect(span?.traceId).toBe("0af7651916cd43dd8448eb211c80319c");
+		expect(span?.spanId).toBe("b7ad6b7169203331");
+		expect(span?.sampled).toBe(true);
+	});
+
+	it("ignores a malformed traceparent when a valid id pair is present", async () => {
+		const { externalSpanFromLogFields } = await import("./context.ts");
+		const span = externalSpanFromLogFields({
+			traceparent: "garbage",
+			traceId: "0af7651916cd43dd8448eb211c80319c",
+			spanId: "b7ad6b7169203331",
+		});
+		expect(span?.traceId).toBe("0af7651916cd43dd8448eb211c80319c");
+	});
+
+	it("returns undefined for missing or malformed correlation data", async () => {
+		const { externalSpanFromLogFields } = await import("./context.ts");
+		expect(externalSpanFromLogFields({})).toBeUndefined();
+		expect(
+			externalSpanFromLogFields({ traceId: "0af7651916cd43dd8448eb211c80319c" }),
+		).toBeUndefined();
+		expect(
+			externalSpanFromLogFields({ traceId: "not-hex", spanId: "b7ad6b7169203331" }),
+		).toBeUndefined();
+		expect(
+			externalSpanFromLogFields({ traceId: "0af7651916cd43dd8448eb211c80319c", spanId: 42 }),
+		).toBeUndefined();
+		expect(externalSpanFromLogFields({ traceparent: "garbage" })).toBeUndefined();
 	});
 });

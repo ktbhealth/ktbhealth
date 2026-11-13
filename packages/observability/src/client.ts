@@ -128,6 +128,24 @@ const pathnameOf = (url: string, base?: string): string | undefined => {
 	}
 };
 
+/**
+ * True when `url` resolves to the page's own origin. Trace-context
+ * headers (`traceparent`, `x-request-id`) are only injected on
+ * same-origin requests: on cross-origin fetches they'd trigger CORS
+ * preflights (and leak internal trace ids to third parties) for zero
+ * tracing benefit — the remote service wouldn't join our trace anyway.
+ * Relative URLs and `window.location`-relative forms resolve same-origin.
+ */
+const isSameOriginUrl = (url: string): boolean => {
+	try {
+		const origin = window.location?.origin;
+		if (origin === undefined || origin === "") return false;
+		return new URL(url, origin).origin === origin;
+	} catch {
+		return false;
+	}
+};
+
 /** `Request`-like inputs (real `Request` or cross-realm/test doubles)
  * carry `url`/`method`/`headers`; plain strings/`URL`s do not. */
 const isRequestLike = (
@@ -379,12 +397,21 @@ export const initClientTelemetry = (options: ClientTelemetryOptions = {}): Clien
 				return originalFetch.call(window, input, init);
 			}
 
-			const traceparent = newTraceparent();
-			const requestId = randomUUID();
-			const merged = mergeHeaders(baseHeaders, {
-				traceparent,
-				"x-request-id": requestId,
-			});
+			// Cross-origin calls are still timed and recorded, but get NO
+			// injected headers — see isSameOriginUrl.
+			const sameOrigin = isSameOriginUrl(url);
+			const traceparent = sameOrigin ? newTraceparent() : undefined;
+			const requestId = sameOrigin ? randomUUID() : undefined;
+			const requestInit =
+				sameOrigin && traceparent !== undefined && requestId !== undefined
+					? {
+							...init,
+							headers: mergeHeaders(baseHeaders, {
+								traceparent,
+								"x-request-id": requestId,
+							}),
+						}
+					: init;
 			const startedAt = Date.now();
 			const record = (status: number | string): void => {
 				enqueue({
@@ -403,7 +430,7 @@ export const initClientTelemetry = (options: ClientTelemetryOptions = {}): Clien
 				// Same call shape for both input kinds: `init.headers` fully
 				// determines outgoing headers, and for Request inputs the
 				// method/body/credentials still come from the request itself.
-				return originalFetch.call(window, input, { ...init, headers: merged }).then(
+				return originalFetch.call(window, input, requestInit).then(
 					(response) => {
 						record(response.status);
 						return response;

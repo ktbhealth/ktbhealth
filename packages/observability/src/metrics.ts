@@ -63,7 +63,8 @@ export const clientEvents = Metric.counter("ktb_client_events_total", {
 	incremental: true,
 });
 export const clientEventsDropped = Metric.counter("ktb_client_events_dropped_total", {
-	description: "Browser telemetry events rejected (disabled, invalid, rate-limited)",
+	description:
+		"Browser telemetry events rejected (disabled, invalid, rate-limited, oversized, sampled)",
 	incremental: true,
 });
 

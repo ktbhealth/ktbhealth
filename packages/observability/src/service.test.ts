@@ -52,6 +52,47 @@ describe("ingestClientEvents", () => {
 		expect(count).toBe(1);
 	});
 
+	it("enforces clientTelemetry.sampleRate per event", async () => {
+		const sampled = telemetryConfigFromEnv({ KTB_TELEMETRY_CLIENT_SAMPLE_RATE: "0.5" });
+		const registry = new Map();
+		// random() >= 0.5 drops, < 0.5 keeps — drive it deterministically.
+		const rolls = [0.9, 0.1, 0.9, 0.2];
+		const program = Effect.gen(function* () {
+			yield* ingestClientEvents(
+				sampled,
+				() => rolls.shift() ?? 0.9,
+			)(
+				batch([
+					{ type: "event", name: "drop-1" },
+					{ type: "event", name: "keep-1" },
+					{ type: "event", name: "drop-2" },
+					{ type: "event", name: "keep-2" },
+				]),
+			);
+			return {
+				kept: yield* countOf(tagged(clientEvents, { type: "event" })),
+				dropped: yield* countOf(tagged(clientEventsDropped, { reason: "sampled" })),
+			};
+		});
+		const counts = await Effect.runPromise(
+			Effect.provideService(program, Metric.MetricRegistry, registry),
+		);
+		expect(counts).toEqual({ kept: 2, dropped: 2 });
+	});
+
+	it("drops every event when the sample rate is 0", async () => {
+		const zero = telemetryConfigFromEnv({ KTB_TELEMETRY_CLIENT_SAMPLE_RATE: "0" });
+		const registry = new Map();
+		const program = Effect.gen(function* () {
+			yield* ingestClientEvents(zero)(batch([{ type: "event", name: "x" }]));
+			return yield* countOf(tagged(clientEventsDropped, { reason: "sampled" }));
+		});
+		const count = await Effect.runPromise(
+			Effect.provideService(program, Metric.MetricRegistry, registry),
+		);
+		expect(count).toBe(1);
+	});
+
 	it("counts ingest defects on telemetryErrors and never fails", async () => {
 		const registry = new Map();
 		// A throwing attribute getter defects inside sanitizeClientEvent —

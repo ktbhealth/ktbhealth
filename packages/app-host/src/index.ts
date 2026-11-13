@@ -5,6 +5,7 @@ import {
 	cqrsDispatchDuration,
 	cqrsDispatches,
 	cqrsDispatchFailures,
+	externalSpanFromLogFields,
 	externalSpanFromTraceparent,
 	newRequestId,
 	record,
@@ -123,6 +124,25 @@ export interface AppEnv extends ObservabilityEnv {
 		run(model: string, inputs: unknown): Promise<unknown>;
 	};
 }
+
+/**
+ * Bounded span attributes for the `http.access` span — scalar request
+ * fields only. `path` stays a log annotation: raw pathnames carry ids
+ * and would explode Tempo attribute cardinality; a route *template*
+ * belongs in `TelemetryContext.route` once the edge seeds it.
+ */
+const ACCESS_SPAN_ATTRIBUTE_KEYS = ["method", "handlerType", "status", "durationMs"] as const;
+
+const accessSpanAttributes = (
+	fields: Readonly<Record<string, unknown>>,
+): Record<string, string | number> => {
+	const out: Record<string, string | number> = {};
+	for (const key of ACCESS_SPAN_ATTRIBUTE_KEYS) {
+		const value = fields[key];
+		if (typeof value === "string" || typeof value === "number") out[key] = value;
+	}
+	return out;
+};
 
 /**
  * Production must never run without a bot check: with neither
@@ -516,12 +536,37 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	 * registered sink; the record flows through `CurrentLoggers` like
 	 * any other log line and lands as OTLP log attributes. Never
 	 * rejects: observability must not break the request path.
+	 *
+	 * Trace correlation: when the fields carry trace context (`traceparent`
+	 * or a `traceId`+`spanId` pair — see `externalSpanFromLogFields`), the
+	 * emission runs inside an `http.access` span parented to the inbound
+	 * trace. That is what stamps the OTLP `LogRecord.traceId`/`spanId`
+	 * fields Loki/Tempo correlate on — log annotations alone only reach
+	 * attribute bags. Fields without trace context emit uncorrelated,
+	 * exactly as before.
 	 */
-	const logAccess = (fields: Readonly<Record<string, unknown>>): Promise<void> =>
-		runtime.runPromise(Effect.logInfo("http.access").pipe(Effect.annotateLogs({ ...fields }))).then(
+	const logAccess = (fields: Readonly<Record<string, unknown>>): Promise<void> => {
+		const parent = externalSpanFromLogFields(fields);
+		// `traceparent`/`spanId` are correlation *inputs*, not log data —
+		// keep them out of the annotation bag (headers never reach logs);
+		// `traceId` stays for the existing Loki derived-field contract.
+		const { traceparent: _traceparent, spanId: _spanId, ...annotations } = fields;
+		const log = Effect.logInfo("http.access").pipe(Effect.annotateLogs(annotations));
+		const program =
+			parent === undefined
+				? log
+				: log.pipe(
+						Effect.withSpan("http.access", {
+							parent,
+							kind: "server",
+							attributes: accessSpanAttributes(fields),
+						}),
+					);
+		return runtime.runPromise(program).then(
 			() => undefined,
 			() => undefined,
 		);
+	};
 
 	return {
 		plugins,

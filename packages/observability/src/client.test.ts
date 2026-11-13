@@ -394,6 +394,49 @@ describe("fetch instrumentation", () => {
 		telemetry.dispose();
 	});
 
+	it("records cross-origin fetches without injecting trace headers", async () => {
+		const browser = installBrowser();
+		const fetchMock = browser.win.fetch;
+		const telemetry = initClientTelemetry();
+		fetchMock.mockResolvedValue({ status: 200, ok: true });
+
+		await browser.win.fetch("https://cdn.example.com/lib.js", {
+			method: "GET",
+			headers: { "x-custom": "keep" },
+		});
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		// Headers pass through untouched — no traceparent/x-request-id, so
+		// no CORS preflight is triggered on third-party requests.
+		const headers = new Headers(init?.headers);
+		expect(headers.get("traceparent")).toBeNull();
+		expect(headers.get("x-request-id")).toBeNull();
+		expect(headers.get("x-custom")).toBe("keep");
+
+		// The request is still timed and recorded — minus trace ids.
+		vi.advanceTimersByTime(5_000);
+		const [event] = beaconEvents(browser.win.navigator.sendBeacon);
+		expect(event).toMatchObject({
+			type: "request",
+			name: "web.request",
+			path: "/lib.js",
+			status: 200,
+		});
+		expect(event?.traceparent).toBeUndefined();
+		expect(event?.requestId).toBeUndefined();
+		telemetry.dispose();
+	});
+
+	it("treats protocol-relative cross-origin URLs as cross-origin", async () => {
+		const browser = installBrowser();
+		const fetchMock = browser.win.fetch;
+		const telemetry = initClientTelemetry();
+		fetchMock.mockResolvedValue({ status: 200, ok: true });
+		await browser.win.fetch("//cdn.example.com/x");
+		const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+		expect(new Headers(init?.headers).get("traceparent")).toBeNull();
+		telemetry.dispose();
+	});
+
 	it("resolves relative URLs against window.location", async () => {
 		const browser = installBrowser();
 		const telemetry = initClientTelemetry();

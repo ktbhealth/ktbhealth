@@ -90,6 +90,31 @@ export const telemetryAnnotations = (
 const TRACEPARENT = /^[0-9a-f]{2}-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})$/i;
 
 /**
+ * True when `value` is a syntactically valid W3C `traceparent` header.
+ * Inbound correlation headers are client-controlled: edges must check
+ * this before propagating the value into log fields, response headers
+ * or span parents (`externalSpanFromTraceparent` re-validates anyway).
+ */
+export const isValidTraceparent = (value: string | null | undefined): value is string =>
+	value !== null && value !== undefined && TRACEPARENT.test(value.trim());
+
+/** Printable ASCII only (no spaces, controls or obs-text) — safe to
+ * echo into log annotations and response headers verbatim. */
+const REQUEST_ID = /^[!-~]{1,128}$/;
+
+/**
+ * Validate an inbound request/correlation id (`x-request-id`,
+ * `x-trace-id`). Returns the trimmed id when it is printable ASCII
+ * within the length cap, `undefined` otherwise — callers substitute a
+ * freshly generated id rather than propagating attacker-controlled
+ * bytes into logs, metrics labels and trace context.
+ */
+export const sanitizeRequestId = (value: string | null | undefined): string | undefined => {
+	const trimmed = value?.trim();
+	return trimmed !== undefined && REQUEST_ID.test(trimmed) ? trimmed : undefined;
+};
+
+/**
  * Parse a raw `traceparent` header value into an Effect `ExternalSpan`
  * suitable for `Effect.withSpan(..., { parent })` — continues an
  * incoming trace across the HTTP → Effect boundary. Returns undefined
@@ -107,6 +132,44 @@ export const externalSpanFromTraceparent = (
 		spanId: match[2] as string,
 		sampled: (flags & 0x01) === 0x01,
 	});
+};
+
+const TRACE_ID_HEX = /^[0-9a-f]{32}$/i;
+const SPAN_ID_HEX = /^[0-9a-f]{16}$/i;
+
+/**
+ * Build an `ExternalSpan` parent from edge log-record fields — the
+ * correlation data an access log carries (`http.access` annotations).
+ * Accepts, in order:
+ *  1. `traceparent` — the raw inbound W3C header (preferred: carries the
+ *     sampled flag);
+ *  2. `traceId` + `spanId` — the already-split hex pair.
+ * Returns `undefined` when neither pair is present/valid so callers can
+ * emit the record uncorrelated instead of failing.
+ *
+ * Used by the app host's `logAccess` to run the access-log emission
+ * inside a span parented to the request trace — that is what stamps the
+ * OTLP `LogRecord.traceId`/`spanId` fields Loki/Tempo correlate on.
+ */
+export const externalSpanFromLogFields = (
+	fields: Readonly<Record<string, unknown>>,
+): Tracer.ExternalSpan | undefined => {
+	const traceparent = fields["traceparent"];
+	if (typeof traceparent === "string") {
+		const span = externalSpanFromTraceparent(traceparent);
+		if (span !== undefined) return span;
+	}
+	const traceId = fields["traceId"];
+	const spanId = fields["spanId"];
+	if (
+		typeof traceId === "string" &&
+		typeof spanId === "string" &&
+		TRACE_ID_HEX.test(traceId) &&
+		SPAN_ID_HEX.test(spanId)
+	) {
+		return Tracer.externalSpan({ traceId, spanId, sampled: true });
+	}
+	return undefined;
 };
 
 /**
