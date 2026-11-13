@@ -5,6 +5,7 @@ import {
 	logLevelLayer,
 	sampledTracer,
 	telemetryConfigFromEnv,
+	telemetryWarningsLayer,
 	Telemetry,
 	type ObservabilityEnv,
 	type TelemetryConfig,
@@ -176,6 +177,10 @@ export const makeOtlpLayers = (
 
 	const signals = Layer.mergeAll(
 		logLevelLayer(config),
+		// Config warnings (e.g. insecure http endpoints dropped during
+		// resolution) — logged whichever driver wins; the console driver
+		// merges the same layer for the all-dropped case.
+		telemetryWarningsLayer(config),
 		loggerLayer,
 		tracerLayer,
 		metricsLayer,

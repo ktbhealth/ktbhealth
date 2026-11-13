@@ -61,6 +61,16 @@ Prometheus scrape  (Effect effect/observability exporters)
 | `KTB_LOG_LEVEL`                                     | Minimum Effect log level                                     |
 | `METRICS_SCRAPE_TOKEN`                              | Bearer token for `GET /api/metrics`                          |
 
+**Transport security:** plain `http://` is only accepted for local
+collectors — `localhost`/`*.localhost`/`*.local`, loopback
+(`127.0.0.0/8`, `::1`), unspecified (`0.0.0.0`, `::`) and private IPv4
+(`10/8`, `172.16/12`, `192.168/16`, `169.254/16`), so docker-compose
+setups keep working. Any non-local `http://` endpoint is dropped during
+config resolution (that signal simply isn't exported) and a warning is
+logged at startup naming the offending env var and host — never header
+values or full URLs. Use `https://` (or `http://localhost:<port>` for a
+port-published local collector) for remote endpoints.
+
 ## Operational endpoints (apps/web)
 
 - `GET /api/health` — liveness.

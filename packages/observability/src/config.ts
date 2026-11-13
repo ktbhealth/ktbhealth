@@ -70,6 +70,12 @@ export interface TelemetryConfig {
 	};
 	/** KTB_LOG_LEVEL — minimum severity for emitted logs. */
 	readonly logLevel?: string;
+	/** Non-fatal resolution problems (e.g. an insecure remote `http://`
+	 * OTLP endpoint that was dropped). Drivers surface these via
+	 * `Effect.logWarning` at layer build; values never contain header
+	 * secrets or full URLs. Optional for backward compatibility with
+	 * hand-built configs. */
+	readonly warnings?: ReadonlyArray<string>;
 }
 
 const truthy = (value: string | undefined): boolean =>
@@ -139,6 +145,101 @@ const signalEndpoint = (
 	return `${trimmed}/v1/${signal}`;
 };
 
+/** Env var that won resolution for each signal — named in warnings so
+ * the operator fixes the right knob. */
+const SIGNAL_ENDPOINT_VARS = {
+	logs: "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+	traces: "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+	metrics: "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+} as const satisfies Record<keyof OtlpSignalEndpoints, keyof ObservabilityEnv>;
+
+/**
+ * True when an OTLP hostname is local/dev-only, where plain HTTP is
+ * acceptable (otelcol, jaeger, docker-compose collectors). Covers
+ * localhost names, loopback, unspecified and RFC1918/link-local IPv4 —
+ * private ranges stay allowed because compose networks hand out
+ * 172.x/192.168.x addresses that never leave the LAN. IPv6 is limited
+ * to ::/::1; unique-local (fc00::/7) is intentionally not matched.
+ */
+const isLocalHostname = (hostname: string): boolean => {
+	const host = hostname
+		.toLowerCase()
+		.replace(/\.$/, "")
+		.replace(/^\[|\]$/g, "");
+	if (
+		host === "localhost" ||
+		host.endsWith(".localhost") ||
+		host.endsWith(".local") ||
+		host === "0.0.0.0" ||
+		host === "::" ||
+		host === "::1"
+	) {
+		return true;
+	}
+	const parts = host.split(".");
+	if (parts.length !== 4) return false;
+	const octets = parts.map((part) => Number(part));
+	if (!octets.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) return false;
+	const [a, b] = octets;
+	return (
+		a === 10 ||
+		a === 127 ||
+		(a === 172 && b >= 16 && b <= 31) ||
+		(a === 192 && b === 168) ||
+		(a === 169 && b === 254)
+	);
+};
+
+/**
+ * Transport guard for OTLP endpoints: telemetry can carry sensitive
+ * operational data, so plain HTTP is only allowed to local collectors.
+ * Returns the offending `host[:port]` when `raw` is a parseable
+ * `http://` URL with a non-local host; undefined otherwise — https,
+ * non-http schemes and unparseable URLs pass through unchanged
+ * (exporters surface those errors as before).
+ */
+const insecureRemoteHost = (raw: string): string | undefined => {
+	let url: URL;
+	try {
+		url = new URL(raw);
+	} catch {
+		return undefined;
+	}
+	if (url.protocol !== "http:") return undefined;
+	return isLocalHostname(url.hostname) ? undefined : url.host;
+};
+
+/**
+ * Drop insecure remote `http://` endpoints, recording one warning per
+ * affected signal. An insecure per-signal override rejects that signal
+ * outright — it does NOT fall back to the base endpoint, since the
+ * operator explicitly aimed that signal elsewhere. Warnings carry only
+ * scheme + host (never the full URL, which could embed userinfo
+ * credentials, and never OTEL_EXPORTER_OTLP_HEADERS values).
+ */
+const guardOtlpEndpoints = (
+	endpoints: OtlpSignalEndpoints,
+	env: ObservabilityEnv,
+	warnings: string[],
+): OtlpSignalEndpoints => {
+	const guard = (signal: keyof OtlpSignalEndpoints): string | undefined => {
+		const url = endpoints[signal];
+		if (url === undefined) return undefined;
+		const host = insecureRemoteHost(url);
+		if (host === undefined) return url;
+		const perSignalVar = SIGNAL_ENDPOINT_VARS[signal];
+		const source =
+			(env[perSignalVar]?.trim() ?? "") === "" ? "OTEL_EXPORTER_OTLP_ENDPOINT" : perSignalVar;
+		warnings.push(
+			`${source} resolved an insecure http:// endpoint for signal "${signal}" ` +
+				`(host "${host}") — endpoint ignored to avoid leaking telemetry in cleartext; ` +
+				`use https:// or a local collector`,
+		);
+		return undefined;
+	};
+	return { logs: guard("logs"), traces: guard("traces"), metrics: guard("metrics") };
+};
+
 /**
  * Resolve telemetry configuration from platform bindings. Pure — no env
  * reads, no I/O — so tests and every runtime share the exact semantics.
@@ -153,7 +254,7 @@ export const telemetryConfigFromEnv = (env: ObservabilityEnv): TelemetryConfig =
 	const environment =
 		env.KTB_ENVIRONMENT?.trim() || resourceAttributes["deployment.environment"] || "development";
 	const headersRaw = parseKeyValueList(env.OTEL_EXPORTER_OTLP_HEADERS);
-	const endpoints: OtlpSignalEndpoints = {
+	const resolvedEndpoints: OtlpSignalEndpoints = {
 		logs: signalEndpoint(
 			"logs",
 			env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
@@ -170,6 +271,13 @@ export const telemetryConfigFromEnv = (env: ObservabilityEnv): TelemetryConfig =
 			env.OTEL_EXPORTER_OTLP_ENDPOINT,
 		),
 	};
+	// TLS enforcement: remote http:// endpoints are dropped with a
+	// warning. Skipped entirely when the SDK is disabled — nothing
+	// exports, so the resolved config stays verbatim.
+	const warnings: string[] = [];
+	const endpoints = disabled
+		? resolvedEndpoints
+		: guardOtlpEndpoints(resolvedEndpoints, env, warnings);
 	const compression =
 		env.OTEL_EXPORTER_OTLP_COMPRESSION?.trim().toLowerCase() === "gzip" ? "gzip" : "none";
 	return {
@@ -192,6 +300,7 @@ export const telemetryConfigFromEnv = (env: ObservabilityEnv): TelemetryConfig =
 			sampleRate: parseFloatClamped(env.KTB_TELEMETRY_CLIENT_SAMPLE_RATE, 1, 0, 1),
 		},
 		logLevel: parseLogLevel(env.KTB_LOG_LEVEL),
+		warnings,
 	};
 };
 

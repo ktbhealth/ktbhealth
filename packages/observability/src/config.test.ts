@@ -172,3 +172,107 @@ describe("telemetryConfigFromEnv", () => {
 		expect(config.otlp.exportIntervalMs).toBe(10_000);
 	});
 });
+
+describe("OTLP endpoint transport guard", () => {
+	it("rejects plain http endpoints on non-local hosts", () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel.example.com",
+		});
+		expect(config.otlp.endpoints).toEqual({});
+		expect(config.warnings).toHaveLength(3);
+		expect(config.warnings?.[0]).toContain("OTEL_EXPORTER_OTLP_ENDPOINT");
+		expect(config.warnings?.[0]).toContain("otel.example.com");
+		expect(config.warnings?.[0]).toContain('signal "logs"');
+	});
+
+	it("keeps https endpoints untouched with no warnings", () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.example.com",
+		});
+		expect(config.otlp.endpoints.logs).toBe("https://otel.example.com/v1/logs");
+		expect(config.warnings).toEqual([]);
+	});
+
+	it("allows http to local collectors", () => {
+		for (const endpoint of [
+			"http://localhost:4318",
+			"http://127.0.0.1:4318",
+			"http://127.10.0.2:4318",
+			"http://[::1]:4318",
+			"http://otel.local:4318",
+			"http://collector.localhost:4318",
+			"http://0.0.0.0:4318",
+			"http://10.0.0.5:4318",
+			"http://172.18.0.2:4318",
+			"http://192.168.1.10:4318",
+			"http://169.254.1.1:4318",
+		]) {
+			const config = telemetryConfigFromEnv({
+				OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
+			});
+			expect(config.otlp.endpoints.logs, endpoint).toBe(`${endpoint}/v1/logs`);
+			expect(config.warnings, endpoint).toEqual([]);
+		}
+	});
+
+	it("rejects http on public and edge-case hosts", () => {
+		for (const endpoint of [
+			"http://otel.example.com:4318",
+			"http://8.8.8.8:4318",
+			"http://172.15.0.1:4318", // just outside 172.16/12
+			"http://172.32.0.1:4318",
+			"http://collector.internal:4318",
+			"http://example.local.evil.com:4318",
+		]) {
+			const config = telemetryConfigFromEnv({
+				OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
+			});
+			expect(config.otlp.endpoints, endpoint).toEqual({});
+			expect(config.warnings, endpoint).toHaveLength(3);
+		}
+	});
+
+	it("validates each per-signal override independently", () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example.com",
+			OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://traces.example.com/v1/traces",
+			OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: "http://localhost:4318/v1/metrics",
+		});
+		// Insecure per-signal override rejects that signal outright — no
+		// fallback to the https base endpoint.
+		expect(config.otlp.endpoints.traces).toBeUndefined();
+		expect(config.otlp.endpoints.metrics).toBe("http://localhost:4318/v1/metrics");
+		expect(config.otlp.endpoints.logs).toBe("https://collector.example.com/v1/logs");
+		expect(config.warnings).toHaveLength(1);
+		expect(config.warnings?.[0]).toContain("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT");
+	});
+
+	it("names the base var when a derived endpoint is dropped", () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel.example.com",
+			OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://traces.example.com/v1/traces",
+		});
+		expect(config.otlp.endpoints.traces).toBe("https://traces.example.com/v1/traces");
+		expect(config.otlp.endpoints.logs).toBeUndefined();
+		expect(config.otlp.endpoints.metrics).toBeUndefined();
+		expect(config.warnings).toHaveLength(2);
+		expect(config.warnings?.every((w) => w.includes("OTEL_EXPORTER_OTLP_ENDPOINT"))).toBe(true);
+	});
+
+	it("leaves endpoints and warnings untouched when the SDK is disabled", () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_SDK_DISABLED: "true",
+			OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel.example.com",
+		});
+		expect(config.otlp.endpoints.logs).toBe("http://otel.example.com/v1/logs");
+		expect(config.warnings).toEqual([]);
+	});
+
+	it("passes through unparseable endpoints unchanged", () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: "not a url",
+		});
+		expect(config.otlp.endpoints.logs).toBe("not a url/v1/logs");
+		expect(config.warnings).toEqual([]);
+	});
+});

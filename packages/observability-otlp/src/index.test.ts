@@ -11,7 +11,9 @@ import { telemetryConfigFromEnv, Telemetry } from "@ktb/observability";
 
 import { makeOtlpLayers, otlpTelemetryDriver, TelemetryOtlpLive } from "./index.ts";
 
-const ENDPOINT = "http://otel-collector.test:4318";
+// https — plain http is only allowed for local collectors (see
+// guardOtlpEndpoints in @ktb/observability).
+const ENDPOINT = "https://otel-collector.test:4318";
 
 /** Env exercising every signal through the base endpoint. */
 const fullEnv = {
@@ -43,6 +45,21 @@ describe("otlpTelemetryDriver", () => {
 	it("is ineligible when OTEL_SDK_DISABLED is set", () => {
 		expect(otlpTelemetryDriver.when?.({ ...fullEnv, OTEL_SDK_DISABLED: "true" })).toBe(false);
 		expect(otlpTelemetryDriver.when?.({ ...fullEnv, OTEL_SDK_DISABLED: "1" })).toBe(false);
+	});
+
+	it("is ineligible when every endpoint is insecure remote http", () => {
+		expect(
+			otlpTelemetryDriver.when?.({ OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel.example.com" }),
+		).toBe(false);
+	});
+
+	it("stays eligible when only some signals were dropped as insecure", () => {
+		expect(
+			otlpTelemetryDriver.when?.({
+				OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector.example.com",
+				OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://traces.example.com/v1/traces",
+			}),
+		).toBe(true);
 	});
 
 	it("provides a layer", () => {
@@ -177,6 +194,38 @@ describe("makeOtlpLayers", () => {
 			// Only logs resolved: traces stay off, metrics stay on the
 			// Prometheus pull path.
 			expect(health).toEqual({ logs: "otlp", traces: "off", metrics: "prometheus" });
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("drops insecure remote http endpoints while keeping https signals", async () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: ENDPOINT,
+			OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://traces.example.com/v1/traces",
+		});
+		const stub = makeStubHttp();
+		const runtime = ManagedRuntime.make(makeOtlpLayers(config, stub.layer));
+		try {
+			const health = await runtime.runPromise(
+				Effect.gen(function* () {
+					const t = yield* Telemetry;
+					return yield* t.health;
+				}),
+			);
+			expect(health).toEqual({ logs: "otlp", traces: "off", metrics: "otlp" });
+
+			await runtime.runPromise(
+				Effect.gen(function* () {
+					yield* Effect.logInfo("partial otlp");
+					yield* Metric.update(testMetric, 1);
+					yield* flushAll;
+				}),
+			);
+			const urls = stub.requests.map((r) => r.url);
+			expect(urls).toContain(`${ENDPOINT}/v1/logs`);
+			expect(urls).toContain(`${ENDPOINT}/v1/metrics`);
+			expect(urls.some((u) => u.includes("traces.example.com"))).toBe(false);
 		} finally {
 			await runtime.dispose();
 		}

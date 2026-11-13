@@ -1,4 +1,5 @@
 import type { Driver } from "@ktb/driver-framework";
+import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import * as References from "effect/References";
@@ -36,6 +37,20 @@ export const logLevelLayer = (config: TelemetryConfig) =>
 		: Layer.succeed(References.MinimumLogLevel, config.logLevel as LogLevel);
 
 /**
+ * Surface config warnings on the log channel at layer build — e.g. an
+ * insecure remote `http://` OTLP endpoint dropped during resolution.
+ * Both telemetry drivers merge this layer so the reason is logged
+ * whichever exporter wins; warnings never carry header values or full
+ * URLs (see `guardOtlpEndpoints`).
+ */
+export const telemetryWarningsLayer = (config: TelemetryConfig) => {
+	const warnings = config.warnings ?? [];
+	return warnings.length === 0
+		? Layer.empty
+		: Layer.effectDiscard(Effect.forEach(warnings, (warning) => Effect.logWarning(warning)));
+};
+
+/**
  * Console driver — the local/DX default and the always-eligible fallback:
  * single-line JSON logs (redacted) + span-event logger + Prometheus
  * scrape via `Telemetry.scrape()`. No OTLP, no network, zero config.
@@ -51,6 +66,7 @@ export const telemetryConsoleDriver: Driver<ObservabilityEnv> = {
 			Logger.layer([consoleJsonLogger, Logger.tracerLogger]),
 			TelemetryLocalLive(config),
 			logLevelLayer(config),
+			telemetryWarningsLayer(config),
 		);
 	},
 };

@@ -4,7 +4,12 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as References from "effect/References";
 
-import { telemetryConsoleDriver, logLevelLayer, Telemetry } from "./index.ts";
+import {
+	telemetryConsoleDriver,
+	logLevelLayer,
+	telemetryWarningsLayer,
+	Telemetry,
+} from "./index.ts";
 import { telemetryConfigFromEnv } from "./config.ts";
 
 describe("telemetryConsoleDriver", () => {
@@ -61,6 +66,50 @@ describe("logLevelLayer", () => {
 		try {
 			const level = await runtime.runPromise(Effect.service(References.MinimumLogLevel));
 			expect(level).toBe("Warning");
+		} finally {
+			await runtime.dispose();
+		}
+	});
+});
+
+describe("telemetryWarningsLayer", () => {
+	it("is empty when the config carries no warnings field", async () => {
+		const config = { ...telemetryConfigFromEnv({}), warnings: undefined };
+		const runtime = ManagedRuntime.make(telemetryWarningsLayer(config));
+		try {
+			await runtime.runPromise(Effect.void);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("emits warnings at layer build for an insecure OTLP endpoint", async () => {
+		const config = telemetryConfigFromEnv({
+			OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel.example.com",
+		});
+		const runtime = ManagedRuntime.make(telemetryWarningsLayer(config));
+		try {
+			await runtime.runPromise(Effect.void);
+		} finally {
+			await runtime.dispose();
+		}
+	});
+
+	it("surfaces dropped-endpoint warnings through the console driver", async () => {
+		const runtime = ManagedRuntime.make(
+			telemetryConsoleDriver.provides({
+				OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel.example.com",
+			}) as Layer.Layer<unknown, unknown, never>,
+		);
+		try {
+			const health = await runtime.runPromise(
+				Effect.gen(function* () {
+					const t = yield* Telemetry;
+					return yield* t.health;
+				}),
+			);
+			// All signals dropped → console fallback reports local exporters.
+			expect(health).toEqual({ logs: "console", traces: "off", metrics: "prometheus" });
 		} finally {
 			await runtime.dispose();
 		}
