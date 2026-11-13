@@ -26,12 +26,14 @@ export default Alchemy.Stack(
 		// tunnel (P-066/P-067, infra/lgtm → otel.luisfuturist.com); an
 		// explicit OTEL_EXPORTER_OTLP_ENDPOINT always wins so local or
 		// staging collectors can be targeted without code changes.
+		// `Stage` is the alchemy-provided service — ALCHEMY_STAGE is NOT
+		// set in process.env inside the stack program.
+		const stage = yield* Alchemy.Stage;
 		const otelEndpoint =
 			process.env.OTEL_EXPORTER_OTLP_ENDPOINT ??
-			(process.env.ALCHEMY_STAGE === "prod" ? "https://otel.luisfuturist.com" : undefined);
+			(stage === "prod" ? "https://otel.luisfuturist.com" : undefined);
 		const ktbEnvironment =
-			process.env.KTB_ENVIRONMENT ??
-			(process.env.ALCHEMY_STAGE === "prod" ? "production" : undefined);
+			process.env.KTB_ENVIRONMENT ?? (stage === "prod" ? "production" : undefined);
 
 		const site = yield* deployWorker({
 			name: "web",
