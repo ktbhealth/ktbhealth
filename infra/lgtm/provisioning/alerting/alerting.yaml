@@ -241,6 +241,17 @@ contactPoints:
           # TODO(provisioning): real on-call address.
           addresses: oncall@example.com
         disableResolveMessage: false
+      # P-067 recommended receiver: ntfy (org already self-hosts it).
+      # Grafana POSTs its alert JSON to the topic URL; ntfy stores the
+      # body as the push message. Expose ntfy via the same cloudflared
+      # tunnel pattern (ntfy.<domain> -> localhost:80) and pick a
+      # non-guessable topic name — the URL is the only auth.
+      # - uid: ktb-platform-ntfy
+      #   type: webhook
+      #   settings:
+      #     url: https://ntfy.example.com/ktb-alerts-<random>
+      #     httpMethod: POST
+      #   disableResolveMessage: false
 
 policies:
   - orgId: 1
