@@ -27,11 +27,11 @@ ingress:
   - hostname: ktb-grafana.luisfuturist.com
     service: http://localhost:3000
 
-  # Optional: ntfy alert receiver (P-067) if ntfy runs on this host —
-  # uncomment and create the DNS route. The topic path is the only auth;
-  # use a long random topic name.
-  # - hostname: ktb-ntfy.luisfuturist.com
-  #   service: http://localhost:80
+  # ntfy alert receiver — self-hosted on this host (compose service,
+  # loopback :8086). The topic path is the only auth; NTFY_URL in .env
+  # must match this hostname. Long random topic name required.
+  - hostname: ktb-ntfy.luisfuturist.com
+    service: http://localhost:8086
 
   # Catch-all: refuse anything else that reaches the tunnel.
   - service: http_status:404

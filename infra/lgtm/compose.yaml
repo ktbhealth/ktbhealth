@@ -63,6 +63,20 @@ services:
           cpus: "2.0"
           memory: 4G
 
+  # ntfy — self-hosted alert notifications (replaces ntfy.sh; same
+  # webhook contract, topic URL is still the only auth). Bound to
+  # loopback; public exposure goes through cloudflared
+  # (ktb-ntfy.luisfuturist.com -> localhost:8086). ~20 MB RAM.
+  ntfy:
+    image: binwiederhier/ntfy:v2.37.2
+    container_name: ktb-ntfy
+    restart: unless-stopped
+    command: serve
+    ports:
+      - "127.0.0.1:8086:80"
+    environment:
+      NTFY_BASE_URL: ${NTFY_PUBLIC_URL:-http://localhost:8086}
+
   # Optional: run cloudflared as a compose service instead of installing
   # it on the host. Two modes:
   #

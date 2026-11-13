@@ -234,6 +234,28 @@ manual `ktb-lgtm` VM is untouched. To retry, re-run the adapter with
 `shape: "VM.Standard.A1.Flex"` (or wait for E2 micro quota) against
 the same stack — only the instance is missing.
 
+**Cloud-init (hands-off bootstrap)**: `infra/oci/pulumi/cloud-init.sh`
+is a user-data template that makes the A1 VM self-configure on first
+boot — installs docker/compose, clones this repo, brings up the LGTM
+compose stack **including self-hosted ntfy**, installs cloudflared
+(arm64 .deb — A1.Flex is aarch64), and enables the tunnel service.
+`make-spec.sh` renders it into `ktb.spec.json`: it pulls
+`grafana-admin-password`, `ntfy-url`, `cloudflared-a1-tunnel-id` and
+`cloudflared-a1-credentials` from cuora (prod env) — never printed.
+Secrets land in instance `user_data` metadata (visible to tenancy
+members with compute read — accepted for a private tenancy).
+
+The A1 tunnel is a **separate** tunnel (`ktb-lgtm-a1`, UUID in cuora
+`ktb/cloudflared-a1-tunnel-id`) so both VMs can run cloudflared
+without splitting traffic — DNS still points at the `ktb-lgtm`
+tunnel until cutover. Cutover = `cloudflared tunnel route dns
+<new-uuid> ktb-otel/ktb-grafana/ktb-ntfy.luisfuturist.com` for all
+three hostnames, then stop the old VM's cloudflared + containers.
+
+A retry loop (`/tmp/oci-a1-pulumi-retry.sh` pattern: `pulumi up`
+every 30 min) picks up the rendered spec automatically — the next
+attempt creates a fully-bootstrapped VM, no manual steps.
+
 ## One-time host setup (human steps)
 
 1. **VM**: any small Linux box (2 vCPU / 4 GiB RAM is the floor — the
