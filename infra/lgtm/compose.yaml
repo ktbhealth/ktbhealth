@@ -21,9 +21,10 @@ services:
       # Require login even on the tunnel-exposed UI (defense in depth
       # alongside Cloudflare Access).
       GF_AUTH_ANONYMOUS_ENABLED: "false"
-      # Prometheus/Loki retention args from .env.
+      # Prometheus retention args from .env (Loki/Tempo retention lives
+      # in the mounted loki-config.yaml / tempo-config.yaml instead —
+      # Loki 3.x has no retention CLI flag).
       PROMETHEUS_EXTRA_ARGS: ${PROMETHEUS_EXTRA_ARGS:-}
-      LOKI_EXTRA_ARGS: ${LOKI_EXTRA_ARGS:-}
     ports:
       # Bind to loopback only — public exposure goes through cloudflared
       # (or an SSH tunnel for debugging). Never publish 9090/3100/3200/4317
@@ -37,6 +38,11 @@ services:
       # Custom collector config — REPLACES the bundled default, so this
       # file must stay a superset of it (kept in sync with image 0.40.0).
       - ./otelcol-config.yaml:/otel-lgtm/otelcol-config.yaml:ro
+      # Custom Loki/Tempo configs — supersets of the bundled defaults,
+      # adding 7-day retention (compactor + limits_config /
+      # block_retention). Same version-coupling caveat as otelcol.
+      - ./loki-config.yaml:/otel-lgtm/loki-config.yaml:ro
+      - ./tempo-config.yaml:/otel-lgtm/tempo-config.yaml:ro
       # Grafana provisioning (datasources, dashboards, alerting).
       - ./provisioning/datasources:/otel-lgtm/grafana/conf/provisioning/datasources:ro
       - ./provisioning/dashboards:/otel-lgtm/grafana/conf/provisioning/dashboards:ro

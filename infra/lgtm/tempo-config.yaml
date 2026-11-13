@@ -1,0 +1,62 @@
+# Tempo config for grafana/otel-lgtm — superset of the image's bundled
+# /otel-lgtm/tempo-config.yaml (v0.40.0, Tempo 3.1.x) plus 7-day trace
+# retention via the compactor.
+#
+# When bumping the image tag, diff this file against the new upstream
+# default and re-apply the compactor block.
+#
+# block_retention applies to completed blocks; the compaction cycle
+# (default 30m) is when deletion actually runs. Local backend storage
+# supports retention natively — no object-store delete config needed.
+
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9096
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "127.0.0.1:4417"
+        http:
+          endpoint: "127.0.0.1:4418"
+
+memberlist:
+  bind_addr: [127.0.0.1]
+  bind_port: 7947
+
+querier:
+  frontend_worker:
+    frontend_address: 127.0.0.1:9096
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /data/tempo/wal
+    local:
+      path: /data/tempo/blocks
+
+metrics_generator:
+  processor:
+    span_metrics:
+      dimensions:
+        - service_name
+        - operation
+        - status_code
+  storage:
+    path: /data/tempo/generator/wal
+    remote_write:
+      - url: http://127.0.0.1:9090/api/v1/write
+        send_exemplars: true
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+
+# --- 7-day retention (added vs upstream default) ---
+compactor:
+  compaction:
+    block_retention: 168h # 7 days

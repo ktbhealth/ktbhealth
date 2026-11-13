@@ -95,6 +95,8 @@ self-contained and copy over.
 | `compose.yaml`              | `grafana/otel-lgtm:0.40.0` service, loopback ports, `/data` volume, resource limits               |
 | `.env.example`              | Grafana admin creds, retention args — copy to `.env` (gitignored)                                 |
 | `otelcol-config.yaml`       | Collector config; **replaces** the image default — superset of upstream v0.40.0 + `tail_sampling` |
+| `loki-config.yaml`          | Loki config; superset of image default + 7d retention (`limits_config` + `compactor`)              |
+| `tempo-config.yaml`         | Tempo config; superset of image default + 7d retention (`compactor.block_retention`)               |
 | `cloudflared/config.yml`    | Example ingress for a locally-managed tunnel (`otel.` + `grafana.` hostnames)                     |
 | `provisioning/datasources/` | Prometheus / Loki / Tempo datasources (uids `prometheus`, `loki`, `tempo`)                        |
 | `provisioning/dashboards/`  | `ktb-platform` dashboard (uid `ktb-platform`)                                                     |
@@ -235,7 +237,7 @@ deliberately left to a human, not wired into the adapter yet.
 | Dashboard empty, `absent()` alert fires | tunnel down or wrong endpoint                                 | `cloudflared tunnel info ktb-lgtm`; verify `OTEL_EXPORTER_OTLP_ENDPOINT` has no path and is `https://`                           |
 | App logs warn about insecure endpoint   | `http://` non-loopback OTLP endpoint is dropped by the driver | use `https://otel.<domain>`                                                                                                      |
 | `stage="export"` errors climbing        | collector unreachable / 4xx from otelcol                      | check `docker logs`, otelcol receiver logs, Access policy on `otel.` hostname                                                    |
-| Disk full on VM                         | `/data` volume growth                                         | `docker system df`; tune `PROMETHEUS_EXTRA_ARGS`/`LOKI_EXTRA_ARGS` retention in `.env`; `docker compose down` + prune old blocks |
+| Disk full on VM                         | `/data` volume growth                                         | `docker system df`; retention is 7d across Loki/Tempo/Prometheus — see loki-config.yaml, tempo-config.yaml and PROMETHEUS_EXTRA_ARGS; `docker compose down` + prune old blocks |
 | Traces missing but metrics/logs fine    | tail_sampling is working as designed                          | errors + >2s traces + 15% sample are kept; check Tempo for `{ status = error }`                                                  |
 | Grafana login fails after recreate      | admin password only set at first boot                         | password lives in Grafana's sqlite under `/data`; reset via `GF_SECURITY_ADMIN_PASSWORD` env or `grafana cli`                    |
 

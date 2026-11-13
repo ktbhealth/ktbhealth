@@ -7,5 +7,11 @@
 		"up": "docker compose --env-file .env up -d",
 		"down": "docker compose --env-file .env down",
 		"logs": "docker compose --env-file .env logs -f lgtm"
+	},
+	"devDependencies": {
+		"@grafana/grafana-foundation-sdk": "0.0.22",
+		"@types/node": "^26.6.6",
+		"typescript": "^6.0.2",
+		"vitest": "5.1.0"
 	}
 }

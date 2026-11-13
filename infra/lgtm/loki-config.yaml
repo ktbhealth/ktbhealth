@@ -1,0 +1,69 @@
+# Loki config for grafana/otel-lgtm — superset of the image's bundled
+# /otel-lgtm/loki-config.yaml (v0.40.0, Loki 3.7.x) plus 7-day retention
+# (P-066 ops: bounded disk on the Always-Free VM).
+#
+# When bumping the image tag, diff this file against the new upstream
+# default and re-apply the compactor/limits_config blocks.
+#
+# Retention mechanics: tsdb store + filesystem object store supports
+# deletes, so the compactor's delete-request-store=filesystem works.
+# retention_period is the per-tenant cap; compactor runs the deletion
+# on its interval. Both must be set — retention_period alone does
+# nothing without compactor.retention_enabled.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /data/loki
+  storage:
+    filesystem:
+      chunks_directory: /data/loki/chunks
+      rules_directory: /data/loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://127.0.0.1:9093
+
+pattern_ingester:
+  lifecycler:
+    min_ready_duration: 1s
+
+ingester:
+  lifecycler:
+    min_ready_duration: 1s
+
+frontend:
+  scheduler_dns_lookup_period: 1s
+  address: 127.0.0.1
+
+query_scheduler:
+  use_scheduler_ring: false
+
+# --- 7-day retention (added vs upstream default) ---
+limits_config:
+  retention_period: 168h # 7 days
+
+compactor:
+  working_directory: /data/loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem
