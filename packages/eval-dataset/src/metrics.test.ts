@@ -106,6 +106,11 @@ describe("checkEntities", () => {
 		);
 		expect(verdicts[0]?.status).toBe("dropped");
 	});
+
+	it("an empty normalized hypothesis drops every entity", () => {
+		const verdicts = checkEntities([{ category: "medication", value: "losartana" }], "!!! --- ...");
+		expect(verdicts[0]?.status).toBe("dropped");
+	});
 });
 
 describe("bucketByConfidence", () => {
