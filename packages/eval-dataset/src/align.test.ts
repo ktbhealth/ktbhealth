@@ -46,6 +46,14 @@ describe("alignEntities", () => {
 		expect(a[0]?.segmentIndexes).toEqual([0, 1]);
 	});
 
+	it("a segment that normalizes to empty never matches", () => {
+		const a = alignEntities(
+			[{ t0: 0, t1: 1, text: "!!! --- ..." }],
+			[{ category: "medication", value: "losartana" }],
+		);
+		expect(a[0]?.matched).toBe(false);
+	});
+
 	it("droppedEntities lists only unmatched", () => {
 		const dropped = droppedEntities(alignEntities(segs, ents));
 		expect(dropped).toEqual([{ category: "medication", value: "dipirona" }]);
