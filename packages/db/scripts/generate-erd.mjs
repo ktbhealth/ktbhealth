@@ -79,6 +79,13 @@ const DOMAINS = [
 		tables: ["doctors"],
 	},
 	{
+		id: "secretaries",
+		title: "Secretaries",
+		owner: "`plugins/secretaries`",
+		description: "Delegated access to a doctor profile — secretary invites and active delegations.",
+		tables: ["doctor_access"],
+	},
+	{
 		id: "auth",
 		title: "Auth",
 		owner: "`packages/db/src/auth.ts` (better-auth)",

@@ -3,6 +3,8 @@
 	"meta_description": "KTB Health is a medicine documentation platform: an ambient scribe turns the consultation conversation into a structured anamnesis draft for physician review.",
 	"nav_sign_in": "Sign in",
 	"nav_sign_out": "Sign out",
+	"nav_switch_doctor": "Switch doctor",
+	"nav_secretaries": "Secretaries",
 	"nav_new_consultation": "+ New consultation",
 	"nav_consultations": "Consultations",
 	"nav_patients": "Patients",

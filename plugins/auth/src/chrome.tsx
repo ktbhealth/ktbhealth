@@ -19,9 +19,9 @@ const NAV_LINK =
  * Session chrome contributed to `app.header.session` (P-060, merged
  * into the auth plugin by P-062): a sign-in
  * link when anonymous, otherwise the account menu (avatar + name/email +
- * sign out). Labels come from the host-injected `labels` record and the
- * sign-out flow from `signOut` — plugins cannot import the host's i18n
- * runtime or auth adapters.
+ * profile shortcuts + sign out). Labels come from the host-injected
+ * `labels` record and the sign-out flow from `signOut` — plugins cannot
+ * import the host's i18n runtime or auth adapters.
  */
 export function SessionMenu({ user, labels, signOut }: ChromeProps) {
 	if (!user) {
@@ -47,6 +47,17 @@ export function SessionMenu({ user, labels, signOut }: ChromeProps) {
 						<span className="text-sm font-medium text-foreground">{user.name}</span>
 						<span className="truncate text-xs text-muted-foreground">{user.email}</span>
 					</DropdownMenuLabel>
+				</DropdownMenuGroup>
+				<DropdownMenuSeparator />
+				<DropdownMenuGroup>
+					{/* Full navigations, like sign-out: the target pages
+					    decide what this account may see. */}
+					<DropdownMenuItem onClick={() => window.location.assign("/doctors/select")}>
+						{labels.switchDoctor ?? "Switch doctor"}
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={() => window.location.assign("/secretaries")}>
+						{labels.secretaries ?? "Secretaries"}
+					</DropdownMenuItem>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem

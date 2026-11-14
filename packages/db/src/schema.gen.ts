@@ -12,3 +12,4 @@ export * from "../../../plugins/notifications/src/schema.ts";
 export * from "../../../plugins/pages/src/schema.ts";
 export * from "../../../plugins/patients/src/schema.ts";
 export * from "../../../plugins/rbac/src/schema.ts";
+export * from "../../../plugins/secretaries/src/schema.ts";

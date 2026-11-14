@@ -309,6 +309,8 @@ export default defineConfig({
 				//   inherently impl-bound — same exception the host route
 				//   files had. __root.tsx / platform.tsx keep theirs, as does
 				//   verify-email.tsx (still a host route).
+				//   The secretaries plugin's login view is the same case —
+				//   the staff sign-in screen the invite email points to.
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
@@ -320,6 +322,7 @@ export default defineConfig({
 					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
 					"plugins/auth/src/views/LoginPage.tsx",
+					"plugins/secretaries/src/views/SecretaryLoginPage.tsx",
 					"plugins/consultations/src/routes/new.tsx",
 					"plugins/consultations/src/backend.ts",
 					"plugins/consultations/src/whisper-prefetch.ts",

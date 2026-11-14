@@ -172,15 +172,18 @@ describe("router integration", () => {
 		await router.load();
 		await renderShell(createElement(RouterProvider, { router }));
 		await waitFor(() => expect(document.body.textContent).toContain("Dra Router"));
-		// open user menu and sign out
+		// The user menu offers the doctor chooser, the secretaries page and
+		// sign-out; each closes the menu, so it is reopened per item.
 		const trigger = screen.getAllByText("Dra Router")[0]!;
-		await act(async () => {
-			fireEvent.click(trigger);
-		});
-		const sair = await screen.findByText("Sign out");
-		await act(async () => {
-			fireEvent.click(sair);
-		});
+		for (const item of ["Switch doctor", "Secretaries", "Sign out"]) {
+			await act(async () => {
+				fireEvent.click(trigger);
+			});
+			const entry = await screen.findByText(item);
+			await act(async () => {
+				fireEvent.click(entry);
+			});
+		}
 		await act(async () => {
 			await router.navigate({ to: "/consultations" });
 		});

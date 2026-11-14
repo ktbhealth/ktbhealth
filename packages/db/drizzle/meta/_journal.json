@@ -92,6 +92,13 @@
       "when": 1794687166953,
       "tag": "0012_backfill_doctors",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794687168120,
+      "tag": "0013_doctor_access",
+      "breakpoints": true
     }
   ]
 }
