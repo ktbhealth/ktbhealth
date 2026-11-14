@@ -1,7 +1,8 @@
 import * as Effect from "effect/Effect";
 
+import { applyEdits, EditApplyError, type EditList } from "@ktb/eval-core";
+
 import { gateTranscript } from "./anonymize.ts";
-import { applyEdits, EditApplyError, type EditList } from "./diff.ts";
 import type { LocaleProfile } from "./locale.ts";
 import { ptBR } from "./locales/pt-BR.ts";
 import {

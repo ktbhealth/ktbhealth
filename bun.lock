@@ -262,9 +262,16 @@
         "effect": "4.1.2",
       },
     },
+    "packages/eval-core": {
+      "name": "@ktb/eval-core",
+      "dependencies": {
+        "effect": "4.1.2",
+      },
+    },
     "packages/eval-dataset": {
       "name": "@ktb/eval-dataset",
       "dependencies": {
+        "@ktb/eval-core": "workspace:*",
         "effect": "4.1.2",
         "eta": "^4.6.0",
       },
@@ -1242,6 +1249,8 @@
     "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
+
+    "@ktb/eval-core": ["@ktb/eval-core@workspace:packages/eval-core"],
 
     "@ktb/eval-dataset": ["@ktb/eval-dataset@workspace:packages/eval-dataset"],
 

@@ -34,7 +34,8 @@
  * conflate them.
  */
 
-import { calibrate } from "./calibrate.ts";
+import { calibrate } from "@ktb/eval-core";
+
 import { bucketByConfidence } from "./metrics.ts";
 import { riskScore } from "./negation.ts";
 import type { SampleResult, StageMetrics } from "./schema.ts";

@@ -38,6 +38,9 @@ const PORT_PACKAGE_NAMES = [
 	// Eval platform (P-066): domain package; its -stub/-local/-cloud
 	// adapters live in ADAPTER_PACKAGE_NAMES below.
 	"eval-dataset",
+	// Eval framework core (P-074): generic suite/runner machinery —
+	// same boundary as eval-dataset.
+	"eval-core",
 	// Host infrastructure below the plugin system (admin gate, console
 	// shell, plugin_state) — held to the same boundary it had under
 	// plugins/ before the T-088 move to packages/platform.

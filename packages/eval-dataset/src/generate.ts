@@ -10,7 +10,8 @@
 
 import * as Effect from "effect/Effect";
 
-import { runBatch, type BatchOptions, type BatchResult } from "./batch.ts";
+import { runBatch, type BatchOptions, type BatchResult } from "@ktb/eval-core";
+
 import type { LocaleProfile } from "./locale.ts";
 import { DatasetStorePort, PortError, ReportPort, TtsPort } from "./ports.ts";
 import type { AcousticProfile, Persona, Sample } from "./schema.ts";

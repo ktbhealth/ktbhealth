@@ -1,35 +1,35 @@
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import type { EditList } from "./diff.ts";
+import type { PortError, TaskEnvelope } from "@ktb/eval-core";
+
 import type {
 	AcousticProfile,
 	AsrResult,
 	AudioRef,
 	BlobMeta,
-	EvalAnswer,
-	EvalQuestion,
+	EditList,
 	RunRecord,
 	Sample,
 	SampleOrigin,
 	SampleResult,
 } from "./schema.ts";
 
+// Generic ports moved to @ktb/eval-core (P-074) — re-exported so
+// `@ktb/eval-dataset` and `@ktb/eval-dataset/ports` keep their surface.
+export { EvalPort, PortError, ReportPort } from "@ktb/eval-core";
+export type { TaskEnvelope } from "@ktb/eval-core";
+
 /**
  * Eval-dataset ports — hexagonal boundary. The domain pipeline
  * (pipeline.ts) talks only to these tags; adapters (eval-dataset-stub,
  * -local, -cloud) provide the layers. No platform APIs, no provider
  * literals.
+ *
+ * The GENERIC ports (PortError, TaskEnvelope, EvalPort, ReportPort)
+ * live in @ktb/eval-core; this file keeps the transcription/consult
+ * domain ports until the domain pack lands (P-074 phase 2).
  */
-
-/** Single shared failure type — the port name identifies which
- * adapter failed; `cause` chains for diagnostics. */
-export class PortError extends Data.TaggedError("PortError")<{
-	readonly port: string;
-	readonly message: string;
-	readonly cause?: unknown;
-}> {}
 
 /** Synthesize a script into audio under an acoustic profile
  * (voice + degradation are decided by the caller via profile). */
@@ -67,22 +67,6 @@ export class AsrPort extends Context.Service<
 	}
 >()("@ktb/eval-dataset/AsrPort") {}
 
-/** ACP task envelope — the unit of delegated generation. EVERY
- * generative call goes through this shape (no raw-string shortcuts):
- * the envelope carries identity, output contract, and cost bounds so
- * sessions stay traceable and budgetable. */
-export interface TaskEnvelope {
-	readonly taskId: string;
-	readonly role: "generator" | "corrector";
-	readonly input: string;
-	/** Declared output contract — ACP sessions validate against it
-	 * (e.g. "EditList" for correct). */
-	readonly outputSchema: string;
-	readonly seed?: number;
-	readonly modelHint?: string;
-	readonly costBudgetUsd?: number;
-}
-
 /** Generative model port — ACP-delegated in live adapters. */
 export class LlmPort extends Context.Service<
 	LlmPort,
@@ -97,19 +81,6 @@ export class LlmPort extends Context.Service<
 		) => Effect.Effect<{ edits: EditList; record: RunRecord }, PortError>;
 	}
 >()("@ktb/eval-dataset/LlmPort") {}
-
-/** Structured decision port (Jev — System One typed questions).
- * NOT a generative port: answers are bounded typed values with
- * calibrated probabilities. */
-export class EvalPort extends Context.Service<
-	EvalPort,
-	{
-		readonly judge: (input: {
-			readonly state: unknown;
-			readonly questions: readonly EvalQuestion[];
-		}) => Effect.Effect<{ answers: readonly EvalAnswer[]; record: RunRecord }, PortError>;
-	}
->()("@ktb/eval-dataset/EvalPort") {}
 
 /** Manifest rows + audio blobs. */
 export class DatasetStorePort extends Context.Service<
@@ -144,14 +115,3 @@ export class DatasetStorePort extends Context.Service<
 		}) => Effect.Effect<readonly SampleResult[], PortError>;
 	}
 >()("@ktb/eval-dataset/DatasetStorePort") {}
-
-/** Run-record sink + report rendering. */
-export class ReportPort extends Context.Service<
-	ReportPort,
-	{
-		readonly append: (record: RunRecord) => Effect.Effect<void, PortError>;
-		/** Render a run's report — markdown table via `renderRunMarkdown`
-		 * (the shape is part of the contract, not adapter-defined). */
-		readonly render: (runId: string) => Effect.Effect<string, PortError>;
-	}
->()("@ktb/eval-dataset/ReportPort") {}
