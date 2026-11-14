@@ -175,9 +175,7 @@ describe("r2 store adapter", () => {
 		bucket.put = () => Promise.reject(rejection);
 		await expect(
 			withStore(
-				Effect.flatMap(DatasetStorePort, (s) =>
-					s.putBlobMeta("u", { origin: "synthetic" }),
-				),
+				Effect.flatMap(DatasetStorePort, (s) => s.putBlobMeta("u", { origin: "synthetic" })),
 				bucket,
 			),
 		).rejects.toThrow(/r2 down/);

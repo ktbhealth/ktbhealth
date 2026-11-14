@@ -16,6 +16,25 @@
         "vitest": "5.1.0",
       },
     },
+    "apps/eval": {
+      "name": "@ktb/app-eval",
+      "dependencies": {
+        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/eval-dataset-cloud": "workspace:*",
+        "@ktb/eval-dataset-local": "workspace:*",
+        "@ktb/eval-dataset-stub": "workspace:*",
+        "@ktb/llm-eval": "workspace:*",
+        "@ktb/storage-dataset": "workspace:*",
+        "@ktb/transcription-asr": "workspace:*",
+        "@ktb/transcription-tts": "workspace:*",
+        "effect": "4.1.2",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.2",
+        "vitest": "5.1.0",
+      },
+    },
     "apps/web": {
       "name": "@ktb/web",
       "dependencies": {
@@ -76,6 +95,12 @@
         "vite": "npm:@voidzero-dev/vite-plus-core@1.5.1",
         "vitest": "5.1.0",
         "wrangler": "4.158.0",
+      },
+    },
+    "evals": {
+      "name": "@ktb/eval-suites",
+      "dependencies": {
+        "@ktb/eval-core": "workspace:*",
       },
     },
     "infra/cloudflare": {
@@ -1256,6 +1281,8 @@
 
     "@ktb/anamnesis-llm": ["@ktb/anamnesis-llm@workspace:packages/anamnesis-llm"],
 
+    "@ktb/app-eval": ["@ktb/app-eval@workspace:apps/eval"],
+
     "@ktb/app-host": ["@ktb/app-host@workspace:packages/app-host"],
 
     "@ktb/audience": ["@ktb/audience@workspace:plugins/audience"],
@@ -1301,6 +1328,8 @@
     "@ktb/eval-dataset-local": ["@ktb/eval-dataset-local@workspace:packages/eval-dataset-local"],
 
     "@ktb/eval-dataset-stub": ["@ktb/eval-dataset-stub@workspace:packages/eval-dataset-stub"],
+
+    "@ktb/eval-suites": ["@ktb/eval-suites@workspace:evals"],
 
     "@ktb/export-pdf": ["@ktb/export-pdf@workspace:packages/export-pdf"],
 

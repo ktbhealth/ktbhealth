@@ -1,0 +1,25 @@
+{
+	"name": "@ktb/app-eval",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"eval": "bun src/cli.ts",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-core": "workspace:*",
+		"@ktb/eval-dataset-cloud": "workspace:*",
+		"@ktb/eval-dataset-local": "workspace:*",
+		"@ktb/eval-dataset-stub": "workspace:*",
+		"@ktb/llm-eval": "workspace:*",
+		"@ktb/storage-dataset": "workspace:*",
+		"@ktb/transcription-asr": "workspace:*",
+		"@ktb/transcription-tts": "workspace:*",
+		"effect": "4.1.2"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"vitest": "5.1.0"
+	}
+}

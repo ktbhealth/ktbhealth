@@ -1,0 +1,11 @@
+{
+	"name": "@ktb/eval-suites",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./*.ts"
+	},
+	"dependencies": {
+		"@ktb/eval-core": "workspace:*"
+	}
+}

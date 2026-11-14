@@ -1,4 +1,5 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
+import type { Contribution } from "@ktb/eval-core";
 
 // Eval domain pack (P-074 phase 2a): the clinical consult eval domain —
 // schema, metrics, the S0–S7 pipeline, personas/scriptgen/generate,
@@ -34,6 +35,37 @@ export const evalConsultPlugin = definePlugin({
 });
 
 export const plugins: readonly Plugin[] = [evalConsultPlugin];
+
+/**
+ * Domain metric + gate contributions (P-074 phase 4). The pipeline
+ * computes these inline (StageMetrics carries wer/cer/entityVerdicts;
+ * accept.ts owns the auto-accept policy), so `meta.fn` is a pointer
+ * for humans/ops, not a dispatch key — suites reference the ids as
+ * data and the composition root maps the ones it implements.
+ */
+export const consultContributions: readonly Contribution[] = [
+	{ kind: "metric", id: "wer", version: "1", meta: { fn: "wer" } },
+	{ kind: "metric", id: "cer", version: "1", meta: { fn: "cer" } },
+	{
+		kind: "metric",
+		id: "entity-verdicts",
+		version: "1",
+		meta: { fn: "checkEntities+judge", stage: "asr|corrected" },
+	},
+	{
+		kind: "metric",
+		id: "confidence-calibration",
+		version: "1",
+		meta: { fn: "bucketByConfidence+calibrate" },
+	},
+	{ kind: "metric", id: "risk-score", version: "1", meta: { fn: "riskScore" } },
+	{
+		kind: "gate",
+		id: "auto-accept",
+		version: "1",
+		meta: { fn: "decideAutoAccept+gateRun", policy: "AcceptPolicy" },
+	},
+];
 
 // Compile-time dep registry: ids declared here are referenceable in
 // requiredDeps/optionalDeps of any plugin that imports this module.
