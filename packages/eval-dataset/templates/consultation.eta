@@ -1,0 +1,9 @@
+<% /* First visit: greeting → chief complaint → allergy → prescription → closing.
+      Available slots: it.slots.{greeting,chief_complaint,allergy_question,allergy_answer,prescription,closing}
+      Full context: it.persona, it.slots, it.turns, it.entities */ %>
+<%= it.slots.greeting %>
+<%= it.slots.chief_complaint %>
+<%= it.slots.allergy_question %>
+<%= it.slots.allergy_answer %>
+<%= it.slots.prescription %>
+<%= it.slots.closing %>

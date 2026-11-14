@@ -4,8 +4,8 @@ import type { Persona } from "./schema.ts";
  * Persona matrix — the axes the dataset varies over. Each sample is
  * one cell: region (speech register/accent cue for the TTS + script
  * generator) × age band × register (education/social class proxy) ×
- * specialty. Values are pt-BR labels — the generator prompt consumes
- * them verbatim.
+ * specialty. Literals are English — generators map them to pt-BR
+ * content; they never leak provider ids or rendered text.
  */
 
 export interface PersonaMatrix {
@@ -15,7 +15,7 @@ export interface PersonaMatrix {
 	readonly specialties: readonly string[];
 }
 
-/** Default pt-BR matrix — covers the diversity axes the eval must
+/** Default matrix — covers the diversity axes the eval must
  * prove: regional accent/register, life stage, clinical domain. */
 export const DEFAULT_MATRIX: PersonaMatrix = {
 	regions: ["southeast", "south", "northeast", "north", "central_west"],
