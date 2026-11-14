@@ -27,11 +27,11 @@ const env = (over?: Record<string, unknown>) => ({
 	...over,
 });
 
-const runGenerate = (t: AcpTransport, sessionId?: string) =>
+const runGenerate = (t: AcpTransport, sessionId?: string, over?: Record<string, unknown>) =>
 	Effect.runPromise(
 		Effect.gen(function* () {
 			const llm = yield* LlmPort;
-			return yield* llm.generate(env());
+			return yield* llm.generate(env(over));
 		}).pipe(Effect.provide(makeAcpLlm({ transport: t, sessionId }))),
 	);
 
@@ -45,6 +45,8 @@ describe("makeAcpLlm", () => {
 		expect(r.text).toBe("texto gerado");
 		expect(r.record.engine).toBe("acp");
 		expect(r.record.runId).toBe("sess-9");
+		expect(r.record.stage).toBe("script_gen");
+		expect(r.record.inputHash).toMatch(/^[0-9a-f]{8}$/);
 		expect(reqs[0]?.method).toBe("task.submit");
 		expect(reqs[0]?.params.sessionId).toBe("sess-9");
 	});
@@ -60,6 +62,7 @@ describe("makeAcpLlm", () => {
 			}).pipe(Effect.provide(layer)),
 		);
 		expect(r.edits.ops).toHaveLength(1);
+		expect(r.record.stage).toBe("cleanup");
 	});
 
 	it("transport failure surfaces as typed PortError", async () => {
@@ -73,6 +76,36 @@ describe("makeAcpLlm", () => {
 		expect(err.message).toBe("session dead");
 	});
 
+	it("generate flows a declared ConsultationScript envelope end-to-end", async () => {
+		// pipeline.generateScript always declares outputSchema
+		// "ConsultationScript" — the adapter must resolve it through the
+		// registry, not a hardcoded "Text" literal.
+		const reqs: AcpRequest[] = [];
+		const r = await runGenerate(
+			transport(reqs, (r) => respond("Doctor: o que sente? Patient: nada.", r.id)),
+			undefined,
+			{ outputSchema: "ConsultationScript" },
+		);
+		expect(r.text).toBe("Doctor: o que sente? Patient: nada.");
+		expect(reqs[0]?.params.envelope.outputSchema).toBe("ConsultationScript");
+	});
+
+	it("generate rejects a validated non-string payload (declared EditList)", async () => {
+		const edits = { ops: [{ at: 0, remove: "a", insert: "b", kind: "fix" }] };
+		const err = await runGenerate(
+			transport([], (r) => respond(edits, r.id)),
+			undefined,
+			{
+				outputSchema: "EditList",
+			},
+		).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(err.message).toContain("requires a string payload");
+	});
+
 	it("rejects a mis-declared envelope before the transport is touched", async () => {
 		let called = 0;
 		const layer = makeAcpLlm({
@@ -84,16 +117,32 @@ describe("makeAcpLlm", () => {
 		const err = await Effect.runPromise(
 			Effect.gen(function* () {
 				const llm = yield* LlmPort;
-				// generate() but envelope declares EditList — contract mismatch.
-				return yield* llm.generate(env({ outputSchema: "EditList" }));
+				// correct() but envelope declares Text — contract mismatch.
+				return yield* llm.correct(env({ role: "corrector", outputSchema: "Text" }));
 			}).pipe(Effect.provide(layer)),
 		).then(
 			() => null,
 			(e) => e,
 		);
 		expect(err).toBeInstanceOf(PortError);
-		expect(err.message).toContain("outputSchema=Text");
+		expect(err.message).toContain("outputSchema=EditList");
 		expect(called).toBe(0); // transport never reached
+	});
+
+	it("times out a hanging transport as a typed PortError", async () => {
+		const hanging: AcpTransport = () => Effect.never;
+		const layer = makeAcpLlm({ transport: hanging, timeoutMs: 30 });
+		const err = await Effect.runPromise(
+			Effect.gen(function* () {
+				const llm = yield* LlmPort;
+				return yield* llm.generate(env());
+			}).pipe(Effect.provide(layer)),
+		).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(err.message).toContain("timeout after 30ms");
 	});
 
 	it("invalid payloads are typed PortErrors, never silent", async () => {
