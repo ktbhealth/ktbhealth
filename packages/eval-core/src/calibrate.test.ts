@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { calibrate, recommendAutoThreshold, wilsonLowerBound } from "./calibrate.ts";
+import { calibrate, wilsonLowerBound } from "./calibrate.ts";
 
 const segs = (correct: number, wrong: number, conf = 0.9) => [
 	...Array.from({ length: correct }, () => ({ correct: true, confidence: conf })),
@@ -38,35 +38,5 @@ describe("calibrate", () => {
 		expect(v.precision).toBe(0);
 		expect(v.lowerBound).toBe(0);
 		expect(v.passes).toBe(false);
-	});
-});
-
-describe("recommendAutoThreshold", () => {
-	it("picks the loosest threshold that still passes", () => {
-		const segments = [
-			...Array.from({ length: 90 }, () => ({ correct: true, confidence: 0.9 })),
-			...Array.from({ length: 10 }, () => ({ correct: false, confidence: 0.55 })),
-			...Array.from({ length: 50 }, () => ({ correct: true, confidence: 0.6 })),
-		];
-		const r = recommendAutoThreshold(segments, { target: 0.9, minN: 50 });
-		expect(r.threshold).toBe(0.6); // drops the wrong low-conf ones, keeps enough n
-		expect(r.verdicts).toHaveLength(8);
-	});
-
-	it("treats missing confidence as 0 — untagged segments never sneak in", () => {
-		const segments = [
-			...Array.from({ length: 60 }, () => ({ correct: true, confidence: 0.9 })),
-			{ correct: true }, // no confidence — counts at threshold 0 only
-		];
-		const r = recommendAutoThreshold(segments, { target: 0.9, minN: 50 });
-		const atZero = r.verdicts.find((v) => v.threshold === 0);
-		expect(atZero?.n).toBe(61);
-		const atHalf = r.verdicts.find((v) => v.threshold === 0.5);
-		expect(atHalf?.n).toBe(60);
-	});
-
-	it("returns null when nothing passes", () => {
-		const r = recommendAutoThreshold(segs(5, 95, 0.9), { target: 0.9, minN: 50 });
-		expect(r.threshold).toBeNull();
 	});
 });

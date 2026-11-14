@@ -1,22 +1,24 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import { Schema } from "effect";
 
 import {
 	AsrPort,
+	BlobMeta,
 	DatasetStorePort,
 	EvalPort,
 	LlmPort,
+	PortError,
 	ReportPort,
 	renderRunMarkdown,
+	Sample,
+	SampleResult,
 	TtsPort,
 	type AsrResult,
 	type AudioRef,
-	type BlobMeta,
 	type EditList,
 	type EvalAnswer,
 	type RunRecord,
-	type Sample,
-	type SampleResult,
 } from "@ktb/eval-dataset";
 
 /**
@@ -76,6 +78,25 @@ const record = (stage: string, taskId: string): RunRecord => ({
 	stage,
 	taskId,
 });
+
+// Write-side schema decode — same contract as the real adapters
+// (eval-dataset-local/cloud): the LGPD provenance filter and shape
+// checks fire on putSample/putResult/putBlobMeta, so tests can never
+// persist what production would reject (M8).
+const decodeSample = Schema.decodeUnknownSync(Sample);
+const decodeResult = Schema.decodeUnknownSync(SampleResult);
+const decodeBlobMeta = Schema.decodeUnknownSync(BlobMeta);
+
+const decode = <A>(schema: (u: unknown) => A, value: unknown, op: string) =>
+	Effect.try({
+		try: () => schema(value),
+		catch: (cause) =>
+			new PortError({
+				port: "store-stub",
+				message: `${op}: schema validation failed`,
+				cause,
+			}),
+	});
 
 const answerOf = (q: { id: string; kind: string; options?: readonly string[] }): EvalAnswer => ({
 	id: q.id,
@@ -150,7 +171,12 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const store = Layer.succeed(
 		DatasetStorePort,
 		DatasetStorePort.of({
-			putSample: (sample) => Effect.sync(() => void samples.set(sample.id, sample)),
+			putSample: (sample) =>
+				decode(decodeSample, sample, "putSample").pipe(
+					Effect.flatMap((validated) =>
+						Effect.sync(() => void samples.set(validated.id, validated)),
+					),
+				),
 			getSample: (id) => Effect.succeed(samples.get(id) ?? null),
 			listSamples: (filter) =>
 				Effect.succeed(
@@ -161,20 +187,30 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 					),
 				),
 			putBlob: (uri, bytes, meta) =>
-				Effect.sync(() => {
-					blobs.set(uri, bytes);
-					// Same default as the real adapters: no declared
-					// origin records "unknown", never silently synthetic.
-					blobMeta.set(uri, { origin: meta?.origin ?? "unknown" });
-				}),
+				decode(decodeBlobMeta, { origin: meta?.origin ?? "unknown" }, "putBlob").pipe(
+					Effect.flatMap((validated) =>
+						Effect.sync(() => {
+							blobs.set(uri, bytes);
+							// Same default as the real adapters: no declared
+							// origin records "unknown", never silently synthetic.
+							blobMeta.set(uri, validated);
+						}),
+					),
+				),
 			putBlobMeta: (uri, meta) =>
-				Effect.sync(() => {
-					blobMeta.set(uri, { origin: meta?.origin ?? "unknown" });
-				}),
+				decode(decodeBlobMeta, { origin: meta?.origin ?? "unknown" }, "putBlobMeta").pipe(
+					Effect.flatMap((validated) => Effect.sync(() => void blobMeta.set(uri, validated))),
+				),
 			getBlob: (uri) => Effect.succeed(blobs.get(uri) ?? null),
 			getBlobMeta: (uri) => Effect.succeed(blobMeta.get(uri) ?? null),
 			putResult: (result) =>
-				Effect.sync(() => void results.set(`${result.runId}/${result.sampleId}`, result)),
+				decode(decodeResult, result, "putResult").pipe(
+					Effect.flatMap((validated) =>
+						Effect.sync(
+							() => void results.set(`${validated.runId}/${validated.sampleId}`, validated),
+						),
+					),
+				),
 			listResults: (filter) =>
 				Effect.succeed(
 					[...results.values()].filter(

@@ -6,10 +6,12 @@ import {
 	DatasetStorePort,
 	EvalPort,
 	LlmPort,
+	PortError,
 	ReportPort,
 	TtsPort,
 	processSample,
 	type Sample,
+	type SampleResult,
 } from "@ktb/eval-dataset";
 
 import {
@@ -216,6 +218,46 @@ describe("stub store + report ports", () => {
 		expect(r.meta).toEqual({ origin: "synthetic" });
 		expect(r.def).toEqual({ origin: "unknown" });
 		expect(r.blob).toBeNull();
+	});
+
+	it("write-side schema decode rejects what prod rejects (M8)", async () => {
+		const { layer } = makeStubLayer();
+		const run = <A, E>(e: Effect.Effect<A, E, DatasetStorePort>) =>
+			Effect.runPromise(Effect.provide(e, layer));
+
+		// real_anonymized without provenance — the LGPD filter fires
+		// on write, same as eval-dataset-local.
+		const badSample = { ...sample, origin: "real_anonymized" } as Sample;
+		const sampleErr = await run(
+			Effect.gen(function* () {
+				const s = yield* DatasetStorePort;
+				return yield* Effect.flip(s.putSample(badSample));
+			}),
+		);
+		expect(sampleErr).toBeInstanceOf(PortError);
+		expect(sampleErr.message).toContain("putSample");
+
+		// Malformed result row.
+		const resultErr = await run(
+			Effect.gen(function* () {
+				const s = yield* DatasetStorePort;
+				return yield* Effect.flip(s.putResult({ runId: "r" } as SampleResult));
+			}),
+		);
+		expect(resultErr).toBeInstanceOf(PortError);
+		expect(resultErr.message).toContain("putResult");
+
+		// Bogus blob origin.
+		const metaErr = await run(
+			Effect.gen(function* () {
+				const s = yield* DatasetStorePort;
+				return yield* Effect.flip(
+					s.putBlobMeta("u", { origin: "bogus" } as unknown as { origin: "synthetic" }),
+				);
+			}),
+		);
+		expect(metaErr).toBeInstanceOf(PortError);
+		expect(metaErr.message).toContain("putBlobMeta");
 	});
 
 	it("declares egress:false on every port — zero I/O", async () => {

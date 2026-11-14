@@ -87,7 +87,6 @@ describe("generateDataset", () => {
 		expect(appended).toHaveLength(4);
 		const s = stored[0]!;
 		expect(s.origin).toBe("synthetic");
-		expect(s.status).toBe("pending");
 		expect(s.audio?.uri).toContain("stub://a-");
 		expect(s.gold.entities?.map((e) => e.category)).toContain("medication");
 		expect(s.scriptHash).toBe(fnvHex(s.script));
@@ -226,5 +225,22 @@ describe("generateDataset", () => {
 			),
 		);
 		expect(a.stored.map((s) => s.id)).not.toEqual(b.stored.map((s) => s.id));
+	});
+
+	it("personas differing only in optional fields get distinct ids (M7)", async () => {
+		const base = personas[0]!;
+		const { layer, stored } = makeLayer();
+		const r = await Effect.runPromise(
+			Effect.provide(
+				generateDataset(
+					input({
+						personas: [base, { ...base, gender: "female" }, { ...base, cues: ["soft voice"] }],
+					}),
+				),
+				layer,
+			),
+		);
+		expect(r.ok).toHaveLength(3);
+		expect(new Set(stored.map((s) => s.id)).size).toBe(3);
 	});
 });

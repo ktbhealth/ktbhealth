@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	bucketByConfidence,
-	cer,
-	checkEntities,
-	normalize,
-	recommendThreshold,
-	wer,
-} from "./metrics.ts";
+import { bucketByConfidence, cer, checkEntities, normalize, wer } from "./metrics.ts";
 
 describe("normalize", () => {
 	it("lowercases, strips punctuation, collapses spaces", () => {
@@ -136,36 +129,6 @@ describe("bucketByConfidence", () => {
 	});
 });
 
-describe("recommendThreshold", () => {
-	const segs = [
-		{ confidence: 0.55, correct: false },
-		{ confidence: 0.7, correct: false },
-		{ confidence: 0.75, correct: true },
-		{ confidence: 0.9, correct: true },
-		{ confidence: 0.95, correct: true },
-		{ confidence: 0.98, correct: true },
-	];
-
-	it("lowest cutoff meeting target precision", () => {
-		expect(recommendThreshold(segs, 0.99, 0.1)).toBe(0.9);
-	});
-
-	it("stops above a marginal band that misses the target", () => {
-		// 0.7 band is 1/2 = 0.5 < 0.6 → cannot be auto-accepted even
-		// though cumulative precision would still clear the bar.
-		expect(recommendThreshold(segs, 0.6, 0.1)).toBe(0.9);
-	});
-
-	it("descends through a marginal band that meets the target", () => {
-		// 0.7 band is 0.5 ≥ 0.4; 0.5 band is 0 < 0.4 → stops at 0.7.
-		expect(recommendThreshold(segs, 0.4, 0.1)).toBe(0.7);
-	});
-
-	it("1 when nothing meets the target", () => {
-		expect(recommendThreshold([{ confidence: 0.5, correct: false }], 0.99)).toBe(1);
-	});
-});
-
 describe("edge branches", () => {
 	it("wer with hyp longer than ref exercises the swap", () => {
 		expect(wer("oi", "oi tudo bem com voce")).toBeGreaterThan(0);
@@ -212,12 +175,38 @@ describe("confidence edge cases", () => {
 		expect(out[0]).toMatchObject({ lo: 0, count: 1, correct: 1 });
 	});
 
-	it("recommendThreshold returns 1 when no band qualifies", () => {
-		const weak = [
-			{ confidence: 0.92, correct: false },
-			{ confidence: 0.91, correct: false },
-		];
-		expect(recommendThreshold(weak, 0.95)).toBe(1);
+	it("non-finite confidence counts as unscored — never a NaN bucket key (M6)", () => {
+		const out = bucketByConfidence([
+			{ confidence: Number.NaN, correct: true },
+			{ confidence: Number.POSITIVE_INFINITY, correct: false },
+			{ confidence: Number.NEGATIVE_INFINITY, correct: true },
+		]);
+		// All three land in the lo=hi=-1 unscored bucket — no scored
+		// band exists for them to hide in or escape through.
+		expect(out).toHaveLength(1);
+		expect(out[0]).toMatchObject({ lo: -1, hi: -1, count: 3, correct: 2 });
+	});
+
+	it("clamps confidence=1 into the top band instead of dropping it", () => {
+		const out = bucketByConfidence([{ confidence: 1, correct: true }]);
+		expect(out[0]).toMatchObject({ count: 1, correct: 1 });
+		expect(out[0]!.lo).toBeGreaterThanOrEqual(0.95);
+	});
+
+	it("clamps out-of-range confidence into [0,1] bands", () => {
+		const out = bucketByConfidence([
+			{ confidence: 1.7, correct: true },
+			{ confidence: -0.5, correct: false },
+		]);
+		expect(out.every((b) => b.lo >= 0)).toBe(true);
+		expect(out.reduce((n, b) => n + b.count, 0)).toBe(2);
+	});
+
+	it("rejects a non-positive or non-finite bucket size", () => {
+		expect(() => bucketByConfidence([], 0)).toThrowError(RangeError);
+		expect(() => bucketByConfidence([], -0.1)).toThrowError(RangeError);
+		expect(() => bucketByConfidence([], Number.NaN)).toThrowError(RangeError);
+		expect(() => bucketByConfidence([], Number.POSITIVE_INFINITY)).toThrowError(RangeError);
 	});
 });
 

@@ -50,7 +50,7 @@ export const outputValidators: Record<string, OutputValidator> = {
 		}
 		return payload;
 	},
-	// S0 script generation (pipeline.generateScript) — the script is
+	// S0 script generation — the script is
 	// plain text, but an EMPTY script is a failed generation, not a
 	// valid one.
 	ConsultationScript: (payload) => {

@@ -7,7 +7,7 @@ import type { PhiCategory } from "./anonymize.ts";
  * lives behind `LocaleProfile`: text normalization (number words,
  * speaker labels, decimal separator), PHI scrub patterns, the ASR
  * language hint, and the script-generation slot tables. The domain
- * pipeline (metrics, align, anonymize, scriptgen, pipeline) is
+ * pipeline (metrics, anonymize, scriptgen, pipeline) is
  * language-agnostic — every entry point takes an optional profile
  * defaulting to `ptBR`, so existing call sites are unchanged.
  *

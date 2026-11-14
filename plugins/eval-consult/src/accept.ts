@@ -3,19 +3,25 @@
  *
  * Whether a sample's output may skip physician review is a POLICY
  * call, computed from evidence — never a model confidence claim.
- * Three independent gates, all must pass, every failure named:
+ * Five independent gates, all must pass, every failure named:
  *
  *   1. lexical: stage WER under maxWer
  *   2. calibration: Wilson-floor precision over ALL confSegments
  *      ≥ target AND n ≥ minN (small samples can't auto-accept),
  *      PLUS every scored confidence band must itself observe
- *      precision ≥ target (`bucketByConfidence`, same per-band rule
- *      `recommendThreshold` applies). The pooled floor alone lets a
- *      bad high-confidence band hide inside the average — bands make
- *      concentration visible. Unscored segments have no confidence
- *      claim to violate: they stay governed by the pooled floor only
- *      (the lo=hi=-1 bucket, same convention as recommendThreshold).
+ *      precision ≥ target (`bucketByConfidence`). The pooled floor
+ *      alone lets a bad high-confidence band hide inside the
+ *      average — bands make concentration visible. Unscored segments
+ *      (no confidence, or a non-finite one — see metrics.ts) have no
+ *      confidence claim to violate: they stay governed by the pooled
+ *      floor only (the lo=hi=-1 bucket).
  *   3. risk: severity-weighted entity misses ≤ maxRisk
+ *   4. entities: the gated stage must carry ≥1 entity verdict —
+ *      zero verdicts means the clinical audit never ran, which is
+ *      insufficient evidence, not a clean bill (M10)
+ *   5. edits: cleanup edits judged `harmful` ≤ maxHarmfulEdits and
+ *      edits with NO judge answer (`unjudged`) ≤ maxUnjudgedEdits —
+ *      an unjudged edit is never silently benign (M5)
  *
  * Pure — the caller picks the stage ("asr" gates the raw transcript,
  * "corrected" gates post-cleanup, the default).
@@ -26,12 +32,11 @@
  * confSegments is future work; until then treat `stage` as selecting
  * WHICH metric gates, not which evidence calibrates.
  *
- * Two "auto-accept" notions coexist on purpose: this gate is a
- * run/sample-level precision floor (`calibrate` in calibrate.ts) plus
- * a per-band confidence check; `recommendThreshold` in metrics.ts and
- * `recommendAutoThreshold` in calibrate.ts pick a per-segment cutoff —
- * a different question (which segments may skip review), do not
- * conflate them.
+ * `decideAutoAccept`/`gateRun` are the ONLY auto-accept entry points.
+ * The per-segment threshold sweeps (`recommendThreshold`,
+ * `recommendAutoThreshold`) were removed as dead code — if a
+ * "which segments may skip review" question ever needs answering it
+ * gets designed against `bucketByConfidence`, not resurrected.
  */
 
 import { calibrate } from "@ktb/eval-core";
@@ -46,6 +51,13 @@ export interface AcceptPolicy {
 	readonly target: number;
 	readonly minN: number;
 	readonly maxRisk: number;
+	/** Max cleanup edits the judge classified `harmful`. 0 = any
+	 * harmful edit sinks the sample. */
+	readonly maxHarmfulEdits: number;
+	/** Max cleanup edits with no judge verdict (`unjudged`). An
+	 * unjudged edit is unknown, not benign — the default-safe value
+	 * is 0. */
+	readonly maxUnjudgedEdits: number;
 	readonly z?: number;
 }
 
@@ -102,13 +114,34 @@ export const decideAutoAccept = (result: SampleResult, policy: AcceptPolicy): Ac
 		reasons.push(`risk score ${risk} > ${policy.maxRisk}`);
 	}
 
+	// Entity-evidence gate (M10): an empty verdict list means the
+	// clinical audit produced nothing — WER + calibration alone cannot
+	// prove a transcript preserves negations/dosages. Insufficient
+	// evidence, not a clean bill.
+	if (metrics.entityVerdicts.length === 0) {
+		reasons.push(`no ${stage} entity verdicts — clinical audit missing`);
+	}
+
+	// Edit-audit gate (M5): the cleanup's reversibility is only as
+	// good as its judge coverage. `harmful` edits corrupt clinical
+	// text; `unjudged` edits were never checked at all.
+	const harmful = result.editVerdicts.filter((v) => v.classification === "harmful").length;
+	if (harmful > policy.maxHarmfulEdits) {
+		reasons.push(`harmful edits ${harmful} > ${policy.maxHarmfulEdits}`);
+	}
+	const unjudged = result.editVerdicts.filter((v) => v.classification === "unjudged").length;
+	if (unjudged > policy.maxUnjudgedEdits) {
+		reasons.push(`unjudged edits ${unjudged} > ${policy.maxUnjudgedEdits}`);
+	}
+
 	return { accept: reasons.length === 0, stage, reasons, metrics };
 };
 
 /** Aggregate gate over a whole run — the CI hook reads this. A run is
- * "green" only when EVERY sample passes: one unsafe sample sinks the
- * run, which is the intent — a large clean cohort must never mask a
- * bad tail. */
+ * "green" only when it contains ≥1 sample AND every sample passes:
+ * one unsafe sample sinks the run, which is the intent — a large
+ * clean cohort must never mask a bad tail, and an EMPTY run is not
+ * evidence of anything (M10). */
 export const gateRun = (
 	results: readonly SampleResult[],
 	policy: AcceptPolicy,
@@ -121,5 +154,9 @@ export const gateRun = (
 		const d = decideAutoAccept(r, policy);
 		return d.accept ? [] : [{ id: r.sampleId, reasons: d.reasons }];
 	});
-	return { green: rejected.length === 0, accepted: results.length - rejected.length, rejected };
+	return {
+		green: results.length > 0 && rejected.length === 0,
+		accepted: results.length - rejected.length,
+		rejected,
+	};
 };

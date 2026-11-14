@@ -33,7 +33,6 @@ export interface TaskEnvelope {
 	readonly outputSchema: string;
 	readonly seed?: number;
 	readonly modelHint?: string;
-	readonly costBudgetUsd?: number;
 }
 
 /** Structured decision port (Jev — System One typed questions).

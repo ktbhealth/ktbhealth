@@ -10,7 +10,6 @@ import { definePlugin, type Plugin } from "@ktb/kernel";
 // @ktb/eval-core.
 export * from "./accept.ts";
 export * from "./acp.ts";
-export * from "./align.ts";
 export * from "./anonymize.ts";
 export * from "./generate.ts";
 export * from "./locale.ts";

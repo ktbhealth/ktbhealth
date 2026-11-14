@@ -5,10 +5,15 @@
  *     --workdir /tmp/eval-data [--enforce] [--stage corrected]
  *
  * Reads every persisted SampleResult and applies the auto-accept
- * policy (Wilson floor + WER cap + severity risk budget). Without
- * --enforce it always exits 0 — a report, not a gate. With --enforce
- * it exits 1 when any sample fails — wire that flag into CI only when
- * the cohort is big enough for the Wilson floor to be reachable.
+ * policy (WER cap + Wilson floor + severity risk budget + entity/
+ * edit audit gates — see accept.ts). Without --enforce it always
+ * exits 0 — a report, not a gate. With --enforce it exits 1 when any
+ * sample fails — wire that flag into CI only when the cohort is big
+ * enough for the Wilson floor to be reachable.
+ *
+ * Bad arguments are a hard failure (exit 2), never a silently
+ * disabled gate: every numeric must parse finite and --stage must be
+ * "asr" or "corrected".
  *
  * Defaults are jointly reachable by construction: at 100% observed
  * precision the Wilson floor is 1/(1+z²/n) (z=1.96 → z²≈3.84), so
@@ -27,13 +32,42 @@ const arg = (name: string, def: string): string => {
 };
 const flag = (name: string): boolean => process.argv.includes(`--${name}`);
 
+const usage = (msg: string): never => {
+	console.error(`eval-gate: ${msg}`);
+	console.error(
+		"usage: eval-gate.ts --workdir <dir> [--enforce] [--stage asr|corrected] " +
+			"[--max-wer n] [--target n] [--min-n n] [--max-risk n] " +
+			"[--max-harmful-edits n] [--max-unjudged-edits n]",
+	);
+	process.exit(2);
+};
+
+/** Numeric flag — NaN/Infinity/garbage is a usage error, not a
+ * silently-disabled gate (M9). */
+const numArg = (name: string, def: number): number => {
+	const raw = arg(name, String(def));
+	const n = Number(raw);
+	if (!Number.isFinite(n)) {
+		usage(`--${name} must be a finite number, got: ${raw}`);
+	}
+	return n;
+};
+
+const stageRaw = arg("stage", "corrected");
+if (stageRaw !== "asr" && stageRaw !== "corrected") {
+	usage(`--stage must be "asr" or "corrected", got: ${stageRaw}`);
+}
+
 const workdir = arg("workdir", "/tmp/eval-generate");
 const policy = {
-	stage: arg("stage", "corrected") as "asr" | "corrected",
-	maxWer: Number(arg("max-wer", "0.05")),
-	target: Number(arg("target", "0.90")),
-	minN: Number(arg("min-n", "40")),
-	maxRisk: Number(arg("max-risk", "0")),
+	// Validated above — the cast just re-states the narrowing.
+	stage: stageRaw as "asr" | "corrected",
+	maxWer: numArg("max-wer", 0.05),
+	target: numArg("target", 0.9),
+	minN: numArg("min-n", 40),
+	maxRisk: numArg("max-risk", 0),
+	maxHarmfulEdits: numArg("max-harmful-edits", 0),
+	maxUnjudgedEdits: numArg("max-unjudged-edits", 0),
 };
 
 const results = await Effect.runPromise(
@@ -56,7 +90,9 @@ for (const { id, decision } of verdicts) {
 	console.log(`  ${id}: ${mark}`);
 }
 console.log(
-	`\n${gate.accepted}/${results.length} accepted — run is ${gate.green ? "GREEN" : "RED"} (stage=${policy.stage}, wer≤${policy.maxWer}, floor≥${policy.target}@n≥${policy.minN}, risk≤${policy.maxRisk})`,
+	`\n${gate.accepted}/${results.length} accepted — run is ${gate.green ? "GREEN" : "RED"} ` +
+		`(stage=${policy.stage}, wer≤${policy.maxWer}, floor≥${policy.target}@n≥${policy.minN}, ` +
+		`risk≤${policy.maxRisk}, harmful≤${policy.maxHarmfulEdits}, unjudged≤${policy.maxUnjudgedEdits})`,
 );
 
 if (flag("enforce") && !gate.green) {

@@ -52,23 +52,20 @@ export const RunRecord = Schema.Struct({
 	model: Schema.optionalKey(Schema.String),
 	inputHash: Schema.String,
 	seed: Schema.optionalKey(Schema.Number),
-	estCostUsd: Schema.optionalKey(Schema.Number),
 	latencyMs: Schema.optionalKey(Schema.Number),
 	startedAt: Schema.Number,
 	/** Attribution + reproducibility — the fields that make a run
 	 * record an audit artifact rather than a log line. */
 	sampleId: Schema.optionalKey(Schema.String),
 	datasetVersion: Schema.optionalKey(Schema.String),
-	gitSha: Schema.optionalKey(Schema.String),
-	tokens: Schema.optionalKey(Schema.Number),
-	/** Pointer at the produced artifact (blob uri, diff ref, …). */
-	outputRef: Schema.optionalKey(Schema.String),
+	/** Estimated cost of the recorded call — rendered by
+	 * `renderRunMarkdown`. Absent = unmetered, never guessed. */
+	estCostUsd: Schema.optionalKey(Schema.Number),
 });
 export type RunRecord = typeof RunRecord.Type;
 
-/** Reversible edit list as Schema — diff.ts owns the apply/diff
- * logic; the shape lives here so diffs are storable + decodable
- * (`diffRef` points at a real artifact). */
+/** Reversible edit list as Schema — diff.ts owns the apply logic;
+ * the shape lives here so edit lists are storable + decodable. */
 export const EditOp = Schema.Struct({
 	at: Schema.Number,
 	remove: Schema.String,

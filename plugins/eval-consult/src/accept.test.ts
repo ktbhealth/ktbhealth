@@ -3,7 +3,20 @@ import { describe, expect, it } from "vitest";
 import { decideAutoAccept, gateRun, type AcceptPolicy } from "./accept.ts";
 import type { SampleResult } from "./schema.ts";
 
-const policy: AcceptPolicy = { maxWer: 0.05, target: 0.9, minN: 10, maxRisk: 2 };
+const policy: AcceptPolicy = {
+	maxWer: 0.05,
+	target: 0.9,
+	minN: 10,
+	maxRisk: 2,
+	maxHarmfulEdits: 0,
+	maxUnjudgedEdits: 0,
+};
+
+const cleanVerdict = {
+	category: "medication" as const,
+	entity: "losartana",
+	status: "correct" as const,
+};
 
 const result = (over?: Partial<SampleResult>): SampleResult => ({
 	runId: "r",
@@ -13,13 +26,13 @@ const result = (over?: Partial<SampleResult>): SampleResult => ({
 		wer: 0.03,
 		cer: 0.02,
 		criticalErrors: 0,
-		entityVerdicts: [],
+		entityVerdicts: [cleanVerdict],
 	},
 	correctedMetrics: {
 		wer: 0.01,
 		cer: 0.01,
 		criticalErrors: 0,
-		entityVerdicts: [],
+		entityVerdicts: [cleanVerdict],
 	},
 	editVerdicts: [],
 	confSegments: Array.from({ length: 50 }, () => ({ correct: true, confidence: 0.9 })),
@@ -28,7 +41,7 @@ const result = (over?: Partial<SampleResult>): SampleResult => ({
 });
 
 describe("decideAutoAccept", () => {
-	it("accepts when all three gates pass (corrected stage)", () => {
+	it("accepts when every gate passes (corrected stage)", () => {
 		const d = decideAutoAccept(result(), policy);
 		expect(d.accept).toBe(true);
 		expect(d.reasons).toEqual([]);
@@ -137,7 +150,7 @@ describe("decideAutoAccept", () => {
 	it("unscored segments skip the band check but still count in the pooled floor", () => {
 		// 60 scored-clean + 40 unscored with 3 errors → pooled 97/100
 		// clears the floor; the unscored bucket (lo=hi=-1) is exempt
-		// from the per-band veto, same convention as recommendThreshold.
+		// from the per-band veto.
 		const confSegments = [
 			...Array.from({ length: 60 }, () => ({ correct: true, confidence: 0.9 })),
 			...Array.from({ length: 40 }, (_, i) => ({ correct: i < 37 })),
@@ -159,6 +172,55 @@ describe("decideAutoAccept", () => {
 	it("gates the asr stage when asked", () => {
 		const d = decideAutoAccept(result(), { ...policy, stage: "asr" });
 		expect(d.metrics?.wer).toBe(0.03);
+	});
+
+	it("rejects empty entityVerdicts — no clinical audit is not a clean bill (M10)", () => {
+		const d = decideAutoAccept(
+			result({
+				correctedMetrics: { wer: 0.01, cer: 0.01, criticalErrors: 0, entityVerdicts: [] },
+			}),
+			policy,
+		);
+		expect(d.accept).toBe(false);
+		expect(d.reasons.join()).toContain("no corrected entity verdicts");
+	});
+
+	it("rejects a harmful cleanup edit even when everything else is clean (M5)", () => {
+		const d = decideAutoAccept(
+			result({
+				editVerdicts: [{ editIndex: 0, classification: "harmful" }],
+			}),
+			policy,
+		);
+		expect(d.accept).toBe(false);
+		expect(d.reasons.join()).toContain("harmful edits 1 > 0");
+	});
+
+	it("rejects unjudged edits — unknown is not benign (M5)", () => {
+		const d = decideAutoAccept(
+			result({
+				editVerdicts: [
+					{ editIndex: 0, classification: "justified_fix" },
+					{ editIndex: 1, classification: "unjudged" },
+				],
+			}),
+			policy,
+		);
+		expect(d.accept).toBe(false);
+		expect(d.reasons.join()).toContain("unjudged edits 1 > 0");
+	});
+
+	it("honors raised edit budgets", () => {
+		const d = decideAutoAccept(
+			result({
+				editVerdicts: [
+					{ editIndex: 0, classification: "harmful" },
+					{ editIndex: 1, classification: "unjudged" },
+				],
+			}),
+			{ ...policy, maxHarmfulEdits: 1, maxUnjudgedEdits: 1 },
+		);
+		expect(d.accept).toBe(true);
 	});
 });
 
@@ -183,5 +245,12 @@ describe("gateRun", () => {
 		expect(g.green).toBe(false);
 		expect(g.rejected).toHaveLength(1);
 		expect(g.rejected[0]?.id).toBe("bad");
+	});
+
+	it("an empty run is not green — no evidence is not a pass (M10)", () => {
+		const g = gateRun([], policy);
+		expect(g.green).toBe(false);
+		expect(g.accepted).toBe(0);
+		expect(g.rejected).toEqual([]);
 	});
 });

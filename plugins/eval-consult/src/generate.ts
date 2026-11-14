@@ -28,6 +28,16 @@ export const fnvHex = (s: string): string => {
 	return (h >>> 0).toString(16).padStart(8, "0");
 };
 
+/** Canonical persona key for sample ids — EVERY Persona field,
+ * including the optional `gender`/`cues`. Two personas differing only
+ * in an optional field render through the same slots (scriptgen does
+ * not branch on them) but are distinct matrix cells — they must get
+ * distinct ids or the second silently overwrites the first manifest
+ * (M7). Field order is fixed here so object key order can't collide
+ * either. */
+const personaKey = (p: Persona): string =>
+	JSON.stringify([p.region, p.ageBand, p.register, p.specialty, p.gender ?? null, p.cues ?? []]);
+
 export interface GenerateInput {
 	readonly datasetVersion: string;
 	/** Per-invocation run id stamped on every appended RunRecord so
@@ -104,10 +114,12 @@ export const generateDataset = (
 								cause,
 							}),
 					});
-					// datasetVersion + template + voice are part of the id —
-					// regenerating under a new version/template/voice must
-					// coexist, not overwrite the old manifest.
-					const id = `s-${fnvHex(`${input.datasetVersion}:${input.template}:${acoustic.voiceId}:${persona.region}:${persona.ageBand}:${persona.register}:${persona.specialty}:${baseSeed + index}`)}`;
+					// datasetVersion + template + voice + the FULL persona
+					// (personaKey covers optional gender/cues too) + seed
+					// are part of the id — regenerating under a new
+					// version/template/voice/persona must coexist, not
+					// overwrite the old manifest.
+					const id = `s-${fnvHex(`${input.datasetVersion}:${input.template}:${acoustic.voiceId}:${baseSeed + index}:${personaKey(persona)}`)}`;
 
 					const { audio, record } = yield* tts.synthesize({
 						script: render.script,
@@ -133,7 +145,6 @@ export const generateDataset = (
 						acoustic,
 						audio,
 						gold: { validatedBy: "generator", entities: [...render.entities] },
-						status: "pending",
 					};
 
 					yield* store.putSample(sample);

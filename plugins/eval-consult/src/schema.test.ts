@@ -79,10 +79,6 @@ describe("Sample schema", () => {
 			}),
 		).toThrow();
 	});
-
-	it("status lifecycle literals decode", () => {
-		expect(decode({ ...base, status: "failed", error: "boom" }).status).toBe("failed");
-	});
 });
 
 describe("SampleResult schema", () => {

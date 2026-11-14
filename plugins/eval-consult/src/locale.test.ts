@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { alignEntities } from "./align.ts";
 import { anonymize, gateTranscript } from "./anonymize.ts";
 import type { LocaleProfile, ScriptContent } from "./locale.ts";
 import { ptBR } from "./locales/pt-BR.ts";
@@ -94,13 +93,6 @@ describe("profile injection — normalize/metrics", () => {
 		expect(verdicts[0]?.status).toBe("correct");
 		// pt-BR would expand "2"→"dois" and miss "two".
 		expect(checkEntities(entities, "take two mg now")[0]?.status).toBe("dropped");
-	});
-
-	it("alignEntities honors the injected profile", () => {
-		const segs = [{ t0: 0, t1: 1, text: "take two mg" }];
-		const ents = [{ category: "dosage" as const, value: "2 mg" }];
-		expect(alignEntities(segs, ents, xx)[0]?.matched).toBe(true);
-		expect(alignEntities(segs, ents)[0]?.matched).toBe(false);
 	});
 });
 

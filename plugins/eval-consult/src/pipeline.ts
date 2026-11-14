@@ -15,22 +15,12 @@ import {
 	type ConfSegment,
 	type ExpectedEntity,
 } from "./metrics.ts";
-import {
-	AsrPort,
-	DatasetStorePort,
-	EvalPort,
-	LlmPort,
-	PortError,
-	ReportPort,
-	TtsPort,
-} from "./ports.ts";
+import { AsrPort, DatasetStorePort, EvalPort, LlmPort, PortError, ReportPort } from "./ports.ts";
 import type {
-	AcousticProfile,
 	AsrResult,
 	EditVerdict,
 	EntityVerdict,
 	EvalQuestion,
-	Persona,
 	RunRecord,
 	Sample,
 	SampleResult,
@@ -38,43 +28,16 @@ import type {
 } from "./schema.ts";
 
 /**
- * Pipeline stage runners (S0–S7) — pure port orchestration. Each
- * function is one stage; `processSample` chains the eval path.
- * Producing/consuming adapters never appear here.
+ * Pipeline stage runners — pure port orchestration. The eval path
+ * (S3 ASR → S4 cleanup → S7 judging) is composed by `processSample`;
+ * the stage helpers it calls (`transcribeSample`, `cleanupTranscript`,
+ * `entityQuestions`, `cleanupQuestions`) stay exported for tests and
+ * for callers running stages individually. Generation-side stages
+ * (S0 script, S1+S2 TTS) live in generate.ts/scriptgen.ts — the
+ * `generateScript`/`synthesizeAudio` wrappers that used to sit here
+ * had no callers and were removed. Producing/consuming adapters
+ * never appear here.
  */
-
-// ---------- S0: script generation (delegated via ACP envelope) ----------
-
-export const generateScript = (input: {
-	readonly taskId: string;
-	readonly persona: Persona;
-	readonly seed?: number;
-}) =>
-	Effect.gen(function* () {
-		const llm = yield* LlmPort;
-		return yield* llm.generate({
-			taskId: input.taskId,
-			role: "generator",
-			input: JSON.stringify(input.persona),
-			outputSchema: "ConsultationScript",
-			...(input.seed !== undefined ? { seed: input.seed } : {}),
-		});
-	});
-
-// ---------- S1+S2: TTS synthesis + acoustic degradation ----------
-
-export const synthesizeAudio = (input: {
-	readonly script: string;
-	readonly acoustic: AcousticProfile;
-}) =>
-	Effect.gen(function* () {
-		const tts = yield* TtsPort;
-		return yield* tts.synthesize({
-			script: input.script,
-			voiceId: input.acoustic.voiceId,
-			acoustic: input.acoustic,
-		});
-	});
 
 // ---------- S3: ASR ----------
 
@@ -370,7 +333,7 @@ export const processSample = (input: {
 			runId,
 			normalization: profile.id,
 		};
-		// Honest floor until real segment↔gold alignment lands: a
+		// Honest floor for segment correctness: a
 		// segment counts correct when its normalized text appears in
 		// the normalized script — never blanket-true.
 		const normScript = normalize(script, { profile });
@@ -428,12 +391,6 @@ export const toSampleResult = (input: {
 });
 
 // ---------- run-record fan-out ----------
-
-export const recordRun = (record: RunRecord) =>
-	Effect.gen(function* () {
-		const report = yield* ReportPort;
-		yield* report.append(record);
-	});
 
 /** Persist every run-record produced by a stage chain. */
 export const recordAll = (records: readonly RunRecord[]) =>

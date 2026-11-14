@@ -77,7 +77,7 @@ describe("makeAcpLlm", () => {
 	});
 
 	it("generate flows a declared ConsultationScript envelope end-to-end", async () => {
-		// pipeline.generateScript always declares outputSchema
+		// S0 script generation declares outputSchema
 		// "ConsultationScript" — the adapter must resolve it through the
 		// registry, not a hardcoded "Text" literal.
 		const reqs: AcpRequest[] = [];

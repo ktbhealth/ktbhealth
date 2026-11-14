@@ -158,10 +158,21 @@ export interface ConfBucket {
 
 /**
  * Bucket segments by confidence; `size` is the bucket width
- * (default 0.05). Segments without a confidence land in a `null`-keyed
- * bucket appended last (lo=hi=-1).
+ * (default 0.05, must be finite and > 0 — anything else throws
+ * RangeError rather than producing NaN/Infinity bucket keys).
+ * Segments without a USABLE confidence land in a `null`-keyed
+ * bucket appended last (lo=hi=-1): `undefined`, NaN, and ±Infinity
+ * all count as unscored — there is no confidence claim to bucket,
+ * and the unscored bucket stays governed by the pooled floor only
+ * (same convention as the accept gate). Finite confidence is clamped
+ * into [0,1] before bucketing so `confidence: 1` lands in the top
+ * band and out-of-range engine output cannot escape the per-band
+ * veto with a bogus index.
  */
 export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05): ConfBucket[] => {
+	if (!Number.isFinite(size) || size <= 0) {
+		throw new RangeError(`bucketByConfidence: size must be a finite number > 0, got ${size}`);
+	}
 	// Integer bucket index — avoids float noise in `lo` (0.7 vs
 	// 0.7000000000000001) and keeps threshold output clean.
 	const buckets = new Map<number, { count: number; correct: number }>();
@@ -171,9 +182,12 @@ export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05
 	// Clamp at 0: a negative confidence would otherwise floor into a
 	// negative bucket index rendered as a normal low band.
 	const idxOf = (c: number) =>
-		Math.max(0, Math.min(Math.floor((c + 1e-9) / size), Math.round(1 / size) - 1));
+		Math.max(
+			0,
+			Math.min(Math.floor((Math.min(Math.max(c, 0), 1) + 1e-9) / size), Math.round(1 / size) - 1),
+		);
 	for (const s of segments) {
-		if (s.confidence === undefined) {
+		if (s.confidence === undefined || !Number.isFinite(s.confidence)) {
 			unscored = {
 				count: unscored.count + 1,
 				correct: unscored.correct + (s.correct ? 1 : 0),
@@ -208,32 +222,8 @@ export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05
 	return out;
 };
 
-/**
- * Precision-first auto-accept threshold: the lowest cutoff where every
- * bucket at-or-above is itself ≥ target. A bad marginal band stops the
- * descent — accepting it would let weak segments ride the average.
- * Cumulative precision at the cutoff is then ≥ target automatically
- * (a weighted mean of bands each ≥ target). Returns 1 (accept nothing
- * blindly) when no cutoff qualifies.
- *
- * Distinct from `decideAutoAccept` in accept.ts: that gate is a
- * sample-level pass/fail — pooled Wilson floor over ALL confSegments
- * PLUS a per-band observed-precision floor (this function's per-band
- * rule applied as a veto, not a cutoff). This function answers "which
- * segments may skip review"; the gate answers "is the whole sample
- * safe to auto-accept" — see accept.ts for the boundary.
- */
-export const recommendThreshold = (
-	segments: readonly ConfSegment[],
-	targetPrecision = 0.99,
-	size = 0.05,
-): number => {
-	const buckets = bucketByConfidence(segments, size).filter((b) => b.lo >= 0);
-	let candidate: number | null = null;
-	for (let i = buckets.length - 1; i >= 0; i--) {
-		const b = buckets[i]!;
-		if (b.precision < targetPrecision) break;
-		candidate = b.lo;
-	}
-	return candidate ?? 1;
-};
+// NOTE: the per-segment "which confidence cutoff may skip review"
+// sweep that used to live here (`recommendThreshold`) was removed —
+// it had no callers. The single auto-accept entry point is
+// `decideAutoAccept`/`gateRun` in accept.ts (sample/run-level gate);
+// `bucketByConfidence` above remains its per-band veto primitive.

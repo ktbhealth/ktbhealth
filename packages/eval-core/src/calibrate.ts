@@ -34,9 +34,9 @@ export interface CalibrationVerdict {
 }
 
 /** Pooled precision floor over judged segments — `confidence` is NOT
- * consulted here (this is not confidence calibration; see
- * `recommendAutoThreshold` for the threshold-sweep notion and
- * accept.ts for how the gate uses this verdict). */
+ * consulted here (this is not confidence calibration; see accept.ts
+ * in the domain pack for how the gate combines this verdict with the
+ * per-band veto). */
 export const calibrate = (
 	segments: readonly ConfSegment[],
 	opts: { readonly target: number; readonly minN: number; readonly z?: number },
@@ -53,23 +53,7 @@ export const calibrate = (
 	};
 };
 
-/** Sweep candidate confidence thresholds, keep the LOOSEST one that
- * still passes — tighter would drop more segments than necessary. */
-export const recommendAutoThreshold = (
-	segments: readonly ConfSegment[],
-	opts: { readonly target: number; readonly minN: number; readonly z?: number },
-): {
-	readonly threshold: number | null;
-	readonly verdicts: readonly (CalibrationVerdict & { threshold: number })[];
-} => {
-	const candidates = [0, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95];
-	const verdicts = candidates.map((threshold) => ({
-		threshold,
-		...calibrate(
-			segments.filter((s) => (s.confidence ?? 0) >= threshold),
-			opts,
-		),
-	}));
-	const passing = verdicts.filter((v) => v.passes);
-	return { threshold: passing.length > 0 ? passing[0]!.threshold : null, verdicts };
-};
+// NOTE: the per-segment threshold sweep (`recommendAutoThreshold`)
+// was removed — no callers. Auto-accept is a sample/run-level policy
+// decision (`decideAutoAccept`/`gateRun` in the domain pack), not a
+// per-segment cutoff.

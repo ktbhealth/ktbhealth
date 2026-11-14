@@ -85,7 +85,6 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 							id TEXT PRIMARY KEY,
 							dataset_version TEXT NOT NULL,
 							origin TEXT NOT NULL,
-							status TEXT,
 							doc TEXT NOT NULL
 						);
 						CREATE TABLE IF NOT EXISTS results (
@@ -102,11 +101,11 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 				catch: fail("store-local", "schema"),
 			});
 			const upsert = db.prepare(
-				`INSERT INTO samples (id, dataset_version, origin, status, doc)
-				 VALUES (@id, @dataset_version, @origin, @status, @doc)
+				`INSERT INTO samples (id, dataset_version, origin, doc)
+				 VALUES (@id, @dataset_version, @origin, @doc)
 				 ON CONFLICT(id) DO UPDATE SET
 					dataset_version = @dataset_version, origin = @origin,
-					status = @status, doc = @doc`,
+					doc = @doc`,
 			);
 			const upsertResult = db.prepare(
 				`INSERT INTO results (run_id, sample_id, doc)
@@ -142,7 +141,6 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 								id: validated.id,
 								dataset_version: validated.datasetVersion,
 								origin: validated.origin,
-								status: validated.status ?? null,
 								doc: JSON.stringify(validated),
 							});
 						},

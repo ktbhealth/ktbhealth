@@ -81,24 +81,6 @@ export const AudioRef = Schema.Struct({
 });
 export type AudioRef = typeof AudioRef.Type;
 
-/** One pipeline-stage artifact: the produced text plus provenance and
- * a pointer to the auditable diff against the previous stage. */
-export const StageArtifact = Schema.Struct({
-	text: Schema.String,
-	engine: Schema.String,
-	runId: Schema.optionalKey(Schema.String),
-	diffRef: Schema.optionalKey(Schema.String),
-});
-export type StageArtifact = typeof StageArtifact.Type;
-
-export const SampleStages = Schema.Struct({
-	asrRaw: Schema.optionalKey(StageArtifact),
-	corrected: Schema.optionalKey(StageArtifact),
-	approved: Schema.optionalKey(StageArtifact),
-	anamnesis: Schema.optionalKey(StageArtifact),
-});
-export type SampleStages = typeof SampleStages.Type;
-
 /** Phase-2 gate: real consults cannot enter the dataset without these.
  * String fields are NonEmptyString — an empty provenance value is not
  * provenance (L14). */
@@ -129,7 +111,12 @@ export const Gold = Schema.Struct({
 export type Gold = typeof Gold.Type;
 
 /** Manifest row — one eval sample. LGPD gate is a Schema.filter so
- * every adapter boundary that decodes enforces it for free. */
+ * every adapter boundary that decodes enforces it for free.
+ * Per-stage artifacts and run bookkeeping are NOT stored here:
+ * `SampleResult` already persists asrText/correctedText/edits/
+ * metrics per run, and batch status lives on `BatchOutcome`, not the
+ * manifest (the old `stages`/`status`/`error` fields were write-only
+ * and removed). */
 export const Sample = Schema.Struct({
 	id: Schema.String,
 	datasetVersion: Schema.String,
@@ -141,11 +128,6 @@ export const Sample = Schema.Struct({
 	audio: Schema.optionalKey(AudioRef),
 	gold: Gold,
 	provenance: Schema.optionalKey(Provenance),
-	stages: Schema.optionalKey(SampleStages),
-	/** Batch-runner bookkeeping: failed samples can be skipped or
-	 * resumed without a re-run of the whole dataset. */
-	status: Schema.optionalKey(Schema.Literals(["pending", "processed", "failed", "approved"])),
-	error: Schema.optionalKey(Schema.String),
 }).pipe(
 	Schema.check(
 		Schema.makeFilter(

@@ -5,13 +5,11 @@ import { describe, expect, it } from "vitest";
 import { ptBR } from "./locales/pt-BR.ts";
 import {
 	processSample,
-	generateScript,
-	synthesizeAudio,
 	transcribeSample,
 	cleanupTranscript,
 	entityQuestions,
 	cleanupQuestions,
-	recordRun,
+	recordAll,
 	saveSample,
 	sampleForPersistence,
 	toSampleResult,
@@ -162,30 +160,8 @@ const storeStub = Layer.succeed(
 const run = <A>(e: Effect.Effect<A, unknown, unknown>) =>
 	Effect.runPromise(Effect.provide(e as Effect.Effect<A, unknown, never>, live));
 
-describe("generateScript / synthesizeAudio / cleanupTranscript", () => {
-	it("delegates through ports", async () => {
-		const g = await run(
-			generateScript({
-				taskId: "t",
-				persona: sample.persona,
-				seed: 42,
-			}),
-		);
-		expect(g.text).toBe("script");
-
-		const a = await run(
-			synthesizeAudio({
-				script: "x",
-				acoustic: {
-					ttsModel: "m",
-					voiceId: "v",
-					noise: "clean",
-					sampleRate: 16000,
-				},
-			}),
-		);
-		expect(a.audio.uri).toBe("stub://tts");
-
+describe("cleanupTranscript", () => {
+	it("delegates through the LlmPort and applies the edit list", async () => {
 		const c = await run(cleanupTranscript({ taskId: "t", raw: "raw" }));
 		expect(c.corrected.startsWith("R")).toBe(true);
 	});
@@ -653,9 +629,9 @@ describe("processSample", () => {
 	});
 });
 
-describe("recordRun / saveSample", () => {
+describe("recordAll / saveSample", () => {
 	it("append and persist", async () => {
-		await run(recordRun(record));
+		await run(recordAll([record]));
 		await run(saveSample(sample));
 		expect(appended).toContain(record);
 		expect(stored.get(sample.id)).toEqual(sample);
@@ -786,11 +762,6 @@ describe("sampleForPersistence (H2)", () => {
 });
 
 describe("defaults", () => {
-	it("generateScript without seed omits it from the envelope", async () => {
-		const g = await run(generateScript({ taskId: "t2", persona: sample.persona }));
-		expect(g.text).toBe("script");
-	});
-
 	it("processSample with no entities arg and no gold.entities judges nothing", async () => {
 		const r = await run(processSample({ sample }));
 		expect(r.asrMetrics.entityVerdicts).toHaveLength(0);
