@@ -71,6 +71,14 @@ const DOMAINS = [
 		tables: ["custom_pages"],
 	},
 	{
+		id: "doctors",
+		title: "Doctors",
+		owner: "`plugins/doctors`",
+		description:
+			"Doctor profiles — the row that makes an account a doctor, with its professional data.",
+		tables: ["doctors"],
+	},
+	{
 		id: "auth",
 		title: "Auth",
 		owner: "`packages/db/src/auth.ts` (better-auth)",

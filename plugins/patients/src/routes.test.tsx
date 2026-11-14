@@ -4,7 +4,7 @@ import { createElement, type ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	requireSession: vi.fn(async () => undefined),
+	requireDoctor: vi.fn(async () => undefined),
 	getPatientFn: vi.fn(),
 	listPatientsFn: vi.fn(),
 	patientConsultationsFn: vi.fn(),
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 	props: { current: undefined as Record<string, unknown> | undefined },
 }));
 
-vi.mock("./guard.ts", () => ({ requireSession: mocks.requireSession }));
+vi.mock("./guard.ts", () => ({ requireDoctor: mocks.requireDoctor }));
 vi.mock("./fns.ts", () => ({
 	getPatientFn: mocks.getPatientFn,
 	listPatientsFn: mocks.listPatientsFn,
@@ -95,11 +95,11 @@ afterEach(() => {
 });
 
 describe("patient routes", () => {
-	it("guard every page with requireSession", async () => {
+	it("guard every page with requireDoctor", async () => {
 		for (const route of [IndexRoute, NewRoute, DetailRoute, EditRoute]) {
 			await opts(route).beforeLoad!();
 		}
-		expect(mocks.requireSession).toHaveBeenCalledTimes(4);
+		expect(mocks.requireDoctor).toHaveBeenCalledTimes(4);
 	});
 
 	describe("/patients", () => {

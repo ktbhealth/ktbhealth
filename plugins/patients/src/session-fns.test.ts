@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	getSessionUser: vi.fn(),
+	getDoctorAccess: vi.fn(),
 	getLocale: vi.fn(),
 	sessionUserFn: vi.fn(),
 }));
@@ -17,7 +18,9 @@ vi.mock("@tanstack/react-start", () => ({
 	},
 }));
 vi.mock("@ktb/server-fns", () => ({
-	ensureSessionUser: vi.fn(),
+	ensureDoctorUser: vi.fn(),
+	getDoctorAccess: mocks.getDoctorAccess,
+	getDoctorUser: vi.fn(),
 	getLocale: mocks.getLocale,
 	getServerRuntime: vi.fn(),
 	getSessionUser: mocks.getSessionUser,
@@ -25,7 +28,7 @@ vi.mock("@ktb/server-fns", () => ({
 	runAs: vi.fn(),
 }));
 
-import { localeFn, sessionUserFn } from "./fns.ts";
+import { doctorAccessFn, localeFn, sessionUserFn } from "./fns.ts";
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -41,6 +44,11 @@ describe("session and locale server fns", () => {
 	it("sessionUserFn returns null for anonymous visitors", async () => {
 		mocks.getSessionUser.mockResolvedValue(null);
 		await expect(sessionUserFn()).resolves.toBeNull();
+	});
+
+	it("doctorAccessFn returns the request's doctor-side standing", async () => {
+		mocks.getDoctorAccess.mockResolvedValue("no-doctor");
+		await expect(doctorAccessFn()).resolves.toBe("no-doctor");
 	});
 
 	it("localeFn returns the request's active locale", async () => {

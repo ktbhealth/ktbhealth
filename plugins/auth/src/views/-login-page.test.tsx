@@ -23,6 +23,15 @@ vi.mock("@ktb/auth-better/client", () => ({
 
 const loaderData = { emailEnabled: false };
 
+type DoctorContext = { profiles: { doctorId: number }[]; activeDoctorId: number | null } | null;
+const ownProfile: DoctorContext = { profiles: [{ doctorId: 1 }], activeDoctorId: 1 };
+const doctorContextFn = vi.fn<() => Promise<DoctorContext>>(async () => ownProfile);
+const ensureDoctorProfileFn = vi.fn<() => Promise<{ ok: boolean }>>(async () => ({ ok: true }));
+vi.mock("@ktb/doctors/fns", () => ({
+	doctorContextFn: () => doctorContextFn(),
+	ensureDoctorProfileFn: () => ensureDoctorProfileFn(),
+}));
+
 // The view renders outside a router: Link degrades to a plain anchor and
 // `emailEnabled` arrives via the mutable `loaderData` above.
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -192,6 +201,7 @@ describe("sign-in page", () => {
 
 		beforeEach(() => {
 			assign.mockClear();
+			ensureDoctorProfileFn.mockClear();
 			loaderData.emailEnabled = false;
 			vi.stubGlobal("location", { assign });
 		});
@@ -211,22 +221,36 @@ describe("sign-in page", () => {
 			});
 		};
 
-		it("sends a new account to the verification step", async () => {
+		it("creates the doctor profile, then sends a new account to the verification step", async () => {
 			loaderData.emailEnabled = true;
 			await signUp();
 			await waitFor(() => expect(assign).toHaveBeenCalledWith("/verify-email"));
+			expect(ensureDoctorProfileFn).toHaveBeenCalledTimes(1);
 		});
 
 		it("sends a new account home when email is disabled", async () => {
 			await signUp();
 			await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+			expect(ensureDoctorProfileFn).toHaveBeenCalledTimes(1);
 		});
 
-		it("sends a sign-in straight home", async () => {
+		it("sends a sign-in with a single doctor profile straight home", async () => {
 			loaderData.emailEnabled = true;
 			render(createElement(Page));
 			await fillAndSubmit();
 			await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+			expect(ensureDoctorProfileFn).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			["several profiles", { profiles: [{ doctorId: 1 }, { doctorId: 2 }], activeDoctorId: null }],
+			["no profile", { profiles: [], activeDoctorId: null }],
+			["no context", null],
+		] as const)("sends a sign-in with %s to the chooser", async (_label, context) => {
+			doctorContextFn.mockResolvedValueOnce(context as DoctorContext);
+			render(createElement(Page));
+			await fillAndSubmit();
+			await waitFor(() => expect(assign).toHaveBeenCalledWith("/doctors/select"));
 		});
 	});
 

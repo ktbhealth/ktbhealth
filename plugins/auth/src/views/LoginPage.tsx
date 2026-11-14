@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
+import { doctorContextFn, ensureDoctorProfileFn } from "@ktb/doctors/fns";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
 import {
@@ -70,10 +71,19 @@ export function LoginPage({
 			setError(res.error.message ?? t.errorFallback);
 			return;
 		}
-		// Signed in: stay pending until the browser navigates away. A new
-		// account goes through the verification step — but only when this
-		// deployment can actually send the email.
-		window.location.assign(mode === "up" && emailEnabled ? "/verify-email" : "/");
+		// Signed in: stay pending until the browser navigates away.
+		if (mode === "up") {
+			// This is the doctor sign-up: the new account gets its own doctor
+			// profile, then goes through the verification step — but only
+			// when this deployment can actually send the email.
+			await ensureDoctorProfileFn();
+			window.location.assign(emailEnabled ? "/verify-email" : "/");
+			return;
+		}
+		// Straight in when there is exactly one doctor to act as; otherwise
+		// the chooser decides.
+		const context = await doctorContextFn();
+		window.location.assign(context?.profiles.length === 1 ? "/" : "/doctors/select");
 	};
 
 	return (

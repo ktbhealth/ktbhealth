@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { Consultations } from "@ktb/consultations";
 import { Patients } from "@ktb/patients";
 import { recordSummary } from "@ktb/patients/record";
-import { createPluginApiRoute, getSessionUser, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, runAs } from "@ktb/server-fns";
 
 /**
  * GET /api/consultations/:id/pdf — owner-only download of the anamnesis PDF.
@@ -17,7 +17,7 @@ export const Route = createPluginApiRoute("consultations.routes")("/api/consulta
 	server: {
 		handlers: {
 			GET: async ({ params }) => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				const id = Number.parseInt(params.id, 10);
 				if (!user || !Number.isFinite(id))
 					return Response.json({ error: "not found" }, { status: 404 });
@@ -51,7 +51,7 @@ export const Route = createPluginApiRoute("consultations.routes")("/api/consulta
 					createdAt: detail.createdAt,
 					patientName: detail.patientName,
 					patientDetails: patient ? recordSummary(patient) : null,
-					doctorName: user.name,
+					doctorName: user.doctor.name,
 					consentAt: detail.consentAt,
 					anamnesis: detail.anamnesis,
 				});

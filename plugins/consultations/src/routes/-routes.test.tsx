@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 	props: { current: undefined as Record<string, unknown> | undefined },
 }));
 
-vi.mock("../guard.ts", () => ({ requireSession: vi.fn() }));
+vi.mock("../guard.ts", () => ({ requireDoctor: vi.fn() }));
 vi.mock("../fns.ts", () => ({
 	getConsultationFn: mocks.getConsultationFn,
 	patientHistoryFn: mocks.patientHistoryFn,

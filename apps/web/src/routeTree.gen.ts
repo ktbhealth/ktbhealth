@@ -26,6 +26,7 @@ import { Route as ApiTranscribeRouteImport } from './../../../plugins/consultati
 import { Route as ConsultationsIndexRouteImport } from './../../../plugins/consultations/src/routes/index'
 import { Route as ConsultationsIdRouteImport } from './../../../plugins/consultations/src/routes/$id'
 import { Route as ConsultationsNewRouteImport } from './../../../plugins/consultations/src/routes/new'
+import { Route as DoctorsSelectRouteImport } from './../../../plugins/doctors/src/routes/select'
 import { Route as PatientsIndexRouteImport } from './../../../plugins/patients/src/routes/index'
 import { Route as PatientsNewRouteImport } from './../../../plugins/patients/src/routes/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
@@ -125,6 +126,11 @@ const ConsultationsNewRoute = ConsultationsNewRouteImport.update({
   path: '/consultations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DoctorsSelectRoute = DoctorsSelectRouteImport.update({
+  id: '/doctors/select',
+  path: '/doctors/select',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PatientsIndexRoute = PatientsIndexRouteImport.update({
   id: '/patients/',
   path: '/patients/',
@@ -206,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
+  '/doctors/select': typeof DoctorsSelectRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/consultations/': typeof ConsultationsIndexRoute
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
+  '/doctors/select': typeof DoctorsSelectRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/consultations': typeof ConsultationsIndexRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
+  '/doctors/select': typeof DoctorsSelectRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/consultations/': typeof ConsultationsIndexRoute
@@ -301,6 +310,7 @@ export interface FileRouteTypes {
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
+    | '/doctors/select'
     | '/patients/new'
     | '/platform/$'
     | '/consultations/'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
+    | '/doctors/select'
     | '/patients/new'
     | '/platform/$'
     | '/consultations'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/api/transcribe'
     | '/consultations/$id'
     | '/consultations/new'
+    | '/doctors/select'
     | '/patients/new'
     | '/platform/$'
     | '/consultations/'
@@ -394,6 +406,7 @@ export interface RootRouteChildren {
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ConsultationsIdRoute: typeof ConsultationsIdRoute
   ConsultationsNewRoute: typeof ConsultationsNewRoute
+  DoctorsSelectRoute: typeof DoctorsSelectRoute
   PatientsNewRoute: typeof PatientsNewRoute
   ConsultationsIndexRoute: typeof ConsultationsIndexRoute
   PatientsIndexRoute: typeof PatientsIndexRoute
@@ -527,6 +540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConsultationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/doctors/select': {
+      id: '/doctors/select'
+      path: '/doctors/select'
+      fullPath: '/doctors/select'
+      preLoaderRoute: typeof DoctorsSelectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/patients/': {
       id: '/patients/'
       path: '/patients'
@@ -657,6 +677,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscribeRoute: ApiTranscribeRoute,
   ConsultationsIdRoute: ConsultationsIdRoute,
   ConsultationsNewRoute: ConsultationsNewRoute,
+  DoctorsSelectRoute: DoctorsSelectRoute,
   PatientsNewRoute: PatientsNewRoute,
   ConsultationsIndexRoute: ConsultationsIndexRoute,
   PatientsIndexRoute: PatientsIndexRoute,

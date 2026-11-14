@@ -47,8 +47,8 @@ test.describe("auth flow", () => {
 		await fillCredentials(page, email);
 		await page.getByRole("button", { name: "Create account" }).click();
 
-		// Sign-up signs in; with the local email stub bound, the app then
-		// reloads onto the verification step.
+		// Sign-up signs in and creates the doctor profile; with the local
+		// email stub bound, the app then reloads onto the verification step.
 		await expect(page).toHaveURL("/verify-email");
 		await waitForHydration(page);
 		const trigger = page.getByRole("button", { name: new RegExp(name) });

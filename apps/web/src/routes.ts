@@ -1,5 +1,6 @@
 import { plugins as authPlugins } from "@ktb/auth-plugin";
 import { plugins as consultationsPlugins } from "@ktb/consultations";
+import { plugins as doctorsPlugins } from "@ktb/doctors";
 import { plugins as jobsPlugins } from "@ktb/jobs";
 import { plugins as notificationsPlugins } from "@ktb/notifications";
 import { plugins as patientsPlugins } from "@ktb/patients";
@@ -12,6 +13,7 @@ import { index, physical, rootRoute, route } from "@tanstack/virtual-file-routes
 const routePlugins = [
 	...authPlugins,
 	...consultationsPlugins,
+	...doctorsPlugins,
 	...jobsPlugins,
 	...notificationsPlugins,
 	...patientsPlugins,

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 	loaderData: { current: undefined as unknown },
 }));
 
-vi.mock("../guard.ts", () => ({ requireSession: vi.fn() }));
+vi.mock("../guard.ts", () => ({ requireDoctor: vi.fn() }));
 vi.mock("../fns.ts", () => ({
 	listConsultationsFn: vi.fn(async () => []),
 	localeFn: vi.fn(async () => "en"),

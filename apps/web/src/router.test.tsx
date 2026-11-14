@@ -65,6 +65,7 @@ import { getRouter } from "./router.tsx";
 import { plugins } from "./plugins.ts";
 import { routes } from "./routes.ts";
 import { auth, db } from "#/lib/platform.ts";
+import { signUpDoctor } from "#/test/doctor.ts";
 import { createPatientFn, saveConsultationFn } from "#/lib/fns.ts";
 import { SAMPLE_TRANSCRIPT, SECTION_LABELS } from "@ktb/anamnesis";
 import type { Anamnesis, AnamnesisSection } from "@ktb/anamnesis";
@@ -81,9 +82,7 @@ const fullAnamnesis: Anamnesis = Object.fromEntries(
 let consultationId = 0;
 
 async function signInRouterUser() {
-	await auth.api.signUpEmail({
-		body: { email: "router@x.com", password: "senha-forte-123", name: "Dra Router" },
-	});
+	await signUpDoctor({ email: "router@x.com", password: "senha-forte-123", name: "Dra Router" });
 	const res = await auth.handler(
 		new Request("http://localhost:3000/api/auth/sign-in/email", {
 			method: "POST",
@@ -193,9 +192,7 @@ describe("router integration", () => {
 	});
 
 	it("consultation detail shows prior-consultation context for a linked patient", async () => {
-		await auth.api.signUpEmail({
-			body: { email: "hist@x.com", password: "senha-forte-123", name: "Dra Hist" },
-		});
+		await signUpDoctor({ email: "hist@x.com", password: "senha-forte-123", name: "Dra Hist" });
 		const res = await auth.handler(
 			new Request("http://localhost:3000/api/auth/sign-in/email", {
 				method: "POST",
@@ -238,9 +235,7 @@ describe("router integration", () => {
 	});
 
 	it("shows fallback avatar for a user with empty name", async () => {
-		await auth.api.signUpEmail({
-			body: { email: "noname@x.com", password: "senha-forte-123", name: "Temp" },
-		});
+		await signUpDoctor({ email: "noname@x.com", password: "senha-forte-123", name: "Temp" });
 		await db.update(userTable).set({ name: "" }).where(eq(userTable.email, "noname@x.com"));
 		const res = await auth.handler(
 			new Request("http://localhost:3000/api/auth/sign-in/email", {

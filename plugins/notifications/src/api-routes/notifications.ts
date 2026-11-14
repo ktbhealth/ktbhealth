@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
-import { createPluginApiRoute, getSessionUser, runAs } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, runAs } from "@ktb/server-fns";
 
 import { Notifications } from "../Notifications.ts";
 
@@ -24,7 +24,7 @@ export const Route = createPluginApiRoute("notifications.routes")("/api/notifica
 	server: {
 		handlers: {
 			GET: async () => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				if (!user) return new Response("unauthorized", { status: 401 });
 
 				const body = await runAs(
