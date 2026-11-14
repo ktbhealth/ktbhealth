@@ -2,7 +2,7 @@
  * contributions.ts — the composition root's explicit contribution
  * graph (P-074 phase 4).
  *
- * A Bun CLI cannot use import.meta.glob, so every capability plugin's
+ * The CLI cannot use import.meta.glob, so every capability plugin's
  * `*Contributions` array is imported by name and registered into one
  * ContributionRegistry. `list` resolves manifest refs against this;
  * commands resolve the adapter key per capability from the profile.

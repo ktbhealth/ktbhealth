@@ -46,7 +46,8 @@ describe("makeLocalAsr", () => {
 	it("strips the file:// scheme into the audio_path payload", async () => {
 		let body = "";
 		const spy = (async (_u: unknown, init: RequestInit) => {
-			body = String(init.body);
+			// The adapter always POSTs a JSON string body.
+			body = init.body as string;
 			return new Response(JSON.stringify(asrBody));
 		}) as typeof fetch;
 		await run(spy);
@@ -174,7 +175,8 @@ describe("makeLocalAsr", () => {
 	it("percent-decodes file:// paths", async () => {
 		let body = "";
 		const spy = (async (_u: unknown, init: RequestInit) => {
-			body = String(init.body);
+			// The adapter always POSTs a JSON string body.
+			body = init.body as string;
 			return new Response(JSON.stringify(asrBody));
 		}) as typeof fetch;
 		await run(spy, {}, "file:///tmp/my%20file.wav");
@@ -184,7 +186,8 @@ describe("makeLocalAsr", () => {
 	it("falls back to the raw path on malformed percent escapes", async () => {
 		let body = "";
 		const spy = (async (_u: unknown, init: RequestInit) => {
-			body = String(init.body);
+			// The adapter always POSTs a JSON string body.
+			body = init.body as string;
 			return new Response(JSON.stringify(asrBody));
 		}) as typeof fetch;
 		await run(spy, {}, "file:///tmp/%E0%A4%A");
@@ -255,7 +258,8 @@ describe("makeLocalAsr", () => {
 	it("passes a non-default language through", async () => {
 		let body = "";
 		const spy = (async (_u: unknown, init: RequestInit) => {
-			body = String(init.body);
+			// The adapter always POSTs a JSON string body.
+			body = init.body as string;
 			return new Response(JSON.stringify(asrBody));
 		}) as typeof fetch;
 		const layer = makeLocalAsr({ baseUrl: "http://localhost:1", fetchImpl: spy });

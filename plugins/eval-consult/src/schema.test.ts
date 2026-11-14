@@ -77,7 +77,7 @@ describe("Sample schema", () => {
 					lgpdBasis: "consentimento",
 				},
 			}),
-		).toThrow();
+		).toThrowError(/sourcePartner/);
 	});
 });
 

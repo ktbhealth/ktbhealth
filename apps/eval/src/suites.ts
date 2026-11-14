@@ -5,7 +5,8 @@
  * definition time; this loader re-validates through
  * `validateManifest` so a hand-edited or stale file fails loudly
  * instead of composing garbage. Apps are the exempt edge — fs and
- * dynamic import of .ts are legal here (Bun runtime).
+ * dynamic import of .ts are legal here (type stripping on both Bun
+ * and Node ≥ 23.6).
  *
  * Convention: ONLY `*.suite.ts` files are manifests. Any other `.ts`
  * in evals/ is a shared helper module (schemas, fixtures, builders)

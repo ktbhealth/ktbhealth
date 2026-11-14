@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { GATE_DECODERS, decodeAcceptPolicy } from "./policy.ts";
+import { GATE_DECODERS, decodeAcceptPolicy, policyNumberError } from "./policy.ts";
 import { UsageError } from "./errors.ts";
 
 describe("decodeAcceptPolicy", () => {
@@ -85,6 +85,10 @@ describe("decodeAcceptPolicy", () => {
 		expect(() => decodeAcceptPolicy({ z: null })).toThrow(/must not be null/);
 		expect(() => decodeAcceptPolicy({ stage: null })).toThrow(/must not be null/);
 	});
+});
+
+test("policyNumberError passes unknown fields through (defensive default)", () => {
+	expect(policyNumberError("not-a-policy-field", -1)).toBeNull();
 });
 
 test("GATE_DECODERS registers auto-accept", () => {
