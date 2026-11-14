@@ -86,9 +86,13 @@ const ALLERGY_QUESTION: Record<string, readonly string[]> = {
 	colloquial: ["Você tem alergia a algum remédio?"],
 };
 
-const ALLERGY_DENY: readonly string[] = [
-	"não tenho alergia a remédio nenhum",
-	"nega alergia a medicamentos",
+/** Denial variants paired with their negation marker — the gold
+ * entity is the MARKER, not the utterance: losing "não"/"nega" is the
+ * dangerous event, and substring alignment stays robust to ASR word
+ * errors elsewhere in the phrase. */
+const ALLERGY_DENY: readonly { marker: string; text: string }[] = [
+	{ marker: "não tenho alergia", text: "não tenho alergia a remédio nenhum" },
+	{ marker: "nega alergia", text: "nega alergia a medicamentos" },
 ];
 
 const ALLERGY_AFFIRM: readonly { med: string; text: string }[] = [
@@ -164,12 +168,13 @@ export const buildScriptContext = (persona: Persona, seed: number) => {
 			: chiefComplaint;
 
 	const denyAllergy = rand() < 0.6;
+	const deny = pick(rand, ALLERGY_DENY);
 	const affirm = pick(rand, ALLERGY_AFFIRM);
-	const allergyAnswer = denyAllergy ? pick(rand, ALLERGY_DENY) : affirm.text;
+	const allergyAnswer = denyAllergy ? deny.text : affirm.text;
 
 	const rx = pick(rand, PRESCRIPTION[specialty]!);
 	const entities: GoldEntity[] = [
-		...(denyAllergy ? [{ category: "negation" as const, value: allergyAnswer }] : []),
+		...(denyAllergy ? [{ category: "negation" as const, value: deny.marker }] : []),
 		...(denyAllergy ? [] : [{ category: "medication" as const, value: affirm.med }]),
 		{ category: "medication", value: rx.med },
 		{ category: "dosage", value: rx.dose },
