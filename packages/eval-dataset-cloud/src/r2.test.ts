@@ -118,6 +118,53 @@ describe("r2 store adapter", () => {
 		expect(out.miss).toBeNull();
 	});
 
+	it("blob provenance round-trips; missing meta defaults to unknown", async () => {
+		const out = await withStore(
+			Effect.gen(function* () {
+				const store = yield* DatasetStorePort;
+				yield* store.putBlob("r2://a/syn.wav", new Uint8Array([1]), { origin: "synthetic" });
+				yield* store.putBlob("r2://a/real.wav", new Uint8Array([2]), {
+					origin: "real_anonymized",
+				});
+				yield* store.putBlob("r2://a/none.wav", new Uint8Array([3]));
+				return {
+					syn: yield* store.getBlobMeta("r2://a/syn.wav"),
+					real: yield* store.getBlobMeta("r2://a/real.wav"),
+					none: yield* store.getBlobMeta("r2://a/none.wav"),
+					missing: yield* store.getBlobMeta("r2://a/missing.wav"),
+				};
+			}),
+		);
+		expect(out.syn).toEqual({ origin: "synthetic" });
+		expect(out.real).toEqual({ origin: "real_anonymized" });
+		expect(out.none).toEqual({ origin: "unknown" });
+		expect(out.missing).toBeNull();
+	});
+
+	it("rejects a bogus blob origin on write", async () => {
+		await expect(
+			withStore(
+				Effect.flatMap(DatasetStorePort, (s) =>
+					s.putBlob("u", new Uint8Array(), { origin: "bogus" as never }),
+				),
+			),
+		).rejects.toThrow(/invalid blob meta/);
+	});
+
+	it("fails typed on a corrupt stored blob meta", async () => {
+		const bucket = memBucket();
+		await bucket.put("blobmeta/corrupt.json", '{"origin":42}');
+		await expect(
+			withStore(
+				Effect.gen(function* () {
+					const store = yield* DatasetStorePort;
+					return yield* store.getBlobMeta("corrupt");
+				}),
+				bucket,
+			),
+		).rejects.toThrow(/corrupt blob meta/);
+	});
+
 	it("put/list results with runId + sampleId filters", async () => {
 		const out = await withStore(
 			Effect.gen(function* () {
@@ -229,6 +276,9 @@ describe("r2 store adapter", () => {
 		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.getBlob("u")))).rejects.toThrow(
 			/r2 down/,
 		);
+		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.getBlobMeta("u")))).rejects.toThrow(
+			/r2 down/,
+		);
 		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.putResult(result)))).rejects.toThrow(
 			/r2 down/,
 		);
@@ -258,6 +308,9 @@ describe("r2 store adapter", () => {
 			run(Effect.flatMap(DatasetStorePort, (s) => s.putBlob("u", new Uint8Array()))),
 		).rejects.toThrow(/r2 down/);
 		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.getBlob("u")))).rejects.toThrow(
+			/r2 down/,
+		);
+		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.getBlobMeta("u")))).rejects.toThrow(
 			/r2 down/,
 		);
 		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.putResult(result)))).rejects.toThrow(

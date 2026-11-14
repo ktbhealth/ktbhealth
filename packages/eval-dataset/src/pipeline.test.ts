@@ -116,6 +116,7 @@ const live = Layer.mergeAll(
 			listSamples: () => Effect.succeed([sample]),
 			putBlob: () => Effect.void,
 			getBlob: () => Effect.succeed(null),
+			getBlobMeta: () => Effect.succeed(null),
 			putResult: (r) => Effect.sync(() => void storedResults.set(r.sampleId, r)),
 			listResults: () => Effect.succeed([]),
 		}),
@@ -133,6 +134,22 @@ const live = Layer.mergeAll(
 			synthesize: () => Effect.succeed({ audio: { uri: "stub://tts", size: 4 }, record }),
 		}),
 	),
+);
+
+/** Minimal store for tests that provide their own AsrPort —
+ * transcribeSample resolves blob provenance through it. */
+const storeStub = Layer.succeed(
+	DatasetStorePort,
+	DatasetStorePort.of({
+		putSample: () => Effect.void,
+		getSample: () => Effect.succeed(null),
+		listSamples: () => Effect.succeed([]),
+		putBlob: () => Effect.void,
+		getBlob: () => Effect.succeed(null),
+		getBlobMeta: () => Effect.succeed(null),
+		putResult: () => Effect.void,
+		listResults: () => Effect.succeed([]),
+	}),
 );
 
 const run = <A>(e: Effect.Effect<A, unknown, unknown>) =>
@@ -182,7 +199,7 @@ describe("transcribeSample", () => {
 		expect(err).toBeInstanceOf(PortError);
 	});
 
-	it("forwards the sample origin to the ASR port", async () => {
+	it("forwards the sample origin and stored blob provenance to the ASR port", async () => {
 		let seen: unknown;
 		const capture = Layer.succeed(
 			AsrPort,
@@ -194,8 +211,77 @@ describe("transcribeSample", () => {
 					}),
 			}),
 		);
-		await Effect.runPromise(Effect.provide(transcribeSample(sample), capture));
-		expect(seen).toEqual({ language: "pt", origin: "synthetic" });
+		await Effect.runPromise(
+			Effect.provide(transcribeSample(sample), Layer.merge(capture, storeStub)),
+		);
+		expect(seen).toEqual({ language: "pt", origin: "synthetic", blobMeta: null });
+	});
+
+	it("passes the blob's stored provenance through to the ASR port", async () => {
+		let seen: unknown;
+		const capture = Layer.succeed(
+			AsrPort,
+			AsrPort.of({
+				transcribe: (_audio, opts) =>
+					Effect.sync(() => {
+						seen = opts;
+						return { asr: asrResult, record };
+					}),
+			}),
+		);
+		const metaStore = Layer.succeed(
+			DatasetStorePort,
+			DatasetStorePort.of({
+				putSample: () => Effect.void,
+				getSample: () => Effect.succeed(null),
+				listSamples: () => Effect.succeed([]),
+				putBlob: () => Effect.void,
+				getBlob: () => Effect.succeed(null),
+				getBlobMeta: () => Effect.succeed({ origin: "real_anonymized" as const }),
+				putResult: () => Effect.void,
+				listResults: () => Effect.succeed([]),
+			}),
+		);
+		await Effect.runPromise(
+			Effect.provide(transcribeSample(sample), Layer.merge(capture, metaStore)),
+		);
+		expect(seen).toEqual({
+			language: "pt",
+			origin: "synthetic",
+			blobMeta: { origin: "real_anonymized" },
+		});
+	});
+
+	it("fails closed when the blob provenance lookup fails", async () => {
+		const err = await Effect.runPromise(
+			Effect.provide(
+				transcribeSample(sample).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+				Layer.mergeAll(
+					Layer.succeed(
+						AsrPort,
+						AsrPort.of({ transcribe: () => Effect.succeed({ asr: asrResult, record }) }),
+					),
+					Layer.succeed(
+						DatasetStorePort,
+						DatasetStorePort.of({
+							putSample: () => Effect.void,
+							getSample: () => Effect.succeed(null),
+							listSamples: () => Effect.succeed([]),
+							putBlob: () => Effect.void,
+							getBlob: () => Effect.succeed(null),
+							getBlobMeta: () =>
+								Effect.fail(new PortError({ port: "store", message: "store down" })),
+							putResult: () => Effect.void,
+							listResults: () => Effect.succeed([]),
+						}),
+					),
+				),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("store down");
 	});
 
 	it("forwards the locale profile's ASR language", async () => {
@@ -211,8 +297,10 @@ describe("transcribeSample", () => {
 			}),
 		);
 		const xx = { ...ptBR, id: "xx-v1", asrLanguage: "xx" };
-		await Effect.runPromise(Effect.provide(transcribeSample(sample, xx), capture));
-		expect(seen).toEqual({ language: "xx", origin: "synthetic" });
+		await Effect.runPromise(
+			Effect.provide(transcribeSample(sample, xx), Layer.merge(capture, storeStub)),
+		);
+		expect(seen).toEqual({ language: "xx", origin: "synthetic", blobMeta: null });
 	});
 });
 

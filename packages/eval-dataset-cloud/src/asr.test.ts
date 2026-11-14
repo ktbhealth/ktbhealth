@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import { describe, expect, it } from "vitest";
 
-import { AsrPort, PortError } from "@ktb/eval-dataset";
+import { AsrPort, PortError, type BlobMeta } from "@ktb/eval-dataset";
 
 import { makeWorkersAiAsr } from "./asr.ts";
 
@@ -31,7 +31,11 @@ const fetchJson = (body: unknown, init?: { status?: number }) =>
 const transcribe = (
 	fetchImpl: typeof fetch,
 	opts: Partial<Parameters<typeof makeWorkersAiAsr>[0]> = {},
-	callOpts?: { language?: string; origin?: "synthetic" | "real_anonymized" },
+	callOpts?: {
+		language?: string;
+		origin?: "synthetic" | "real_anonymized";
+		blobMeta?: BlobMeta | null;
+	},
 ) =>
 	Effect.runPromise(
 		Effect.gen(function* () {
@@ -138,6 +142,116 @@ describe("workers-ai asr adapter", () => {
 	it("passes synthetic origin through to the provider call", async () => {
 		const out = await transcribe(fetchJson(okBody), {}, { origin: "synthetic" });
 		expect(out.asr.text).toBe("refere cefaleia");
+	});
+
+	it("refuses audio whose stored provenance is real_anonymized", async () => {
+		let calls = 0;
+		const spy = (() => {
+			calls += 1;
+			return Promise.resolve(new Response(JSON.stringify(okBody)));
+		}) as unknown as typeof fetch;
+		// Declared synthetic cannot launder a real consult recording —
+		// the stored blob meta wins.
+		await expect(
+			transcribe(spy, {}, { origin: "synthetic", blobMeta: { origin: "real_anonymized" } }),
+		).rejects.toThrow(/stored provenance "real_anonymized"/);
+		expect(calls).toBe(0);
+	});
+
+	it("refuses audio whose stored provenance is unknown", async () => {
+		let calls = 0;
+		const spy = (() => {
+			calls += 1;
+			return Promise.resolve(new Response(JSON.stringify(okBody)));
+		}) as unknown as typeof fetch;
+		await expect(transcribe(spy, {}, { blobMeta: { origin: "unknown" } })).rejects.toThrow(
+			/stored provenance "unknown"/,
+		);
+		expect(calls).toBe(0);
+	});
+
+	it("allows verified-synthetic stored provenance", async () => {
+		const out = await transcribe(fetchJson(okBody), {}, { blobMeta: { origin: "synthetic" } });
+		expect(out.asr.text).toBe("refere cefaleia");
+	});
+
+	it("allows null blobMeta — no store record is the documented bypass", async () => {
+		const out = await transcribe(fetchJson(okBody), {}, { blobMeta: null });
+		expect(out.asr.text).toBe("refere cefaleia");
+	});
+
+	it("allowRealAudio overrides a stored-provenance refusal", async () => {
+		const out = await transcribe(
+			fetchJson(okBody),
+			{ allowRealAudio: true },
+			{ blobMeta: { origin: "real_anonymized" } },
+		);
+		expect(out.asr.text).toBe("refere cefaleia");
+	});
+
+	it("readBlobMeta lookup enforces stored provenance for direct callers", async () => {
+		let calls = 0;
+		const spy = (() => {
+			calls += 1;
+			return Promise.resolve(new Response(JSON.stringify(okBody)));
+		}) as unknown as typeof fetch;
+		await expect(
+			transcribe(spy, { readBlobMeta: () => Effect.succeed({ origin: "real_anonymized" }) }),
+		).rejects.toThrow(/stored provenance "real_anonymized"/);
+		expect(calls).toBe(0);
+	});
+
+	it("readBlobMeta synthetic and null lookups allow the call", async () => {
+		const syn = await transcribe(fetchJson(okBody), {
+			readBlobMeta: () => Effect.succeed({ origin: "synthetic" }),
+		});
+		expect(syn.asr.text).toBe("refere cefaleia");
+		const none = await transcribe(fetchJson(okBody), {
+			readBlobMeta: () => Effect.succeed(null),
+		});
+		expect(none.asr.text).toBe("refere cefaleia");
+	});
+
+	it("explicit callOpts.blobMeta wins over readBlobMeta", async () => {
+		let looked = 0;
+		const out = await transcribe(
+			fetchJson(okBody),
+			{
+				readBlobMeta: () => {
+					looked += 1;
+					return Effect.succeed<BlobMeta | null>({ origin: "real_anonymized" });
+				},
+			},
+			{ blobMeta: { origin: "synthetic" } },
+		);
+		expect(out.asr.text).toBe("refere cefaleia");
+		expect(looked).toBe(0);
+	});
+
+	it("readBlobMeta failures propagate as PortError — fail closed", async () => {
+		await expect(
+			transcribe(fetchJson(okBody), {
+				readBlobMeta: () =>
+					Effect.fail(new PortError({ port: "store", message: "meta store down" })),
+			}),
+		).rejects.toThrow(/meta store down/);
+	});
+
+	it("skips the provenance lookup entirely for declared real_anonymized", async () => {
+		let looked = 0;
+		await expect(
+			transcribe(
+				fetchJson(okBody),
+				{
+					readBlobMeta: () => {
+						looked += 1;
+						return Effect.succeed<BlobMeta | null>({ origin: "synthetic" });
+					},
+				},
+				{ origin: "real_anonymized" },
+			),
+		).rejects.toThrow(/refusing real_anonymized audio/);
+		expect(looked).toBe(0);
 	});
 
 	it("fails typed on http error", async () => {

@@ -7,6 +7,7 @@ import type {
 	AcousticProfile,
 	AsrResult,
 	AudioRef,
+	BlobMeta,
 	EvalAnswer,
 	EvalQuestion,
 	RunRecord,
@@ -44,15 +45,24 @@ export class TtsPort extends Context.Service<
 >()("@ktb/eval-dataset/TtsPort") {}
 
 /** Speech-to-text: audio ref → text + confidence-tagged segments.
- * `origin` carries the sample's provenance so adapters that egress
- * audio to third parties (cloud ASR) can enforce the PHI boundary —
- * voice is PHI, only `synthetic` audio may leave the perimeter. */
+ * `origin` is the CALLER-DECLARED provenance (sample manifest) — a
+ * hint, not proof. `blobMeta` is the provenance recorded ON the blob
+ * itself at `putBlob` time; adapters that egress audio to third
+ * parties (cloud ASR) must treat stored `real_anonymized`/`unknown`
+ * as non-synthetic and refuse unless explicitly opted in — voice is
+ * PHI, only verified-synthetic audio may leave the perimeter.
+ * `blobMeta: null` = looked up, no record; `undefined` = caller did
+ * not check (the documented file:// bypass). */
 export class AsrPort extends Context.Service<
 	AsrPort,
 	{
 		readonly transcribe: (
 			audio: AudioRef,
-			opts?: { readonly language?: string; readonly origin?: SampleOrigin },
+			opts?: {
+				readonly language?: string;
+				readonly origin?: SampleOrigin;
+				readonly blobMeta?: BlobMeta | null;
+			},
 		) => Effect.Effect<{ asr: AsrResult; record: RunRecord }, PortError>;
 	}
 >()("@ktb/eval-dataset/AsrPort") {}
@@ -111,8 +121,20 @@ export class DatasetStorePort extends Context.Service<
 			readonly origin?: Sample["origin"];
 			readonly datasetVersion?: string;
 		}) => Effect.Effect<readonly Sample[], PortError>;
-		readonly putBlob: (uri: string, bytes: Uint8Array) => Effect.Effect<void, PortError>;
+		/** `meta.origin` is persisted alongside the bytes — provenance
+		 * travels WITH the blob so enforcement adapters can verify it
+		 * at read/egress time. Omitting `meta` records `unknown`
+		 * (conservative: cloud adapters refuse unverified audio). */
+		readonly putBlob: (
+			uri: string,
+			bytes: Uint8Array,
+			meta?: { readonly origin: SampleOrigin },
+		) => Effect.Effect<void, PortError>;
 		readonly getBlob: (uri: string) => Effect.Effect<Uint8Array | null, PortError>;
+		/** Recorded provenance for a stored blob — `null` when the URI
+		 * has no store record (never written, or written before
+		 * provenance tracking). */
+		readonly getBlobMeta: (uri: string) => Effect.Effect<BlobMeta | null, PortError>;
 		/** Persisted per-sample eval outcome — the audit trail the
 		 * platform exists to keep. */
 		readonly putResult: (result: SampleResult) => Effect.Effect<void, PortError>;

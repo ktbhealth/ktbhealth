@@ -31,14 +31,22 @@ are attributable. Built for a hybrid dataset: `synthetic` (TTS) today,
   identifiers; downstream stages (judge state, metrics) see the
   scrubbed text. `anonymize`/`gateTranscript` themselves only return
   audit counts / null — they never fail anything.
-- `AsrPort.transcribe` receives `sample.origin` so adapters that
-  egress audio can enforce the boundary: cloud ASR must only ever see
-  synthetic audio (voice is PHI). `@ktb/eval-dataset-cloud` refuses
-  declared `real_anonymized` audio unless `allowRealAudio` is set for
-  a self-hosted endpoint.
-- Residual gap (explicit): a caller that bypasses the port and hands a
-  raw `AudioRef` with no provenance is outside the adapter guarantee —
-  audio-level provenance markers land with the real-ingest milestone.
+- `AsrPort.transcribe` receives `sample.origin` (caller-declared) AND
+  `blobMeta` — the provenance recorded on the blob itself. `processSample`
+  resolves it via `DatasetStorePort.getBlobMeta` before every transcribe;
+  a failed lookup fails closed. Adapters that egress audio must treat
+  stored `real_anonymized`/`unknown` as non-synthetic: cloud ASR refuses
+  them unless `allowRealAudio` is set for a self-hosted endpoint.
+- `DatasetStorePort.putBlob(uri, bytes, meta?)` persists provenance
+  WITH the bytes (`getBlobMeta` reads it back). Omitting `meta` records
+  `unknown` — conservative, never silently synthetic. Both real
+  adapters (SQLite `blob_meta` table, R2 `blobmeta/` objects) write the
+  meta record before the bytes so a stored blob always has provenance.
+- Residual gap (explicit): a caller that hands a raw `AudioRef` whose
+  URI has NO store record — e.g. a `file://` path resolved directly by
+  the adapter's `readAudio` — is outside the guarantee; the store
+  cannot see bytes it never stored. `blobMeta: null`/absent meta is
+  the documented bypass, not a verified-synthetic claim.
 
 ## Boundary rules
 

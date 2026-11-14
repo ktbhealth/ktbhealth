@@ -5,7 +5,13 @@ import * as path from "node:path";
 import * as Effect from "effect/Effect";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { DatasetStorePort, ReportPort, type RunRecord, type Sample } from "@ktb/eval-dataset";
+import {
+	DatasetStorePort,
+	PortError,
+	ReportPort,
+	type RunRecord,
+	type Sample,
+} from "@ktb/eval-dataset";
 
 import { makeLocalReportLayer, makeLocalStoreLayer } from "./index.ts";
 
@@ -101,6 +107,71 @@ describe("local store layer", () => {
 			}),
 		);
 		expect(missing).toBeNull();
+	});
+
+	it("blob provenance round-trips; missing meta defaults to unknown", async () => {
+		const layer = makeLocalStoreLayer(root);
+		const run = <A>(e: Effect.Effect<A, unknown, DatasetStorePort>) =>
+			Effect.runPromise(Effect.provide(e, layer));
+		const r = await run(
+			Effect.gen(function* () {
+				const s = yield* DatasetStorePort;
+				yield* s.putBlob("prov/syn", new Uint8Array([1]), { origin: "synthetic" });
+				yield* s.putBlob("prov/real", new Uint8Array([2]), { origin: "real_anonymized" });
+				yield* s.putBlob("prov/none", new Uint8Array([3]));
+				return {
+					syn: yield* s.getBlobMeta("prov/syn"),
+					real: yield* s.getBlobMeta("prov/real"),
+					none: yield* s.getBlobMeta("prov/none"),
+					missing: yield* s.getBlobMeta("prov/missing"),
+				};
+			}),
+		);
+		expect(r.syn).toEqual({ origin: "synthetic" });
+		expect(r.real).toEqual({ origin: "real_anonymized" });
+		expect(r.none).toEqual({ origin: "unknown" });
+		expect(r.missing).toBeNull();
+	});
+
+	it("putBlob rejects a bogus origin on write", async () => {
+		const layer = makeLocalStoreLayer(root);
+		const err = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putBlob("prov/bad", new Uint8Array([1]), {
+						origin: "bogus" as never,
+					});
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				layer,
+			),
+		);
+		expect(String(err)).toContain("putBlob");
+	});
+
+	it("getBlobMeta fails typed on a corrupt meta row", async () => {
+		const layer = makeLocalStoreLayer(root);
+		// Plant a corrupt provenance row directly — reads must surface
+		// it as a PortError, never a silent null.
+		const Database = (await import("better-sqlite3")).default;
+		const db = new Database(path.join(root, "manifest.sqlite"));
+		db.exec(`CREATE TABLE IF NOT EXISTS blob_meta (uri TEXT PRIMARY KEY, doc TEXT NOT NULL)`);
+		db.prepare(`INSERT INTO blob_meta (uri, doc) VALUES (?, ?)`).run(
+			"prov/corrupt",
+			'{"origin":42}',
+		);
+		db.close();
+		const err = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					return yield* s.getBlobMeta("prov/corrupt");
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				layer,
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect((err as PortError).message).toContain("getBlobMeta");
 	});
 
 	it("putResult/listResults round-trip", async () => {

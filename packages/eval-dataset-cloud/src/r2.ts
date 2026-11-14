@@ -12,7 +12,7 @@ import { Schema } from "effect";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { DatasetStorePort, PortError, Sample, SampleResult } from "@ktb/eval-dataset";
+import { BlobMeta, DatasetStorePort, PortError, Sample, SampleResult } from "@ktb/eval-dataset";
 
 /** Minimal R2 surface — structurally compatible with R2Bucket. */
 export interface BucketLike {
@@ -28,6 +28,7 @@ export interface BucketLike {
 const fail = (message: string) => new PortError({ port: "store", message });
 const decodeSample = Schema.decodeUnknownSync(Sample);
 const decodeResult = Schema.decodeUnknownSync(SampleResult);
+const decodeBlobMeta = Schema.decodeUnknownSync(BlobMeta);
 
 const getJson = (bucket: BucketLike, key: string) =>
 	Effect.tryPromise({
@@ -110,15 +111,41 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 					),
 				),
 
-			putBlob: (uri, bytes) =>
-				Effect.tryPromise({
-					try: () =>
-						// Copy — detaches the view from any shared/oversized buffer.
-						bucket
-							.put(`blobs/${encodeURIComponent(uri)}`, new Uint8Array(bytes).buffer)
-							.then(() => undefined),
-					catch: (e) => fail(e instanceof Error ? e.message : String(e)),
-				}),
+			// Write-side decode, same as putSample: a bogus origin fails
+			// here, not silently at read. The meta object lands BEFORE
+			// the bytes so every stored blob carries a provenance
+			// record — a failed blob write leaves a conservative orphan
+			// meta, never an unmarked blob cloud ASR could mistake for
+			// the documented no-record bypass.
+			putBlob: (uri, bytes, meta) =>
+				Effect.try({
+					try: () => decodeBlobMeta({ origin: meta?.origin ?? "unknown" }),
+					catch: (e) => fail(`invalid blob meta: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) =>
+						Effect.tryPromise({
+							try: async () => {
+								const enc = encodeURIComponent(uri);
+								await bucket.put(`blobmeta/${enc}.json`, JSON.stringify(validated));
+								// Copy — detaches the view from any shared/oversized buffer.
+								await bucket.put(`blobs/${enc}`, new Uint8Array(bytes).buffer);
+							},
+							catch: (e) => fail(e instanceof Error ? e.message : String(e)),
+						}),
+					),
+				),
+
+			getBlobMeta: (uri) =>
+				getJson(bucket, `blobmeta/${encodeURIComponent(uri)}.json`).pipe(
+					Effect.flatMap((body) =>
+						body === null
+							? Effect.succeed(null)
+							: Effect.try({
+									try: () => decodeBlobMeta(body),
+									catch: (e) => fail(`corrupt blob meta ${uri}: ${String(e).slice(0, 200)}`),
+								}),
+					),
+				),
 
 			getBlob: (uri) =>
 				Effect.tryPromise({
