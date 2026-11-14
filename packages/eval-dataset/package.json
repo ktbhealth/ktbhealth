@@ -8,8 +8,7 @@
 		"./ports": "./src/ports.ts"
 	},
 	"dependencies": {
-		"@ktb/eval-core": "workspace:*",
-		"effect": "4.1.2",
-		"eta": "^4.6.0"
+		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-core": "workspace:*"
 	}
 }

@@ -99,7 +99,9 @@ if (
 }
 
 const template = fs.readFileSync(
-	new URL(`../../eval-dataset/templates/${locale}/${templateName}.eta`, import.meta.url),
+	// Templates moved with the domain pack to plugins/eval-consult
+	// (P-074 phase 2a) — ../../../ escapes scripts/ to the repo root.
+	new URL(`../../../plugins/eval-consult/templates/${locale}/${templateName}.eta`, import.meta.url),
 	"utf8",
 );
 

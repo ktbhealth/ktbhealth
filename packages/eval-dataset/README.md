@@ -1,5 +1,12 @@
 # @ktb/eval-dataset
 
+> **Compat shim (P-074 phase 2a):** the clinical consult domain pack now
+> lives in `plugins/eval-consult` (`@ktb/eval-consult`) and the generic
+> framework in `packages/eval-core` (`@ktb/eval-core`). This package
+> re-exports both so `@ktb/eval-dataset` keeps its full surface until
+> the adapter packages are rewired (phase 3/4). The module docs below
+> describe the domain code, now under `plugins/eval-consult/src/`.
+
 Domain package for the transcription **eval platform** (P-066, T-042).
 Pure domain + Effect ports — no platform APIs, no provider literals
 (enforced by `tools/arch-policy.mjs`).

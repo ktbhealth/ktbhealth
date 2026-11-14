@@ -271,9 +271,8 @@
     "packages/eval-dataset": {
       "name": "@ktb/eval-dataset",
       "dependencies": {
+        "@ktb/eval-consult": "workspace:*",
         "@ktb/eval-core": "workspace:*",
-        "effect": "4.1.2",
-        "eta": "^4.6.0",
       },
     },
     "packages/eval-dataset-cloud": {
@@ -552,6 +551,15 @@
       },
       "peerDependencies": {
         "react": "^19.2.0",
+      },
+    },
+    "plugins/eval-consult": {
+      "name": "@ktb/eval-consult",
+      "dependencies": {
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "effect": "4.1.2",
+        "eta": "^4.6.0",
       },
     },
     "plugins/groups": {
@@ -1249,6 +1257,8 @@
     "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
+
+    "@ktb/eval-consult": ["@ktb/eval-consult@workspace:plugins/eval-consult"],
 
     "@ktb/eval-core": ["@ktb/eval-core@workspace:packages/eval-core"],
 
