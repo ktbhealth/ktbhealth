@@ -74,6 +74,8 @@ export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort
 										Authorization: `Bearer ${opts.apiToken}`,
 										"Content-Type": "application/octet-stream",
 									},
+									// Uint8Array is a valid fetch body at runtime;
+									// TS's BodyInit just doesn't include ArrayBufferView.
 									body: bytes as unknown as BodyInit,
 								});
 								if (!res.ok) {

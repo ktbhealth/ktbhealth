@@ -6,6 +6,14 @@
  * audit record carries counts per category, never the redacted values
  * or positions. If a category survives scrubbing, fail the sample:
  * better to drop real data than to leak PHI into a dataset.
+ *
+ * Residual-PHI policy (explicit, reviewed): bare dates "12/03/1985"
+ * PASS — they carry clinical meaning (dose timing, follow-up) and
+ * alone are weak identifiers; DOB is only scrubbed when phrased as
+ * such ("nascido em", "DN:"). CEP "12345-678" and free-form names/
+ * addresses are NOT yet covered — before real partner ingestion the
+ * partner contract must state which residual categories are
+ * acceptable, and this table must grow to match.
  */
 
 export type PhiCategory = "cpf" | "phone" | "email" | "date_of_birth";
