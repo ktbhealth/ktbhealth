@@ -211,9 +211,11 @@ export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05
  * blindly) when no cutoff qualifies.
  *
  * Distinct from `decideAutoAccept` in accept.ts: that gate is a
- * pooled precision floor over ALL confSegments and deliberately
- * ignores per-segment confidence at this stage; this function is the
- * per-segment threshold notion — see accept.ts for the boundary.
+ * sample-level pass/fail — pooled Wilson floor over ALL confSegments
+ * PLUS a per-band observed-precision floor (this function's per-band
+ * rule applied as a veto, not a cutoff). This function answers "which
+ * segments may skip review"; the gate answers "is the whole sample
+ * safe to auto-accept" — see accept.ts for the boundary.
  */
 export const recommendThreshold = (
 	segments: readonly ConfSegment[],

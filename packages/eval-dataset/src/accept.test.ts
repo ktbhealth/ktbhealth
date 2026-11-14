@@ -99,15 +99,50 @@ describe("decideAutoAccept", () => {
 		expect(d.accept).toBe(true);
 	});
 
-	it("ignores segment confidence — pooled precision floor, not calibration", () => {
-		// TODO(calibration milestone): confidence is intentionally unused
-		// here; this test pins that so a future change is deliberate.
+	it("low confidence alone does not reject — only band precision does", () => {
+		// Confidence magnitude is not gated; a clean low-confidence band
+		// is as acceptable as a clean high-confidence one.
 		const d = decideAutoAccept(
 			result({
 				confSegments: Array.from({ length: 50 }, () => ({ correct: true, confidence: 0.01 })),
 			}),
 			policy,
 		);
+		expect(d.accept).toBe(true);
+	});
+
+	it("rejects errors concentrated in one confidence band the pooled floor would hide", () => {
+		// 194/200 = 0.97 observed → pooled Wilson floor clears 0.90, but
+		// the [0.95,1.0) band observes 0.70 — concentration must fail.
+		const confSegments = [
+			...Array.from({ length: 180 }, () => ({ correct: true, confidence: 0.5 })),
+			...Array.from({ length: 20 }, (_, i) => ({ correct: i < 14, confidence: 0.97 })),
+		];
+		const d = decideAutoAccept(result({ confSegments }), policy);
+		expect(d.accept).toBe(false);
+		expect(d.reasons.join()).toContain("confidence band [0.95,1)");
+		expect(d.reasons.join()).not.toContain("precision floor");
+	});
+
+	it("rejects a weak low-confidence band too — bands are vetoed at any height", () => {
+		const confSegments = [
+			...Array.from({ length: 180 }, () => ({ correct: true, confidence: 0.97 })),
+			...Array.from({ length: 20 }, (_, i) => ({ correct: i < 10, confidence: 0.5 })),
+		];
+		const d = decideAutoAccept(result({ confSegments }), policy);
+		expect(d.accept).toBe(false);
+		expect(d.reasons.join()).toContain("confidence band [0.5,0.55)");
+	});
+
+	it("unscored segments skip the band check but still count in the pooled floor", () => {
+		// 60 scored-clean + 40 unscored with 3 errors → pooled 97/100
+		// clears the floor; the unscored bucket (lo=hi=-1) is exempt
+		// from the per-band veto, same convention as recommendThreshold.
+		const confSegments = [
+			...Array.from({ length: 60 }, () => ({ correct: true, confidence: 0.9 })),
+			...Array.from({ length: 40 }, (_, i) => ({ correct: i < 37 })),
+		];
+		const d = decideAutoAccept(result({ confSegments }), policy);
 		expect(d.accept).toBe(true);
 	});
 
