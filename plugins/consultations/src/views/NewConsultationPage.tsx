@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { BrainIcon, ClipboardListIcon, DownloadIcon } from "lucide-react";
 
 import { Dialog } from "@ktbhealth/ui/components/app-dialog";
@@ -91,6 +91,22 @@ export interface NewConsultationApi {
 	>;
 	/** Optional: refetch after audio upload to track server transcription. */
 	getConsultation?(input: { data: number }): Promise<ConsultationAudioInfo | null>;
+	/**
+	 * Optional: where a patient stands on portal access — after saving,
+	 * the doctor is asked whether to send the access email when the linked
+	 * patient has none yet. `email` is the address on the patient record.
+	 */
+	patientAccess?(input: {
+		data: number;
+	}): Promise<{ email: string | null; hasAccess: boolean } | null>;
+	/**
+	 * Optional: give the patient portal access under `email` and send
+	 * them the access email. `emailed` is false when access was granted
+	 * but the message could not be sent.
+	 */
+	invitePatient?(input: {
+		data: { patientId: number; email: string };
+	}): Promise<{ ok: true; emailed: boolean } | { ok: false; error: string }>;
 }
 
 export function NewConsultationPage({
@@ -124,6 +140,14 @@ export function NewConsultationPage({
 	const [saveDialog, setSaveDialog] = useState<
 		{ kind: "ok"; id: number; updated: boolean } | { kind: "error"; message: string } | null
 	>(null);
+	// Portal access question, asked in the save dialog: set once a saved
+	// consultation is linked to a patient who has no portal access yet.
+	const [access, setAccess] = useState<{
+		patientId: number;
+		email: string;
+		status: "ask" | "sending" | "sent" | "unsent";
+		error: string | null;
+	} | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [meetUrl, setMeetUrl] = useState("");
 	const [liveId, setLiveId] = useState<number | null>(null);
@@ -483,6 +507,17 @@ export function NewConsultationPage({
 			if (consented) await api.recordConsent({ data: id });
 			setSavedId(id);
 			void uploadSessionAudio(id);
+			// The consultation is saved either way: a failed lookup only
+			// means the access question is not asked.
+			const standing =
+				patientId !== null && api.patientAccess && api.invitePatient
+					? await api.patientAccess({ data: patientId }).catch(() => null)
+					: null;
+			setAccess(
+				patientId !== null && standing && !standing.hasAccess
+					? { patientId, email: standing.email ?? "", status: "ask", error: null }
+					: null,
+			);
 			setSaveDialog({ kind: "ok", id, updated: Boolean(existing) });
 		} catch (e) {
 			setSaveDialog({
@@ -492,6 +527,29 @@ export function NewConsultationPage({
 		} finally {
 			setSaving(false);
 		}
+	}
+
+	async function sendAccess(e: FormEvent) {
+		e.preventDefault();
+		/* v8 ignore next -- the form only renders with a pending question and an invite api */
+		if (!access || !api.invitePatient) return;
+		const invitee = access.patientId;
+		const email = access.email.trim();
+		if (!email || access.status === "sending") return;
+		setAccess({ ...access, status: "sending", error: null });
+		const res = await api
+			.invitePatient({ data: { patientId: invitee, email } })
+			.catch(() => ({ ok: false as const, error: "failed" }));
+		setAccess({
+			patientId: invitee,
+			email,
+			status: res.ok ? (res.emailed ? "sent" : "unsent") : "ask",
+			error: res.ok
+				? null
+				: res.error === "invalid_email"
+					? nc.accessInvalidEmail
+					: nc.accessFailed,
+		});
 	}
 
 	function updateSection(key: AnamnesisSectionKey, content: string) {
@@ -523,6 +581,8 @@ export function NewConsultationPage({
 	const dialogPatientName = patientId
 		? (patients.find((p) => p.id === patientId)?.name ?? t.newConsultation.patientFallback)
 		: null;
+	/* v8 ignore next -- the access question only exists for a linked patient, who has a name */
+	const accessPatientName = dialogPatientName ?? nc.patientFallback;
 
 	const cardCls = "rounded-2xl border border-border bg-card shadow-sm";
 
@@ -1059,7 +1119,9 @@ export function NewConsultationPage({
 								{nc.viewConsultation}
 							</Link>
 							<Button type="button" size="sm" onClick={() => setSaveDialog(null)}>
-								{nc.confirm}
+								{access && access.status !== "sent" && access.status !== "unsent"
+									? nc.accessNotNow
+									: nc.confirm}
 							</Button>
 						</>
 					) : (
@@ -1070,14 +1132,47 @@ export function NewConsultationPage({
 				}
 			>
 				{saveDialog?.kind === "ok" ? (
-					<p>
-						{nc.dialogSavedBody({
-							id: saveDialog.id,
-							patientName: dialogPatientName,
-							updated: saveDialog.updated,
-							consented,
-						})}
-					</p>
+					<>
+						<p>
+							{nc.dialogSavedBody({
+								id: saveDialog.id,
+								patientName: dialogPatientName,
+								updated: saveDialog.updated,
+								consented,
+							})}
+						</p>
+						{access?.status === "sent" ? (
+							<p className="mt-3 text-foreground">{nc.accessSent(access.email)}</p>
+						) : access?.status === "unsent" ? (
+							<p className="mt-3 text-foreground">{nc.accessUnsent(access.email)}</p>
+						) : access ? (
+							<form
+								onSubmit={sendAccess}
+								className="mt-4 flex flex-col gap-2 border-t border-border pt-4"
+							>
+								<label htmlFor="access-email" className="font-medium text-foreground">
+									{nc.accessQuestion(accessPatientName)}
+								</label>
+								<div className="flex gap-2">
+									<Input
+										id="access-email"
+										type="email"
+										autoComplete="off"
+										required
+										placeholder={nc.accessEmailPlaceholder}
+										value={access.email}
+										onChange={(e) => setAccess({ ...access, email: e.target.value })}
+									/>
+									<Button type="submit" size="sm" disabled={access.status === "sending"}>
+										{access.status === "sending" ? <Spinner /> : null}
+										{nc.accessSend}
+									</Button>
+								</div>
+								{access.error ? <p className="text-xs text-destructive">{access.error}</p> : null}
+								<p className="text-xs">{nc.accessHint}</p>
+							</form>
+						) : null}
+					</>
 				) : (
 					<p>{saveDialog?.kind === "error" ? saveDialog.message : ""}</p>
 				)}

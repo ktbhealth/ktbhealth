@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
@@ -30,6 +30,9 @@ export const Route = createFileRoute("/verify-email")({
 // so the page never reveals which emails are registered.
 function VerifyEmailPage() {
 	const { data: session, isPending: sessionPending } = authClient.useSession();
+	// The root session knows which side the account is on: a patient
+	// account continues to its portal, everyone else to the app home.
+	const { user: account } = useLoaderData({ from: "__root__" });
 	const [typedEmail, setTypedEmail] = useState("");
 	const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -75,7 +78,10 @@ function VerifyEmailPage() {
 						<CardDescription>{m.verify_done_desc({ email: user.email })}</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<Link to="/" className={buttonVariants({ className: "w-full" })}>
+						<Link
+							to={account?.patientOnly ? "/portal" : "/"}
+							className={buttonVariants({ className: "w-full" })}
+						>
 							{m.verify_continue()}
 						</Link>
 					</CardContent>

@@ -3,6 +3,8 @@ import { plugins as consultationsPlugins } from "@ktb/consultations";
 import { plugins as doctorsPlugins } from "@ktb/doctors";
 import { plugins as jobsPlugins } from "@ktb/jobs";
 import { plugins as notificationsPlugins } from "@ktb/notifications";
+import { plugins as patientAccessPlugins } from "@ktb/patient-access";
+import { plugins as patientPortalPlugins } from "@ktb/patient-portal";
 import { plugins as patientsPlugins } from "@ktb/patients";
 import { plugins as platformPlugins } from "@ktb/platform";
 import { plugins as secretariesPlugins } from "@ktb/secretaries";
@@ -17,6 +19,8 @@ const routePlugins = [
 	...doctorsPlugins,
 	...jobsPlugins,
 	...notificationsPlugins,
+	...patientAccessPlugins,
+	...patientPortalPlugins,
 	...patientsPlugins,
 	...platformPlugins,
 	...secretariesPlugins,
@@ -31,6 +35,7 @@ export const routes = rootRoute("__root.tsx", [
 	index("index.tsx"),
 	...routePlugins.flatMap((p) => p.routes ?? []),
 	route("capture-test", "capture-test.tsx"),
+	route("portal/login", "portal-login.tsx"),
 	route("verify-email", "verify-email.tsx"),
 	physical("/api", "api"),
 	// Root splat (P-059): dispatches plugin-contributed `pages` at

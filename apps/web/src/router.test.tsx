@@ -175,7 +175,7 @@ describe("router integration", () => {
 		// The user menu offers the doctor chooser, the secretaries page and
 		// sign-out; each closes the menu, so it is reopened per item.
 		const trigger = screen.getAllByText("Dra Router")[0]!;
-		for (const item of ["Switch doctor", "Secretaries", "Sign out"]) {
+		for (const item of ["Switch doctor", "Secretaries", "Patient portal", "Sign out"]) {
 			await act(async () => {
 				fireEvent.click(trigger);
 			});

@@ -24,6 +24,7 @@
 		"@ktb/export-pdf": "workspace:*",
 		"@ktb/interop": "workspace:*",
 		"@ktb/kernel": "workspace:*",
+		"@ktb/patient-access": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
 		"@ktb/server-fns": "workspace:*",

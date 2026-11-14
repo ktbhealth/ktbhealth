@@ -244,13 +244,23 @@ describe("sign-in page", () => {
 
 		it.each([
 			["several profiles", { profiles: [{ doctorId: 1 }, { doctorId: 2 }], activeDoctorId: null }],
-			["no profile", { profiles: [], activeDoctorId: null }],
 			["no context", null],
 		] as const)("sends a sign-in with %s to the chooser", async (_label, context) => {
 			doctorContextFn.mockResolvedValueOnce(context as DoctorContext);
 			render(createElement(Page));
 			await fillAndSubmit();
 			await waitFor(() => expect(assign).toHaveBeenCalledWith("/doctors/select"));
+		});
+
+		it("sends a patient account — no doctor profile — to the patient portal", async () => {
+			doctorContextFn.mockResolvedValueOnce({
+				profiles: [],
+				activeDoctorId: null,
+			} as DoctorContext);
+			render(createElement(Page));
+			await fillAndSubmit();
+			await waitFor(() => expect(assign).toHaveBeenCalledWith("/portal"));
+			expect(ensureDoctorProfileFn).not.toHaveBeenCalled();
 		});
 	});
 

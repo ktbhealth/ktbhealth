@@ -5,5 +5,6 @@ export {
 	ensureDoctorUser,
 	ensureSessionUser,
 	getDoctorUser,
+	getSessionAccount,
 	getSessionUser,
 } from "@ktb/server-fns";

@@ -4,6 +4,7 @@ import {
 	ArrowLeftIcon,
 	ClipboardListIcon,
 	DownloadIcon,
+	KeyRoundIcon,
 	PencilIcon,
 	PlusIcon,
 	Trash2Icon,
@@ -193,6 +194,15 @@ export function PatientDetailPage({
 					>
 						<PencilIcon data-icon="inline-start" />
 						{t.detail.editRecord}
+					</Button>
+					<Button
+						variant="outline"
+						nativeButton={false}
+						// Owned by the patient-access plugin — coupled by URL only.
+						render={<Link to="/patient-access/$patientId" params={{ patientId: id }} />}
+					>
+						<KeyRoundIcon data-icon="inline-start" />
+						{t.detail.portalAccess}
 					</Button>
 					<Button
 						nativeButton={false}

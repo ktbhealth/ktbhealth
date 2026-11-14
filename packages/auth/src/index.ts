@@ -34,8 +34,12 @@ export {
 	DOCTOR_PROFILE_COOKIE,
 	DoctorDelegations,
 	DoctorProfiles,
+	PATIENT_PROFILE_COOKIE,
+	PatientProfiles,
 	profileIdFromHeaders,
 	resolveDoctorProfile,
+	resolvePatientProfile,
 	type ActingUser,
 	type DoctorProfile,
+	type PatientProfile,
 } from "./profiles.ts";

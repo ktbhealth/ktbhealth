@@ -161,6 +161,17 @@ export interface ConsultationMessages {
 		readonly viewConsultation: string;
 		readonly confirm: string;
 		readonly gotIt: string;
+		/** Portal access question in the save dialog — `patient` is the
+		 * patient's name, `email` the address the access went to. */
+		readonly accessQuestion: (patient: string) => string;
+		readonly accessHint: string;
+		readonly accessEmailPlaceholder: string;
+		readonly accessSend: string;
+		readonly accessNotNow: string;
+		readonly accessSent: (email: string) => string;
+		readonly accessUnsent: (email: string) => string;
+		readonly accessInvalidEmail: string;
+		readonly accessFailed: string;
 		readonly dialogSavedBody: (args: {
 			id: number;
 			patientName: string | null;
@@ -370,6 +381,17 @@ const en: ConsultationMessages = {
 		viewConsultation: "View consultation",
 		confirm: "Confirm",
 		gotIt: "Got it",
+		accessQuestion: (patient) => `Send ${patient} the patient portal access email?`,
+		accessHint:
+			"The patient signs in with this email address to see the consultations you saved, read-only.",
+		accessEmailPlaceholder: "patient@email.com",
+		accessSend: "Send access email",
+		accessNotNow: "Not now",
+		accessSent: (email) => `Access email sent to ${email}.`,
+		accessUnsent: (email) =>
+			`Portal access granted to ${email}, but the email could not be sent. Ask the patient to sign in to the patient portal with this address.`,
+		accessInvalidEmail: "Enter a valid email address.",
+		accessFailed: "Could not send the access email. Please try again.",
 		dialogSavedBody: ({ id, patientName, updated, consented }) =>
 			`Consultation #${id}${patientName ? ` for ${patientName}` : ""} was ${updated ? "updated" : "saved"} with the reviewed anamnesis.${consented ? " Patient consent recorded." : ""}`,
 		saveSessionExpired: "session expired. Reload the page",
@@ -577,6 +599,17 @@ const ptBR: ConsultationMessages = {
 		viewConsultation: "Ver consulta",
 		confirm: "Confirmar",
 		gotIt: "Entendi",
+		accessQuestion: (patient) => `Enviar para ${patient} o e-mail de acesso ao portal do paciente?`,
+		accessHint:
+			"O paciente entra com este e-mail para ver, somente para leitura, as consultas que você salvou.",
+		accessEmailPlaceholder: "paciente@email.com",
+		accessSend: "Enviar e-mail de acesso",
+		accessNotNow: "Agora não",
+		accessSent: (email) => `E-mail de acesso enviado para ${email}.`,
+		accessUnsent: (email) =>
+			`Acesso ao portal liberado para ${email}, mas o e-mail não pôde ser enviado. Peça ao paciente que entre no portal do paciente com este endereço.`,
+		accessInvalidEmail: "Informe um e-mail válido.",
+		accessFailed: "Não foi possível enviar o e-mail de acesso. Tente novamente.",
 		dialogSavedBody: ({ id, patientName, updated, consented }) =>
 			`A consulta #${id}${patientName ? ` de ${patientName}` : ""} foi ${updated ? "atualizada" : "salva"} com a anamnese revisada.${consented ? " Consentimento do paciente registrado." : ""}`,
 		saveSessionExpired: "sessão expirada. Recarregue a página",
@@ -787,6 +820,17 @@ const es: ConsultationMessages = {
 		viewConsultation: "Ver consulta",
 		confirm: "Confirmar",
 		gotIt: "Entendido",
+		accessQuestion: (patient) => `¿Enviar a ${patient} el correo de acceso al portal del paciente?`,
+		accessHint:
+			"El paciente inicia sesión con este correo para ver, solo en lectura, las consultas que guardaste.",
+		accessEmailPlaceholder: "paciente@correo.com",
+		accessSend: "Enviar correo de acceso",
+		accessNotNow: "Ahora no",
+		accessSent: (email) => `Correo de acceso enviado a ${email}.`,
+		accessUnsent: (email) =>
+			`Acceso al portal concedido a ${email}, pero no se pudo enviar el correo. Pide al paciente que inicie sesión en el portal del paciente con esta dirección.`,
+		accessInvalidEmail: "Ingresa un correo válido.",
+		accessFailed: "No se pudo enviar el correo de acceso. Inténtalo de nuevo.",
 		dialogSavedBody: ({ id, patientName, updated, consented }) =>
 			`La consulta #${id}${patientName ? ` de ${patientName}` : ""} fue ${updated ? "actualizada" : "guardada"} con la anamnesis revisada.${consented ? " Consentimiento del paciente registrado." : ""}`,
 		saveSessionExpired: "sesión expirada. Recargue la página",

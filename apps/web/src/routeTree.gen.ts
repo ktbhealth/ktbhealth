@@ -27,10 +27,13 @@ import { Route as ConsultationsIndexRouteImport } from './../../../plugins/consu
 import { Route as ConsultationsIdRouteImport } from './../../../plugins/consultations/src/routes/$id'
 import { Route as ConsultationsNewRouteImport } from './../../../plugins/consultations/src/routes/new'
 import { Route as DoctorsSelectRouteImport } from './../../../plugins/doctors/src/routes/select'
+import { Route as PatientAccessPatientIdRouteImport } from './../../../plugins/patient-access/src/routes/$patientId'
 import { Route as PatientsIndexRouteImport } from './../../../plugins/patients/src/routes/index'
 import { Route as PatientsNewRouteImport } from './../../../plugins/patients/src/routes/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
 import { Route as SplatRouteImport } from './routes/platform/$'
+import { Route as PortalIndexRouteImport } from './../../../plugins/patient-portal/src/routes/index'
+import { Route as portalLoginRouteImport } from './routes/portal-login'
 import { Route as SecretariesIndexRouteImport } from './../../../plugins/secretaries/src/routes/index'
 import { Route as SecretariesLoginRouteImport } from './../../../plugins/secretaries/src/routes/login'
 import { Route as ApiAuthDotsplatRouteImport } from './../../../plugins/auth/src/api-routes/auth.$'
@@ -38,6 +41,7 @@ import { Route as ApiBotsDotwebhookRouteImport } from './../../../plugins/consul
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
 import { Route as PatientsIdIndexRouteImport } from './../../../plugins/patients/src/routes/$id/index'
 import { Route as PatientsIdEditRouteImport } from './../../../plugins/patients/src/routes/$id/edit'
+import { Route as PortalConsultationsDotidRouteImport } from './../../../plugins/patient-portal/src/routes/consultations.$id'
 import { Route as ApiConsultationsDotidDotaudioRouteImport } from './../../../plugins/consultations/src/api-routes/consultations.$id.audio'
 import { Route as ApiConsultationsDotidDotpdfRouteImport } from './../../../plugins/consultations/src/api-routes/consultations.$id.pdf'
 import { Route as ApiPatientsDotidDotexportRouteImport } from './../../../plugins/consultations/src/api-routes/patients.$id.export'
@@ -133,6 +137,11 @@ const DoctorsSelectRoute = DoctorsSelectRouteImport.update({
   path: '/doctors/select',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PatientAccessPatientIdRoute = PatientAccessPatientIdRouteImport.update({
+  id: '/patient-access/$patientId',
+  path: '/patient-access/$patientId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PatientsIndexRoute = PatientsIndexRouteImport.update({
   id: '/patients/',
   path: '/patients/',
@@ -152,6 +161,16 @@ const SplatRoute = SplatRouteImport.update({
   id: '/$',
   path: '/$',
   getParentRoute: () => platformRoute,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
+  id: '/portal/',
+  path: '/portal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const portalLoginRoute = portalLoginRouteImport.update({
+  id: '/portal/login',
+  path: '/portal/login',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SecretariesIndexRoute = SecretariesIndexRouteImport.update({
   id: '/secretaries/',
@@ -188,6 +207,12 @@ const PatientsIdEditRoute = PatientsIdEditRouteImport.update({
   path: '/patients/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalConsultationsDotidRoute =
+  PortalConsultationsDotidRouteImport.update({
+    id: '/portal/consultations/$id',
+    path: '/portal/consultations/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiConsultationsDotidDotaudioRoute =
   ApiConsultationsDotidDotaudioRouteImport.update({
     id: '/api/consultations/$id/audio',
@@ -225,17 +250,21 @@ export interface FileRoutesByFullPath {
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
   '/doctors/select': typeof DoctorsSelectRoute
+  '/patient-access/$patientId': typeof PatientAccessPatientIdRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
+  '/portal/login': typeof portalLoginRoute
   '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
+  '/portal/': typeof PortalIndexRoute
   '/secretaries/': typeof SecretariesIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
   '/patients/$id/edit': typeof PatientsIdEditRoute
+  '/portal/consultations/$id': typeof PortalConsultationsDotidRoute
   '/patients/$id/': typeof PatientsIdIndexRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
@@ -258,17 +287,21 @@ export interface FileRoutesByTo {
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
   '/doctors/select': typeof DoctorsSelectRoute
+  '/patient-access/$patientId': typeof PatientAccessPatientIdRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
+  '/portal/login': typeof portalLoginRoute
   '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations': typeof ConsultationsIndexRoute
   '/patients': typeof PatientsIndexRoute
   '/platform': typeof IndexRoute
+  '/portal': typeof PortalIndexRoute
   '/secretaries': typeof SecretariesIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
   '/patients/$id/edit': typeof PatientsIdEditRoute
+  '/portal/consultations/$id': typeof PortalConsultationsDotidRoute
   '/patients/$id': typeof PatientsIdIndexRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
@@ -293,17 +326,21 @@ export interface FileRoutesById {
   '/consultations/$id': typeof ConsultationsIdRoute
   '/consultations/new': typeof ConsultationsNewRoute
   '/doctors/select': typeof DoctorsSelectRoute
+  '/patient-access/$patientId': typeof PatientAccessPatientIdRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
+  '/portal/login': typeof portalLoginRoute
   '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
+  '/portal/': typeof PortalIndexRoute
   '/secretaries/': typeof SecretariesIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
   '/patients/$id/edit': typeof PatientsIdEditRoute
+  '/portal/consultations/$id': typeof PortalConsultationsDotidRoute
   '/patients/$id/': typeof PatientsIdIndexRoute
   '/api/consultations/$id/audio': typeof ApiConsultationsDotidDotaudioRoute
   '/api/consultations/$id/pdf': typeof ApiConsultationsDotidDotpdfRoute
@@ -329,17 +366,21 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/doctors/select'
+    | '/patient-access/$patientId'
     | '/patients/new'
     | '/platform/$'
+    | '/portal/login'
     | '/secretaries/login'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
+    | '/portal/'
     | '/secretaries/'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
     | '/patients/$id/edit'
+    | '/portal/consultations/$id'
     | '/patients/$id/'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
@@ -362,17 +403,21 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/doctors/select'
+    | '/patient-access/$patientId'
     | '/patients/new'
     | '/platform/$'
+    | '/portal/login'
     | '/secretaries/login'
     | '/consultations'
     | '/patients'
     | '/platform'
+    | '/portal'
     | '/secretaries'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
     | '/patients/$id/edit'
+    | '/portal/consultations/$id'
     | '/patients/$id'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
@@ -396,17 +441,21 @@ export interface FileRouteTypes {
     | '/consultations/$id'
     | '/consultations/new'
     | '/doctors/select'
+    | '/patient-access/$patientId'
     | '/patients/new'
     | '/platform/$'
+    | '/portal/login'
     | '/secretaries/login'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
+    | '/portal/'
     | '/secretaries/'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
     | '/patients/$id/edit'
+    | '/portal/consultations/$id'
     | '/patients/$id/'
     | '/api/consultations/$id/audio'
     | '/api/consultations/$id/pdf'
@@ -431,14 +480,18 @@ export interface RootRouteChildren {
   ConsultationsIdRoute: typeof ConsultationsIdRoute
   ConsultationsNewRoute: typeof ConsultationsNewRoute
   DoctorsSelectRoute: typeof DoctorsSelectRoute
+  PatientAccessPatientIdRoute: typeof PatientAccessPatientIdRoute
   PatientsNewRoute: typeof PatientsNewRoute
+  portalLoginRoute: typeof portalLoginRoute
   SecretariesLoginRoute: typeof SecretariesLoginRoute
   ConsultationsIndexRoute: typeof ConsultationsIndexRoute
   PatientsIndexRoute: typeof PatientsIndexRoute
+  PortalIndexRoute: typeof PortalIndexRoute
   SecretariesIndexRoute: typeof SecretariesIndexRoute
   ApiAuthDotsplatRoute: typeof ApiAuthDotsplatRoute
   ApiCdnSplatRoute: typeof ApiCdnSplatRoute
   PatientsIdEditRoute: typeof PatientsIdEditRoute
+  PortalConsultationsDotidRoute: typeof PortalConsultationsDotidRoute
   PatientsIdIndexRoute: typeof PatientsIdIndexRoute
   ApiConsultationsDotidDotaudioRoute: typeof ApiConsultationsDotidDotaudioRoute
   ApiConsultationsDotidDotpdfRoute: typeof ApiConsultationsDotidDotpdfRoute
@@ -573,6 +626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DoctorsSelectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/patient-access/$patientId': {
+      id: '/patient-access/$patientId'
+      path: '/patient-access/$patientId'
+      fullPath: '/patient-access/$patientId'
+      preLoaderRoute: typeof PatientAccessPatientIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/patients/': {
       id: '/patients/'
       path: '/patients'
@@ -600,6 +660,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/platform/$'
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof platformRoute
+    }
+    '/portal/': {
+      id: '/portal/'
+      path: '/portal'
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/login': {
+      id: '/portal/login'
+      path: '/portal/login'
+      fullPath: '/portal/login'
+      preLoaderRoute: typeof portalLoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/secretaries/': {
       id: '/secretaries/'
@@ -648,6 +722,13 @@ declare module '@tanstack/react-router' {
       path: '/patients/$id/edit'
       fullPath: '/patients/$id/edit'
       preLoaderRoute: typeof PatientsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/consultations/$id': {
+      id: '/portal/consultations/$id'
+      path: '/portal/consultations/$id'
+      fullPath: '/portal/consultations/$id'
+      preLoaderRoute: typeof PortalConsultationsDotidRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/consultations/$id/audio': {
@@ -718,14 +799,18 @@ const rootRouteChildren: RootRouteChildren = {
   ConsultationsIdRoute: ConsultationsIdRoute,
   ConsultationsNewRoute: ConsultationsNewRoute,
   DoctorsSelectRoute: DoctorsSelectRoute,
+  PatientAccessPatientIdRoute: PatientAccessPatientIdRoute,
   PatientsNewRoute: PatientsNewRoute,
+  portalLoginRoute: portalLoginRoute,
   SecretariesLoginRoute: SecretariesLoginRoute,
   ConsultationsIndexRoute: ConsultationsIndexRoute,
   PatientsIndexRoute: PatientsIndexRoute,
+  PortalIndexRoute: PortalIndexRoute,
   SecretariesIndexRoute: SecretariesIndexRoute,
   ApiAuthDotsplatRoute: ApiAuthDotsplatRoute,
   ApiCdnSplatRoute: ApiCdnSplatRoute,
   PatientsIdEditRoute: PatientsIdEditRoute,
+  PortalConsultationsDotidRoute: PortalConsultationsDotidRoute,
   PatientsIdIndexRoute: PatientsIdIndexRoute,
   ApiConsultationsDotidDotaudioRoute: ApiConsultationsDotidDotaudioRoute,
   ApiConsultationsDotidDotpdfRoute: ApiConsultationsDotidDotpdfRoute,

@@ -46,6 +46,8 @@
 		"@ktb/kernel": "workspace:*",
 		"@ktb/notifications": "workspace:*",
 		"@ktb/observability": "workspace:*",
+		"@ktb/patient-access": "workspace:*",
+		"@ktb/patient-portal": "workspace:*",
 		"@ktb/patients": "workspace:*",
 		"@ktb/platform": "workspace:*",
 		"@ktb/platform-header": "workspace:*",

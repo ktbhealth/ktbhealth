@@ -35,7 +35,7 @@ export interface SecretaryLoginApi {
  * creates a doctor profile: a secretary only gains delegated profiles
  * once their invited email is verified. An account that signs in with
  * no delegation stays here with a hint instead of bouncing to the
- * app home.
+ * patient portal.
  */
 export function SecretaryLoginPage({
 	locale,

@@ -86,6 +86,14 @@ const DOMAINS = [
 		tables: ["doctor_access"],
 	},
 	{
+		id: "patient-access",
+		title: "Patient access",
+		owner: "`plugins/patient-access`",
+		description:
+			"Patient portal grants — which account may open which patient record, and in what relation.",
+		tables: ["patient_access"],
+	},
+	{
 		id: "auth",
 		title: "Auth",
 		owner: "`packages/db/src/auth.ts` (better-auth)",

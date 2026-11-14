@@ -3,17 +3,20 @@ import {
 	Auth,
 	DOCTOR_PROFILE_COOKIE,
 	DoctorProfiles,
+	PATIENT_PROFILE_COOKIE,
+	PatientProfiles,
 	profileIdFromHeaders,
 	resolveDoctorProfile,
+	resolvePatientProfile,
 } from "@ktb/auth";
-import type { ActingUser, DoctorProfile, SessionUser } from "@ktb/auth";
+import type { ActingUser, DoctorProfile, PatientProfile, SessionUser } from "@ktb/auth";
 import { tenantSelectorFromHeaders, type TenantSelector } from "@ktb/tenant/selector";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
 import { run } from "./runtime.ts";
 
-export type { ActingUser, DoctorProfile, SessionUser };
+export type { ActingUser, DoctorProfile, PatientProfile, SessionUser };
 
 /**
  * Thrown by `ensureSessionUser` when no session exists. The `status`
@@ -155,6 +158,29 @@ export async function getDoctorUser(headers?: Headers): Promise<ActingUser | nul
 	return active === null ? null : actingAs(resolved.user, active);
 }
 
+/** The signed-in user as the app chrome sees them. */
+export interface SessionAccount extends SessionUser {
+	/**
+	 * True when the account has no doctor side at all — no doctor profile
+	 * of its own and none delegated to it: a patient account, which is
+	 * shown the patient portal only. False when no directory is deployed
+	 * (a single-role app where every account acts for itself).
+	 */
+	readonly patientOnly: boolean;
+}
+
+/** The session user plus which side of the app the account belongs to
+ * — what the root layout renders its navigation from. Null when
+ * anonymous. */
+export async function getSessionAccount(headers?: Headers): Promise<SessionAccount | null> {
+	const resolved = await resolveDoctorContext(headers, false);
+	if (!resolved) return null;
+	return {
+		...resolved.user,
+		patientOnly: resolved.profiles !== null && resolved.profiles.length === 0,
+	};
+}
+
 /** Where a request stands on the doctor side — what route guards branch on. */
 export type DoctorAccess = "anonymous" | "no-doctor" | "doctor";
 
@@ -176,8 +202,8 @@ export async function ensureDoctorUser(headers?: Headers): Promise<ActingUser> {
 	throw new UnauthenticatedError();
 }
 
-/** The selection cookie outlives the session cookie on purpose: it only
- * remembers a preference and grants nothing without a valid session. */
+/** Selection cookies outlive the session cookie on purpose: they only
+ * remember a preference and grant nothing without a valid session. */
 const SELECTION_COOKIE = {
 	path: "/",
 	httpOnly: true,
@@ -195,6 +221,52 @@ export async function setDoctorSelection(doctorId: number | null): Promise<void>
 	const { deleteCookie, setCookie } = await import("@tanstack/react-start/server");
 	if (doctorId === null) deleteCookie(DOCTOR_PROFILE_COOKIE, { path: SELECTION_COOKIE.path });
 	else setCookie(DOCTOR_PROFILE_COOKIE, String(doctorId), SELECTION_COOKIE);
+}
+
+/** Persist (or clear, with null) the patient profile this browser opens
+ * in the portal — a selector only, like {@link setDoctorSelection}. */
+export async function setPatientSelection(patientId: number | null): Promise<void> {
+	const { deleteCookie, setCookie } = await import("@tanstack/react-start/server");
+	if (patientId === null) deleteCookie(PATIENT_PROFILE_COOKIE, { path: SELECTION_COOKIE.path });
+	else setCookie(PATIENT_PROFILE_COOKIE, String(patientId), SELECTION_COOKIE);
+}
+
+/** Patient-portal context of a request: the signed-in user, every
+ * patient record they hold active access to, and the one being opened. */
+export interface PatientContext {
+	readonly user: SessionUser;
+	readonly profiles: readonly PatientProfile[];
+	/** Null when nothing is linked yet or a choice is still needed. */
+	readonly active: PatientProfile | null;
+}
+
+/**
+ * Resolve the patient-portal context: the `ktb_patient` selector cookie
+ * picks among the profiles the `PatientProfiles` directory returns for
+ * the user — re-checked on every request; a cookie pointing at a record
+ * the user holds no active access to selects nothing.
+ *
+ * `syncLinks` first claims invites — pass it on entry points (the
+ * portal home), not on every request.
+ */
+export async function getPatientContext(
+	headers?: Headers,
+	options?: { readonly syncLinks?: boolean },
+): Promise<PatientContext | null> {
+	const requestHeaders = await requestHeadersOr(headers);
+	const user = await getSessionUser(requestHeaders);
+	if (!user) return null;
+	const profiles = await run(
+		Effect.gen(function* () {
+			// Optional: absent when the patient-access plugin is not deployed.
+			const directory = yield* Effect.serviceOption(PatientProfiles);
+			if (Option.isNone(directory)) return [];
+			if (options?.syncLinks === true) yield* directory.value.syncLinks(user.id);
+			return yield* directory.value.listFor(user.id);
+		}),
+	);
+	const selectedId = profileIdFromHeaders(requestHeaders, PATIENT_PROFILE_COOKIE);
+	return { user, profiles, active: resolvePatientProfile(profiles, selectedId) };
 }
 
 /**
