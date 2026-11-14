@@ -622,6 +622,14 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/llm-eval": {
+      "name": "@ktb/llm-eval",
+      "dependencies": {
+        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+      },
+    },
     "plugins/manager": {
       "name": "@ktb/manager",
       "dependencies": {
@@ -807,6 +815,14 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/storage-dataset": {
+      "name": "@ktb/storage-dataset",
+      "dependencies": {
+        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+      },
+    },
     "plugins/tenant": {
       "name": "@ktb/tenant-plugin",
       "dependencies": {
@@ -832,6 +848,22 @@
       },
       "peerDependencies": {
         "react": "^19.2.0",
+      },
+    },
+    "plugins/transcription-asr": {
+      "name": "@ktb/transcription-asr",
+      "dependencies": {
+        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+      },
+    },
+    "plugins/transcription-tts": {
+      "name": "@ktb/transcription-tts",
+      "dependencies": {
+        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
       },
     },
     "plugins/users": {
@@ -1292,6 +1324,8 @@
 
     "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
 
+    "@ktb/llm-eval": ["@ktb/llm-eval@workspace:plugins/llm-eval"],
+
     "@ktb/manager": ["@ktb/manager@workspace:plugins/manager"],
 
     "@ktb/notifications": ["@ktb/notifications@workspace:plugins/notifications"],
@@ -1318,11 +1352,17 @@
 
     "@ktb/site": ["@ktb/site@workspace:plugins/site"],
 
+    "@ktb/storage-dataset": ["@ktb/storage-dataset@workspace:plugins/storage-dataset"],
+
     "@ktb/tenant": ["@ktb/tenant@workspace:packages/tenant"],
 
     "@ktb/tenant-plugin": ["@ktb/tenant-plugin@workspace:plugins/tenant"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
+
+    "@ktb/transcription-asr": ["@ktb/transcription-asr@workspace:plugins/transcription-asr"],
+
+    "@ktb/transcription-tts": ["@ktb/transcription-tts@workspace:plugins/transcription-tts"],
 
     "@ktb/transcription-webspeech": ["@ktb/transcription-webspeech@workspace:packages/transcription-webspeech"],
 

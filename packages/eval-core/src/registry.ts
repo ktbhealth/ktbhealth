@@ -14,6 +14,16 @@ import * as Data from "effect/Data";
  * Entries are DATA plus an optional implementation payload carried in
  * `meta`/`impl`-agnostic form — this module stays generic; what a stage
  * or gate DOES is the contributor's business.
+ *
+ * Contributors (P-074 phase 3): capability plugins under plugins/* are
+ * data-only registrars — each exports a `*Contributions: readonly
+ * Contribution[]` array next to its `plugins` manifest. They cannot
+ * host adapter code themselves (plugins/* is inside the arch-policy
+ * PORT_GLOBS: no node:*, provider literals, or adapter imports), so
+ * `meta.adapters` maps adapter keys to the exempt-edge packages
+ * (@ktb/eval-dataset-stub/-local/-cloud) that implement the port named
+ * by `meta.port`. Consumers compose by iterating the arrays and calling
+ * `register` per entry — there is no global singleton.
  */
 
 export const ContributionKind = Schema.Literals(["stage", "metric", "gate", "capability"]);

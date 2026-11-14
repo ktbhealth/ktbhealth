@@ -1,0 +1,13 @@
+{
+	"name": "@ktb/llm-eval",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-core": "workspace:*",
+		"@ktb/kernel": "workspace:*"
+	}
+}
