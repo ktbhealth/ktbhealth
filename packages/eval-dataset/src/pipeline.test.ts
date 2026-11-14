@@ -180,6 +180,22 @@ describe("transcribeSample", () => {
 		);
 		expect(err).toBeInstanceOf(PortError);
 	});
+
+	it("forwards the sample origin to the ASR port", async () => {
+		let seen: unknown;
+		const capture = Layer.succeed(
+			AsrPort,
+			AsrPort.of({
+				transcribe: (_audio, opts) =>
+					Effect.sync(() => {
+						seen = opts;
+						return { asr: asrResult, record };
+					}),
+			}),
+		);
+		await Effect.runPromise(Effect.provide(transcribeSample(sample), capture));
+		expect(seen).toEqual({ language: "pt", origin: "synthetic" });
+	});
 });
 
 describe("question builders", () => {
@@ -212,6 +228,67 @@ describe("processSample", () => {
 	it("skips judging when there is nothing to ask", async () => {
 		const r = await run(processSample({ sample, entities: [] }));
 		expect(r.asrMetrics.entityVerdicts).toHaveLength(0);
+	});
+
+	it("real_anonymized: fails closed when the PHI gate finds residuals", async () => {
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			// 14-digit run survives every scrub pattern → gate returns null.
+			script: "registro interno 20240102030405 do paciente",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const err = await run(
+			processSample({ sample: real, entities }).pipe(
+				Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("PHI gate");
+	});
+
+	it("real_anonymized: scrubs the script before it reaches judge state", async () => {
+		const seen: unknown[] = [];
+		const captureJudge = Layer.succeed(
+			EvalPort,
+			EvalPort.of({
+				judge: (input) =>
+					Effect.sync(() => {
+						seen.push(input.state);
+						return {
+							answers: input.questions.map((q) => ({
+								id: q.id,
+								kind: q.kind,
+								value: q.kind === "noul" ? true : "justified_fix",
+								probability: 0.9,
+							})),
+							record,
+						};
+					}),
+			}),
+		);
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			script: "paciente cpf 123.456.789-00 nega febre",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		await Effect.runPromise(
+			Effect.provide(processSample({ sample: real, entities }), Layer.merge(live, captureJudge)),
+		);
+		const dumped = JSON.stringify(seen);
+		expect(dumped).toContain("[CPF]");
+		expect(dumped).not.toContain("123.456.789-00");
 	});
 });
 

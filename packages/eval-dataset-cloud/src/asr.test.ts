@@ -31,11 +31,12 @@ const fetchJson = (body: unknown, init?: { status?: number }) =>
 const transcribe = (
 	fetchImpl: typeof fetch,
 	opts: Partial<Parameters<typeof makeWorkersAiAsr>[0]> = {},
+	callOpts?: { language?: string; origin?: "synthetic" | "real_anonymized" },
 ) =>
 	Effect.runPromise(
 		Effect.gen(function* () {
 			const asr = yield* AsrPort;
-			return yield* asr.transcribe(audio, { language: "pt" });
+			return yield* asr.transcribe(audio, callOpts ?? { language: "pt" });
 		}).pipe(
 			Effect.provide(
 				makeWorkersAiAsr({
@@ -63,11 +64,14 @@ describe("workers-ai asr adapter", () => {
 		expect(seenUrl).toBe(
 			"https://api.cloudflare.com/client/v4/accounts/acc-1/ai/run/@cf/openai/whisper",
 		);
-		expect((seenInit?.headers as Record<string, string>).Authorization).toBe("Bearer tok");
+		expect((seenInit?.headers as Record<string, string> | undefined)?.Authorization).toBe(
+			"Bearer tok",
+		);
 		expect(out.asr.text).toBe("refere cefaleia");
 		expect(out.asr.segments).toEqual([{ t0: 0, t1: 1.2, text: "refere cefaleia" }]);
 		expect(out.asr.language).toBe("pt");
 		expect(out.record.engine).toBe("workers-ai:@cf/openai/whisper");
+		expect(out.record.model).toBe("@cf/openai/whisper");
 	});
 
 	it("handles responses without segments", async () => {
@@ -87,8 +91,53 @@ describe("workers-ai asr adapter", () => {
 
 	it("fails typed on success=false", async () => {
 		await expect(transcribe(fetchJson({ success: false, result: { text: "" } }))).rejects.toThrow(
-			/success=false/,
+			/workers-ai returned success=false$/,
 		);
+	});
+
+	it("surfaces provider errors[]/messages[] on success=false", async () => {
+		const body = {
+			success: false,
+			errors: [{ code: 10000, message: "rate limited" }],
+			messages: ["slow down", ""],
+		};
+		await expect(transcribe(fetchJson(body))).rejects.toThrow(
+			/workers-ai returned success=false: .*rate limited.*slow down/,
+		);
+	});
+
+	it("fails typed when success=true carries no result", async () => {
+		await expect(transcribe(fetchJson({ success: true }))).rejects.toThrow(
+			/malformed response: success=true without result/,
+		);
+	});
+
+	it("refuses declared real_anonymized audio before any fetch", async () => {
+		let calls = 0;
+		const spy = (() => {
+			calls += 1;
+			return Promise.resolve(new Response(JSON.stringify(okBody)));
+		}) as unknown as typeof fetch;
+		await expect(transcribe(spy, {}, { origin: "real_anonymized" })).rejects.toThrow(
+			/refusing real_anonymized audio/,
+		);
+		expect(calls).toBe(0);
+	});
+
+	it("allows real_anonymized audio only with allowRealAudio", async () => {
+		const out = await transcribe(
+			fetchJson(okBody),
+			{ allowRealAudio: true },
+			{
+				origin: "real_anonymized",
+			},
+		);
+		expect(out.asr.text).toBe("refere cefaleia");
+	});
+
+	it("passes synthetic origin through to the provider call", async () => {
+		const out = await transcribe(fetchJson(okBody), {}, { origin: "synthetic" });
+		expect(out.asr.text).toBe("refere cefaleia");
 	});
 
 	it("fails typed on http error", async () => {
@@ -158,7 +207,7 @@ describe("workers-ai asr adapter", () => {
 					),
 				),
 			),
-		).rejects.toThrow();
+		).rejects.toThrow(/fetch failed|ECONNREFUSED|network/i);
 	});
 
 	it("maps non-Error fetch throws to PortError", async () => {

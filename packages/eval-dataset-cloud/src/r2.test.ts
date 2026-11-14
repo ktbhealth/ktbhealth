@@ -161,7 +161,21 @@ describe("r2 store adapter", () => {
 				}),
 				bucket,
 			),
-		).rejects.toThrow();
+		).rejects.toThrow(/corrupt sample bad/);
+	});
+
+	it("rejects a real_anonymized sample missing provenance on write", async () => {
+		const bad = { ...sample, provenance: undefined } as Sample;
+		await expect(
+			withStore(Effect.flatMap(DatasetStorePort, (s) => s.putSample(bad))),
+		).rejects.toThrow(/invalid sample:[\s\S]*provenance/);
+	});
+
+	it("rejects a malformed result on write", async () => {
+		const bad = { ...result, runId: 1 } as unknown as SampleResult;
+		await expect(
+			withStore(Effect.flatMap(DatasetStorePort, (s) => s.putResult(bad))),
+		).rejects.toThrow(/invalid result/);
 	});
 
 	it("fails typed on a corrupt sample in a listing", async () => {

@@ -8,6 +8,15 @@
  * never guesses how blobs are stored (file://, r2://, stub:// are all
  * the caller's problem). Endpoint/model are options, not literals,
  * so the same adapter drives Whisper, a fine-tuned variant or a mock.
+ *
+ * PHI boundary: this adapter ships audio bytes to a third-party API —
+ * voice is PHI under LGPD. When the caller declares
+ * `origin: "real_anonymized"` (via AsrPort opts) transcribe refuses
+ * with a PortError unless `allowRealAudio` is explicitly set; that
+ * flag exists only for trusted/self-hosted endpoints, never for the
+ * public Workers AI API. Callers that bypass the port and hand a raw
+ * AudioRef are outside this guarantee — provenance enforcement at
+ * ingest is tracked separately.
  */
 
 import { Schema } from "effect";
@@ -18,19 +27,26 @@ import type * as Schedule from "effect/Schedule";
 import { AsrPort, AsrResult, PortError } from "@ktb/eval-dataset";
 
 const WorkersAiResult = Schema.Struct({
-	result: Schema.Struct({
-		text: Schema.String,
-		segments: Schema.optionalKey(
-			Schema.Array(
-				Schema.Struct({
-					start: Schema.Number,
-					end: Schema.Number,
-					text: Schema.String,
-				}),
+	// Optional so a success=false payload still decodes — the provider's
+	// errors[]/messages[] are then surfaced in the PortError instead of
+	// collapsing into "malformed response".
+	result: Schema.optionalKey(
+		Schema.Struct({
+			text: Schema.String,
+			segments: Schema.optionalKey(
+				Schema.Array(
+					Schema.Struct({
+						start: Schema.Number,
+						end: Schema.Number,
+						text: Schema.String,
+					}),
+				),
 			),
-		),
-	}),
+		}),
+	),
 	success: Schema.Boolean,
+	errors: Schema.optionalKey(Schema.Array(Schema.Unknown)),
+	messages: Schema.optionalKey(Schema.Array(Schema.Unknown)),
 });
 
 const decode = Schema.decodeUnknownSync(WorkersAiResult);
@@ -51,6 +67,11 @@ export interface WorkersAiAsrOptions {
 	readonly timeoutMs?: number;
 	/** Retry policy for transient 5xx/network failures. Default: none. */
 	readonly retry?: Schedule.Schedule<unknown, PortError>;
+	/** Escape hatch for `origin: "real_anonymized"` audio — ONLY for
+	 * endpoints you operate yourself (self-hosted Workers-AI-compatible
+	 * mock/proxy). Default false: real voice is PHI and must not reach
+	 * the public Workers AI API. */
+	readonly allowRealAudio?: boolean;
 }
 
 export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort> =>
@@ -59,6 +80,16 @@ export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort
 		AsrPort.of({
 			transcribe: (audio, callOpts) => {
 				const started = Date.now();
+				// PHI gate: declared real-anonymized audio never reaches the
+				// provider unless the operator opted into a trusted endpoint.
+				// Fails before readAudio/fetch — no bytes leave the process.
+				if (callOpts?.origin === "real_anonymized" && opts.allowRealAudio !== true) {
+					return Effect.fail(
+						fail(
+							"refusing real_anonymized audio: voice is PHI and must not reach a cloud ASR (set allowRealAudio only for a self-hosted endpoint)",
+						),
+					);
+				}
 				const fetchImpl = opts.fetchImpl ?? fetch;
 				const timeoutMs = opts.timeoutMs ?? 60_000;
 				const endpoint = opts.endpoint ?? "https://api.cloudflare.com";
@@ -96,21 +127,37 @@ export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort
 							catch: (e) => fail(`malformed response: ${String(e).slice(0, 200)}`),
 						}),
 					),
-					Effect.flatMap((body) =>
-						body.success
-							? Effect.succeed(
-									AsrResult.make({
-										text: body.result.text,
-										segments: (body.result.segments ?? []).map((s) => ({
-											t0: s.start,
-											t1: s.end,
-											text: s.text,
-										})),
-										language: callOpts?.language,
-									}),
-								)
-							: Effect.fail(fail("workers-ai returned success=false")),
-					),
+					Effect.flatMap((body) => {
+						if (!body.success) {
+							// Surface the provider's own error payload — a bare
+							// "success=false" hides rate-limit/auth/quota causes.
+							const detail = [...(body.errors ?? []), ...(body.messages ?? [])]
+								.map((e) => (typeof e === "string" ? e : JSON.stringify(e)))
+								.filter((s) => s.length > 0)
+								.join("; ")
+								.slice(0, 300);
+							return Effect.fail(
+								fail(`workers-ai returned success=false${detail !== "" ? `: ${detail}` : ""}`),
+							);
+						}
+						const result = body.result;
+						if (result === undefined) {
+							return Effect.fail(fail("malformed response: success=true without result"));
+						}
+						return Effect.succeed(
+							AsrResult.make({
+								text: result.text,
+								segments: (result.segments ?? []).map((s) => ({
+									t0: s.start,
+									t1: s.end,
+									text: s.text,
+								})),
+								// optionalKey rejects explicit undefined — omit
+								// the key entirely when no language was asked.
+								...(callOpts?.language !== undefined ? { language: callOpts.language } : {}),
+							}),
+						);
+					}),
 				);
 
 				return (
@@ -123,6 +170,7 @@ export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort
 							taskId: audio.uri,
 							stage: "transcribe",
 							engine: `workers-ai:${opts.model}`,
+							model: opts.model,
 							inputHash: audio.uri,
 							startedAt: started,
 							latencyMs: Date.now() - started,

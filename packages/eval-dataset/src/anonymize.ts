@@ -4,8 +4,10 @@
  * anonymize() strips identifying patterns BEFORE a transcript can be
  * persisted as eval material. It is deliberately IRREVERSIBLE — the
  * audit record carries counts per category, never the redacted values
- * or positions. If a category survives scrubbing, fail the sample:
- * better to drop real data than to leak PHI into a dataset.
+ * or positions. Neither function fails anything by itself: they
+ * return audit counts (anonymize) or null on residual identifiers
+ * (gateTranscript); the CALLER decides to drop the sample — see
+ * processSample in pipeline.ts, which fails closed on a null gate.
  *
  * Residual-PHI policy (explicit, reviewed): bare dates "12/03/1985"
  * PASS — they carry clinical meaning (dose timing, follow-up) and
@@ -75,8 +77,10 @@ export function anonymize(text: string): AnonymizedText {
 /**
  * Gate a real transcript for dataset ingestion — returns null when the
  * scrubbed text still carries PHI-shaped leftovers (heuristic: any
- * long digit run that survived is a red flag). Caller records the
- * decision; the sample is ingested only when non-null.
+ * long digit run that survived is a red flag). On success returns the
+ * AnonymizedText audit record (counts only, never values). This
+ * function never throws and never fails the sample itself — a null
+ * return is the caller's signal to drop it.
  */
 export function gateTranscript(text: string): AnonymizedText | null {
 	const clean = anonymize(text);

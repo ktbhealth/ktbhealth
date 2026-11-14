@@ -64,7 +64,17 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 	Layer.succeed(
 		DatasetStorePort,
 		DatasetStorePort.of({
-			putSample: (sample) => putJson(bucket, `samples/${sample.id}.json`, sample),
+			// Write-side decode, same as the local store: the Sample
+			// Schema's provenance filter fires HERE, so a real_anonymized
+			// row missing LGPD fields is rejected before it can poison
+			// every later read. The validated value is what gets stored.
+			putSample: (sample) =>
+				Effect.try({
+					try: () => decodeSample(sample),
+					catch: (e) => fail(`invalid sample: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) => putJson(bucket, `samples/${validated.id}.json`, validated)),
+				),
 
 			getSample: (id) =>
 				getJson(bucket, `samples/${id}.json`).pipe(
@@ -119,8 +129,17 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 					catch: (e) => fail(e instanceof Error ? e.message : String(e)),
 				}),
 
+			// Same write-side decode as putSample — a malformed row fails
+			// here, not silently at listResults.
 			putResult: (result) =>
-				putJson(bucket, `results/${result.runId}/${result.sampleId}.json`, result),
+				Effect.try({
+					try: () => decodeResult(result),
+					catch: (e) => fail(`invalid result: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) =>
+						putJson(bucket, `results/${validated.runId}/${validated.sampleId}.json`, validated),
+					),
+				),
 
 			listResults: (filter) =>
 				listKeys(bucket, "results/").pipe(
