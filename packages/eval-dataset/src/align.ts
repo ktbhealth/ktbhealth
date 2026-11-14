@@ -2,11 +2,13 @@
  * align.ts — segment↔gold alignment (M2).
  *
  * Maps each gold entity onto the ASR segment(s) whose text contains it
- * (after pt-BR normalization) — per-entity confidence becomes real
+ * (after locale normalization) — per-entity confidence becomes real
  * instead of a segment-average guess, and misses are attributable.
  * Pure: no I/O, no provider literals.
  */
 
+import type { LocaleProfile } from "./locale.ts";
+import { ptBR } from "./locales/pt-BR.ts";
 import { normalize } from "./metrics.ts";
 import type { AsrSegment, GoldEntity } from "./schema.ts";
 
@@ -25,9 +27,10 @@ export interface EntityAlignment {
 export const alignEntities = (
 	segments: readonly AsrSegment[],
 	entities: readonly GoldEntity[],
+	profile: LocaleProfile = ptBR,
 ): readonly EntityAlignment[] =>
 	entities.map((entity) => {
-		const needle = normalize(entity.value);
+		const needle = normalize(entity.value, { profile });
 		// Same guards as metrics.ts checkEntities: an entity that
 		// normalizes to nothing can never be verified (it must not
 		// match every segment), and matching is token-boundary —
@@ -36,7 +39,7 @@ export const alignEntities = (
 			needle === ""
 				? []
 				: segments.flatMap((seg, i) => {
-						const text = normalize(seg.text);
+						const text = normalize(seg.text, { profile });
 						const padded = text ? ` ${text} ` : "";
 						return padded.includes(` ${needle} `) ? [i] : [];
 					});

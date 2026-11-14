@@ -39,12 +39,13 @@ const count = Number(arg("personas", "8"));
 const seed = Number(arg("seed", "100"));
 const step = Number(arg("step", "7"));
 const templateName = arg("template", "consultation");
+const locale = arg("locale", "pt-BR");
 const noise = arg("noise", "clean") as AcousticProfile["noise"];
 const ttsKind = arg("tts", "stub");
 const concurrency = Number(arg("concurrency", "2"));
 
 const template = fs.readFileSync(
-	new URL(`../../eval-dataset/templates/${templateName}.eta`, import.meta.url),
+	new URL(`../../eval-dataset/templates/${locale}/${templateName}.eta`, import.meta.url),
 	"utf8",
 );
 

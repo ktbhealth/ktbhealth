@@ -1,3 +1,6 @@
+import type { LocaleProfile } from "./locale.ts";
+import { ptBR } from "./locales/pt-BR.ts";
+
 /**
  * PHI scrubber for real partner transcripts (M4 governance gate).
  *
@@ -8,6 +11,10 @@
  * return audit counts (anonymize) or null on residual identifiers
  * (gateTranscript); the CALLER decides to drop the sample — see
  * processSample in pipeline.ts, which fails closed on a null gate.
+ *
+ * The patterns themselves are LOCALE data — CPF/BR-phone/DOB phrasing
+ * live in the pt-BR profile (`locales/pt-BR.ts`); pass another
+ * LocaleProfile to scrub a different jurisdiction's identifiers.
  *
  * Residual-PHI policy (explicit, reviewed): bare dates "12/03/1985"
  * PASS — they carry clinical meaning (dose timing, follow-up) and
@@ -32,37 +39,12 @@ export interface AnonymizedText {
 	scrubbed: boolean;
 }
 
-const PATTERNS: readonly {
-	category: PhiCategory;
-	re: RegExp;
-	token: string;
-}[] = [
-	// CPF: 123.456.789-00 or 12345678900 (word-bounded).
-	{
-		category: "cpf",
-		re: /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g,
-		token: "[CPF]",
-	},
-	// BR phones: (11) 91234-5678 | 11 91234-5678 | 9+8-digit runs.
-	{
-		category: "phone",
-		re: /\b(?:\(?\d{2}\)?\s?)?9?\d{4}-?\d{4}\b/g,
-		token: "[PHONE]",
-	},
-	{ category: "email", re: /\b[\w.+-]+@[\w-]+\.[\w.]+\b/g, token: "[EMAIL]" },
-	// Date of birth phrasing — "nascido em 12/03/1985", "DN: 12-03-1985".
-	{
-		category: "date_of_birth",
-		re: /\b(?:nascid[ao](?:\sem)?|data de nascimento[:\s]?|DN[:\s])\s*\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}\b/gi,
-		token: "[DOB]",
-	},
-];
-
-/** Scrub one transcript — counts per category, values never retained. */
-export function anonymize(text: string): AnonymizedText {
+/** Scrub one transcript — counts per category, values never retained.
+ * `profile` selects the locale's PHI patterns; default pt-BR. */
+export function anonymize(text: string, profile: LocaleProfile = ptBR): AnonymizedText {
 	const redactions: Redaction[] = [];
 	let out = text;
-	for (const { category, re, token } of PATTERNS) {
+	for (const { category, re, token } of profile.piiPatterns) {
 		const fresh = new RegExp(re.source, re.flags);
 		let count = 0;
 		out = out.replace(fresh, () => {
@@ -77,14 +59,15 @@ export function anonymize(text: string): AnonymizedText {
 /**
  * Gate a real transcript for dataset ingestion — returns null when the
  * scrubbed text still carries PHI-shaped leftovers (heuristic: any
- * long digit run that survived is a red flag). On success returns the
+ * long digit run that survived is a red flag — the pattern is
+ * locale data, `profile.residualIdRe`). On success returns the
  * AnonymizedText audit record (counts only, never values). This
  * function never throws and never fails the sample itself — a null
  * return is the caller's signal to drop it.
  */
-export function gateTranscript(text: string): AnonymizedText | null {
-	const clean = anonymize(text);
-	if (/\b\d{8,}\b/.test(clean.text.replace(/\[\w+\]/g, ""))) {
+export function gateTranscript(text: string, profile: LocaleProfile = ptBR): AnonymizedText | null {
+	const clean = anonymize(text, profile);
+	if (profile.residualIdRe.test(clean.text.replace(/\[\w+\]/g, ""))) {
 		return null; // residual long number — likely an id/document
 	}
 	return clean;

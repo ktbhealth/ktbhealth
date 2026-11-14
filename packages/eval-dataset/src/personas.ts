@@ -4,8 +4,11 @@ import type { Persona } from "./schema.ts";
  * Persona matrix — the axes the dataset varies over. Each sample is
  * one cell: region (speech register/accent cue for the TTS + script
  * generator) × age band × register (education/social class proxy) ×
- * specialty. Literals are English — generators map them to pt-BR
- * content; they never leak provider ids or rendered text.
+ * specialty. Literals are English — generators map them to locale
+ * content via the active LocaleProfile; they never leak provider ids
+ * or rendered text. NOTE: the default region list is Brazilian
+ * geography — a non-pt-BR locale should ship its own matrix (see
+ * locale.ts).
  */
 
 export interface PersonaMatrix {

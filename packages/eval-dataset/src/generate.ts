@@ -11,6 +11,7 @@
 import * as Effect from "effect/Effect";
 
 import { runBatch, type BatchOptions, type BatchResult } from "./batch.ts";
+import type { LocaleProfile } from "./locale.ts";
 import { DatasetStorePort, PortError, ReportPort, TtsPort } from "./ports.ts";
 import type { AcousticProfile, Persona, Sample } from "./schema.ts";
 import { renderScript } from "./scriptgen.ts";
@@ -29,8 +30,12 @@ export const fnvHex = (s: string): string => {
 export interface GenerateInput {
 	readonly datasetVersion: string;
 	readonly personas: readonly Persona[];
-	/** `.eta` template source (adapter/test reads the file). */
+	/** `.eta` template source (adapter/test reads the file — pick the
+	 * locale-keyed one, e.g. `templates/pt-BR/consultation.eta`). */
 	readonly template: string;
+	/** Locale profile — script slot content. Default pt-BR; pair it
+	 * with the matching locale's template. */
+	readonly profile?: LocaleProfile;
 	/** Per-persona acoustic profile — the caller owns voice choice so
 	 * provider aliases stay out of this module too. */
 	readonly acoustic: (persona: Persona, index: number) => AcousticProfile;
@@ -66,6 +71,7 @@ export const generateDataset = (
 						template: input.template,
 						persona,
 						seed: baseSeed + index,
+						profile: input.profile,
 					});
 					const acoustic = input.acoustic(persona, index);
 					// datasetVersion is part of the id — regenerating under a

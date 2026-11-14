@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { describe, expect, it } from "vitest";
 
+import { ptBR } from "./locales/pt-BR.ts";
 import {
 	processSample,
 	generateScript,
@@ -196,6 +197,23 @@ describe("transcribeSample", () => {
 		await Effect.runPromise(Effect.provide(transcribeSample(sample), capture));
 		expect(seen).toEqual({ language: "pt", origin: "synthetic" });
 	});
+
+	it("forwards the locale profile's ASR language", async () => {
+		let seen: unknown;
+		const capture = Layer.succeed(
+			AsrPort,
+			AsrPort.of({
+				transcribe: (_audio, opts) =>
+					Effect.sync(() => {
+						seen = opts;
+						return { asr: asrResult, record };
+					}),
+			}),
+		);
+		const xx = { ...ptBR, id: "xx-v1", asrLanguage: "xx" };
+		await Effect.runPromise(Effect.provide(transcribeSample(sample, xx), capture));
+		expect(seen).toEqual({ language: "xx", origin: "synthetic" });
+	});
 });
 
 describe("question builders", () => {
@@ -223,6 +241,13 @@ describe("processSample", () => {
 		expect(r.asrMetrics.criticalErrors).toBe(0);
 		expect(r.editVerdicts[0]?.classification).toBe("justified_fix");
 		expect(r.confSegments).toHaveLength(2);
+	});
+
+	it("persists the locale profile id as the normalization label", async () => {
+		const xx = { ...ptBR, id: "xx-v1", asrLanguage: "xx" };
+		const r = await run(processSample({ sample, entities, profile: xx }));
+		expect(r.asrMetrics.normalization).toBe("xx-v1");
+		expect(r.correctedMetrics.normalization).toBe("xx-v1");
 	});
 
 	it("skips judging when there is nothing to ask", async () => {

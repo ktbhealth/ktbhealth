@@ -2,10 +2,11 @@ import * as Effect from "effect/Effect";
 
 import { gateTranscript } from "./anonymize.ts";
 import { applyEdits, EditApplyError, type EditList } from "./diff.ts";
+import type { LocaleProfile } from "./locale.ts";
+import { ptBR } from "./locales/pt-BR.ts";
 import {
 	cer,
 	checkEntities,
-	NORMALIZATION_PROFILE,
 	normalize,
 	wer,
 	type ConfSegment,
@@ -74,7 +75,7 @@ export const synthesizeAudio = (input: {
 
 // ---------- S3: ASR ----------
 
-export const transcribeSample = (sample: Sample) =>
+export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) =>
 	Effect.gen(function* () {
 		if (!sample.audio) {
 			return yield* new PortError({
@@ -85,8 +86,12 @@ export const transcribeSample = (sample: Sample) =>
 		const asr = yield* AsrPort;
 		// Provenance flows to the adapter so cloud ASR can refuse
 		// real-anonymized audio — voice is PHI, only synthetic audio
-		// may leave the perimeter (see AsrPort in ports.ts).
-		return yield* asr.transcribe(sample.audio, { language: "pt", origin: sample.origin });
+		// may leave the perimeter (see AsrPort in ports.ts). The
+		// language hint is locale data (`profile.asrLanguage`).
+		return yield* asr.transcribe(sample.audio, {
+			language: profile.asrLanguage,
+			origin: sample.origin,
+		});
 	});
 
 // ---------- S4: LLM cleanup → reversible edits → corrected text ----------
@@ -206,8 +211,13 @@ export const processSample = (input: {
 	readonly sample: Sample;
 	readonly runId?: string;
 	readonly entities?: readonly ExpectedEntity[];
+	/** Locale profile — normalization, PHI scrub, ASR language.
+	 * Default pt-BR; `profile.id` is persisted as the metrics'
+	 * normalization label. */
+	readonly profile?: LocaleProfile;
 }) =>
 	Effect.gen(function* () {
+		const profile = input.profile ?? ptBR;
 		const entities = input.entities ?? input.sample.gold.entities ?? [];
 		// Include datasetVersion — the same sample.id re-run under a new
 		// dataset version must not collide with the old run's records.
@@ -220,7 +230,9 @@ export const processSample = (input: {
 		// generator output and skip the gate (scrubbing would corrupt
 		// the gold text metrics compare against).
 		const gated =
-			input.sample.origin === "real_anonymized" ? gateTranscript(input.sample.script) : undefined;
+			input.sample.origin === "real_anonymized"
+				? gateTranscript(input.sample.script, profile)
+				: undefined;
 		if (input.sample.origin === "real_anonymized" && gated === null) {
 			return yield* new PortError({
 				port: "pipeline",
@@ -238,7 +250,7 @@ export const processSample = (input: {
 		});
 		const records: RunRecord[] = [];
 
-		const { asr, record: asrRecord } = yield* transcribeSample(input.sample);
+		const { asr, record: asrRecord } = yield* transcribeSample(input.sample, profile);
 		records.push(tag(asrRecord));
 
 		const {
@@ -284,7 +296,7 @@ export const processSample = (input: {
 		}
 
 		const merge = (stage: "asr" | "corrected", text: string): readonly EntityVerdict[] => {
-			const textCheck = checkEntities(entities, text);
+			const textCheck = checkEntities(entities, text, profile);
 			return verdictsFromAnswers(entities, stage, answers).map((v, i) =>
 				// Judge verdict wins when it produced a probability; the
 				// text floor (tagged text_floor) is the fallback.
@@ -297,32 +309,32 @@ export const processSample = (input: {
 			vs.filter((v) => v.status !== "correct").length;
 
 		const asrMetrics: StageMetrics = {
-			wer: wer(script, asr.text),
-			cer: cer(script, asr.text),
+			wer: wer(script, asr.text, { profile }),
+			cer: cer(script, asr.text, { profile }),
 			criticalErrors: countCritical(asrEntities),
 			entityVerdicts: asrEntities,
 			stage: "asr",
 			sampleId: input.sample.id,
 			runId,
-			normalization: NORMALIZATION_PROFILE,
+			normalization: profile.id,
 		};
 		const correctedMetrics: StageMetrics = {
-			wer: wer(script, corrected),
-			cer: cer(script, corrected),
+			wer: wer(script, corrected, { profile }),
+			cer: cer(script, corrected, { profile }),
 			criticalErrors: countCritical(correctedEntities),
 			entityVerdicts: correctedEntities,
 			stage: "corrected",
 			sampleId: input.sample.id,
 			runId,
-			normalization: NORMALIZATION_PROFILE,
+			normalization: profile.id,
 		};
 		// Honest floor until real segment↔gold alignment lands: a
 		// segment counts correct when its normalized text appears in
 		// the normalized script — never blanket-true.
-		const normScript = normalize(script);
+		const normScript = normalize(script, { profile });
 		const confSegments: ConfSegment[] = asr.segments.map((s) => ({
 			...(s.confidence !== undefined ? { confidence: s.confidence } : {}),
-			correct: s.text.trim().length > 0 && normScript.includes(normalize(s.text)),
+			correct: s.text.trim().length > 0 && normScript.includes(normalize(s.text, { profile })),
 		}));
 
 		return {
