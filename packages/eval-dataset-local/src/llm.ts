@@ -29,8 +29,20 @@ const call = (
 	opts: AcpLlmOptions,
 	envelope: TaskEnvelope,
 	stage: string,
+	expectedSchema: string,
 ): Effect.Effect<{ payload: unknown; record: RunRecord }, PortError> => {
 	const started = Date.now();
+	// The port method binds the contract: generate() speaks Text,
+	// correct() speaks EditList. A mis-declared envelope fails typed at
+	// the boundary instead of producing a payload cast into a lie.
+	if (envelope.outputSchema !== expectedSchema) {
+		return Effect.fail(
+			new PortError({
+				port: "llm",
+				message: `${stage} requires outputSchema=${expectedSchema}, got ${envelope.outputSchema}`,
+			}),
+		);
+	}
 	return opts.transport(encodeTask(envelope, opts.sessionId)).pipe(
 		Effect.flatMap((response) =>
 			Effect.try({
@@ -61,11 +73,11 @@ export const makeAcpLlm = (opts: AcpLlmOptions): Layer.Layer<LlmPort> =>
 		LlmPort,
 		LlmPort.of({
 			generate: (envelope) =>
-				call(opts, envelope, "generate").pipe(
+				call(opts, envelope, "generate", "Text").pipe(
 					Effect.map(({ payload, record }) => ({ text: payload as string, record })),
 				),
 			correct: (envelope) =>
-				call(opts, envelope, "correct").pipe(
+				call(opts, envelope, "correct", "EditList").pipe(
 					Effect.map(({ payload, record }) => ({ edits: payload as EditList, record })),
 				),
 		}),
