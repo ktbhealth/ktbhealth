@@ -29,9 +29,7 @@ import * as Semaphore from "effect/Semaphore";
 import type { AcousticProfile, NoiseProfile } from "@ktb/eval-dataset";
 import { PortError, TtsPort } from "@ktb/eval-dataset";
 
-export interface CliRunner {
-	readonly(cmd: readonly string[]): Effect.Effect<void, PortError>;
-}
+export type CliRunner = (cmd: readonly string[]) => Effect.Effect<void, PortError>;
 
 export interface LocalTtsOptions {
 	/** Where audio + intermediates land. Created if absent. */

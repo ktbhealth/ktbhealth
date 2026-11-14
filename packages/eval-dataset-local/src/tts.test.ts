@@ -21,7 +21,7 @@ const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), "tts-test-"));
 
 /** Fake CLI executor: creates the artifact a real binary would,
  * records every command, and can fail N times first. */
-const fakeRun = (calls: string[][], failFirst = 0, hangMs = 0): CliRunner => {
+const fakeRun = (calls: string[], failFirst = 0, hangMs = 0): CliRunner => {
 	let failed = 0;
 	return (cmd) =>
 		Effect.gen(function* () {
@@ -92,7 +92,7 @@ describe("ffmpegDegradeArgs", () => {
 
 describe("makeLocalTts", () => {
 	it("synthesizes: voice map → edge-tts → ffmpeg → file:// audio + record", async () => {
-		const calls: string[][] = [];
+		const calls: string[] = [];
 		const r = await synth({ run: fakeRun(calls) });
 		expect(calls[0]).toContain("edge-tts");
 		expect(calls[0]).toContain("pt-BR-AntonioNeural"); // alias resolved inside the adapter
@@ -103,7 +103,7 @@ describe("makeLocalTts", () => {
 	});
 
 	it("fails typed on an unknown voice alias — provider never reached", async () => {
-		const calls: string[][] = [];
+		const calls: string[] = [];
 		const err = await synth({ run: fakeRun(calls), voice: "nope" }).then(
 			() => null,
 			(e) => e,
@@ -114,14 +114,14 @@ describe("makeLocalTts", () => {
 	});
 
 	it("retries transient edge-tts failures with backoff", async () => {
-		const calls: string[][] = [];
+		const calls: string[] = [];
 		const r = await synth({ run: fakeRun(calls, 2) });
 		expect(r.audio.uri).toContain("file://");
 		expect(calls.filter((c) => c.includes("edge-tts"))).toHaveLength(3);
 	});
 
 	it("surfaces PortError after the retry schedule exhausts", async () => {
-		const calls: string[][] = [];
+		const calls: string[] = [];
 		const err = await synth({ run: fakeRun(calls, 9) }).then(
 			() => null,
 			(e) => e,
@@ -133,7 +133,7 @@ describe("makeLocalTts", () => {
 	});
 
 	it("honors a caller-supplied retry policy — recurs(0) means no retries", async () => {
-		const calls: string[][] = [];
+		const calls: string[] = [];
 		const err = await synth({ run: fakeRun(calls, 9), retry: Schedule.recurs(0) }).then(
 			() => null,
 			(e) => e,
@@ -143,7 +143,7 @@ describe("makeLocalTts", () => {
 	});
 
 	it("fails typed when ffmpeg fails", async () => {
-		const calls: string[][] = [];
+		const calls: string[] = [];
 		const run: CliRunner = (cmd) =>
 			Effect.gen(function* () {
 				calls.push(cmd.join(" "));
