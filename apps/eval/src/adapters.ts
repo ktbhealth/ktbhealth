@@ -33,6 +33,7 @@ import {
 	makeLocalReportLayer,
 	makeLocalStoreLayer,
 	makeLocalTts,
+	makeSystemOneEval,
 	type AcpTransport,
 } from "@ktb/eval-adapter-local";
 import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-adapter-stub";
@@ -267,6 +268,17 @@ const evalLayer = (ctx: WireContext, key: string) => {
 				baseUrl: env(ctx, "EVAL_JEV_URL"),
 				...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
 			});
+		case "systemone": {
+			// Self-hosted System One judge (OpenJev `wev serve`,
+			// local-jev, …). MODEL is optional — servers treat it as
+			// opaque; only set it for endpoints that validate names.
+			const model = ctx.env.EVAL_SYSTEMONE_MODEL;
+			return makeSystemOneEval({
+				baseUrl: env(ctx, "EVAL_SYSTEMONE_URL"),
+				...(model !== undefined && model !== "" ? { model } : {}),
+				...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
+			});
+		}
 		default:
 			return unknownAdapter("eval", key);
 	}

@@ -39,6 +39,12 @@ describe("resolveSuite", () => {
 		expect(res.unresolved).toEqual([]);
 	});
 
+	test("local-systemone profile swaps only the eval adapter", () => {
+		const res = resolveSuite(registry, manifest({ caps: { eval: "llm.eval" } }), "local-systemone");
+		expect(res.adapters).toEqual({ eval: "systemone" });
+		expect(res.unresolved).toEqual([]);
+	});
+
 	test("unknown refs are unresolved with a reason", () => {
 		const res = resolveSuite(
 			registry,

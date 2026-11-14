@@ -137,6 +137,9 @@ describe("capabilityLayer selection", () => {
 	test("non-stub adapters require their env vars", () => {
 		expect(() => capabilityLayer(ctx({ profile: "local" }), "llm", "acp")).toThrow(/EVAL_ACP_URL/);
 		expect(() => capabilityLayer(ctx({ profile: "local" }), "eval", "jev")).toThrow(/EVAL_JEV_URL/);
+		expect(() => capabilityLayer(ctx({ profile: "local-systemone" }), "eval", "systemone")).toThrow(
+			/EVAL_SYSTEMONE_URL/,
+		);
 		expect(() => capabilityLayer(ctx({ profile: "cloud" }), "asr", "workers-ai")).toThrow(
 			/EVAL_CF_ACCOUNT_ID/,
 		);
@@ -168,6 +171,27 @@ describe("capabilityLayer selection", () => {
 		).not.toThrow();
 		expect(() =>
 			capabilityLayer(ctx({ env: { EVAL_JEV_URL: "http://x" }, fetchImpl: fetch }), "eval", "jev"),
+		).not.toThrow();
+		expect(() =>
+			capabilityLayer(ctx({ env: { EVAL_SYSTEMONE_URL: "http://s" } }), "eval", "systemone"),
+		).not.toThrow();
+		expect(() =>
+			capabilityLayer(
+				ctx({
+					env: { EVAL_SYSTEMONE_URL: "http://s", EVAL_SYSTEMONE_MODEL: "m" },
+					fetchImpl: fetch,
+				}),
+				"eval",
+				"systemone",
+			),
+		).not.toThrow();
+		// Empty-string model counts as unset.
+		expect(() =>
+			capabilityLayer(
+				ctx({ env: { EVAL_SYSTEMONE_URL: "http://s", EVAL_SYSTEMONE_MODEL: "" } }),
+				"eval",
+				"systemone",
+			),
 		).not.toThrow();
 		expect(() =>
 			capabilityLayer(

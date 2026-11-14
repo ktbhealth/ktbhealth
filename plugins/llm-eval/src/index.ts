@@ -22,7 +22,10 @@ import { LlmPort } from "@ktb/eval-consult/ports";
  *
  * Adapter keys → packages: "stub" → @ktb/eval-adapter-stub,
  * "acp" → @ktb/eval-adapter-local `makeAcpLlm`,
- * "jev" → @ktb/eval-adapter-local `makeJevEval`.
+ * "jev" → @ktb/eval-adapter-local `makeJevEval`,
+ * "systemone" → @ktb/eval-adapter-local `makeSystemOneEval` — the
+ * TypeSafe `/v1/systemone` wire shape, served locally by OpenJev
+ * (`wev serve`), razorback16/openjev or amithgc/local-jev.
  */
 export const llmEvalPlugin = definePlugin({
 	id: "llm.eval",
@@ -66,6 +69,7 @@ export const llmEvalContributions: readonly Contribution[] = [
 			adapters: {
 				stub: "@ktb/eval-adapter-stub",
 				jev: "@ktb/eval-adapter-local",
+				systemone: "@ktb/eval-adapter-local",
 			},
 		},
 	},

@@ -40,12 +40,17 @@ export interface SuiteResolution {
  * Capability plugins declare the keys; this table is the composition
  * root's profile → key policy:
  *
- *   stub  — deterministic in-process adapters (CI/dev, zero cost)
- *   local — on-box services: edge-tts, faster-whisper, ACP agent,
- *           Jev decision service, sqlite/jsonl persistence
- *   cloud — managed adapters that exist today: Workers AI ASR, R2
- *           store. Partial by design — capabilities without a cloud
- *           adapter stay unresolved and commands say so.
+ *   stub            — deterministic in-process adapters (CI/dev, zero cost)
+ *   local           — on-box services: edge-tts, faster-whisper, ACP agent,
+ *                     Jev decision service, sqlite/jsonl persistence
+ *   local-systemone — same as `local` but the eval judge is a
+ *                     self-hosted System One server (OpenJev `wev
+ *                     serve`, local-jev) via EVAL_SYSTEMONE_URL —
+ *                     the `local` profile keeps `jev` so existing
+ *                     setups are untouched
+ *   cloud           — managed adapters that exist today: Workers AI ASR, R2
+ *                     store. Partial by design — capabilities without a cloud
+ *                     adapter stay unresolved and commands say so.
  */
 const ADAPTER_PROFILES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
 	stub: { tts: "stub", asr: "stub", llm: "stub", eval: "stub", store: "stub", report: "stub" },
@@ -54,6 +59,14 @@ const ADAPTER_PROFILES: Readonly<Record<string, Readonly<Record<string, string>>
 		asr: "faster-whisper",
 		llm: "acp",
 		eval: "jev",
+		store: "sqlite-fs",
+		report: "jsonl",
+	},
+	"local-systemone": {
+		tts: "edge-tts",
+		asr: "faster-whisper",
+		llm: "acp",
+		eval: "systemone",
 		store: "sqlite-fs",
 		report: "jsonl",
 	},

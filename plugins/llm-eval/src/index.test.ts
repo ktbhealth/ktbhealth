@@ -20,6 +20,7 @@ describe("llm.eval", () => {
 		expect(registry.get("capability", "eval").meta?.adapters).toEqual({
 			stub: "@ktb/eval-adapter-stub",
 			jev: "@ktb/eval-adapter-local",
+			systemone: "@ktb/eval-adapter-local",
 		});
 		expect(registry.get("stage", "script_gen").meta?.port).toBe(LlmPort.key);
 		expect(registry.get("stage", "cleanup").meta?.port).toBe(LlmPort.key);
