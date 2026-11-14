@@ -5,7 +5,7 @@ import { Schema } from "effect";
  * run traceability, blob provenance, reversible edit lists, confidence
  * segments, and the typed decision-model question/answer pair.
  *
- * Domain manifests (samples, personas, clinical verdicts, stage
+ * Domain-specific manifests (samples, profiles, verdicts, stage
  * metrics) live in domain packs — this file must stay free of any
  * domain vocabulary. No provider names live here — engines/models
  * arrive as opaque strings from adapters.

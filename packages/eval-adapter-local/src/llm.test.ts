@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
 import { PortError } from "@ktb/eval-core";
-import { ACP_VERSION, LlmPort, type AcpRequest } from "@ktb/eval-consult";
+import { ACP_VERSION, LlmPort, type AcpRequest } from "@ktb/eval-consultation";
 
 import { makeAcpLlm, type AcpTransport } from "./llm.ts";
 

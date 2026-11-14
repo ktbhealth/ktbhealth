@@ -15,7 +15,7 @@ import { Option, Schema } from "effect";
  * stages are DISPATCHED — `eval run` maps the manifest's stage ids
  * through the domain's run-stage selector and executes them in
  * declared order (a selection may narrow the pipeline, never reorder
- * it; see plugins/eval-consult pipeline.ts RUN_STAGE_FNS). Metric
+ * it; the domain pack owns the run-stage selector). Metric
  * refs are validated pointers only — the pipeline emits one
  * StageMetrics record per produced stage and gates consume all of
  * it, so metrics are not individually dispatched. Gate refs dispatch
@@ -23,9 +23,8 @@ import { Option, Schema } from "effect";
  * policy.ts). `meta.fn` on a contribution stays a human/ops pointer,
  * not a callable key.
  *
- * This file knows nothing about transcripts, consultations, or any
- * domain vocabulary — domain packs declare their own `domain` plugin
- * id and contribution ids.
+ * This file knows nothing about any specific eval domain — domain
+ * packs declare their own `domain` id and contribution ids.
  */
 
 /** Dataset pin — id + version of the dataset the suite runs against. */
@@ -48,8 +47,8 @@ export type SuiteGate = typeof SuiteGate.Type;
  * ids; `caps` maps capability name → providing plugin id. */
 export const EvalSuiteManifest = Schema.Struct({
 	id: Schema.String,
-	/** Domain pack plugin id that owns this suite's vocabulary
-	 * (e.g. "eval.dom.consult"). */
+	/** Domain pack id that owns this suite's vocabulary
+	 * (e.g. "eval.dom.<name>"). */
 	domain: Schema.String,
 	dataset: SuiteDataset,
 	stages: Schema.Array(Schema.String),

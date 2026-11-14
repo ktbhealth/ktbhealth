@@ -29,7 +29,7 @@ import * as Effect from "effect/Effect";
 import { Console, Option, Schema } from "effect";
 import { CliError, Command, Flag } from "effect/cli";
 
-import { wer } from "@ktb/eval-consult";
+import { wer } from "@ktb/eval-consultation";
 
 import type { CmdContext } from "../context.ts";
 import { UsageError } from "../errors.ts";

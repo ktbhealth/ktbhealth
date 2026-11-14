@@ -24,7 +24,7 @@
         "@ktb/eval-adapter-cloud": "workspace:*",
         "@ktb/eval-adapter-local": "workspace:*",
         "@ktb/eval-adapter-stub": "workspace:*",
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/llm-eval": "workspace:*",
@@ -100,10 +100,12 @@
         "wrangler": "4.158.0",
       },
     },
-    "evals": {
-      "name": "@ktb/eval-suites",
+    "evals/consultation": {
+      "name": "@ktb/eval-consultation",
       "dependencies": {
         "@ktb/eval-core": "workspace:*",
+        "effect": "4.1.2",
+        "eta": "^4.6.0",
       },
     },
     "infra/cloudflare": {
@@ -293,7 +295,7 @@
     "packages/eval-adapter-cloud": {
       "name": "@ktb/eval-adapter-cloud",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "effect": "4.1.2",
       },
@@ -301,7 +303,7 @@
     "packages/eval-adapter-local": {
       "name": "@ktb/eval-adapter-local",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "better-sqlite3": "^13.0.3",
         "effect": "4.1.2",
@@ -315,7 +317,7 @@
     "packages/eval-adapter-stub": {
       "name": "@ktb/eval-adapter-stub",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "effect": "4.1.2",
       },
@@ -577,15 +579,6 @@
         "react": "^19.2.0",
       },
     },
-    "plugins/eval-consult": {
-      "name": "@ktb/eval-consult",
-      "dependencies": {
-        "@ktb/eval-core": "workspace:*",
-        "@ktb/kernel": "workspace:*",
-        "effect": "4.1.2",
-        "eta": "^4.6.0",
-      },
-    },
     "plugins/groups": {
       "name": "@ktb/groups",
       "dependencies": {
@@ -649,7 +642,7 @@
     "plugins/llm-eval": {
       "name": "@ktb/llm-eval",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "@ktb/kernel": "workspace:*",
       },
@@ -842,7 +835,7 @@
     "plugins/storage-dataset": {
       "name": "@ktb/storage-dataset",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "@ktb/kernel": "workspace:*",
       },
@@ -877,7 +870,7 @@
     "plugins/transcription-asr": {
       "name": "@ktb/transcription-asr",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "@ktb/kernel": "workspace:*",
       },
@@ -885,7 +878,7 @@
     "plugins/transcription-tts": {
       "name": "@ktb/transcription-tts",
       "dependencies": {
-        "@ktb/eval-consult": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
         "@ktb/eval-core": "workspace:*",
         "@ktb/kernel": "workspace:*",
       },
@@ -1322,11 +1315,9 @@
 
     "@ktb/eval-adapter-stub": ["@ktb/eval-adapter-stub@workspace:packages/eval-adapter-stub"],
 
-    "@ktb/eval-consult": ["@ktb/eval-consult@workspace:plugins/eval-consult"],
+    "@ktb/eval-consultation": ["@ktb/eval-consultation@workspace:evals/consultation"],
 
     "@ktb/eval-core": ["@ktb/eval-core@workspace:packages/eval-core"],
-
-    "@ktb/eval-suites": ["@ktb/eval-suites@workspace:evals"],
 
     "@ktb/export-pdf": ["@ktb/export-pdf@workspace:packages/export-pdf"],
 

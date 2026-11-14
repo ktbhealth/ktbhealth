@@ -16,7 +16,7 @@ import {
 	type EvalQuestion,
 	type Sample,
 	type TaskEnvelope,
-} from "@ktb/eval-consult";
+} from "@ktb/eval-consultation";
 import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-adapter-stub";
 
 import {

@@ -19,15 +19,15 @@ import { defineSuite } from "@ktb/eval-core";
  * synthesize belong to `eval generate`. A manifest may narrow the
  * selection (e.g. drop `judge` for a transcribe-only eval) but the
  * order must respect the canonical dependency order. See
- * plugins/eval-consult/src/pipeline.ts (RUN_STAGE_FNS) and
+ * evals/consultation/src/pipeline.ts (RUN_STAGE_FNS) and
  * evals/README.md.
  *
- * `gates[0].params` is an AcceptPolicy (plugins/eval-consult
+ * `gates[0].params` is an AcceptPolicy (evals/consultation
  * accept.ts) — every field named so the gate is data, not code.
  */
 export const suite = defineSuite({
 	id: "consult-asr",
-	domain: "eval.consult",
+	domain: "eval.consultation",
 	dataset: { id: "consult-asr", version: "v1" },
 	stages: ["script_gen", "synthesize", "transcribe", "cleanup", "judge"],
 	caps: {

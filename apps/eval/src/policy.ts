@@ -8,7 +8,7 @@
  * param is a hard error, never a silently-relaxed gate.
  */
 
-import type { AcceptPolicy } from "@ktb/eval-consult";
+import type { AcceptPolicy } from "@ktb/eval-consultation";
 import { UsageError } from "./errors.ts";
 
 /** AcceptPolicy field names — the only keys a manifest gate's

@@ -3,7 +3,7 @@ import * as Schedule from "effect/Schedule";
 import { describe, expect, it } from "vitest";
 
 import { PortError, type BlobMeta } from "@ktb/eval-core";
-import { AsrPort } from "@ktb/eval-consult";
+import { AsrPort } from "@ktb/eval-consultation";
 
 import { makeWorkersAiAsr } from "./asr.ts";
 

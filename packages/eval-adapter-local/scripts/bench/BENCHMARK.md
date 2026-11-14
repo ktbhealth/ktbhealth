@@ -2,7 +2,7 @@
 
 Method: edge-tts synthesized 5 pt-BR clinical sentences (2 voices) →
 faster-whisper transcribed (beam 5, VAD on) → WER via
-`@ktb/eval-consult` `metrics.ts` against the known scripts.
+`@ktb/eval-consultation` `metrics.ts` against the known scripts.
 
 Reproduce (from `packages/eval-adapter-local`):
 

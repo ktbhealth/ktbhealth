@@ -58,7 +58,7 @@ import {
 	type EvalQuestion,
 	type RunRecord,
 } from "@ktb/eval-core";
-import { fnvHex } from "@ktb/eval-consult";
+import { fnvHex } from "@ktb/eval-consultation";
 
 import { isLoopbackUrl } from "./asr.ts";
 

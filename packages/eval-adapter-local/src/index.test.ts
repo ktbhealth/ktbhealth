@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { PortError, ReportPort, type RunRecord } from "@ktb/eval-core";
-import { DatasetStorePort, type Sample } from "@ktb/eval-consult";
+import { DatasetStorePort, type Sample } from "@ktb/eval-consultation";
 
 import { makeLocalReportLayer, makeLocalStoreLayer } from "./index.ts";
 

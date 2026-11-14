@@ -35,7 +35,7 @@ import {
 	toSampleResult,
 	type RunRecord,
 	type Sample,
-} from "@ktb/eval-consult";
+} from "@ktb/eval-consultation";
 
 import { modelLayer, storeReportLayers, type WireContext } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";

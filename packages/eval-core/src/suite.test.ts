@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import { defineSuite, validateManifest } from "./suite.ts";
 
 const valid = {
-	id: "consult-cleanup",
-	domain: "eval.dom.consult",
-	dataset: { id: "consult-synth", version: "2026-01" },
+	id: "demo-cleanup",
+	domain: "eval.dom.demo",
+	dataset: { id: "demo-synth", version: "2026-01" },
 	stages: ["asr", "cleanup", "judge"],
-	caps: { asr: "transcription.whisper", tts: "transcription.edge" },
+	caps: { asr: "cap.alpha", tts: "cap.beta" },
 	metrics: ["wer", "cer", "entities"],
 	gates: [{ id: "auto-accept", params: { target: 0.9, minN: 50 } }],
 	schemaVersion: 1,
@@ -18,11 +18,11 @@ const valid = {
 describe("defineSuite", () => {
 	it("decodes a valid manifest", () => {
 		const m = defineSuite(valid);
-		expect(m.id).toBe("consult-cleanup");
-		expect(m.domain).toBe("eval.dom.consult");
-		expect(m.dataset).toEqual({ id: "consult-synth", version: "2026-01" });
+		expect(m.id).toBe("demo-cleanup");
+		expect(m.domain).toBe("eval.dom.demo");
+		expect(m.dataset).toEqual({ id: "demo-synth", version: "2026-01" });
 		expect(m.stages).toEqual(["asr", "cleanup", "judge"]);
-		expect(m.caps).toEqual({ asr: "transcription.whisper", tts: "transcription.edge" });
+		expect(m.caps).toEqual({ asr: "cap.alpha", tts: "cap.beta" });
 		expect(m.metrics).toEqual(["wer", "cer", "entities"]);
 		expect(m.gates).toEqual([{ id: "auto-accept", params: { target: 0.9, minN: 50 } }]);
 		expect(m.schemaVersion).toBe(1);

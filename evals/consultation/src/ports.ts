@@ -16,7 +16,7 @@ import type {
 } from "./schema.ts";
 
 // Generic ports moved to @ktb/eval-core (P-074) — re-exported so
-// consumers import the tags from `@ktb/eval-consult` directly.
+// consumers import the tags from `@ktb/eval-consultation` directly.
 export { EvalPort, PortError, ReportPort } from "@ktb/eval-core";
 export type { TaskEnvelope } from "@ktb/eval-core";
 
@@ -28,7 +28,7 @@ export type { TaskEnvelope } from "@ktb/eval-core";
  *
  * The GENERIC ports (PortError, TaskEnvelope, EvalPort, ReportPort)
  * live in @ktb/eval-core; this file keeps the transcription/consult
- * domain ports until the domain pack lands (P-074 phase 2).
+ * domain ports — the domain-specific half of the pack's boundary.
  */
 
 /** Synthesize a script into audio under an acoustic profile
@@ -56,7 +56,7 @@ export class TtsPort extends Context.Service<
 			readonly acoustic: AcousticProfile;
 		}) => Effect.Effect<{ audio: AudioRef; record: RunRecord }, PortError>;
 	}
->()("@ktb/eval-consult/TtsPort") {}
+>()("@ktb/eval-consultation/TtsPort") {}
 
 /** Speech-to-text: audio ref → text + confidence-tagged segments.
  * `origin` is the CALLER-DECLARED provenance (sample manifest) — a
@@ -86,7 +86,7 @@ export class AsrPort extends Context.Service<
 			},
 		) => Effect.Effect<{ asr: AsrResult; record: RunRecord }, PortError>;
 	}
->()("@ktb/eval-consult/AsrPort") {}
+>()("@ktb/eval-consultation/AsrPort") {}
 
 /** Generative model port — ACP-delegated in live adapters.
  * `egress` declares whether envelope input text may leave the
@@ -106,7 +106,7 @@ export class LlmPort extends Context.Service<
 			envelope: TaskEnvelope,
 		) => Effect.Effect<{ edits: EditList; record: RunRecord }, PortError>;
 	}
->()("@ktb/eval-consult/LlmPort") {}
+>()("@ktb/eval-consultation/LlmPort") {}
 
 /** Manifest rows + audio blobs. */
 export class DatasetStorePort extends Context.Service<
@@ -158,4 +158,4 @@ export class DatasetStorePort extends Context.Service<
 			readonly runId?: string;
 		}) => Effect.Effect<readonly SampleResult[], PortError>;
 	}
->()("@ktb/eval-consult/DatasetStorePort") {}
+>()("@ktb/eval-consultation/DatasetStorePort") {}

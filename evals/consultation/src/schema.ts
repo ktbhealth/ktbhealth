@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import { ConfSegment, EditList } from "@ktb/eval-core";
 
 // Generic contracts moved to @ktb/eval-core (P-074) — re-exported here
-// so `@ktb/eval-consult` and `@ktb/eval-consult/schema` keep their
+// so `@ktb/eval-consultation` and `@ktb/eval-consultation/schema` keep their
 // public surface. ConfSegment/EditList are also value-imported above
 // for the domain structs below.
 export {

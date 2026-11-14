@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ContributionRegistry } from "@ktb/eval-core";
-import { AsrPort } from "@ktb/eval-consult/ports";
+import { AsrPort } from "@ktb/eval-consultation/ports";
 
 import { asrContributions, plugins } from "./index.ts";
 

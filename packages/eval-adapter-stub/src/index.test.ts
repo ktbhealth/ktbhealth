@@ -10,7 +10,7 @@ import {
 	TtsPort,
 	type Sample,
 	type SampleResult,
-} from "@ktb/eval-consult";
+} from "@ktb/eval-consultation";
 
 import {
 	CANNED_ASR,
