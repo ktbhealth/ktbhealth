@@ -29,9 +29,10 @@ collector + storage + UI that receives it.
 - **App endpoint**: committed in `apps/web/alchemy.run.ts` — prod stage
   defaults `OTEL_EXPORTER_OTLP_ENDPOINT=https://ktb-otel.luisfuturist.com`
   and `KTB_ENVIRONMENT=production`; explicit env vars still win.
-- **Alert receiver**: ntfy webhook contact point is provisioned
-  (commented) in `provisioning/alerting/alerting.yaml`; enable by
-  uncommenting + DNS route when ntfy is exposed.
+- **Alert receiver**: self-hosted ntfy compose service behind
+  `ktb-ntfy.luisfuturist.com`; the Grafana webhook contact point in
+  `provisioning/alerting/alerting.yaml` POSTs with a Bearer token
+  (`NTFY_AUTH_TOKEN`). See "ntfy auth" below.
 
 ## Architecture
 
@@ -306,9 +307,31 @@ attempt creates a fully-bootstrapped VM, no manual steps.
    signal, so the base URL must have **no path**. Insecure `http://`
    endpoints are dropped by the OTLP driver unless the host is
    loopback — always use `https://` here.
-9. **Alerts**: edit `provisioning/alerting/alerting.yaml` — set a real
-   `oncall@example.com` (requires `GF_SMTP_*` env) or swap the contact
-   point for a webhook. Grafana picks it up within `updateIntervalSeconds`.
+9. **Alerts**: the ntfy webhook contact point is active — it needs
+   `NTFY_URL` + `NTFY_AUTH_TOKEN` in `.env` (see "ntfy auth" below).
+   Grafana picks provisioning changes up within `updateIntervalSeconds`.
+
+### ntfy auth
+
+Self-hosted ntfy runs **default-deny** (`NTFY_AUTH_DEFAULT_ACCESS` in
+compose.yaml): nothing is readable/publishable without a grant. One-time
+setup on the host (replace `<topic>` with the `ktb-alerts-…` path from
+`NTFY_URL`):
+
+```bash
+docker exec -it ktb-ntfy ntfy user add --role=admin ktb          # prompts for password
+docker exec ktb-ntfy ntfy access <topic> ktb rw                  # grant read+write on the alert topic
+docker exec ktb-ntfy ntfy token add ktb                          # prints tk_… → NTFY_AUTH_TOKEN
+```
+
+- `NTFY_AUTH_TOKEN` → `.env` (Grafana sends it as `Authorization:
+  Bearer`); store a copy in cuora `ktb/ntfy-auth-token`.
+- The human subscribes in the ntfy app with the `ktb` user/password
+  (or a personal `ntfy token add ktb` token).
+- Secrets live in cuora: `ktb/ntfy-url`, `ktb/ntfy-auth-token`,
+  `ktb/ntfy-topic`. The auth DB persists on the `ntfy-data` volume.
+- To rotate: `ntfy token add ktb` again, update `.env` + cuora,
+  `docker compose up -d` (recreates the LGTM container).
 
 ## Operations / runbook
 

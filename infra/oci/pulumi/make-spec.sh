@@ -13,6 +13,7 @@
 # Secrets consumed (all cuora://ktb/*, env=prod):
 #   grafana-admin-password      -> .env GF_SECURITY_ADMIN_PASSWORD
 #   ntfy-url                    -> .env NTFY_URL (self-hosted ktb-ntfy.*)
+#   ntfy-auth-token             -> .env NTFY_AUTH_TOKEN (Grafana Bearer)
 #   cloudflared-a1-tunnel-id    -> tunnel UUID in config + creds filename
 #   cloudflared-a1-credentials  -> /etc/cloudflared/<uuid>.json
 #
@@ -33,10 +34,12 @@ cuora_get() {
 
 GF_ADMIN_PASSWORD="$(cuora_get grafana-admin-password)"
 NTFY_URL="$(cuora_get ntfy-url)"
+NTFY_AUTH_TOKEN="$(cuora_get ntfy-auth-token)"
 TUNNEL_ID="$(cuora_get cloudflared-a1-tunnel-id)"
 TUNNEL_CREDS="$(cuora_get cloudflared-a1-credentials)"
 
 for pair in "grafana-admin-password:$GF_ADMIN_PASSWORD" "ntfy-url:$NTFY_URL" \
+  "ntfy-auth-token:$NTFY_AUTH_TOKEN" \
   "cloudflared-a1-tunnel-id:$TUNNEL_ID" "cloudflared-a1-credentials:$TUNNEL_CREDS"; do
   [ -n "${pair#*:}" ] || { echo "missing cuora secret: ${pair%%:*}" >&2; exit 1; }
 done
@@ -45,6 +48,7 @@ done
 USER_DATA="$(sed \
   -e "s|__GF_ADMIN_PASSWORD__|${GF_ADMIN_PASSWORD}|g" \
   -e "s|__NTFY_URL__|${NTFY_URL}|g" \
+  -e "s|__NTFY_AUTH_TOKEN__|${NTFY_AUTH_TOKEN}|g" \
   -e "s|__TUNNEL_ID__|${TUNNEL_ID}|g" \
   "$HERE/cloud-init.sh")"
 # Credentials JSON may contain sed-special chars (& |) — append via a

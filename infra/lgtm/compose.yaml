@@ -76,6 +76,13 @@ services:
       - "127.0.0.1:8086:80"
     environment:
       NTFY_BASE_URL: ${NTFY_PUBLIC_URL:-http://localhost:8086}
+      # Real auth: default-deny; users/topics are granted explicitly via
+      # `ntfy user add` / `ntfy access` / `ntfy token add` (see README
+      # "ntfy auth"). The auth DB persists on the ntfy-data volume.
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+    volumes:
+      - ntfy-data:/var/lib/ntfy
 
   # Optional: run cloudflared as a compose service instead of installing
   # it on the host. Two modes:
@@ -99,3 +106,4 @@ services:
 
 volumes:
   lgtm-data:
+  ntfy-data:

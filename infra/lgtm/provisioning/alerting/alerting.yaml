@@ -240,9 +240,11 @@ contactPoints:
     receivers:
       # ntfy push notifications: Grafana POSTs its alert JSON to the
       # topic URL; ntfy stores the body as the push message. Works with
-      # ntfy.sh (free hosted) or a self-hosted instance — the webhook is
-      # plain HTTP, no vendor SDK. The topic URL is the only auth, so it
-      # is injected via NTFY_URL (see .env.example / cuora ktb/ntfy-url),
+      # ntfy.sh (free hosted) or the self-hosted compose service — the
+      # webhook is plain HTTP, no vendor SDK. Self-hosted ntfy runs
+      # default-deny auth; Grafana authenticates via Bearer token
+      # (NTFY_AUTH_TOKEN). URL + token are injected via env
+      # (.env.example / cuora ktb/ntfy-url, ktb/ntfy-auth-token),
       # never committed. If NTFY_URL is unset the receiver URL expands
       # empty and notifications silently no-op.
       - uid: ktb-platform-ntfy
@@ -250,6 +252,11 @@ contactPoints:
         settings:
           url: $__env{NTFY_URL}
           httpMethod: POST
+          # ntfy runs with auth (default-deny); Grafana authenticates
+          # with a user token as Bearer. NTFY_AUTH_TOKEN comes from
+          # .env (cuora ktb/ntfy-auth-token) — never committed.
+          authorizationScheme: Bearer
+          authorizationCredentials: $__env{NTFY_AUTH_TOKEN}
         disableResolveMessage: false
 
 policies:
