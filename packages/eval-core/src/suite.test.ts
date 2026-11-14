@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { defineSuite, validateManifest } from "./suite.ts";
+import { defineSuite, stageIdOf, stageIdsOf, stageNodesOf, validateManifest } from "./suite.ts";
 
 const valid = {
 	id: "demo-cleanup",
@@ -60,6 +60,56 @@ describe("defineSuite", () => {
 
 	it("rejects non-string caps values", () => {
 		expect(() => defineSuite({ ...valid, caps: { asr: 42 } })).toThrowError(Schema.SchemaError);
+	});
+
+	it("accepts DAG node entries and cross-suite inputs (P-077)", () => {
+		const m = defineSuite({
+			...valid,
+			stages: [
+				"asr",
+				{ id: "cleanup", needs: ["asr"], optional: true },
+				{ id: "judge", needs: [], when: { condition: "auto", params: { k: 1 } } },
+			],
+			inputs: [
+				{ suite: "upstream", stage: "transcribe", field: "asrText" },
+				{ suite: "other", runId: "run-1", datasetVersion: "v9" },
+			],
+		});
+		expect(m.stages[1]).toEqual({ id: "cleanup", needs: ["asr"], optional: true });
+		expect(m.stages[2]).toEqual({
+			id: "judge",
+			needs: [],
+			when: { condition: "auto", params: { k: 1 } },
+		});
+		expect(m.inputs).toHaveLength(2);
+	});
+
+	it("rejects malformed stage nodes and input refs", () => {
+		expect(() => defineSuite({ ...valid, stages: [{ needs: [] }] })).toThrowError(
+			Schema.SchemaError,
+		);
+		expect(() => defineSuite({ ...valid, stages: [{ id: "x", needs: "y" }] })).toThrowError(
+			Schema.SchemaError,
+		);
+		expect(() =>
+			defineSuite({
+				...valid,
+				stages: [{ id: "x", when: { condition: "c", params: { f: () => 1 } } }],
+			}),
+		).toThrowError(Schema.SchemaError);
+		expect(() => defineSuite({ ...valid, inputs: [{ stage: "s" }] })).toThrowError(
+			Schema.SchemaError,
+		);
+	});
+});
+
+describe("stage entry helpers", () => {
+	it("stageIdOf/stageIdsOf/stageNodesOf normalize mixed entries", () => {
+		const entries: readonly import("./suite.ts").StageEntry[] = ["a", { id: "b", needs: [] }];
+		expect(stageIdOf("a")).toBe("a");
+		expect(stageIdOf(entries[1])).toBe("b");
+		expect(stageIdsOf(entries)).toEqual(["a", "b"]);
+		expect(stageNodesOf(entries)).toEqual([{ id: "a" }, { id: "b", needs: [] }]);
 	});
 });
 

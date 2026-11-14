@@ -1266,7 +1266,7 @@ describe("market parity (P-076)", () => {
 			);
 			expect(exp?.kind).toBe("run");
 			expect(exp?.summary).toMatchObject({ ok: 0, failed: 1, samples: 1 });
-			expect((exp?.summary as Record<string, unknown>).meanWerAsr).toBeUndefined();
+			expect((exp?.summary as Record<string, unknown> | undefined)?.meanWerAsr).toBeUndefined();
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
@@ -1679,6 +1679,307 @@ describe("market parity (P-076)", () => {
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("cross-suite inputs + stage DAG guards (P-077)", () => {
+	/** Suite consuming fx's persisted asrText — same dataset pin so
+	 * the cohort matches; transcribe omitted (prior text replaces it). */
+	const reviewSuite = (runId: string) => `export const suite = {
+	id: "fx-review",
+	domain: "eval.consult",
+	dataset: { id: "fx", version: "v1" },
+	stages: ["script_gen", "synthesize", "cleanup", "judge"],
+	caps: {
+		tts: "transcription.tts",
+		asr: "transcription.asr",
+		llm: "llm.eval",
+		eval: "llm.eval",
+		store: "storage.dataset",
+		report: "storage.dataset",
+	},
+	metrics: ["wer"],
+	gates: [],
+	inputs: [{ suite: "fx", stage: "transcribe", field: "asrText", runId: "${runId}" }],
+	schemaVersion: 1,
+	adapterProfile: "stub",
+};`;
+
+	const experimentsOf = async (suiteId: string) => {
+		const { evalStore } = storeReportLayers(workdir);
+		return Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.listExperiments({ suiteId });
+				}).pipe(Effect.provide(evalStore)),
+			),
+		);
+	};
+
+	test("run consumes another suite's asrText and records derivedFrom lineage", async () => {
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// Pin the input to fx's full (2-sample) run — later limited
+			// runs must not shadow it.
+			const exps = await experimentsOf("fx");
+			const full = exps
+				.filter((e) => e.kind === "run" && e.summary.samples === 2)
+				.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0]!;
+			fs.writeFileSync(path.join(evalsDir, "fx-review.suite.ts"), reviewSuite(full.id));
+
+			expect(await exec(["run", "fx-review", "--workdir", workdir])).toBe(0);
+
+			const review = [...(await experimentsOf("fx-review"))].sort(
+				(a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0),
+			)[0]!;
+			expect(review.derivedFrom).toEqual([full.id]);
+			const inputs = review.summary.inputs as { runId: string; suite: string }[];
+			expect(inputs).toHaveLength(1);
+			expect(inputs[0]!.runId).toBe(full.id);
+			expect(inputs[0]!.suite).toBe("fx");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("eval list warns on unresolvable input refs; --strict fails", async () => {
+		fs.writeFileSync(
+			path.join(evalsDir, "fx-badinput.suite.ts"),
+			`export const suite = { id: "fx-badinput", domain: "d", dataset: { id: "fx", version: "v1" }, stages: ["transcribe"], caps: {}, metrics: [], gates: [], inputs: [{ suite: "ghost" }], schemaVersion: 1, adapterProfile: "stub" };`,
+		);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["list"])).toBe(0);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain('! input "ghost"');
+			expect(out).toContain("unresolvable input(s)");
+			expect(await exec(["list", "--strict"])).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("eval list prints resolved input refs", async () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["list"])).toBe(0);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain("input  fx#transcribe.asrText → fx");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("run fails hard on an unresolvable input suite", async () => {
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "fx-badinput", "--workdir", workdir])).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain('no suite manifest "ghost"');
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("run fails hard when the input resolves no persisted results", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-noinput-"));
+		fs.writeFileSync(
+			path.join(evalsDir, "fx-nodata.suite.ts"),
+			`export const suite = { id: "fx-nodata", domain: "d", dataset: { id: "fx", version: "v1" }, stages: ["script_gen", "synthesize", "cleanup"], caps: { tts: "transcription.tts", asr: "transcription.asr", llm: "llm.eval", eval: "llm.eval", store: "storage.dataset", report: "storage.dataset" }, metrics: [], gates: [], inputs: [{ suite: "fx", stage: "transcribe" }], schemaVersion: 1, adapterProfile: "stub" };`,
+		);
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "fx-nodata", "--workdir", wd])).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain("resolved no results");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("run rejects a non-linear stage graph (linear-only runner)", async () => {
+		fs.writeFileSync(
+			path.join(evalsDir, "fx-nonlinear.suite.ts"),
+			`export const suite = { id: "fx-nonlinear", domain: "d", dataset: { id: "fx", version: "v1" }, stages: ["transcribe", { id: "cleanup", needs: [] }, "judge"], caps: {}, metrics: [], gates: [], schemaVersion: 1, adapterProfile: "stub" };`,
+		);
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "fx-nonlinear", "--workdir", workdir])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("non-linear stage graph");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("run rejects asrText input combined with a live transcribe stage", async () => {
+		fs.writeFileSync(
+			path.join(evalsDir, "fx-both.suite.ts"),
+			`export const suite = { id: "fx-both", domain: "d", dataset: { id: "fx", version: "v1" }, stages: ["transcribe", "cleanup"], caps: {}, metrics: [], gates: [], inputs: [{ suite: "fx", stage: "transcribe" }], schemaVersion: 1, adapterProfile: "stub" };`,
+		);
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "fx-both", "--workdir", workdir])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("mutually exclusive");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("eval list surfaces DAG graph errors", async () => {
+		fs.writeFileSync(
+			path.join(evalsDir, "fx-cycle.suite.ts"),
+			`export const suite = { id: "fx-cycle", domain: "d", dataset: { id: "fx", version: "v1" }, stages: [{ id: "a", needs: ["b"] }, { id: "b", needs: ["a"] }], caps: {}, metrics: [], gates: [], schemaVersion: 1, adapterProfile: "stub" };`,
+		);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["list"])).toBe(0);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain("! dag —");
+			expect(out).toContain("invalid stage graph(s)");
+			expect(await exec(["list", "--strict"])).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+});
+
+describe("stage DAG node guards + non-asrText inputs (P-077)", () => {
+	const CAPS = `caps: { tts: "transcription.tts", asr: "transcription.asr", llm: "llm.eval", eval: "llm.eval", store: "storage.dataset", report: "storage.dataset" }`;
+	const base = (id: string, stages: string, extra = "") =>
+		`export const suite = { id: "${id}", domain: "d", dataset: { id: "fx", version: "v1" }, stages: ${stages}, ${CAPS}, metrics: [], gates: [], schemaVersion: 1, adapterProfile: "stub" ${extra} };`;
+
+	const writeSuite = (name: string, src: string) =>
+		fs.writeFileSync(path.join(evalsDir, `${name}.suite.ts`), src);
+
+	const quiet = () => {
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		return err;
+	};
+
+	test("explicit needs matching the linear chain are accepted", async () => {
+		writeSuite(
+			"fx-linear-explicit",
+			base(
+				"fx-linear-explicit",
+				'["transcribe", { id: "cleanup", needs: ["transcribe"] }, "judge"]',
+			),
+		);
+		quiet();
+		try {
+			expect(await exec(["run", "fx-linear-explicit", "--workdir", workdir])).toBe(0);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("needs referencing a non-earlier stage is non-linear", async () => {
+		writeSuite(
+			"fx-wrongdep",
+			base("fx-wrongdep", '["transcribe", { id: "cleanup", needs: ["judge"] }, "judge"]'),
+		);
+		const err = quiet();
+		try {
+			expect(await exec(["run", "fx-wrongdep", "--workdir", workdir])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("non-linear stage graph");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("optional and when node features are non-linear", async () => {
+		writeSuite(
+			"fx-optional",
+			base("fx-optional", '["transcribe", { id: "cleanup", optional: true }, "judge"]'),
+		);
+		writeSuite(
+			"fx-when",
+			base("fx-when", '["transcribe", { id: "cleanup", when: { condition: "c" } }, "judge"]'),
+		);
+		const err = quiet();
+		try {
+			expect(await exec(["run", "fx-optional", "--workdir", workdir])).toBe(2);
+			expect(await exec(["run", "fx-when", "--workdir", workdir])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("non-linear stage graph");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("non-asrText inputs resolve as lineage without relaxing transcribe", async () => {
+		writeSuite(
+			"fx-corrected",
+			base(
+				"fx-corrected",
+				'["transcribe", "cleanup", "judge"]',
+				', inputs: [{ suite: "fx", stage: "cleanup", field: "correctedText" }]',
+			),
+		);
+		quiet();
+		try {
+			expect(await exec(["run", "fx-corrected", "--workdir", workdir])).toBe(0);
+			const { evalStore } = storeReportLayers(workdir);
+			const exps = await Effect.runPromise(
+				Effect.scoped(
+					Effect.gen(function* () {
+						const s = yield* EvalStorePort;
+						return yield* s.listExperiments({ suiteId: "fx-corrected" });
+					}).pipe(Effect.provide(evalStore)),
+				),
+			);
+			const exp = [...exps].sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0]!;
+			expect(exp.derivedFrom).toHaveLength(1);
+			const inputs = exp.summary.inputs as { ref: string }[];
+			expect(inputs[0]!.ref).toBe("fx#cleanup.correctedText");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("duplicate sampleIds across asrText inputs: first manifest input wins", async () => {
+		const { evalStore } = storeReportLayers(workdir);
+		const exps = await Effect.runPromise(
+			Effect.scoped(
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.listExperiments({ suiteId: "fx" });
+				}).pipe(Effect.provide(evalStore)),
+			),
+		);
+		const full = exps
+			.filter((e) => e.kind === "run" && e.summary.samples === 2)
+			.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0]!;
+		writeSuite(
+			"fx-dupe",
+			base(
+				"fx-dupe",
+				'["script_gen", "synthesize", "cleanup", "judge"]',
+				`, inputs: [` +
+					`{ suite: "fx", stage: "transcribe", runId: "${full.id}" }, ` +
+					`{ suite: "fx", stage: "transcribe", runId: "run-lim" }]`,
+			),
+		);
+		quiet();
+		try {
+			expect(await exec(["run", "fx-dupe", "--workdir", workdir])).toBe(0);
+			const { evalStore: es2 } = storeReportLayers(workdir);
+			const dExps = await Effect.runPromise(
+				Effect.scoped(
+					Effect.gen(function* () {
+						const s = yield* EvalStorePort;
+						return yield* s.listExperiments({ suiteId: "fx-dupe" });
+					}).pipe(Effect.provide(es2)),
+				),
+			);
+			const d = [...dExps].sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))[0]!;
+			expect(d.derivedFrom).toEqual([full.id, "run-lim"]);
+		} finally {
+			vi.restoreAllMocks();
 		}
 	});
 });

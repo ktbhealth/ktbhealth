@@ -75,6 +75,60 @@ zeroed metrics: no cleanup → no `correctedMetrics`; no judge →
 entity verdicts come from the text floor only and every edit verdict
 is `unjudged`.
 
+### Stage DAGs (P-077)
+
+`stages` entries are `StageEntry` = a bare id **or** a `StageNode`
+`{id, needs?, optional?, when?}` (`@ktb/eval-core` suite.ts). The
+generic machinery lives in `packages/eval-core/src/dag.ts`:
+
+- `needs` absent → depends on **every earlier** entry (the
+  linear-chain default — string entries and pre-DAG manifests stay
+  sequential); `needs` present → exactly those ids (`needs: []` =
+  parallel branch root; forward refs allowed).
+- `buildStagePlan` validates (duplicate ids, unknown/self needs,
+  cycles → `StageGraphError`) and levels the graph;
+  `runStageGraph` executes level-by-level with bounded concurrency,
+  collecting per-node outcomes (`ok`/`failed`/`skipped` + reason).
+- `when.condition` references a registered `eval.condition`
+  contribution; evaluators are injected by the composition root
+  (`builtinConditions` ships `nonempty`/`always`/`never`). A false
+  condition skips the node and transitively blocks dependents.
+- `optional: true` tolerates the node's own failure — dependents
+  still run; a failed REQUIRED node skips its dependents.
+- Provenance: plan nodes carry `needs` (→ `RunRecord.parents`) and
+  `branch` (single root ancestor, absent on merges).
+
+**Consultation is linear-only**: `RUN_STAGE_FNS` share one mutable
+`StageRun`, so `eval run` rejects non-linear node features (parallel
+`needs`, `when`, `optional`) with a usage error rather than silently
+ignoring them. DAG execution is opt-in per domain — a future domain
+pack dispatches through `runStageGraph` instead. **Gates evaluate
+merged evidence**: gate policies consume per-sample `SampleResult`
+rows exactly as before; branch/condition detail lives on
+`RunRecord.parents`/`branch` for report-time auditing. Per-branch
+gate scoping is future work.
+
+### Cross-suite composition (P-077)
+
+`inputs` declares refs to other suites' persisted artifacts:
+`{suite, stage?, field?, runId?, datasetVersion?}`. `eval run`
+resolves them (`apps/eval/src/inputs.ts`) against the shared workdir
+store — `suite` must exist in evals/ (fatal at run, `! input`
+warning + `--strict` failure at `eval list`), `datasetVersion`
+defaults to the source suite's pin, `runId` pins an exact prior run,
+absent both the newest run wins. `stage`→`field` defaults:
+transcribe→`asrText`, cleanup→`correctedText`.
+
+Today the consultation runner consumes exactly one materialized
+field: **`asrText` as `priorAsrText`** — a suite omitting
+`transcribe` runs cleanup/judge on a prior run's ASR text (mutually
+exclusive with a live `transcribe` selection; per-sample misses fail
+honestly). Resolved inputs are lineage: the run's `Experiment`
+records `derivedFrom` = source run ids and `summary.inputs` = the
+resolved refs. Inputs always read ALREADY-PERSISTED results, so
+self/cyclic refs degrade to "previous iteration" semantics — allowed
+on purpose.
+
 Metric refs are **validated pointers only**: the pipeline emits one
 `StageMetrics` record per produced stage (wer/cer/entity verdicts)
 because gates consume the entire record — metrics are not

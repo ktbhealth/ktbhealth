@@ -5,11 +5,12 @@ import type { PluginContribution } from "@ktb/kernel";
 import { EVAL_CONTRIBUTION_KINDS, isEvalContributionKind, toEvalContribution } from "./kinds.ts";
 
 describe("EVAL_CONTRIBUTION_KINDS", () => {
-	it("declares the four eval kinds on the generic contributions slot", () => {
+	it("declares the five eval kinds on the generic contributions slot", () => {
 		expect(EVAL_CONTRIBUTION_KINDS.map((k) => k.id)).toEqual([
 			"eval.stage",
 			"eval.metric",
 			"eval.gate",
+			"eval.condition",
 			"eval.capability",
 		]);
 		for (const kind of EVAL_CONTRIBUTION_KINDS) {
@@ -23,6 +24,7 @@ describe("EVAL_CONTRIBUTION_KINDS", () => {
 describe("isEvalContributionKind", () => {
 	it("accepts eval kinds and rejects others", () => {
 		expect(isEvalContributionKind("eval.stage")).toBe(true);
+		expect(isEvalContributionKind("eval.condition")).toBe(true);
 		expect(isEvalContributionKind("eval.capability")).toBe(true);
 		expect(isEvalContributionKind("stage")).toBe(false);
 		expect(isEvalContributionKind("pages")).toBe(false);

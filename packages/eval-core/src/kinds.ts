@@ -33,6 +33,7 @@ export const EVAL_CONTRIBUTION_KINDS: readonly ContributionKindDescriptor[] = [
 	evalKind("eval.stage"),
 	evalKind("eval.metric"),
 	evalKind("eval.gate"),
+	evalKind("eval.condition"),
 	evalKind("eval.capability"),
 ];
 

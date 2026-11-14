@@ -14,7 +14,14 @@
  * wire. Pure data in, pure data out — no Effect, no fs.
  */
 
-import type { ContributionKind, ContributionRegistry, EvalSuiteManifest } from "@ktb/eval-core";
+import {
+	buildStagePlan,
+	stageNodesOf,
+	StageGraphError,
+	type ContributionKind,
+	type ContributionRegistry,
+	type EvalSuiteManifest,
+} from "@ktb/eval-core";
 
 interface UnresolvedRef {
 	readonly kind: ContributionKind;
@@ -33,6 +40,10 @@ export interface SuiteResolution {
 	/** capability id → adapter key chosen for the profile (absent
 	 * when the capability or its adapter is unresolved). */
 	readonly adapters: Readonly<Record<string, string>>;
+	/** Stage-graph validation failure (P-077) — duplicate ids,
+	 * unknown/self needs, or a cycle. Absent when the manifest's
+	 * `stages` form a valid DAG. */
+	readonly dagError?: string;
 }
 
 /**
@@ -105,6 +116,7 @@ export const resolveSuite = (
 	const resolved: ResolvedRef[] = [];
 	const unresolved: UnresolvedRef[] = [];
 	const adapters: Record<string, string> = {};
+	let dagError: string | undefined;
 
 	const check = (kind: ContributionKind, id: string): boolean => {
 		if (registry.has(kind, id)) {
@@ -115,7 +127,20 @@ export const resolveSuite = (
 		return false;
 	};
 
-	for (const id of manifest.stages) check("eval.stage", id);
+	// Stage entries are StageEntry = id string | StageNode — resolve
+	// every node id plus each `when.condition` guard ref, then
+	// validate the graph shape itself (P-077).
+	for (const node of stageNodesOf(manifest.stages)) {
+		check("eval.stage", node.id);
+		if (node.when !== undefined) check("eval.condition", node.when.condition);
+	}
+	try {
+		buildStagePlan(manifest.stages);
+	} catch (e) {
+		// buildStagePlan only throws StageGraphError by construction.
+		const err = e as StageGraphError;
+		dagError = err.detail !== undefined ? `${err.message} (${err.detail})` : err.message;
+	}
 	for (const id of manifest.metrics) check("eval.metric", id);
 	for (const g of manifest.gates) check("eval.gate", g.id);
 
@@ -147,5 +172,10 @@ export const resolveSuite = (
 		adapters[capId] = key;
 	}
 
-	return { resolved, unresolved, adapters };
+	return {
+		resolved,
+		unresolved,
+		adapters,
+		...(dagError !== undefined ? { dagError } : {}),
+	};
 };

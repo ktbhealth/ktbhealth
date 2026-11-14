@@ -63,9 +63,41 @@ describe("diffExperiments", () => {
 	});
 
 	test("missing gates on one side render as '-'", () => {
-		const d = diffExperiments(exp({ gates: undefined }), exp());
-		const row = d.rows.find((r) => r.field === "gate.auto-accept");
-		expect(row).toMatchObject({ a: "-", b: "GREEN 3/3", changed: true });
+		const d1 = diffExperiments(exp({ gates: undefined }), exp());
+		expect(d1.rows.find((r) => r.field === "gate.auto-accept")).toMatchObject({
+			a: "-",
+			b: "GREEN 3/3",
+			changed: true,
+		});
+		const d2 = diffExperiments(exp(), exp({ gates: undefined }));
+		expect(d2.rows.find((r) => r.field === "gate.auto-accept")).toMatchObject({
+			a: "GREEN 3/3",
+			b: "-",
+			changed: true,
+		});
+		// RED gate on side A covers the green:false render branch.
+		const d3 = diffExperiments(
+			exp({ gates: [{ id: "auto-accept", green: false, accepted: 0, total: 2 }] }),
+			exp({ gates: undefined }),
+		);
+		expect(d3.rows.find((r) => r.field === "gate.auto-accept")).toMatchObject({
+			a: "RED 0/2",
+			b: "-",
+		});
+	});
+
+	test("derivedFrom lineage renders as a joined diff row (P-077)", () => {
+		const d = diffExperiments(
+			exp({ derivedFrom: ["run-a", "run-b"] }),
+			exp({ derivedFrom: ["run-c"] }),
+		);
+		expect(d.rows.find((r) => r.field === "derivedFrom")).toMatchObject({
+			a: "run-a,run-b",
+			b: "run-c",
+			changed: true,
+		});
+		const both = diffExperiments(exp({ derivedFrom: ["r"] }), exp({ derivedFrom: ["r"] }));
+		expect(both.rows.find((r) => r.field === "derivedFrom")?.changed).toBe(false);
 	});
 
 	test("non-numeric summary values have no delta", () => {

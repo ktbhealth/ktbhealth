@@ -60,6 +60,7 @@ export const diffExperiments = (a: Experiment, b: Experiment): ExperimentDiff =>
 		row("profile", a.profile, b.profile),
 		row("manifestHash", a.manifestHash, b.manifestHash),
 		row("gitSha", a.gitSha, b.gitSha),
+		row("derivedFrom", a.derivedFrom?.join(","), b.derivedFrom?.join(",")),
 		row("startedAt", a.startedAt, b.startedAt),
 	];
 	for (const key of summaryKeys(a, b)) {

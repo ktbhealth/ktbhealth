@@ -66,6 +66,14 @@ export const RunRecord = Schema.Struct({
 	/** Estimated cost of the recorded call — rendered by
 	 * `renderRunMarkdown`. Absent = unmetered, never guessed. */
 	estCostUsd: Schema.optionalKey(Schema.Number),
+	/** DAG provenance (P-077): ids of the stage-graph nodes this
+	 * record's stage declared as `needs` — empty/absent for linear
+	 * pipelines. `branch` is the single root ancestor the node
+	 * descends from (absent on multi-root merges). Stamped by
+	 * DAG-aware runners (dag.ts exposes them on StagePlanNode);
+	 * linear dispatchers leave both absent. */
+	parents: Schema.optionalKey(Schema.Array(Schema.String)),
+	branch: Schema.optionalKey(Schema.String),
 });
 export type RunRecord = typeof RunRecord.Type;
 
@@ -138,6 +146,10 @@ export const Experiment = Schema.Struct({
 	finishedAt: Schema.optionalKey(Schema.Number),
 	summary: Schema.JsonObject,
 	gates: Schema.optionalKey(Schema.Array(ExperimentGate)),
+	/** Cross-suite lineage (P-077): Experiment ids (run ids) this
+	 * run's declared `inputs` were materialized from — empty/absent
+	 * for standalone runs. */
+	derivedFrom: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 export type Experiment = typeof Experiment.Type;
 

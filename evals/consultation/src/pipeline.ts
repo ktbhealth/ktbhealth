@@ -238,10 +238,15 @@ const RUN_STAGE_ORDER: Readonly<Record<RunStage, number>> = {
 
 /** Validate a run-stage selection (order as given). Returns an error
  * message, or null when runnable: every id must be a known run
- * stage, listed once, in canonical dependency order, and a non-empty
- * selection must include "transcribe" — cleanup/judge consume its
- * output. */
-export const runStageError = (stages: readonly string[]): string | null => {
+ * stage, listed once, in canonical dependency order, and — unless
+ * `opts.requireTranscribe` is false (a cross-suite input supplies
+ * prior ASR text; see processSample `priorAsrText`) — a non-empty
+ * selection must include "transcribe", which every other stage
+ * consumes. */
+export const runStageError = (
+	stages: readonly string[],
+	opts?: { readonly requireTranscribe?: boolean },
+): string | null => {
 	if (stages.length === 0) return "no run stages selected";
 	const seen = new Set<string>();
 	let prev = -1;
@@ -255,7 +260,7 @@ export const runStageError = (stages: readonly string[]): string | null => {
 		}
 		prev = order;
 	}
-	if (!stages.includes("transcribe")) {
+	if (opts?.requireTranscribe !== false && !stages.includes("transcribe")) {
 		return 'run stages require "transcribe" — every other stage consumes its output';
 	}
 	return null;
@@ -265,10 +270,14 @@ export const runStageError = (stages: readonly string[]): string | null => {
  * order. Non-run ids (generation stages, foreign refs) are filtered
  * out — the caller decides whether skipping them is legitimate.
  * Throws Error with runStageError's message on an inconsistent
- * selection. */
-export const runStageSelection = (stageIds: readonly string[]): readonly RunStage[] => {
+ * selection. `opts.requireTranscribe === false` permits a
+ * transcribe-less selection (prior ASR text supplied via inputs). */
+export const runStageSelection = (
+	stageIds: readonly string[],
+	opts?: { readonly requireTranscribe?: boolean },
+): readonly RunStage[] => {
 	const picked = stageIds.filter(isRunStage);
-	const err = runStageError(picked);
+	const err = runStageError(picked, opts);
 	if (err !== null) throw new Error(`invalid run stage selection: ${err}`);
 	return picked;
 };
@@ -428,8 +437,21 @@ export const processSample = (input: {
 	readonly runId?: string;
 	readonly entities?: readonly ExpectedEntity[];
 	/** Run-stage selection — ids from RUN_STAGES in executable order
-	 * (see runStageError). Absent = the full pipeline. */
+	 * (see runStageError). Absent = the full pipeline. A selection
+	 * WITHOUT "transcribe" is only valid when `priorAsrText` supplies
+	 * the ASR output (cross-suite composition, P-077). */
 	readonly stages?: readonly RunStage[];
+	/** Prior-run ASR text consumed IN PLACE OF the transcribe stage
+	 * (P-077 cross-suite inputs): valid only when `stages` omits
+	 * "transcribe" — selecting both is a typed error, never a silent
+	 * pick. The text is treated exactly like fresh ASR output:
+	 * cleanup/judge/metrics consume it, and for untrusted samples it
+	 * passes the same PHI gate as the stored script (it was already
+	 * scrubbed when originally produced; re-gating is defense in
+	 * depth). No transcribe RunRecord is emitted — no call happened;
+	 * `confSegments` is empty because prior text carries no
+	 * per-segment confidence. */
+	readonly priorAsrText?: string;
 	/** Locale profile — normalization, PHI scrub, ASR language.
 	 * Default pt-BR; `profile.id` is persisted as the metrics'
 	 * normalization label. */
@@ -492,6 +514,28 @@ export const processSample = (input: {
 		// the honest trade-off: real-sample metrics measure the
 		// de-identified transcript, not the raw consult.
 		const script = gated?.text ?? input.sample.script;
+
+		// Cross-suite prior ASR text (P-077 inputs): consumed in place
+		// of the transcribe stage. Re-gate it for untrusted samples
+		// exactly like the script — the text was already scrubbed when
+		// originally produced, so this is defense in depth, and a
+		// null gate fails closed before any port call.
+		let priorAsr: string | undefined;
+		if (input.priorAsrText !== undefined) {
+			if (untrusted) {
+				const g = gateTranscript(input.priorAsrText, profile);
+				if (g === null) {
+					return yield* new PortError({
+						port: "pipeline",
+						message: `sample ${input.sample.id} failed the PHI gate: residual identifiers in prior ASR text`,
+					});
+				}
+				priorAsr = g.text;
+			} else {
+				priorAsr = input.priorAsrText;
+			}
+		}
+
 		const tag = (r: RunRecord): RunRecord => ({
 			...r,
 			runId,
@@ -502,8 +546,18 @@ export const processSample = (input: {
 
 		// Stage selection — validated BEFORE any port call so a bad
 		// manifest fails the sample honestly instead of half-running.
+		// priorAsrText and a live "transcribe" are mutually exclusive;
+		// prior text relaxes the must-include-transcribe rule.
 		const stages = input.stages ?? RUN_STAGES;
-		const selectionError = runStageError(stages);
+		if (priorAsr !== undefined && stages.includes("transcribe")) {
+			return yield* new PortError({
+				port: "pipeline",
+				message: `sample ${input.sample.id}: priorAsrText supplied but "transcribe" is selected — pick one`,
+			});
+		}
+		const selectionError = runStageError(stages, {
+			requireTranscribe: priorAsr === undefined,
+		});
 		if (selectionError !== null) {
 			return yield* new PortError({
 				port: "pipeline",
@@ -527,11 +581,20 @@ export const processSample = (input: {
 			provenance,
 			answers: [],
 		};
+		// Seed the ASR slot from a prior run's output — downstream
+		// stages cannot tell the difference (by design: the composed
+		// suite consumes the artifact AS the transcribe product). No
+		// RunRecord is emitted: no ASR call happened.
+		if (priorAsr !== undefined) {
+			ctx.asr = { text: priorAsr, segments: [] };
+		}
 		for (const stage of stages) {
 			yield* RUN_STAGE_FNS[stage](ctx);
 		}
 
-		const asr = ctx.asr!; // runStageError guarantees "transcribe" ran
+		// "transcribe" ran live OR priorAsrText seeded the slot —
+		// validation above guarantees one of the two.
+		const asr = ctx.asr!;
 		const answers = ctx.answers;
 		const merge = (stage: "asr" | "corrected", text: string): readonly EntityVerdict[] => {
 			const textCheck = checkEntities(entities, text, profile);

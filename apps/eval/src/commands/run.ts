@@ -13,6 +13,13 @@
  * SampleResult persisted. Resilience is runBatch's: bounded
  * concurrency, retry schedule, per-attempt timeout, per-sample
  * failure isolation.
+ *
+ * Cross-suite inputs (P-077): manifest `inputs` refs resolve to
+ * prior SampleResults before the run; a resolved `asrText` input
+ * lets the selection omit "transcribe" (priorAsrText replaces it —
+ * mutually exclusive with live transcription). The consultation
+ * runner is linear-only: non-linear stage DAG features are a usage
+ * error. Resolved inputs become Experiment.derivedFrom lineage.
  */
 
 import * as Effect from "effect/Effect";
@@ -21,7 +28,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import { Argument, Command, Flag } from "effect/cli";
 
-import { EvalStorePort, runBatch, type Experiment } from "@ktb/eval-core";
+import { EvalStorePort, runBatch, stageIdsOf, stageNodesOf, type Experiment } from "@ktb/eval-core";
 import {
 	DatasetStorePort,
 	GENERATION_STAGES,
@@ -40,6 +47,7 @@ import {
 import { modelLayer, storeReportLayers, type WireContext } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
 import { CommandExit, UsageError } from "../errors.ts";
+import { inputFieldOf, resolveSuiteInputs } from "../inputs.ts";
 import { findSuite } from "../suites.ts";
 import {
 	assertCapabilities,
@@ -100,6 +108,25 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				// dataset was generated under.
 				const locale = yield* localeFlag(cfg.locale);
 
+				const wire: WireContext = {
+					workdir,
+					profile,
+					env: ctx.env,
+					...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
+				};
+				const { store, report, evalStore } = storeReportLayers(workdir);
+
+				// Cross-suite inputs (P-077): resolve declared refs
+				// against already-persisted results BEFORE stage
+				// validation — a resolved asrText input relaxes the
+				// must-include-transcribe rule. Unresolvable refs are
+				// fatal: inputs are never fabricated.
+				const inputBundles = yield* resolveSuiteInputs(ctx.evalsDir, manifest).pipe(
+					Effect.provide(store),
+					Effect.mapError(userError),
+				);
+				const needsPriorAsr = inputBundles.some((b) => inputFieldOf(b.input) === "asrText");
+
 				// Manifest stage dispatch: `eval run` executes the
 				// manifest's run-stage subset in declared order —
 				// transcribe → cleanup → judge is the canonical
@@ -110,8 +137,12 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				// non-run id has no runner and fails loudly instead
 				// of being silently skipped. An inconsistent
 				// selection is a manifest bug → usage error (exit 2),
-				// same rule as malformed gate params.
-				const unrunnable = manifest.stages.filter(
+				// same rule as malformed gate params. Stage entries may
+				// be DAG nodes (P-077) — only their ids dispatch here;
+				// the consultation runner is linear-only, so non-linear
+				// graphs fail the order check below.
+				const stageIds = stageIdsOf(manifest.stages);
+				const unrunnable = stageIds.filter(
 					(s) => !isRunStage(s) && !(GENERATION_STAGES as readonly string[]).includes(s),
 				);
 				if (unrunnable.length > 0) {
@@ -121,8 +152,40 @@ export const makeRunCommand = (ctx: CmdContext) =>
 						),
 					);
 				}
+				// The consultation runner is LINEAR-ONLY: RUN_STAGE_FNS
+				// share one mutable StageRun, so parallel branches,
+				// condition guards, and optional-tolerance semantics
+				// have no honest execution here. A node entry is
+				// accepted only when its resolved needs are exactly the
+				// linear-chain default (every earlier stage id) and it
+				// declares no optional/when — anything else is a
+				// manifest bug, never silently ignored.
+				const nonLinear = stageNodesOf(manifest.stages).some((n, i) => {
+					if (n.optional === true || n.when !== undefined) return true;
+					if (n.needs === undefined) return false;
+					const earlier = new Set(stageIds.slice(0, i));
+					return n.needs.length !== earlier.size || !n.needs.every((d) => earlier.has(d));
+				});
+				if (nonLinear) {
+					return yield* new UsageError({
+						message:
+							`suite "${manifest.id}" declares a non-linear stage graph — ` +
+							"the consultation runner executes run stages sequentially " +
+							"(parallel/conditional/optional stages need a DAG-aware domain runner)",
+					});
+				}
+				// Prior ASR text and a live transcribe are mutually
+				// exclusive — picking one silently would lie about
+				// which artifact the downstream stages consumed.
+				if (needsPriorAsr && stageIds.includes("transcribe")) {
+					return yield* new UsageError({
+						message:
+							`suite "${manifest.id}" declares an asrText input AND selects "transcribe" — ` +
+							"prior text and live transcription are mutually exclusive",
+					});
+				}
 				const stages = yield* Effect.try({
-					try: () => runStageSelection(manifest.stages),
+					try: () => runStageSelection(stageIds, { requireTranscribe: !needsPriorAsr }),
 					catch: (e) =>
 						new UsageError({
 							/* v8 ignore next -- runStageSelection only throws Error */
@@ -130,13 +193,18 @@ export const makeRunCommand = (ctx: CmdContext) =>
 						}),
 				});
 
-				const wire: WireContext = {
-					workdir,
-					profile,
-					env: ctx.env,
-					...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
-				};
-				const { store, report, evalStore } = storeReportLayers(workdir);
+				// Materialize prior asrText per sample — first declared
+				// input wins on duplicate sampleIds (manifest order is
+				// the tiebreak, documented in inputs.ts).
+				const priorAsrBySample = new Map<string, string>();
+				for (const b of inputBundles) {
+					if (inputFieldOf(b.input) !== "asrText") continue;
+					for (const r of b.rows) {
+						if (!priorAsrBySample.has(r.sampleId)) {
+							priorAsrBySample.set(r.sampleId, r.asrText);
+						}
+					}
+				}
 
 				// Read the cohort first — an empty dataset is a hard
 				// "generate first" error, not a vacuous green run.
@@ -182,12 +250,18 @@ export const makeRunCommand = (ctx: CmdContext) =>
 						const collected: RunRecord[] = [];
 						let persisted = 0;
 						const attempt = Effect.gen(function* () {
+							// Samples absent from the source run get no
+							// prior text — processSample then fails them
+							// honestly (transcribe-less selection requires
+							// priorAsrText), never fabricating output.
+							const priorAsrText = needsPriorAsr ? priorAsrBySample.get(sample.id) : undefined;
 							const run = yield* processSample({
 								sample,
 								runId,
 								stages,
 								profile: locale,
 								recordsOut: collected,
+								...(priorAsrText !== undefined ? { priorAsrText } : {}),
 							});
 							yield* recordAll(run.records);
 							persisted = collected.length;
@@ -237,6 +311,9 @@ export const makeRunCommand = (ctx: CmdContext) =>
 						const meanWerAsr = mean((v) => v.werAsr);
 						const meanWerCorrected = mean((v) => v.werCorrected);
 						const sha = gitSha(ctx.repoRoot);
+						// Cross-suite lineage (P-077): the source runs this
+						// experiment's inputs were materialized from.
+						const derivedFrom = [...new Set(inputBundles.map((b) => b.runId))];
 						const experiment: Experiment = {
 							id: runId,
 							kind: "run",
@@ -249,6 +326,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 							dataset: { id: manifest.dataset.id, version: manifest.dataset.version },
 							startedAt,
 							finishedAt: Date.now(),
+							...(derivedFrom.length > 0 ? { derivedFrom } : {}),
 							summary: {
 								samples: cohort.length,
 								ok: okValues.length,
@@ -256,6 +334,17 @@ export const makeRunCommand = (ctx: CmdContext) =>
 								latencyMs: r.latencyMs,
 								datasetVersion,
 								stages: stages.join(","),
+								...(inputBundles.length > 0
+									? {
+											inputs: inputBundles.map((b) => ({
+												ref: b.label,
+												suite: b.suiteId,
+												runId: b.runId,
+												datasetVersion: b.datasetVersion,
+												rows: b.rows.length,
+											})),
+										}
+									: {}),
 								...(meanWerAsr !== undefined ? { meanWerAsr } : {}),
 								...(meanWerCorrected !== undefined ? { meanWerCorrected } : {}),
 							},

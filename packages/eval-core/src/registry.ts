@@ -41,6 +41,7 @@ export const ContributionKind = Schema.Literals([
 	"eval.stage",
 	"eval.metric",
 	"eval.gate",
+	"eval.condition",
 	"eval.capability",
 ]);
 export type ContributionKind = typeof ContributionKind.Type;

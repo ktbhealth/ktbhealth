@@ -104,6 +104,46 @@ describe("resolveSuite", () => {
 		});
 	});
 
+	test("DAG node entries resolve stage ids and when-conditions (P-077)", () => {
+		const res = resolveSuite(
+			registry,
+			manifest({
+				stages: [
+					"transcribe",
+					{ id: "cleanup", needs: ["transcribe"], optional: true },
+					{ id: "judge", needs: [], when: { condition: "nonempty" } },
+				],
+			}),
+		);
+		const ids = res.resolved.map((r) => `${r.kind}:${r.id}`);
+		expect(ids).toContain("eval.stage:transcribe");
+		expect(ids).toContain("eval.stage:cleanup");
+		expect(ids).toContain("eval.stage:judge");
+		// "nonempty" is not a registered eval.condition contribution.
+		expect(res.unresolved).toContainEqual({
+			kind: "eval.condition",
+			id: "nonempty",
+			reason: "no registered contribution",
+		});
+		expect(res.dagError).toBeUndefined();
+	});
+
+	test("invalid stage graphs surface dagError", () => {
+		const dup = resolveSuite(registry, manifest({ stages: ["transcribe", "transcribe"] }));
+		expect(dup.dagError).toContain("duplicate stage id");
+		const cyc = resolveSuite(
+			registry,
+			manifest({
+				stages: [
+					{ id: "a", needs: ["b"] },
+					{ id: "b", needs: ["a"] },
+				],
+			}),
+		);
+		expect(cyc.dagError).toContain("dependency cycle");
+		expect(cyc.dagError).toContain("stuck:");
+	});
+
 	test("malformed meta.adapters shapes all resolve to 'not declared'", () => {
 		const reg = new ContributionRegistry();
 		// No meta at all.

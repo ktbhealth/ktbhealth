@@ -28,6 +28,7 @@ import { EvalStorePort } from "@ktb/eval-core";
 import { storeReportLayers } from "../adapters.ts";
 import { CommandExit } from "../errors.ts";
 import { buildRegistry } from "../contributions.ts";
+import { inputLabel } from "../inputs.ts";
 import { resolveSuite } from "../resolve.ts";
 import { loadSuites } from "../suites.ts";
 import { userError, workdirFlag } from "../shared.ts";
@@ -69,6 +70,8 @@ export const makeListCommand = (ctx: CmdContext) =>
 
 				let unresolvedTotal = 0;
 				let datasetMissing = 0;
+				let dagErrors = 0;
+				let inputMissing = 0;
 				for (const { file, manifest } of suites) {
 					const profile = manifest.adapterProfile ?? "stub";
 					const res = resolveSuite(registry, manifest, profile);
@@ -93,6 +96,29 @@ export const makeListCommand = (ctx: CmdContext) =>
 					if (adapters !== "") yield* Console.log(`  adapters  ${adapters}`);
 					for (const u of res.unresolved) {
 						yield* Console.log(`  ! ${kindLabel(u.kind)} "${u.id}" — ${u.reason}`);
+					}
+					if (res.dagError !== undefined) {
+						dagErrors++;
+						yield* Console.log(`  ! dag — ${res.dagError}`);
+					}
+					// Cross-suite input refs (P-077): WARN semantics —
+					// a missing source suite is printed and counted
+					// toward --strict, but never blocks listing. Full
+					// resolution (store reads) happens at `eval run`.
+					for (const input of manifest.inputs ?? []) {
+						// Self-references resolve too — inputs always read
+						// ALREADY-PERSISTED results, so a suite consuming
+						// its own previous runs is "previous iteration"
+						// semantics, not a cycle (see inputs.ts).
+						const known = suites.some((s) => s.manifest.id === input.suite);
+						if (known) {
+							yield* Console.log(`  input  ${inputLabel(input)} → ${input.suite}`);
+						} else {
+							inputMissing++;
+							yield* Console.log(
+								`  ! input "${inputLabel(input)}" — no suite manifest "${input.suite}" in ${dir}`,
+							);
+						}
 					}
 
 					if (evalStore !== undefined) {
@@ -120,7 +146,9 @@ export const makeListCommand = (ctx: CmdContext) =>
 
 				yield* Console.log(
 					`${suites.length} suite(s), ${unresolvedTotal} unresolved ref(s)` +
+						(dagErrors > 0 ? `, ${dagErrors} invalid stage graph(s)` : "") +
 						(datasetMissing > 0 ? `, ${datasetMissing} missing dataset(s)` : "") +
+						(inputMissing > 0 ? `, ${inputMissing} unresolvable input(s)` : "") +
 						` in ${dir}`,
 				);
 				if (!hasWorkdir && cfg.strict) {
@@ -128,7 +156,10 @@ export const makeListCommand = (ctx: CmdContext) =>
 						"note: dataset registry check skipped — pass --workdir to validate dataset pins",
 					);
 				}
-				if (cfg.strict && (unresolvedTotal > 0 || datasetMissing > 0)) {
+				if (
+					cfg.strict &&
+					(unresolvedTotal > 0 || datasetMissing > 0 || dagErrors > 0 || inputMissing > 0)
+				) {
 					return yield* new CommandExit({ code: 1 });
 				}
 			}),

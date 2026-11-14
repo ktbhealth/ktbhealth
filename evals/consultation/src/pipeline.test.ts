@@ -1036,3 +1036,149 @@ describe("run-stage selection", () => {
 		}
 	});
 });
+
+describe("priorAsrText (P-077 cross-suite inputs)", () => {
+	const PRIOR = "textoasr anterior do paciente";
+
+	it("runStageSelection allows a transcribe-less selection when required", () => {
+		expect(() => runStageSelection(["cleanup", "judge"])).toThrow(/require "transcribe"/);
+		expect(runStageSelection(["cleanup", "judge"], { requireTranscribe: false })).toEqual([
+			"cleanup",
+			"judge",
+		]);
+	});
+
+	it("consumes prior ASR text in place of transcribe — no ASR call, empty confSegments", async () => {
+		let asrCalled = false;
+		const noAsr = Layer.succeed(
+			AsrPort,
+			AsrPort.of({
+				egress: false,
+				transcribe: () =>
+					Effect.sync(() => {
+						asrCalled = true;
+						return { asr: asrResult, record };
+					}),
+			}),
+		);
+		const r = await Effect.runPromise(
+			Effect.provide(
+				processSample({
+					sample,
+					entities,
+					stages: ["cleanup", "judge"],
+					priorAsrText: PRIOR,
+				}),
+				Layer.mergeAll(live, noAsr),
+			),
+		);
+		expect(asrCalled).toBe(false);
+		expect(r.asr.text).toBe(PRIOR);
+		expect(r.corrected).toBeDefined();
+		expect(r.correctedMetrics).toBeDefined();
+		expect(r.confSegments).toEqual([]);
+		// Metrics still compare prior text against the script honestly.
+		expect(r.asrMetrics.wer).toBeGreaterThan(0);
+		// No transcribe-stage audit record — no call happened.
+		expect(r.records.every((rec) => rec.stage !== "transcribe")).toBe(true);
+	});
+
+	it("rejects priorAsrText together with a live transcribe selection", async () => {
+		const err = await run(
+			processSample({
+				sample,
+				entities,
+				stages: ["transcribe", "cleanup"],
+				priorAsrText: PRIOR,
+			}).pipe(Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e))),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain('"transcribe" is selected');
+	});
+
+	it("rejects priorAsrText with the default (full) stage selection", async () => {
+		const err = await run(
+			processSample({ sample, entities, priorAsrText: PRIOR }).pipe(
+				Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("pick one");
+	});
+
+	it("a transcribe-less selection without prior text still fails validation", async () => {
+		const err = await run(
+			processSample({ sample, entities, stages: ["cleanup", "judge"] }).pipe(
+				Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("invalid stage selection");
+	});
+
+	it("untrusted samples re-gate prior ASR text — residuals fail closed", async () => {
+		const real: Sample = {
+			...sample,
+			script: "paciente cpf 123.456.789-00 nega febre",
+			origin: "real_anonymized",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const err = await run(
+			processSample({
+				sample: real,
+				entities,
+				stages: ["cleanup"],
+				// 14-digit run survives every scrub pattern → gate null.
+				priorAsrText: "registro interno 20240102030405 do paciente",
+			}).pipe(Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e))),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("prior ASR text");
+	});
+
+	it("untrusted samples get prior ASR text scrubbed before stages see it", async () => {
+		const llmInputs: string[] = [];
+		const captureLlm = Layer.succeed(
+			LlmPort,
+			LlmPort.of({
+				egress: false,
+				generate: () => Effect.succeed({ text: "x", record }),
+				correct: (env) =>
+					Effect.sync(() => {
+						llmInputs.push(env.input);
+						return { edits: { ops: [] }, record };
+					}),
+			}),
+		);
+		const real: Sample = {
+			...sample,
+			script: "paciente cpf 123.456.789-00 nega febre",
+			origin: "real_anonymized",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const r = await Effect.runPromise(
+			Effect.provide(
+				processSample({
+					sample: real,
+					entities,
+					stages: ["cleanup"],
+					priorAsrText: "paciente cpf 123.456.789-00 nega febre",
+				}),
+				Layer.mergeAll(live, captureLlm),
+			),
+		);
+		expect(llmInputs[0]).toContain("[CPF]");
+		expect(llmInputs[0]).not.toContain("123.456.789-00");
+		expect(r.asr.text).toContain("[CPF]");
+	});
+});
