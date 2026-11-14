@@ -14,3 +14,5 @@ export * from "./calibrate.ts";
 export * from "./negation.ts";
 export * from "./accept.ts";
 export * from "./anonymize.ts";
+export * from "./locale.ts";
+export * from "./locales/pt-BR.ts";

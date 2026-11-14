@@ -5,6 +5,8 @@
  * come from the EvalPort; `checkEntities` is the text-only fast path.
  */
 
+import type { LocaleProfile } from "./locale.ts";
+import { ptBR } from "./locales/pt-BR.ts";
 import type { ConfSegment, EntityVerdict, GoldEntity } from "./schema.ts";
 
 export type { ConfSegment };
@@ -15,20 +17,26 @@ export interface NormalizeOpts {
 	readonly lowercase?: boolean;
 	readonly stripPunct?: boolean;
 	readonly expandNumbers?: boolean;
-	/** Fold diacritics ("cabeça"→"cabeca") — pt-BR ASR routinely drops
+	/** Fold diacritics ("cabeça"→"cabeca") — ASR routinely drops
 	 * accents; folding keeps accent slips out of WER/entity checks. */
 	readonly foldAccents?: boolean;
 	/** Strip speaker labels ("Doctor:", "Paciente:"…) — scripts carry
 	 * them, ASR output doesn't; comparing labeled gold to unlabeled
-	 * hyp inflates WER by construction. */
+	 * hyp inflates WER by construction. The label set is locale data —
+	 * see `profile.speakerLabelRe`. */
 	readonly stripSpeakers?: boolean;
+	/** Locale profile — number words, speaker labels, decimal word.
+	 * Defaults to pt-BR (`ptbr-v1`); reports must name the profile,
+	 * not just the number. */
+	readonly profile?: LocaleProfile;
 }
 
-/** The pinned normalization profile — version this when it changes;
- * reports must name the profile, not just the number. */
-export const NORMALIZATION_PROFILE = "ptbr-v1";
+/** The pinned pt-BR normalization profile — version this when it
+ * changes; reports must name the profile, not just the number.
+ * Equals `ptBR.id`; kept as a named export for existing callers. */
+export const NORMALIZATION_PROFILE = ptBR.id;
 
-const DEFAULT_OPTS: Required<NormalizeOpts> = {
+const DEFAULT_OPTS: Required<Omit<NormalizeOpts, "profile">> = {
 	lowercase: true,
 	stripPunct: true,
 	expandNumbers: true,
@@ -36,96 +44,23 @@ const DEFAULT_OPTS: Required<NormalizeOpts> = {
 	stripSpeakers: true,
 };
 
-const UNITS = [
-	"zero",
-	"um",
-	"dois",
-	"três",
-	"quatro",
-	"cinco",
-	"seis",
-	"sete",
-	"oito",
-	"nove",
-	"dez",
-	"onze",
-	"doze",
-	"treze",
-	"quatorze",
-	"quinze",
-	"dezesseis",
-	"dezessete",
-	"dezoito",
-	"dezenove",
-];
-const TENS = [
-	"",
-	"",
-	"vinte",
-	"trinta",
-	"quarenta",
-	"cinquenta",
-	"sessenta",
-	"setenta",
-	"oitenta",
-	"noventa",
-];
-const HUNDREDS = [
-	"",
-	"cento",
-	"duzentos",
-	"trezentos",
-	"quatrocentos",
-	"quinhentos",
-	"seiscentos",
-	"setecentos",
-	"oitocentos",
-	"novecentos",
-];
-
-/** pt-BR number words 0–9999 — "50"→"cinquenta" (a dose), never
- * "cinco zero". Approximation is fine: ref and hyp normalize the
- * same way. */
-const numberToWords = (n: number): string => {
-	if (n < 20) return UNITS[n]!;
-	if (n < 100) return TENS[Math.floor(n / 10)]! + (n % 10 ? ` e ${UNITS[n % 10]}` : "");
-	if (n === 100) return "cem";
-	if (n < 1000) {
-		const rest = n % 100;
-		return HUNDREDS[Math.floor(n / 100)]! + (rest ? ` e ${numberToWords(rest)}` : "");
-	}
-	if (n < 10000) {
-		const rest = n % 1000;
-		const head = n === 1000 ? "mil" : `${numberToWords(Math.floor(n / 1000))} mil`;
-		return head + (rest ? ` ${rest < 100 ? "e " : ""}${numberToWords(rest)}` : "");
-	}
-	return String(n);
-};
-
-const expandNumbers = (s: string): string =>
-	s.replace(/\d+/g, (n) => ` ${numberToWords(Number.parseInt(n, 10))} `);
-
-// Case-insensitive + tolerant of "Dr."-style abbreviations; runs after
-// lowercasing in the default profile but must also work when callers
-// disable `lowercase`.
-const SPEAKER_RE = /\b(doctor|patient|médico|medico|paciente|doutor|doutora|dr|dra)\.?\s*:/gi;
-
 export const normalize = (s: string, opts: NormalizeOpts = {}): string => {
 	const o = { ...DEFAULT_OPTS, ...opts };
+	const profile = o.profile ?? ptBR;
 	let out = s.normalize("NFC");
 	if (o.lowercase) out = out.toLowerCase();
 	if (o.foldAccents) out = out.normalize("NFD").replace(/\p{M}/gu, "");
-	if (o.stripSpeakers) out = out.replace(SPEAKER_RE, " ");
+	if (o.stripSpeakers) out = out.replace(profile.speakerLabelRe, " ");
 	// Decimal guard BEFORE punctuation strip: "2,5 mg" must not
 	// collapse to "25 mg" — that is a dosage error the metric would
-	// invent. Digit[.,]digit → " vírgula ". ASR emits both separators
-	// ("2,5" pt-BR gold, "2.5" engine output) — guard both or the same
-	// dose scores differently per formatting. Known v1 gap: pt-BR
-	// thousands ("1.000,00") still mangles; revisit with the unit-alias
-	// work noted in BENCHMARK.md.
+	// invent. Digit[.,]digit → " <decimalWord> ". ASR emits both
+	// separators ("2,5" pt-BR gold, "2.5" engine output) — guard both
+	// or the same dose scores differently per formatting. Known v1
+	// gap: pt-BR thousands ("1.000,00") still mangles; revisit with
+	// the unit-alias work noted in BENCHMARK.md.
 	if (o.expandNumbers) {
-		out = out.replace(/(\d)[.,](\d)/g, "$1 virgula $2");
-		out = expandNumbers(out);
+		out = out.replace(/(\d)[.,](\d)/g, `$1 ${profile.decimalWord} $2`);
+		out = out.replace(/\d+/g, (n) => ` ${profile.numberToWords(Number.parseInt(n, 10))} `);
 	}
 	if (o.stripPunct) out = out.replace(/[^\p{L}\p{N}\s]/gu, " ");
 	return out.replace(/\s+/g, " ").trim();
@@ -178,14 +113,15 @@ export const cer = (ref: string, hyp: string, opts: NormalizeOpts = {}): number 
 export const checkEntities = (
 	entities: readonly ExpectedEntity[],
 	hyp: string,
+	profile: LocaleProfile = ptBR,
 ): EntityVerdict[] => {
-	const h = normalize(hyp);
+	const h = normalize(hyp, { profile });
 	// Space-padded token match: substring search would let "dor" match
 	// inside "dormir" — a false "correct" on a clinical entity is the
 	// worst silent error this platform can produce.
 	const padded = h ? ` ${h} ` : "";
 	return entities.map((e) => {
-		const needle = normalize(e.value);
+		const needle = normalize(e.value, { profile });
 		// An entity that normalizes to nothing can never be verified —
 		// it is not "present".
 		const present = needle !== "" && padded.includes(` ${needle} `);

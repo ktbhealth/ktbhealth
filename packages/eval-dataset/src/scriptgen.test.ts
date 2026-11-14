@@ -121,7 +121,7 @@ describe("renderScript", () => {
 
 	it("renders the shipped .eta template file", () => {
 		const template = readFileSync(
-			new URL("../templates/consultation.eta", import.meta.url),
+			new URL("../templates/pt-BR/consultation.eta", import.meta.url),
 			"utf8",
 		);
 		const r = renderScript({ template, persona: persona(), seed: 4 });
@@ -130,7 +130,10 @@ describe("renderScript", () => {
 	});
 
 	it("renders a different structure from the followup template", () => {
-		const template = readFileSync(new URL("../templates/followup.eta", import.meta.url), "utf8");
+		const template = readFileSync(
+			new URL("../templates/pt-BR/followup.eta", import.meta.url),
+			"utf8",
+		);
 		const r = renderScript({ template, persona: persona(), seed: 4 });
 		// followup puts prescription before allergy — order differs
 		const lines = r.script.split("\n");
