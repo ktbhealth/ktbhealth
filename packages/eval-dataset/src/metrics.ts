@@ -273,6 +273,11 @@ export const bucketByConfidence = (segments: readonly ConfSegment[], size = 0.05
  * Cumulative precision at the cutoff is then ≥ target automatically
  * (a weighted mean of bands each ≥ target). Returns 1 (accept nothing
  * blindly) when no cutoff qualifies.
+ *
+ * Distinct from `decideAutoAccept` in accept.ts: that gate is a
+ * pooled precision floor over ALL confSegments and deliberately
+ * ignores per-segment confidence at this stage; this function is the
+ * per-segment threshold notion — see accept.ts for the boundary.
  */
 export const recommendThreshold = (
 	segments: readonly ConfSegment[],

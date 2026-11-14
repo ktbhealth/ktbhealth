@@ -33,6 +33,10 @@ export interface CalibrationVerdict {
 	readonly passes: boolean;
 }
 
+/** Pooled precision floor over judged segments — `confidence` is NOT
+ * consulted here (this is not confidence calibration; see
+ * `recommendAutoThreshold` for the threshold-sweep notion and
+ * accept.ts for how the gate uses this verdict). */
 export const calibrate = (
 	segments: readonly ConfSegment[],
 	opts: { readonly target: number; readonly minN: number; readonly z?: number },

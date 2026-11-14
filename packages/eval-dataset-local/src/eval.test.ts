@@ -41,6 +41,24 @@ describe("makeJevEval", () => {
 		expect(r.answers).toHaveLength(2);
 		expect(r.answers[1]?.value).toBe("justified_fix");
 		expect(r.record.engine).toBe("jev");
+		// inputHash/taskId hash question CONTENT — not just the count.
+		expect(r.record.inputHash).toMatch(/^q[0-9a-f]{8}$/);
+		expect(r.record.taskId).toBe(`judge:${r.record.inputHash.slice(1)}`);
+	});
+
+	it("hashes question content — same count, different text, different hash", async () => {
+		const judge = (qs: typeof questions) =>
+			Effect.runPromise(
+				Effect.gen(function* () {
+					const evalp = yield* EvalPort;
+					return yield* evalp.judge({ state: { text: "x" }, questions: qs });
+				}).pipe(
+					Effect.provide(makeJevEval({ baseUrl: "http://localhost:9", fetchImpl: okFetch() })),
+				),
+			);
+		const a = await judge(questions);
+		const b = await judge([{ ...questions[0]!, text: "different?" }, questions[1]!]);
+		expect(a.record.inputHash).not.toBe(b.record.inputHash);
 	});
 
 	it("posts to /v1/systemone with state+questions", async () => {

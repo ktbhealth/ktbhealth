@@ -9,9 +9,12 @@
  * --enforce it always exits 0 — a report, not a gate. With --enforce
  * it exits 1 when any sample fails — wire that flag into CI only when
  * the cohort is big enough for the Wilson floor to be reachable.
+ *
+ * Defaults are jointly reachable by construction: at 100% observed
+ * precision the Wilson floor is 1/(1+z²/n) (z=1.96 → z²≈3.84), so
+ * target 0.90 needs n ≥ 35 segments — minN 40 clears it with margin.
+ * (target 0.95 would need n ≥ 73; a smaller minN could never pass.)
  */
-import * as path from "node:path";
-
 import * as Effect from "effect/Effect";
 
 import { DatasetStorePort, decideAutoAccept, gateRun } from "@ktb/eval-dataset";
@@ -28,8 +31,8 @@ const workdir = arg("workdir", "/tmp/eval-generate");
 const policy = {
 	stage: arg("stage", "corrected") as "asr" | "corrected",
 	maxWer: Number(arg("max-wer", "0.05")),
-	target: Number(arg("target", "0.95")),
-	minN: Number(arg("min-n", "30")),
+	target: Number(arg("target", "0.90")),
+	minN: Number(arg("min-n", "40")),
 	maxRisk: Number(arg("max-risk", "0")),
 };
 
