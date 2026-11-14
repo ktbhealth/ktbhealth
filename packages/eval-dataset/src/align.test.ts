@@ -67,6 +67,14 @@ describe("alignEntities", () => {
 		expect(a[0]?.segmentIndexes).toEqual([]);
 	});
 
+	it("a segment that normalizes to empty never matches", () => {
+		const a = alignEntities(
+			[{ t0: 0, t1: 1, text: "!!! --- ..." }],
+			[{ category: "medication", value: "losartana" }],
+		);
+		expect(a[0]?.matched).toBe(false);
+	});
+
 	it("unscored segments keep confidence undefined — unscored ≠ 0", () => {
 		const a = alignEntities(
 			[{ t0: 0, t1: 1, text: "nega febre" }],
