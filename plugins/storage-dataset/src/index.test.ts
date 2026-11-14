@@ -4,7 +4,6 @@ import { ContributionRegistry, ReportPort } from "@ktb/eval-core";
 import { DatasetStorePort } from "@ktb/eval-consult/ports";
 
 import { plugins, storageDatasetContributions } from "./index.ts";
-import { plugins as clientPlugins } from "./client.ts";
 
 describe("storage.dataset", () => {
 	it("declares the store and report capabilities", () => {
@@ -24,8 +23,7 @@ describe("storage.dataset", () => {
 		});
 	});
 
-	it("exposes a single plugin manifest mirrored on the client", () => {
+	it("exposes a single plugin manifest", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["storage.dataset"]);
-		expect(clientPlugins.map((p) => p.id)).toEqual(plugins.map((p) => p.id));
 	});
 });

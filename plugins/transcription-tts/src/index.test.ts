@@ -5,7 +5,6 @@ import { TtsPort } from "@ktb/eval-consult/ports";
 
 import { plugins } from "./index.ts";
 import { ttsContributions } from "./index.ts";
-import { plugins as clientPlugins } from "./client.ts";
 
 describe("transcription.tts", () => {
 	it("declares the tts capability and synthesize stage against TtsPort", () => {
@@ -21,8 +20,7 @@ describe("transcription.tts", () => {
 		expect(registry.get("stage", "synthesize").meta?.port).toBe(TtsPort.key);
 	});
 
-	it("exposes a single plugin manifest mirrored on the client", () => {
+	it("exposes a single plugin manifest", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["transcription.tts"]);
-		expect(clientPlugins.map((p) => p.id)).toEqual(plugins.map((p) => p.id));
 	});
 });

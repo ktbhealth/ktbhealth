@@ -18,7 +18,7 @@ import { DatasetStorePort, ReportPort } from "@ktb/eval-consult";
 import { storeReportLayers } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
 import { findSuite } from "../suites.ts";
-import { userError, workdirFlag } from "../shared.ts";
+import { datasetVersionOf, userError, workdirFlag } from "../shared.ts";
 
 const optStr = Option.getOrUndefined;
 
@@ -35,21 +35,31 @@ export const makeReportCommand = (ctx: CmdContext) =>
 				// Validate the suite exists even though the report renders
 				// stored data — a typo'd suite id should fail, not render a
 				// stranger's run.
-				yield* Effect.tryPromise({
+				const suite = yield* Effect.tryPromise({
 					try: () => findSuite(ctx.evalsDir, cfg.suite),
 					catch: userError,
 				});
 				const workdir = yield* workdirFlag(cfg.workdir);
 				const { store, report } = storeReportLayers(workdir);
 
-				const results = yield* Effect.scoped(
+				const all = yield* Effect.scoped(
 					Effect.gen(function* () {
 						const s = yield* DatasetStorePort;
 						return yield* s.listResults();
 					}).pipe(Effect.provide(store)),
 				);
+				// Scope to THIS suite's dataset pin — the workdir is shared
+				// across suites/versions; "latest run" must mean latest
+				// run OF THIS DATASET, not of whatever wrote last.
+				// Unstamped results predate attribution and match nothing.
+				const datasetVersion = datasetVersionOf(suite.manifest);
+				const results = all.filter((r) => r.datasetVersion === datasetVersion);
 				if (results.length === 0) {
-					yield* Console.log(`no results under ${workdir} — nothing to report`);
+					yield* Console.log(
+						`no results for dataset "${datasetVersion}" under ${workdir}` +
+							(all.length > 0 ? ` — ${all.length} result(s) belong to other datasets` : "") +
+							" — nothing to report",
+					);
 					return;
 				}
 

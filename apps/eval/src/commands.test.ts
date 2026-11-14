@@ -288,6 +288,53 @@ describe("run/gate/report round-trip", () => {
 		try {
 			expect(await exec(["gate", "fx", "--workdir", wd])).toBe(0);
 			expect(await exec(["report", "fx", "--workdir", wd])).toBe(0);
+			// ...but an empty gate under --enforce is vacuous green —
+			// no evidence is not a pass.
+			expect(await exec(["gate", "fx", "--workdir", wd, "--enforce"])).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("gate/report ignore results stamped with another datasetVersion", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-otherds-"));
+		const { store } = storeReportLayers(wd);
+		const { DatasetStorePort } = await import("@ktb/eval-consult");
+		await Effect.runPromise(
+			Effect.gen(function* () {
+				const s = yield* DatasetStorePort;
+				// A perfect result — but it belongs to a DIFFERENT suite's
+				// dataset pin, so this suite's gate must not see it.
+				yield* s.putResult({
+					runId: "foreign-run",
+					sampleId: "foreign-1",
+					datasetVersion: "other-v9",
+					asrText: "t",
+					correctedMetrics: {
+						wer: 0,
+						cer: 0,
+						criticalErrors: 0,
+						entityVerdicts: [{ category: "negation", entity: "não", status: "correct" }],
+					},
+					editVerdicts: [],
+					confSegments: Array.from({ length: 50 }, () => ({
+						confidence: 0.9,
+						correct: true,
+					})),
+					createdAt: 1,
+				});
+			}).pipe(Effect.provide(store)),
+		);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// Scoped out → empty → report exits 0, enforce exits 1.
+			expect(await exec(["gate", "fx", "--workdir", wd])).toBe(0);
+			expect(await exec(["gate", "fx", "--workdir", wd, "--enforce"])).toBe(1);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain('dataset "fx-v1"');
+			expect(out).toContain("other datasets");
+			expect(await exec(["report", "fx", "--workdir", wd])).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
@@ -313,6 +360,7 @@ describe("run/gate/report round-trip", () => {
 				yield* s.putResult({
 					runId: "green-run",
 					sampleId: "good-1",
+					datasetVersion: "fx-v1",
 					asrText: "t",
 					correctedMetrics: {
 						wer: 0,
@@ -390,6 +438,7 @@ describe("run/gate/report round-trip", () => {
 					yield* s.putResult({
 						runId,
 						sampleId,
+						datasetVersion: "fx-v1",
 						asrText: "t",
 						editVerdicts: [],
 						confSegments: [],
@@ -476,6 +525,45 @@ describe("run/gate/report round-trip", () => {
 			).toBe(0);
 			expect(await exec(["gate", "fx", "--workdir", workdir, "--stage", "bogus"])).toBe(2);
 			expect(err.mock.calls.flat().join(" ")).toContain("--stage");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("gate rejects gate-weakening numeric overrides (exit 2)", async () => {
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// Each of these would silently weaken the gate if applied.
+			for (const flag of [
+				"--target",
+				"--min-n",
+				"--max-wer",
+				"--max-risk",
+				"--max-harmful-edits",
+				"--max-unjudged-edits",
+				"--z",
+			]) {
+				// Pick a value that violates that flag's range rule.
+				const bad =
+					flag === "--target" ? "1.5" : flag === "--z" ? "0" : flag === "--min-n" ? "-1" : "-0.5";
+				expect(await exec(["gate", "fx", "--workdir", workdir, flag, bad])).toBe(2);
+			}
+			expect(await exec(["gate", "fx", "--workdir", workdir, "--z=-5"])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("--z must be > 0");
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("run honours --locale and rejects unknown locales", async () => {
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		const c = { ...ctx(), fetchImpl: fetch };
+		try {
+			expect(await exec(["run", "fx", "--workdir", workdir, "--locale", "en"], c)).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("unknown --locale");
+			expect(await exec(["run", "fx", "--workdir", workdir, "--locale", "pt-BR"], c)).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 		}

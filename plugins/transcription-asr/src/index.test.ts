@@ -4,7 +4,6 @@ import { ContributionRegistry } from "@ktb/eval-core";
 import { AsrPort } from "@ktb/eval-consult/ports";
 
 import { asrContributions, plugins } from "./index.ts";
-import { plugins as clientPlugins } from "./client.ts";
 
 describe("transcription.asr", () => {
 	it("declares the asr capability and transcribe stage against AsrPort", () => {
@@ -21,8 +20,7 @@ describe("transcription.asr", () => {
 		expect(registry.get("stage", "transcribe").meta?.port).toBe(AsrPort.key);
 	});
 
-	it("exposes a single plugin manifest mirrored on the client", () => {
+	it("exposes a single plugin manifest", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["transcription.asr"]);
-		expect(clientPlugins.map((p) => p.id)).toEqual(plugins.map((p) => p.id));
 	});
 });

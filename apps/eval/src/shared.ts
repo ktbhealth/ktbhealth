@@ -12,7 +12,9 @@ import * as Effect from "effect/Effect";
 import { Option } from "effect";
 import { CliError } from "effect/cli";
 
-import type { BatchOutcome, EvalSuiteManifest, PortError } from "@ktb/eval-core";
+import type { BatchOutcome, EvalSuiteManifest } from "@ktb/eval-core";
+import { PortError } from "@ktb/eval-core";
+import { ptBR, type LocaleProfile } from "@ktb/eval-consult";
 
 import { buildRegistry } from "./contributions.ts";
 import { UsageError } from "./errors.ts";
@@ -24,6 +26,33 @@ import type { LoadedSuite } from "./suites.ts";
  * suite declares its cohort. */
 export const datasetVersionOf = (manifest: EvalSuiteManifest): string =>
 	`${manifest.dataset.id}-${manifest.dataset.version}`;
+
+/** locale name → LocaleProfile — the single registry `generate` and
+ * `run` both resolve `--locale` through (scripts/templates are
+ * locale-keyed, so the flag must agree across the pair). */
+const LOCALES: Record<string, LocaleProfile> = { "pt-BR": ptBR };
+
+/** Resolve `--locale` (default pt-BR) — unknown names are a usage
+ * error listing the known set. Shared by generate/run. */
+export const localeFlag = Effect.fnUntraced(function* (
+	locale: Option.Option<string>,
+): Effect.fn.Return<LocaleProfile, UsageError> {
+	const name = Option.getOrElse(locale, () => "pt-BR");
+	const profile = LOCALES[name];
+	if (profile === undefined) {
+		return yield* new UsageError({
+			message: `unknown --locale ${name} (available: ${Object.keys(LOCALES).join(", ")})`,
+		});
+	}
+	return profile;
+});
+
+/** runBatch retry predicate — deterministic domain failures (PHI
+ * refusals, corrupt payloads, render errors) can never succeed on
+ * retry; only transient adapter failures (network, 5xx, timeouts)
+ * should burn the schedule. Pass as `options.retryWhile`. */
+export const isTransientBatchError = (e: unknown): boolean =>
+	!(e instanceof PortError && (e.port === "phi" || e.port === "pipeline" || e.port === "generate"));
 
 /** Wrap an arbitrary failure as a user-facing CLI error (exit 1) —
  * Command.run renders `cause.message` through the CliOutput

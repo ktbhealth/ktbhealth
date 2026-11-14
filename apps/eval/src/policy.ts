@@ -28,10 +28,51 @@ const POLICY_FIELDS = [
 const isRecord = (v: unknown): v is Record<string, unknown> =>
 	typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** Range rules for every numeric AcceptPolicy field — shared by
+ * manifest params (decodeAcceptPolicy) and CLI flag overrides
+ * (commands/gate.ts applyOverrides). A gate that out-of-range numbers
+ * can weaken (negative z collapsing the Wilson bound, target > 1,
+ * negative error budgets) is not a gate: every entry point rejects
+ * them as usage errors. */
+export const policyNumberError = (field: string, v: number): string | null => {
+	switch (field) {
+		case "target":
+			return v >= 0 && v <= 1 ? null : "must be in [0, 1]";
+		case "minN":
+			return Number.isInteger(v) && v >= 0 ? null : "must be an integer >= 0";
+		case "z":
+			// z <= 0 degenerates the Wilson lower bound — it would
+			// silently weaken the precision gate, so it must be > 0.
+			return v > 0 ? null : "must be > 0";
+		case "maxWer":
+		case "maxRisk":
+		case "maxHarmfulEdits":
+		case "maxUnjudgedEdits":
+			return v >= 0 ? null : "must be >= 0";
+		default:
+			return null;
+	}
+};
+
 const num = (params: Record<string, unknown>, key: string, def: number, gateId: string): number => {
 	const v = params[key] ?? def;
 	if (typeof v !== "number" || !Number.isFinite(v)) {
 		throw new UsageError({ message: `gate "${gateId}": params.${key} must be a finite number` });
+	}
+	return v;
+};
+
+/** num() + range rule — the decoded value or a UsageError. */
+const ranged = (
+	params: Record<string, unknown>,
+	key: string,
+	def: number,
+	gateId: string,
+): number => {
+	const v = num(params, key, def, gateId);
+	const err = policyNumberError(key, v);
+	if (err !== null) {
+		throw new UsageError({ message: `gate "${gateId}": params.${key} ${err}` });
 	}
 	return v;
 };
@@ -43,11 +84,17 @@ export const decodeAcceptPolicy = (params: unknown, gateId = "auto-accept"): Acc
 		throw new UsageError({ message: `gate "${gateId}": params must be a JSON object` });
 	}
 	const p = (params ?? {}) as Record<string, unknown>;
-	for (const key of Object.keys(p)) {
+	for (const [key, v] of Object.entries(p)) {
 		if (!(POLICY_FIELDS as readonly string[]).includes(key)) {
 			throw new UsageError({
 				message: `gate "${gateId}": unknown params key "${key}" (known: ${POLICY_FIELDS.join(", ")})`,
 			});
+		}
+		// Explicit JSON null is NOT "absent" — `?? default` would
+		// silently substitute the default and weaken the gate. A null
+		// param is malformed data: reject it.
+		if (v === null) {
+			throw new UsageError({ message: `gate "${gateId}": params.${key} must not be null` });
 		}
 	}
 	const stage = p.stage ?? "corrected";
@@ -56,22 +103,25 @@ export const decodeAcceptPolicy = (params: unknown, gateId = "auto-accept"): Acc
 			message: `gate "${gateId}": params.stage must be "asr" or "corrected"`,
 		});
 	}
-	const minN = num(p, "minN", 40, gateId);
-	if (!Number.isInteger(minN) || minN < 0) {
-		throw new UsageError({ message: `gate "${gateId}": params.minN must be an integer >= 0` });
-	}
+	const minN = ranged(p, "minN", 40, gateId);
 	const z = p.z;
 	if (z !== undefined && (typeof z !== "number" || !Number.isFinite(z))) {
 		throw new UsageError({ message: `gate "${gateId}": params.z must be a finite number` });
 	}
+	if (z !== undefined) {
+		const err = policyNumberError("z", z as number);
+		if (err !== null) {
+			throw new UsageError({ message: `gate "${gateId}": params.z ${err}` });
+		}
+	}
 	return {
 		stage,
-		maxWer: num(p, "maxWer", 0.05, gateId),
-		target: num(p, "target", 0.9, gateId),
+		maxWer: ranged(p, "maxWer", 0.05, gateId),
+		target: ranged(p, "target", 0.9, gateId),
 		minN,
-		maxRisk: num(p, "maxRisk", 0, gateId),
-		maxHarmfulEdits: num(p, "maxHarmfulEdits", 0, gateId),
-		maxUnjudgedEdits: num(p, "maxUnjudgedEdits", 0, gateId),
+		maxRisk: ranged(p, "maxRisk", 0, gateId),
+		maxHarmfulEdits: ranged(p, "maxHarmfulEdits", 0, gateId),
+		maxUnjudgedEdits: ranged(p, "maxUnjudgedEdits", 0, gateId),
 		...(z !== undefined ? { z: z as number } : {}),
 	};
 };

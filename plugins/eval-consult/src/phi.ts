@@ -35,8 +35,12 @@ export const untrustedOrigin = (origin: SampleOrigin | undefined): boolean =>
 	origin === "real_anonymized" || origin === "unknown";
 
 /** Merge the declared + stored provenance channels — the worse
- * verdict wins (`real_anonymized` > `unknown` > `synthetic`). */
-const effectiveOrigin = (
+ * verdict wins (`real_anonymized` > `unknown` > `synthetic`). Exported
+ * so the pipeline's TEXT-scrub decision uses the SAME effective
+ * origin the audio guard enforces: a sample declaring `synthetic`
+ * whose blob is stored `real_anonymized`/`unknown` is untrusted for
+ * scrubbing too, not just for egress. */
+export const effectiveOrigin = (
 	declared: SampleOrigin | undefined,
 	stored: SampleOrigin | undefined,
 ): SampleOrigin | undefined =>

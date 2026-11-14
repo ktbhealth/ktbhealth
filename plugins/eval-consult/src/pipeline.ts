@@ -6,7 +6,7 @@ import { gateTranscript } from "./anonymize.ts";
 import { fnvHex } from "./generate.ts";
 import type { LocaleProfile } from "./locale.ts";
 import { ptBR } from "./locales/pt-BR.ts";
-import { guardAsrPort, scrubAsrResult, untrustedOrigin } from "./phi.ts";
+import { effectiveOrigin, guardAsrPort, scrubAsrResult, untrustedOrigin } from "./phi.ts";
 import {
 	cer,
 	checkEntities,
@@ -18,6 +18,7 @@ import {
 import { AsrPort, DatasetStorePort, EvalPort, LlmPort, PortError, ReportPort } from "./ports.ts";
 import type {
 	AsrResult,
+	BlobMeta,
 	EditVerdict,
 	EntityVerdict,
 	EvalQuestion,
@@ -41,7 +42,15 @@ import type {
 
 // ---------- S3: ASR ----------
 
-export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) =>
+export const transcribeSample = (
+	sample: Sample,
+	profile: LocaleProfile = ptBR,
+	/** Pre-resolved blob provenance — processSample already looked it
+	 * up for its own scrub decision, so it hands the same record over
+	 * instead of paying a second store read. `undefined` = not yet
+	 * resolved (fetch it here). */
+	provenance?: { readonly blobMeta: BlobMeta | null },
+) =>
 	Effect.gen(function* () {
 		if (!sample.audio) {
 			return yield* new PortError({
@@ -49,7 +58,6 @@ export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) 
 				message: `sample ${sample.id} has no audio to transcribe`,
 			});
 		}
-		const store = yield* DatasetStorePort;
 		// Provenance travels WITH the audio: the blob's stored origin
 		// is looked up and handed to the adapter next to the manifest's
 		// declared origin, so cloud ASR can refuse real-anonymized or
@@ -58,7 +66,10 @@ export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) 
 		// leave the perimeter (see AsrPort in ports.ts). A failed
 		// lookup fails closed: unverified provenance never reaches a
 		// provider. The language hint is locale data (`profile.asrLanguage`).
-		const blobMeta = yield* store.getBlobMeta(sample.audio.uri);
+		const blobMeta =
+			provenance !== undefined
+				? provenance.blobMeta
+				: yield* (yield* DatasetStorePort).getBlobMeta(sample.audio.uri);
 		// Structural PHI policy (phi.ts): guardAsrPort refuses
 		// non-verified-synthetic audio BEFORE it reaches any
 		// egress-capable adapter — enforcement no longer depends on
@@ -73,10 +84,14 @@ export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) 
 		// ASR text is patient speech — for untrusted origins it is
 		// PHI until scrubbed. Gate it HERE so every downstream consumer
 		// (cleanup input, judge state, metrics, SampleResult) sees only
-		// the de-identified form (H1/H2). Synthetic scripts skip the
-		// gate: scrubbing would corrupt the gold text metrics compare
-		// against.
-		if (!untrustedOrigin(sample.origin)) {
+		// the de-identified form (H1/H2). The decision uses the EFFECTIVE
+		// origin (declared ∪ stored blobMeta), not the declared hint
+		// alone: a sample claiming "synthetic" whose blob is recorded
+		// real_anonymized/unknown gets its ASR text scrubbed exactly
+		// like a declared-untrusted sample. Synthetic-by-both-channels
+		// skips the gate: scrubbing would corrupt the gold text metrics
+		// compare against.
+		if (!untrustedOrigin(effectiveOrigin(sample.origin, blobMeta?.origin))) {
 			return { asr: rawAsr, record };
 		}
 		const scrubbed = scrubAsrResult(rawAsr, profile);
@@ -222,18 +237,36 @@ export const processSample = (input: {
 		// Include datasetVersion — the same sample.id re-run under a new
 		// dataset version must not collide with the old run's records.
 		const runId = input.runId ?? `run-${input.sample.datasetVersion}-${input.sample.id}`;
+		// Resolve provenance ONCE — declared origin merged with the
+		// blob's stored blobMeta (the verified channel) — and use the
+		// EFFECTIVE verdict for every text-scrub decision below. A
+		// sample declaring "synthetic" whose stored blob is
+		// real_anonymized/unknown is untrusted: its script is gated
+		// before ANY stage can egress it (judge state, cleanup input
+		// via ASR text, metrics, persistence) and its ASR text is
+		// scrubbed in transcribeSample — same rule the audio guard
+		// applies to egress. A failed lookup fails closed (the error
+		// propagates before any port call). Samples with no audio have
+		// no blob to verify — declared origin only.
+		const provenance =
+			input.sample.audio === undefined
+				? undefined
+				: {
+						blobMeta: yield* (yield* DatasetStorePort).getBlobMeta(input.sample.audio.uri),
+					};
+		const effective = effectiveOrigin(input.sample.origin, provenance?.blobMeta?.origin);
+		const untrusted = untrustedOrigin(effective);
 		// PHI gate (M4 + H2): untrusted samples (real_anonymized OR
-		// unknown provenance) have their script re-scrubbed before ANY
-		// stage can egress it — judge state, cleanup input via ASR
-		// text, metrics, persistence. gateTranscript returns audit
-		// counts and never throws; null means residual identifiers
-		// survived scrubbing — fail closed before a single port call.
-		// Synthetic scripts skip the gate (scrubbing would corrupt the
-		// gold text metrics compare against).
-		const gated = untrustedOrigin(input.sample.origin)
-			? gateTranscript(input.sample.script, profile)
-			: undefined;
-		if (untrustedOrigin(input.sample.origin) && gated === null) {
+		// unknown provenance — declared OR stored) have their script
+		// re-scrubbed before ANY stage can egress it — judge state,
+		// cleanup input via ASR text, metrics, persistence.
+		// gateTranscript returns audit counts and never throws; null
+		// means residual identifiers survived scrubbing — fail closed
+		// before a single port call. Synthetic-effective scripts skip
+		// the gate (scrubbing would corrupt the gold text metrics
+		// compare against).
+		const gated = untrusted ? gateTranscript(input.sample.script, profile) : undefined;
+		if (untrusted && gated === null) {
 			return yield* new PortError({
 				port: "pipeline",
 				message: `sample ${input.sample.id} failed the PHI gate: residual identifiers in script`,
@@ -255,7 +288,7 @@ export const processSample = (input: {
 		});
 		const records: RunRecord[] = [];
 
-		const { asr, record: asrRecord } = yield* transcribeSample(input.sample, profile);
+		const { asr, record: asrRecord } = yield* transcribeSample(input.sample, profile, provenance);
 		records.push(tag(asrRecord));
 
 		const {

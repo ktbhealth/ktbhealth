@@ -32,6 +32,11 @@ export interface BatchOptions<E> {
 	/** Retry policy applied to each attempt's failure (incl. timeouts).
 	 * Default: no retries — a single attempt per item. */
 	readonly retry?: Schedule.Schedule<unknown, E | Cause.TimeoutError>;
+	/** Predicate deciding WHICH failures the schedule may retry —
+	 * return false for deterministic failures (PHI refusals, schema
+	 * decode misses, corrupt payloads) that can never succeed on a
+	 * second attempt. Absent = retry every typed failure. */
+	readonly retryWhile?: (error: E | Cause.TimeoutError) => boolean;
 	/** Per-attempt wall-clock limit in ms. Absent = no timeout. */
 	readonly timeoutMs?: number;
 }
@@ -94,7 +99,14 @@ export const runBatch = <I, A, E, R>(input: {
 
 					const retried: Effect.Effect<A, E | Cause.TimeoutError, R> =
 						input.options?.retry !== undefined
-							? guarded.pipe(Effect.retry({ schedule: input.options.retry }))
+							? guarded.pipe(
+									Effect.retry({
+										schedule: input.options.retry,
+										...(input.options.retryWhile !== undefined
+											? { while: input.options.retryWhile }
+											: {}),
+									}),
+								)
 							: guarded;
 
 					// `exit` observes the full Cause — typed errors, timeouts,

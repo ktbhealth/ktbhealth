@@ -22,6 +22,7 @@ import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-adapter-stub"
 import {
 	capabilityLayer,
 	makeHttpAcpTransport,
+	makeReadAudioFile,
 	modelLayers,
 	storeReportLayers,
 	stubAsrLayer,
@@ -319,20 +320,38 @@ describe("workers-ai adapter wiring", () => {
 		});
 
 	test("transcribes a file:// audio ref end-to-end", async () => {
-		const audioFile = path.join(os.tmpdir(), `eval-audio-${Date.now()}.wav`);
+		const c = cloudCtx();
+		// Legit eval audio lives under the run workdir (TTS output,
+		// dataset blobs) — the reader is confined to it.
+		const audioFile = path.join(c.workdir, "tts", "audio", "a.wav");
+		fs.mkdirSync(path.dirname(audioFile), { recursive: true });
 		fs.writeFileSync(audioFile, new Uint8Array([1, 2, 3]));
+		const layer = capabilityLayer(c, "asr", "workers-ai") as Layer.Layer<AsrPort>;
+		const out = await Effect.runPromise(
+			Effect.gen(function* () {
+				const asr = yield* AsrPort;
+				return yield* asr.transcribe({ uri: `file://${audioFile}` });
+			}).pipe(Effect.provide(layer)),
+		);
+		expect(out.asr.text).toBe("oi");
+		expect(out.asr.segments[0]?.t0).toBe(0);
+	});
+
+	test("file:// audio outside the workdir is a typed PortError", async () => {
+		const outside = path.join(os.tmpdir(), `eval-outside-${Date.now()}.wav`);
+		fs.writeFileSync(outside, new Uint8Array([1, 2, 3]));
+		const c = cloudCtx();
+		const layer = capabilityLayer(c, "asr", "workers-ai") as Layer.Layer<AsrPort>;
 		try {
-			const layer = capabilityLayer(cloudCtx(), "asr", "workers-ai") as Layer.Layer<AsrPort>;
-			const out = await Effect.runPromise(
+			const exit = await Effect.runPromise(
 				Effect.gen(function* () {
 					const asr = yield* AsrPort;
-					return yield* asr.transcribe({ uri: `file://${audioFile}` });
-				}).pipe(Effect.provide(layer)),
+					return yield* asr.transcribe({ uri: `file://${outside}` });
+				}).pipe(Effect.exit, Effect.provide(layer)),
 			);
-			expect(out.asr.text).toBe("oi");
-			expect(out.asr.segments[0]?.t0).toBe(0);
+			expect(exit._tag).toBe("Failure");
 		} finally {
-			fs.rmSync(audioFile, { force: true });
+			fs.rmSync(outside, { force: true });
 		}
 	});
 
@@ -345,6 +364,45 @@ describe("workers-ai adapter wiring", () => {
 			}).pipe(Effect.exit, Effect.provide(layer)),
 		);
 		expect(exit._tag).toBe("Failure");
+	});
+});
+
+describe("makeReadAudioFile", () => {
+	const read = (workdir: string, uri: string) =>
+		Effect.runPromise(Effect.exit(makeReadAudioFile(workdir)(uri)));
+
+	test("reads files under the workdir, rejects escapes", async () => {
+		const workdir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-ra-"));
+		fs.mkdirSync(path.join(workdir, "blobs"), { recursive: true });
+		const inside = path.join(workdir, "blobs", "a.wav");
+		fs.writeFileSync(inside, new Uint8Array([9, 9]));
+		const outside = path.join(os.tmpdir(), `eval-ra-out-${Date.now()}.wav`);
+		fs.writeFileSync(outside, new Uint8Array([8]));
+		try {
+			const ok = await read(workdir, `file://${inside}`);
+			expect(ok._tag).toBe("Success");
+
+			// `..` escape and absolute outside paths are refused.
+			for (const uri of [
+				`file://${workdir}/../escape.wav`,
+				`file://${outside}`,
+				"stub://nope",
+				// Malformed percent-escape — decode falls back to raw.
+				"file://%zz",
+				// The workdir itself resolves inside the boundary but
+				// is a directory — still a typed read error.
+				`file://${workdir}`,
+			]) {
+				const exit = await read(workdir, uri);
+				expect(exit._tag).toBe("Failure");
+			}
+			// A missing file inside the workdir is still a typed error.
+			const missing = await read(workdir, `file://${workdir}/nope.wav`);
+			expect(missing._tag).toBe("Failure");
+		} finally {
+			fs.rmSync(workdir, { recursive: true, force: true });
+			fs.rmSync(outside, { force: true });
+		}
 	});
 });
 

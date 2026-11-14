@@ -58,6 +58,33 @@ describe("decodeAcceptPolicy", () => {
 		expect(() => decodeAcceptPolicy({ minN: -1 })).toThrow(/>= 0/);
 		expect(() => decodeAcceptPolicy({ z: Number.NaN })).toThrow(/finite number/);
 	});
+
+	test("rejects gate-weakening ranges on every numeric param", () => {
+		// z <= 0 degenerates the Wilson bound — a negative z would
+		// silently weaken the precision gate.
+		expect(() => decodeAcceptPolicy({ z: 0 })).toThrow(/params\.z must be > 0/);
+		expect(() => decodeAcceptPolicy({ z: -1.5 })).toThrow(/params\.z must be > 0/);
+		// Negative error budgets / out-of-range targets weaken gates.
+		expect(() => decodeAcceptPolicy({ maxWer: -0.1 })).toThrow(/params\.maxWer must be >= 0/);
+		expect(() => decodeAcceptPolicy({ maxRisk: -1 })).toThrow(/params\.maxRisk must be >= 0/);
+		expect(() => decodeAcceptPolicy({ maxHarmfulEdits: -1 })).toThrow(
+			/params\.maxHarmfulEdits must be >= 0/,
+		);
+		expect(() => decodeAcceptPolicy({ maxUnjudgedEdits: -1 })).toThrow(
+			/params\.maxUnjudgedEdits must be >= 0/,
+		);
+		expect(() => decodeAcceptPolicy({ target: 1.5 })).toThrow(/params\.target must be in \[0, 1\]/);
+		expect(() => decodeAcceptPolicy({ target: -0.1 })).toThrow(
+			/params\.target must be in \[0, 1\]/,
+		);
+	});
+
+	test("rejects explicit null — it is malformed data, not absent", () => {
+		expect(() => decodeAcceptPolicy({ maxWer: null })).toThrow(/params\.maxWer must not be null/);
+		expect(() => decodeAcceptPolicy({ minN: null })).toThrow(/must not be null/);
+		expect(() => decodeAcceptPolicy({ z: null })).toThrow(/must not be null/);
+		expect(() => decodeAcceptPolicy({ stage: null })).toThrow(/must not be null/);
+	});
 });
 
 test("GATE_DECODERS registers auto-accept", () => {

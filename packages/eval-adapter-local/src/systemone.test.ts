@@ -162,9 +162,62 @@ describe("makeSystemOneEval", () => {
 				},
 			}),
 		);
-		expect(r.answers[0]).toEqual({ id: "q1", kind: "noul", value: false, probability: 0.1 });
+		// probability backs the CHOSEN verdict: p(no) = 1 − 0.1 = 0.9.
+		expect(r.answers[0]).toEqual({ id: "q1", kind: "noul", value: false, probability: 0.9 });
 		expect(r.answers[1]?.value).toBe("harmful");
 		expect(r.answers[1]?.probability).toBe(0.7);
+	});
+
+	it("rejects probabilities outside [0, 1]", async () => {
+		const bad = (noul: number) =>
+			okFetch({
+				answers: {
+					q1: { type: "noul", noul },
+					q2: {
+						type: "choice",
+						choice: "justified_fix",
+						probabilities: { justified_fix: 0.8, harmful: 0.2 },
+					},
+					q3: { type: "score", score: 1, confidence: 0.5 },
+				},
+			});
+		for (const noul of [-0.1, 1.5]) {
+			const err = await runErr(bad(noul));
+			expect(err).toBeInstanceOf(PortError);
+			expect(err.message).toContain("out of [0, 1]");
+		}
+		// NaN cannot round-trip JSON — it fails schema decode instead.
+		const nan = await runErr(bad(Number.NaN));
+		expect(nan).toBeInstanceOf(PortError);
+		// Out-of-range values inside probabilities/confidence maps.
+		const badChoice = await runErr(
+			okFetch({
+				answers: {
+					q1: { type: "noul", noul: 0.9 },
+					q2: {
+						type: "choice",
+						choice: "justified_fix",
+						probabilities: { justified_fix: 1.2, harmful: 0.2 },
+					},
+					q3: { type: "score", score: 1, confidence: 0.5 },
+				},
+			}),
+		);
+		expect(badChoice.message).toContain("out of [0, 1]");
+		const badScore = await runErr(
+			okFetch({
+				answers: {
+					q1: { type: "noul", noul: 0.9 },
+					q2: {
+						type: "choice",
+						choice: "justified_fix",
+						probabilities: { justified_fix: 0.8, harmful: 0.2 },
+					},
+					q3: { type: "score", score: 1, confidence: 1.4 },
+				},
+			}),
+		);
+		expect(badScore.message).toContain("out of [0, 1]");
 	});
 
 	it("score falls back to the modal level probability without confidence", async () => {

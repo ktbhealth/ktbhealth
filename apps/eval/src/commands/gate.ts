@@ -7,9 +7,16 @@
  *     [--z n]
  *
  * Each manifest gate's params decode to an AcceptPolicy
- * (policy.ts); CLI flags override individual fields. Without
- * --enforce this is a report (exit 0); with it, any red gate exits 1
- * — the CI hook. Empty result sets are "nothing to gate", exit 0.
+ * (policy.ts); CLI flags override individual fields — every numeric
+ * override is range-checked against the same rules as manifest params
+ * (policyNumberError), so `--target 5` or `--z -1` is a usage error,
+ * never a silently-weakened gate. Results are scoped to the manifest's
+ * dataset pin (SampleResult.datasetVersion) — a shared workdir holding
+ * other suites' runs must not leak into this gate. Without --enforce
+ * this is a report (exit 0); with it, any red gate exits 1 — the CI
+ * hook. An EMPTY scoped result set is vacuous: exit 0 as a report,
+ * exit 1 under --enforce (an empty run is not evidence — same rule as
+ * gateRun's `results.length > 0` green condition).
  */
 
 import * as Effect from "effect/Effect";
@@ -21,9 +28,9 @@ import { DatasetStorePort, decideAutoAccept, gateRun, type AcceptPolicy } from "
 import { storeReportLayers } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
 import { CommandExit, UsageError } from "../errors.ts";
-import { GATE_DECODERS } from "../policy.ts";
+import { GATE_DECODERS, policyNumberError } from "../policy.ts";
 import { findSuite } from "../suites.ts";
-import { userError, workdirFlag } from "../shared.ts";
+import { datasetVersionOf, userError, workdirFlag } from "../shared.ts";
 
 const optStr = Option.getOrUndefined;
 const optNum = Option.getOrUndefined;
@@ -52,19 +59,26 @@ const applyOverrides = (
 		}
 		const out: { -readonly [K in keyof AcceptPolicy]?: AcceptPolicy[K] } = { ...policy };
 		if (stage !== undefined) out.stage = stage;
+		// field → CLI flag name, for error messages.
 		const nums = {
-			maxWer: optNum(flags.maxWer),
-			target: optNum(flags.target),
-			minN: optNum(flags.minN),
-			maxRisk: optNum(flags.maxRisk),
-			maxHarmfulEdits: optNum(flags.maxHarmfulEdits),
-			maxUnjudgedEdits: optNum(flags.maxUnjudgedEdits),
-			z: optNum(flags.z),
+			maxWer: [optNum(flags.maxWer), "max-wer"],
+			target: [optNum(flags.target), "target"],
+			minN: [optNum(flags.minN), "min-n"],
+			maxRisk: [optNum(flags.maxRisk), "max-risk"],
+			maxHarmfulEdits: [optNum(flags.maxHarmfulEdits), "max-harmful-edits"],
+			maxUnjudgedEdits: [optNum(flags.maxUnjudgedEdits), "max-unjudged-edits"],
+			z: [optNum(flags.z), "z"],
 		} as const;
-		for (const [field, v] of Object.entries(nums)) {
-			if (v !== undefined) {
-				(out as Record<string, unknown>)[field] = v;
+		for (const [field, [v, flag]] of Object.entries(nums)) {
+			if (v === undefined) continue;
+			// Same range rules as manifest params — an override that
+			// would weaken the gate (negative budgets, z <= 0, target
+			// outside [0,1]) is a usage error, not a quiet pass.
+			const err = policyNumberError(field, v);
+			if (err !== null) {
+				return Effect.fail(new UsageError({ message: `--${flag} ${err}` }));
 			}
+			(out as Record<string, unknown>)[field] = v;
 		}
 		return Effect.succeed(out as AcceptPolicy);
 	});
@@ -96,22 +110,14 @@ export const makeGateCommand = (ctx: CmdContext) =>
 				const workdir = yield* workdirFlag(cfg.workdir);
 				const runId = optStr(cfg.runId);
 
-				const { store } = storeReportLayers(workdir);
-				const results = yield* Effect.scoped(
-					Effect.gen(function* () {
-						const s = yield* DatasetStorePort;
-						return yield* s.listResults(runId !== undefined ? { runId } : undefined);
-					}).pipe(Effect.provide(store)),
-				);
-				if (results.length === 0) {
-					yield* Console.log(
-						`no results under ${workdir}${runId !== undefined ? ` for run ${runId}` : ""}`,
-					);
-					return;
-				}
-
-				let anyRed = false;
-				for (const [gi, gate] of manifest.gates.entries()) {
+				// Decode + override every declared gate BEFORE touching
+				// the store: a malformed gate or out-of-range flag is a
+				// usage error regardless of whether results exist.
+				const gates: {
+					readonly gate: (typeof manifest.gates)[number];
+					readonly policy: AcceptPolicy;
+				}[] = [];
+				for (const gate of manifest.gates) {
 					const decode = GATE_DECODERS[gate.id];
 					if (decode === undefined) {
 						return yield* userError(
@@ -137,6 +143,38 @@ export const makeGateCommand = (ctx: CmdContext) =>
 						maxUnjudgedEdits: cfg.maxUnjudgedEdits,
 						z: cfg.z,
 					});
+					gates.push({ gate, policy });
+				}
+
+				const { store } = storeReportLayers(workdir);
+				const all = yield* Effect.scoped(
+					Effect.gen(function* () {
+						const s = yield* DatasetStorePort;
+						return yield* s.listResults(runId !== undefined ? { runId } : undefined);
+					}).pipe(Effect.provide(store)),
+				);
+				// Scope to THIS suite's dataset pin — the workdir is shared
+				// across suites/versions, and gating another suite's
+				// results against this manifest's policy is meaningless.
+				// Results without a datasetVersion stamp predate
+				// attribution and cannot be claimed by any suite.
+				const datasetVersion = datasetVersionOf(manifest);
+				const results = all.filter((r) => r.datasetVersion === datasetVersion);
+				if (results.length === 0) {
+					yield* Console.log(
+						`no results for dataset "${datasetVersion}" under ${workdir}` +
+							(runId !== undefined ? ` (run ${runId})` : "") +
+							(all.length > 0 ? ` — ${all.length} result(s) belong to other datasets` : ""),
+					);
+					if (cfg.enforce) {
+						yield* Console.log("gate: no evidence to gate — RED under --enforce");
+						return yield* new CommandExit({ code: 1 });
+					}
+					return;
+				}
+
+				let anyRed = false;
+				for (const [gi, { gate, policy }] of gates.entries()) {
 					const gateResult = gateRun(results, policy);
 					anyRed ||= !gateResult.green;
 					yield* Console.log(

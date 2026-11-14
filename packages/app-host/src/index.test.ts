@@ -41,6 +41,22 @@ describe("createApp", () => {
 		expect(plugins.length).toBeGreaterThan(0);
 	});
 
+	it("excludes eval-only packs from production discovery", () => {
+		// P-074 eval packs live under plugins/ for the registry boundary
+		// but are consumed only by apps/eval — they must not ship in the
+		// product registry (see the negative globs in index.ts/client.ts).
+		const ids = plugins.map((p) => p.id);
+		for (const id of [
+			"eval.consult",
+			"llm.eval",
+			"storage.dataset",
+			"transcription.asr",
+			"transcription.tts",
+		]) {
+			expect(ids).not.toContain(id);
+		}
+	});
+
 	it("run executes system-path effects without a principal", async () => {
 		await expect(app.run(Effect.succeed("ok"))).resolves.toBe("ok");
 	});

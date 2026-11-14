@@ -176,14 +176,21 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 				}),
 
 			// Same write-side decode as putSample — a malformed row fails
-			// here, not silently at listResults.
+			// here, not silently at listResults. Key segments are
+			// percent-encoded: a runId/sampleId containing "/" must not
+			// escape the results/ prefix into nested keys (same rule as
+			// blobs/blobmeta, which already encodeURIComponent the uri).
 			putResult: (result) =>
 				Effect.try({
 					try: () => decodeResult(result),
 					catch: (e) => fail(`invalid result: ${String(e).slice(0, 200)}`),
 				}).pipe(
 					Effect.flatMap((validated) =>
-						putJson(bucket, `results/${validated.runId}/${validated.sampleId}.json`, validated),
+						putJson(
+							bucket,
+							`results/${encodeURIComponent(validated.runId)}/${encodeURIComponent(validated.sampleId)}.json`,
+							validated,
+						),
 					),
 				),
 

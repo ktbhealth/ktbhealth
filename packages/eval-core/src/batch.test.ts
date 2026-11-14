@@ -68,6 +68,35 @@ describe("runBatch — resilience", () => {
 		expect(r.outcomes[0]?.attempts).toBe(3);
 	});
 
+	it("retryWhile skips deterministic failures but retries transient ones", async () => {
+		let permanentCalls = 0;
+		let transientCalls = 0;
+		const r = await Effect.runPromise(
+			runBatch({
+				items: ["perm", "trans"],
+				step: (x) =>
+					Effect.suspend(() => {
+						if (x === "perm") {
+							permanentCalls++;
+							return Effect.fail(new PortError({ port: "phi", message: "refused" }));
+						}
+						transientCalls++;
+						return transientCalls < 3
+							? Effect.fail(new PortError({ port: "asr", message: "flaky" }))
+							: Effect.succeed("v-trans");
+					}),
+				options: {
+					retry: Schedule.recurs(3),
+					retryWhile: (e) => !(e instanceof PortError && e.port === "phi"),
+				},
+			}),
+		);
+		expect(permanentCalls).toBe(1); // no retry on the permanent failure
+		expect(transientCalls).toBe(3);
+		expect(r.outcomes[0]?.status).toBe("failed");
+		expect(r.outcomes[1]?.status).toBe("ok");
+	});
+
 	it("surfaces failure after the schedule exhausts", async () => {
 		const r = await Effect.runPromise(
 			runBatch({

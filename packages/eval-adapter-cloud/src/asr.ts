@@ -148,6 +148,10 @@ export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort
 										// Uint8Array is a valid fetch body at runtime;
 										// TS's BodyInit just doesn't include ArrayBufferView.
 										body: bytes as unknown as BodyInit,
+										// Abort the socket at the same deadline as the
+										// Effect.timeout below — a hung provider must not
+										// leak the request.
+										signal: AbortSignal.timeout(timeoutMs),
 									});
 									if (!res.ok) {
 										throw new Error(`workers-ai ${res.status}: ${await res.text()}`);

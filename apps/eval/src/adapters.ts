@@ -133,31 +133,46 @@ const env = (ctx: WireContext, name: string): string => {
 	return v;
 };
 
-/** `file://` → local path; anything else is a typed PortError — the
- * Workers AI adapter reads bytes itself, so only real local files
- * are supported here (blob:// resolution is a caller concern). */
-const readAudioFile = (uri: string) =>
-	Effect.try({
-		try: () => {
-			if (!uri.startsWith("file://")) {
-				throw new Error(`unsupported audio uri scheme (expected file://): ${uri}`);
-			}
-			const raw = uri.slice("file://".length);
-			let p = raw;
-			try {
-				p = decodeURIComponent(raw);
-			} catch {
-				/* malformed escape — use the raw slice */
-			}
-			return new Uint8Array(fs.readFileSync(p));
-		},
-		catch: (cause) =>
-			new PortError({
-				port: "asr",
-				message: `readAudio ${uri}: ${causeMessage(cause)}`,
-				cause,
-			}),
-	});
+/** `file://` → local path, CONFINED to `workdir` — the only place
+ * eval audio legitimately lives (TTS output under `<workdir>/tts`,
+ * dataset blobs under `<workdir>/blobs`). Anything else — absolute
+ * paths outside the workdir, `..` escapes — is a typed PortError:
+ * this reader feeds egress-capable cloud ASR, so an unconstrained
+ * read would turn a crafted Sample into an arbitrary-file exfil
+ * channel. Other schemes are rejected the same way (blob://
+ * resolution is a caller concern). */
+export const makeReadAudioFile =
+	(workdir: string) =>
+	(uri: string): Effect.Effect<Uint8Array, PortError> =>
+		Effect.try({
+			try: () => {
+				if (!uri.startsWith("file://")) {
+					throw new Error(`unsupported audio uri scheme (expected file://): ${uri}`);
+				}
+				const raw = uri.slice("file://".length);
+				let p = raw;
+				try {
+					p = decodeURIComponent(raw);
+				} catch {
+					/* malformed escape — use the raw slice */
+				}
+				const root = path.resolve(workdir);
+				// Relative refs resolve UNDER the workdir (absolute
+				// paths pass through resolve unchanged, then the prefix
+				// check below rejects anything outside).
+				const resolved = path.resolve(root, p);
+				if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
+					throw new Error(`audio path escapes the run workdir: ${resolved}`);
+				}
+				return new Uint8Array(fs.readFileSync(resolved));
+			},
+			catch: (cause) =>
+				new PortError({
+					port: "asr",
+					message: `readAudio ${uri}: ${causeMessage(cause)}`,
+					cause,
+				}),
+		});
 
 /** Minimal JSON-RPC transport for the ACP adapter: POST the encoded
  * AcpRequest to EVAL_ACP_URL, hand the decoded body back for
@@ -165,6 +180,7 @@ const readAudioFile = (uri: string) =>
 export const makeHttpAcpTransport = (
 	baseUrl: string,
 	fetchImpl: typeof fetch = fetch,
+	timeoutMs = 60_000,
 ): AcpTransport => {
 	const url = baseUrl.replace(/\/+$/, "");
 	return (request) =>
@@ -173,6 +189,9 @@ export const makeHttpAcpTransport = (
 				const res = await fetchImpl(url, {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
+					// Abort the socket at the same deadline as the caller's
+					// Effect.timeout — a hung agent must not leak the request.
+					signal: AbortSignal.timeout(timeoutMs),
 					body: JSON.stringify(request),
 				});
 				if (!res.ok) {
@@ -236,7 +255,7 @@ const asrLayer = (ctx: WireContext, key: string) => {
 				accountId,
 				apiToken,
 				model,
-				readAudio: readAudioFile,
+				readAudio: makeReadAudioFile(ctx.workdir),
 				...(endpoint !== undefined && endpoint !== "" ? { endpoint } : {}),
 				...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
 			});

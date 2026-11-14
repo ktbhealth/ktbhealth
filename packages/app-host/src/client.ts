@@ -19,7 +19,20 @@ import { collectPages } from "./pages.ts";
  */
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins({
-		...import.meta.glob("../../../plugins/*/src/client.ts", { eager: true }),
+		// Eval-only packs are excluded from BOTH registries — see the
+		// matching exclusion in ./index.ts. Patterns must stay literal
+		// (import.meta.glob is a build-time transform) and in sync.
+		...import.meta.glob(
+			[
+				"../../../plugins/*/src/client.ts",
+				"!../../../plugins/eval-consult/src/client.ts",
+				"!../../../plugins/llm-eval/src/client.ts",
+				"!../../../plugins/storage-dataset/src/client.ts",
+				"!../../../plugins/transcription-asr/src/client.ts",
+				"!../../../plugins/transcription-tts/src/client.ts",
+			],
+			{ eager: true },
+		),
 		"@ktb/platform/client": { plugins: platformClientPlugins },
 	}),
 );

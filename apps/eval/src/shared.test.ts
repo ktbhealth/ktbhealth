@@ -6,12 +6,16 @@ import * as Effect from "effect/Effect";
 import { Option } from "effect";
 import { describe, expect, test } from "vitest";
 
+import { PortError } from "@ktb/eval-core";
+
 import { defaultContext, repoRoot } from "./context.ts";
 import { UsageError } from "./errors.ts";
 import {
 	assertCapabilities,
 	datasetVersionOf,
 	intFlag,
+	isTransientBatchError,
+	localeFlag,
 	resolveFor,
 	selectProfile,
 	workdirFlag,
@@ -94,6 +98,30 @@ describe("intFlag", () => {
 		const err = await runErr(intFlag("limit", Option.some(0), 0, 1));
 		expect(err).toBeInstanceOf(UsageError);
 		expect(err.message).toMatch(/--limit must be an integer >= 1/);
+	});
+});
+
+describe("localeFlag", () => {
+	test("defaults to pt-BR and resolves known locales", async () => {
+		expect((await run(localeFlag(Option.none()))).id).toBe("ptbr-v1");
+		expect((await run(localeFlag(Option.some("pt-BR")))).asrLanguage).toBe("pt");
+	});
+
+	test("unknown locale is a UsageError listing the known set", async () => {
+		const err = await runErr(localeFlag(Option.some("en")));
+		expect(err).toBeInstanceOf(UsageError);
+		expect(err.message).toMatch(/unknown --locale en/);
+	});
+});
+
+describe("isTransientBatchError", () => {
+	test("deterministic domain ports are permanent; everything else retries", () => {
+		for (const port of ["phi", "pipeline", "generate"]) {
+			expect(isTransientBatchError(new PortError({ port, message: "x" }))).toBe(false);
+		}
+		expect(isTransientBatchError(new PortError({ port: "asr", message: "x" }))).toBe(true);
+		expect(isTransientBatchError(new PortError({ port: "tts", message: "x" }))).toBe(true);
+		expect(isTransientBatchError(new Error("boom"))).toBe(true);
 	});
 });
 

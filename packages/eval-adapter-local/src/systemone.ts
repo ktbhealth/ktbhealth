@@ -23,13 +23,16 @@
  *              rubric; `maxScore` absent defaults to a 0–3 rubric.
  *
  * Answers come back keyed by question id with per-kind payloads:
- *   noul   { type, noul: p(yes) }            → value = p ≥ 0.5
+ *   noul   { type, noul: p(yes) }            → value = p ≥ 0.5,
+ *          probability = p(yes) when true else p(no) = 1−p — the
+ *          reported probability always backs the CHOSEN verdict
  *   choice { type, choice, probabilities }  → value = choice,
  *          probability = probabilities[choice]
  *   score  { type, score, confidence?, probabilities? }
  *                                          → value = score,
  *          probability = confidence ?? max(probabilities)
- * Malformed/missing verdicts are typed PortErrors, never silent.
+ * Malformed/missing verdicts are typed PortErrors, never silent —
+ * including probabilities outside [0, 1].
  *
  * `model` is required by the TypeSafe request schema but opaque to
  * self-hosted servers — OpenJev's pydantic model defaults it to
@@ -141,6 +144,21 @@ const SystemOneResponse = Schema.Struct({
 });
 const decode = Schema.decodeUnknownSync(SystemOneResponse);
 
+/** A probability outside [0, 1] is a malformed verdict, not a
+ * calibration quirk — reject it like any other decode failure. */
+const prob = (p: number, what: string): number => {
+	if (!Number.isFinite(p) || p < 0 || p > 1) {
+		throw new Error(`${what} probability out of [0, 1]: ${p}`);
+	}
+	return p;
+};
+
+/** Validate every value of a probabilities map (when present). */
+const checkProbs = (probs: Record<string, number> | undefined, what: string): void => {
+	if (probs === undefined) return;
+	for (const [k, v] of Object.entries(probs)) prob(v, `${what}.probabilities["${k}"]`);
+};
+
 /** Map one wire answer back to the EvalAnswer contract. Throws
  * Error with a precise reason — the caller wraps it as a PortError. */
 const toEvalAnswer = (q: EvalQuestion, a: WireAnswer | undefined): EvalAnswer => {
@@ -156,22 +174,36 @@ const toEvalAnswer = (q: EvalQuestion, a: WireAnswer | undefined): EvalAnswer =>
 			if (a.noul === undefined) {
 				throw new Error(`noul answer "${q.id}" lacks the "noul" probability`);
 			}
-			return { id: q.id, kind: "noul", value: a.noul >= 0.5, probability: a.noul };
+			const pYes = prob(a.noul, `noul answer "${q.id}"`);
+			const yes = pYes >= 0.5;
+			// probability backs the CHOSEN answer: p(yes) on a yes
+			// verdict, p(no) = 1−p(yes) on a no verdict — a stored
+			// 0.1 beside value:false would read as "10% sure it's no"
+			// when the model was 90% sure.
+			return { id: q.id, kind: "noul", value: yes, probability: yes ? pYes : 1 - pYes };
 		}
 		case "choice": {
 			if (a.choice === undefined) {
 				throw new Error(`choice answer "${q.id}" lacks "choice"`);
 			}
+			checkProbs(a.probabilities, `choice answer "${q.id}"`);
 			const p = a.probabilities?.[a.choice];
 			if (p === undefined) {
 				throw new Error(`choice answer "${q.id}" lacks probabilities["${a.choice}"]`);
 			}
-			return { id: q.id, kind: "choice", value: a.choice, probability: p };
+			return {
+				id: q.id,
+				kind: "choice",
+				value: a.choice,
+				probability: prob(p, `choice answer "${q.id}"`),
+			};
 		}
 		case "score": {
 			if (a.score === undefined) {
 				throw new Error(`score answer "${q.id}" lacks "score"`);
 			}
+			checkProbs(a.probabilities, `score answer "${q.id}"`);
+			if (a.confidence !== undefined) prob(a.confidence, `score answer "${q.id}".confidence`);
 			// `score` is the probability-weighted level; the honest
 			// scalar certainty is `confidence`, falling back to the
 			// modal level's probability when a server omits it.
@@ -206,6 +238,10 @@ export const makeSystemOneEval = (opts: SystemOneEvalOptions): Layer.Layer<EvalP
 						const res = await fetchImpl(`${opts.baseUrl}/v1/systemone`, {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
+							// Abort the socket at the same deadline as the
+							// Effect.timeout below — a hung service must not
+							// leak the request.
+							signal: AbortSignal.timeout(timeoutMs),
 							body: JSON.stringify({
 								model,
 								state: input.state,

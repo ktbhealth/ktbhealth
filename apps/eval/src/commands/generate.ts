@@ -25,10 +25,8 @@ import {
 	DEFAULT_MATRIX,
 	generateDataset,
 	NoiseProfile,
-	ptBR,
 	sampleMatrix,
 	type AcousticProfile,
-	type LocaleProfile,
 	type Persona,
 } from "@ktb/eval-consult";
 
@@ -40,14 +38,14 @@ import {
 	assertCapabilities,
 	datasetVersionOf,
 	intFlag,
+	isTransientBatchError,
+	localeFlag,
 	outcomeMark,
 	resolveFor,
 	selectProfile,
 	userError,
 	workdirFlag,
 } from "../shared.ts";
-
-const LOCALES: Record<string, LocaleProfile> = { "pt-BR": ptBR };
 
 const optStr = Option.getOrUndefined;
 
@@ -88,13 +86,11 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 				const concurrency = yield* intFlag("concurrency", cfg.concurrency, 2, 1);
 				const workdir = yield* workdirFlag(cfg.workdir);
 
+				// localeFlag validates the name; `locale` is the raw tag
+				// the template directory is keyed by ("pt-BR", not the
+				// profile's normalization id "ptbr-v1").
 				const locale = optStr(cfg.locale) ?? "pt-BR";
-				const localeProfile = LOCALES[locale];
-				if (localeProfile === undefined) {
-					return yield* new UsageError({
-						message: `unknown --locale ${locale} (available: ${Object.keys(LOCALES).join(", ")})`,
-					});
-				}
+				const localeProfile = yield* localeFlag(cfg.locale);
 				const noiseRaw = optStr(cfg.noise) ?? "clean";
 				if (!Schema.is(NoiseProfile)(noiseRaw)) {
 					return yield* new UsageError({
@@ -166,6 +162,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 							batch: {
 								concurrency,
 								retry: Schedule.exponential("300 millis").pipe(Schedule.upTo({ times: 2 })),
+								retryWhile: isTransientBatchError,
 								timeoutMs: 120_000,
 							},
 						});

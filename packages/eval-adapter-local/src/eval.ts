@@ -53,6 +53,10 @@ export const makeJevEval = (opts: JevEvalOptions): Layer.Layer<EvalPort> =>
 						const res = await fetchImpl(`${opts.baseUrl}/v1/systemone`, {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
+							// Abort the socket at the same deadline as the
+							// Effect.timeout below — a hung service must not
+							// leak the request.
+							signal: AbortSignal.timeout(timeoutMs),
 							body: JSON.stringify({ state: input.state, questions: input.questions }),
 						});
 						if (!res.ok) {

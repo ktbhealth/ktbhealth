@@ -509,6 +509,100 @@ describe("processSample", () => {
 		expect(JSON.stringify(judgeStates)).not.toContain("123.456.789-00");
 	});
 
+	it("synthetic-declared + real_anonymized blobMeta: text is scrubbed like untrusted", async () => {
+		// The declared origin says "synthetic" but the blob's STORED
+		// provenance says real_anonymized — the effective origin is
+		// untrusted, so the script gate AND the ASR-text scrub must
+		// both fire (previously only the audio egress guard saw the
+		// stored channel and real PHI flowed to LlmPort/judge/persist).
+		const phiAsr = {
+			text: "paciente cpf 123.456.789-00 nega febre",
+			language: "pt",
+			segments: [],
+		};
+		const judgeStates: unknown[] = [];
+		const phiPorts = Layer.mergeAll(
+			Layer.succeed(
+				AsrPort,
+				AsrPort.of({ egress: false, transcribe: () => Effect.succeed({ asr: phiAsr, record }) }),
+			),
+			Layer.succeed(
+				EvalPort,
+				EvalPort.of({
+					judge: (input) =>
+						Effect.sync(() => {
+							judgeStates.push(input.state);
+							return {
+								answers: input.questions.map((q) => ({
+									id: q.id,
+									kind: q.kind,
+									value: q.kind === "noul" ? true : "justified_fix",
+									probability: 0.9,
+								})),
+								record,
+							};
+						}),
+				}),
+			),
+		);
+		const metaStore = Layer.succeed(
+			DatasetStorePort,
+			DatasetStorePort.of({
+				putSample: () => Effect.void,
+				getSample: () => Effect.succeed(null),
+				listSamples: () => Effect.succeed([]),
+				putBlob: () => Effect.void,
+				putBlobMeta: () => Effect.void,
+				getBlob: () => Effect.succeed(null),
+				getBlobMeta: () => Effect.succeed({ origin: "real_anonymized" as const }),
+				putResult: () => Effect.void,
+				listResults: () => Effect.succeed([]),
+			}),
+		);
+		const lying: Sample = {
+			...sample,
+			origin: "synthetic",
+			script: "cpf 123.456.789-00 do paciente",
+		};
+		const r = await Effect.runPromise(
+			Effect.provide(
+				processSample({ sample: lying, entities }),
+				Layer.mergeAll(live, phiPorts, metaStore),
+			),
+		);
+		// Script gated before judging/persistence; ASR text scrubbed
+		// before cleanup — the declared "synthetic" did not exempt it.
+		expect(r.script).toContain("[CPF]");
+		expect(r.script).not.toContain("123.456.789-00");
+		expect(r.asr.text).toContain("[CPF]");
+		expect(r.asr.text).not.toContain("123.456.789-00");
+		const dumped = JSON.stringify(judgeStates);
+		expect(dumped).toContain("[CPF]");
+		expect(dumped).not.toContain("123.456.789-00");
+	});
+
+	it("synthetic-declared + synthetic blobMeta: no scrub (both channels agree)", async () => {
+		const metaStore = Layer.succeed(
+			DatasetStorePort,
+			DatasetStorePort.of({
+				putSample: () => Effect.void,
+				getSample: () => Effect.succeed(null),
+				listSamples: () => Effect.succeed([]),
+				putBlob: () => Effect.void,
+				putBlobMeta: () => Effect.void,
+				getBlob: () => Effect.succeed(null),
+				getBlobMeta: () => Effect.succeed({ origin: "synthetic" as const }),
+				putResult: () => Effect.void,
+				listResults: () => Effect.succeed([]),
+			}),
+		);
+		const r = await Effect.runPromise(
+			Effect.provide(processSample({ sample, entities }), Layer.merge(live, metaStore)),
+		);
+		expect(r.script).toBe(sample.script);
+		expect(r.asr.text).toBe(asrResult.text);
+	});
+
 	it("real_anonymized: fails closed when ASR output has residual identifiers", async () => {
 		const badAsr = {
 			text: "registro interno 20240102030405",

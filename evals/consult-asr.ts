@@ -14,6 +14,11 @@ import { defineSuite } from "@ktb/eval-core";
  * picks the adapter set the composition root resolves per capability
  * ("stub" for CI, "local" for on-box services).
  *
+ * NOTE: `stages`/`metrics` are validated refs, not dispatch — the run
+ * pipeline is fixed (transcribe → cleanup → judge) and `meta.fn` on
+ * contributions is a pointer for humans/ops. Stage dispatch by
+ * contribution id is phase-2 work (see packages/eval-core/src/suite.ts).
+ *
  * `gates[0].params` is an AcceptPolicy (plugins/eval-consult
  * accept.ts) — every field named so the gate is data, not code.
  */

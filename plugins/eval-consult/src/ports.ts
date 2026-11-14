@@ -35,7 +35,17 @@ export type { TaskEnvelope } from "@ktb/eval-core";
  * (voice + degradation are decided by the caller via profile).
  * `egress` declares whether script text may leave the perimeter —
  * hosted TTS endpoints set `true`; absent is treated as egress-capable
- * by the PHI policy (fail closed). */
+ * by the PHI policy (fail closed).
+ *
+ * WARNING — egress asymmetry: unlike AsrPort (guardAsrPort) and the
+ * scrubbed LlmPort/EvalPort inputs, NOTHING structurally gates the
+ * text handed to synthesize. generateDataset feeds rendered template
+ * output straight in, so a caller that routes real consult text
+ * through TtsPort would egress unscrubbed PHI to a hosted voice
+ * endpoint. Today the only producer is the synthetic dataset
+ * generator — keep it that way. TODO(phase-2): a guardTtsPort
+ * mirroring guardAsrPort (scrub-or-refuse on untrusted provenance)
+ * once real-audio ingest exists. */
 export class TtsPort extends Context.Service<
 	TtsPort,
 	{

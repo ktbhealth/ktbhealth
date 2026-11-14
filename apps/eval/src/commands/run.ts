@@ -2,7 +2,7 @@
  * run — execute a suite's pipeline over the persisted dataset.
  *
  *   eval run <suite> [--profile p] [--workdir d] [--run-id id]
- *     [--limit N] [--concurrency N]
+ *     [--limit N] [--concurrency N] [--locale pt-BR]
  *
  * Samples are read from the suite's datasetVersion pin in the local
  * store (run `generate` first), then each goes through
@@ -22,13 +22,11 @@ import { runBatch } from "@ktb/eval-core";
 import {
 	DatasetStorePort,
 	processSample,
-	ptBR,
 	recordAll,
 	sampleForPersistence,
 	saveResult,
 	saveSample,
 	toSampleResult,
-	type LocaleProfile,
 	type Sample,
 } from "@ktb/eval-consult";
 
@@ -40,6 +38,8 @@ import {
 	assertCapabilities,
 	datasetVersionOf,
 	intFlag,
+	isTransientBatchError,
+	localeFlag,
 	outcomeMark,
 	resolveFor,
 	selectProfile,
@@ -65,6 +65,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 			runId: Flag.optional(Flag.String("run-id")),
 			limit: Flag.optional(Flag.Int("limit")),
 			concurrency: Flag.optional(Flag.Int("concurrency")),
+			locale: Flag.optional(Flag.String("locale")),
 		},
 		(cfg) =>
 			Effect.gen(function* () {
@@ -82,7 +83,10 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				const limit = yield* intFlag("limit", cfg.limit, 0, 1);
 				const runId = optStr(cfg.runId) ?? `run-${manifest.id}-${Date.now()}`;
 				const datasetVersion = datasetVersionOf(manifest);
-				const locale: LocaleProfile = ptBR;
+				// Same --locale registry generate uses — the scrub
+				// patterns and normalization must match the locale the
+				// dataset was generated under.
+				const locale = yield* localeFlag(cfg.locale);
 
 				const wire: WireContext = {
 					workdir,
@@ -142,6 +146,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 							options: {
 								concurrency,
 								retry: Schedule.exponential("300 millis").pipe(Schedule.upTo({ times: 2 })),
+								retryWhile: isTransientBatchError,
 								timeoutMs: 120_000,
 							},
 							step,

@@ -4,7 +4,6 @@ import { ContributionRegistry, EvalPort } from "@ktb/eval-core";
 import { LlmPort } from "@ktb/eval-consult/ports";
 
 import { llmEvalContributions, plugins } from "./index.ts";
-import { plugins as clientPlugins } from "./client.ts";
 
 describe("llm.eval", () => {
 	it("declares the llm/eval capabilities and model stages", () => {
@@ -27,8 +26,7 @@ describe("llm.eval", () => {
 		expect(registry.get("stage", "judge").meta?.port).toBe(EvalPort.key);
 	});
 
-	it("exposes a single plugin manifest mirrored on the client", () => {
+	it("exposes a single plugin manifest", () => {
 		expect(plugins.map((p) => p.id)).toEqual(["llm.eval"]);
-		expect(clientPlugins.map((p) => p.id)).toEqual(plugins.map((p) => p.id));
 	});
 });

@@ -223,6 +223,23 @@ describe("r2 store adapter", () => {
 		expect(out.bySample[0]?.sampleId).toBe("s1");
 	});
 
+	it("putResult sanitizes runId/sampleId key segments", async () => {
+		const bucket = memBucket();
+		const out = await withStore(
+			Effect.gen(function* () {
+				const store = yield* DatasetStorePort;
+				yield* store.putResult({ ...result, runId: "run/with/slash", sampleId: "s/1" });
+				return yield* store.listResults();
+			}),
+			bucket,
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0]?.runId).toBe("run/with/slash");
+		// The stored key must stay under results/ — no nested escape.
+		const keys = await bucket.list({ prefix: "results/" });
+		expect(keys.objects.map((o) => o.key)).toEqual(["results/run%2Fwith%2Fslash/s%2F1.json"]);
+	});
+
 	it("paginates listings past a truncated page", async () => {
 		const bucket = memBucket(1); // one object per page
 		const out = await withStore(
