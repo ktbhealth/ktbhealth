@@ -13,14 +13,14 @@ describe("storage.dataset", () => {
 
 		expect(registry.get("capability", "store").meta?.port).toBe(DatasetStorePort.key);
 		expect(registry.get("capability", "store").meta?.adapters).toEqual({
-			stub: "@ktb/eval-dataset-stub",
-			"sqlite-fs": "@ktb/eval-dataset-local",
-			r2: "@ktb/eval-dataset-cloud",
+			stub: "@ktb/eval-adapter-stub",
+			"sqlite-fs": "@ktb/eval-adapter-local",
+			r2: "@ktb/eval-adapter-cloud",
 		});
 		expect(registry.get("capability", "report").meta?.port).toBe(ReportPort.key);
 		expect(registry.get("capability", "report").meta?.adapters).toEqual({
-			stub: "@ktb/eval-dataset-stub",
-			jsonl: "@ktb/eval-dataset-local",
+			stub: "@ktb/eval-adapter-stub",
+			jsonl: "@ktb/eval-adapter-local",
 		});
 	});
 

@@ -1,0 +1,19 @@
+{
+	"name": "@ktb/eval-adapter-local",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-core": "workspace:*",
+		"better-sqlite3": "^13.0.3",
+		"effect": "4.1.2"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "^9.6.0",
+		"@types/node": "^22.10.2",
+		"vitest": "5.1.0"
+	}
+}

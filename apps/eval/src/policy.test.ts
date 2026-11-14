@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 
 import { GATE_DECODERS, decodeAcceptPolicy } from "./policy.ts";
-import { UsageError } from "./args.ts";
+import { UsageError } from "./errors.ts";
 
 describe("decodeAcceptPolicy", () => {
-	test("defaults match the eval-gate.ts policy", () => {
+	test("defaults match the auto-accept gate policy", () => {
 		expect(decodeAcceptPolicy(undefined)).toEqual({
 			stage: "corrected",
 			maxWer: 0.05,

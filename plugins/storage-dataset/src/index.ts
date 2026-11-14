@@ -12,17 +12,17 @@ import { DatasetStorePort } from "@ktb/eval-consult/ports";
  * ports — DatasetStorePort (samples, blobs with provenance meta,
  * results) and ReportPort (run-record sink + markdown render). Adapter
  * implementations stay in the exempt-edge packages
- * (@ktb/eval-dataset-stub/-local/-cloud): the SQLite/filesystem store
+ * (@ktb/eval-adapter-stub/-local/-cloud): the SQLite/filesystem store
  * needs node:fs/better-sqlite3, which plugins/* may not import
  * (arch-policy PORT_GLOBS). See plugins/transcription-tts/src/index.ts
  * for the full mechanism.
  *
  * Storage is not a pipeline stage — it contributes capabilities only.
  *
- * Adapter keys → packages/factories: "stub" → @ktb/eval-dataset-stub
- * (`makeStubLayer`), "sqlite-fs" → @ktb/eval-dataset-local
- * `makeLocalStoreLayer`, "r2" → @ktb/eval-dataset-cloud `makeR2Store`,
- * "jsonl" → @ktb/eval-dataset-local `makeLocalReportLayer`.
+ * Adapter keys → packages/factories: "stub" → @ktb/eval-adapter-stub
+ * (`makeStubLayer`), "sqlite-fs" → @ktb/eval-adapter-local
+ * `makeLocalStoreLayer`, "r2" → @ktb/eval-adapter-cloud `makeR2Store`,
+ * "jsonl" → @ktb/eval-adapter-local `makeLocalReportLayer`.
  */
 export const storageDatasetPlugin = definePlugin({
 	id: "storage.dataset",
@@ -52,9 +52,9 @@ export const storageDatasetContributions: readonly Contribution[] = [
 		meta: {
 			port: DatasetStorePort.key,
 			adapters: {
-				stub: "@ktb/eval-dataset-stub",
-				"sqlite-fs": "@ktb/eval-dataset-local",
-				r2: "@ktb/eval-dataset-cloud",
+				stub: "@ktb/eval-adapter-stub",
+				"sqlite-fs": "@ktb/eval-adapter-local",
+				r2: "@ktb/eval-adapter-cloud",
 			},
 		},
 	},
@@ -65,8 +65,8 @@ export const storageDatasetContributions: readonly Contribution[] = [
 		meta: {
 			port: ReportPort.key,
 			adapters: {
-				stub: "@ktb/eval-dataset-stub",
-				jsonl: "@ktb/eval-dataset-local",
+				stub: "@ktb/eval-adapter-stub",
+				jsonl: "@ktb/eval-adapter-local",
 			},
 		},
 	},

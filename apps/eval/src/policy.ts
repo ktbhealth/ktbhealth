@@ -9,19 +9,21 @@
  */
 
 import type { AcceptPolicy } from "@ktb/eval-consult";
-import { UsageError } from "./args.ts";
+import { UsageError } from "./errors.ts";
 
-/** Policy field → flag name, for CLI overrides. */
-export const POLICY_FLAGS: Readonly<Record<string, string>> = {
-	stage: "stage",
-	maxWer: "max-wer",
-	target: "target",
-	minN: "min-n",
-	maxRisk: "max-risk",
-	maxHarmfulEdits: "max-harmful-edits",
-	maxUnjudgedEdits: "max-unjudged-edits",
-	z: "z",
-};
+/** AcceptPolicy field names — the only keys a manifest gate's
+ * `params` object may carry (CLI flag overrides map 1:1 onto these
+ * fields in commands/gate.ts). */
+const POLICY_FIELDS = [
+	"stage",
+	"maxWer",
+	"target",
+	"minN",
+	"maxRisk",
+	"maxHarmfulEdits",
+	"maxUnjudgedEdits",
+	"z",
+] as const;
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
 	typeof v === "object" && v !== null && !Array.isArray(v);
@@ -29,7 +31,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const num = (params: Record<string, unknown>, key: string, def: number, gateId: string): number => {
 	const v = params[key] ?? def;
 	if (typeof v !== "number" || !Number.isFinite(v)) {
-		throw new UsageError(`gate "${gateId}": params.${key} must be a finite number`);
+		throw new UsageError({ message: `gate "${gateId}": params.${key} must be a finite number` });
 	}
 	return v;
 };
@@ -38,27 +40,29 @@ const num = (params: Record<string, unknown>, key: string, def: number, gateId: 
  * keys are rejected — a typo'd param must not silently no-op. */
 export const decodeAcceptPolicy = (params: unknown, gateId = "auto-accept"): AcceptPolicy => {
 	if (params !== undefined && !isRecord(params)) {
-		throw new UsageError(`gate "${gateId}": params must be a JSON object`);
+		throw new UsageError({ message: `gate "${gateId}": params must be a JSON object` });
 	}
 	const p = (params ?? {}) as Record<string, unknown>;
 	for (const key of Object.keys(p)) {
-		if (!(key in POLICY_FLAGS)) {
-			throw new UsageError(
-				`gate "${gateId}": unknown params key "${key}" (known: ${Object.keys(POLICY_FLAGS).join(", ")})`,
-			);
+		if (!(POLICY_FIELDS as readonly string[]).includes(key)) {
+			throw new UsageError({
+				message: `gate "${gateId}": unknown params key "${key}" (known: ${POLICY_FIELDS.join(", ")})`,
+			});
 		}
 	}
 	const stage = p.stage ?? "corrected";
 	if (stage !== "asr" && stage !== "corrected") {
-		throw new UsageError(`gate "${gateId}": params.stage must be "asr" or "corrected"`);
+		throw new UsageError({
+			message: `gate "${gateId}": params.stage must be "asr" or "corrected"`,
+		});
 	}
 	const minN = num(p, "minN", 40, gateId);
 	if (!Number.isInteger(minN) || minN < 0) {
-		throw new UsageError(`gate "${gateId}": params.minN must be an integer >= 0`);
+		throw new UsageError({ message: `gate "${gateId}": params.minN must be an integer >= 0` });
 	}
 	const z = p.z;
 	if (z !== undefined && (typeof z !== "number" || !Number.isFinite(z))) {
-		throw new UsageError(`gate "${gateId}": params.z must be a finite number`);
+		throw new UsageError({ message: `gate "${gateId}": params.z must be a finite number` });
 	}
 	return {
 		stage,

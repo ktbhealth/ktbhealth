@@ -15,8 +15,8 @@ describe("transcription.tts", () => {
 		const capability = registry.get("capability", "tts");
 		expect(capability.meta?.port).toBe(TtsPort.key);
 		expect(capability.meta?.adapters).toEqual({
-			stub: "@ktb/eval-dataset-stub",
-			"edge-tts": "@ktb/eval-dataset-local",
+			stub: "@ktb/eval-adapter-stub",
+			"edge-tts": "@ktb/eval-adapter-local",
 		});
 		expect(registry.get("stage", "synthesize").meta?.port).toBe(TtsPort.key);
 	});

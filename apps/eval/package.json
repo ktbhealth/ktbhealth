@@ -7,11 +7,12 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@effect/platform-node": "4.1.2",
+		"@ktb/eval-adapter-cloud": "workspace:*",
+		"@ktb/eval-adapter-local": "workspace:*",
+		"@ktb/eval-adapter-stub": "workspace:*",
 		"@ktb/eval-consult": "workspace:*",
 		"@ktb/eval-core": "workspace:*",
-		"@ktb/eval-dataset-cloud": "workspace:*",
-		"@ktb/eval-dataset-local": "workspace:*",
-		"@ktb/eval-dataset-stub": "workspace:*",
 		"@ktb/llm-eval": "workspace:*",
 		"@ktb/storage-dataset": "workspace:*",
 		"@ktb/transcription-asr": "workspace:*",

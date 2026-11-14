@@ -35,11 +35,8 @@ const PORT_PACKAGE_NAMES = [
 	"rbac",
 	// The server-fn runtime registry is port infrastructure, not an adapter.
 	"server-fns",
-	// Eval platform (P-066): domain package; its -stub/-local/-cloud
-	// adapters live in ADAPTER_PACKAGE_NAMES below.
-	"eval-dataset",
 	// Eval framework core (P-074): generic suite/runner machinery —
-	// same boundary as eval-dataset.
+	// domain code held to the same boundary as every other port.
 	"eval-core",
 	// Host infrastructure below the plugin system (admin gate, console
 	// shell, plugin_state) — held to the same boundary it had under
@@ -93,11 +90,11 @@ const ADAPTER_PACKAGE_NAMES = [
 	"transcription-whisper",
 	"transcription-webspeech",
 	"db-sqlite",
-	// Eval platform adapters (P-066) — -local/-cloud land in later
-	// milestones; registered now so the boundary already covers them.
-	"eval-dataset-stub",
-	"eval-dataset-local",
-	"eval-dataset-cloud",
+	// Eval platform adapters — the exempt edge for the eval ports
+	// (deterministic stub, on-box local services, cloud providers).
+	"eval-adapter-stub",
+	"eval-adapter-local",
+	"eval-adapter-cloud",
 ];
 
 /**

@@ -11,7 +11,7 @@ import { TtsPort } from "@ktb/eval-consult/ports";
  * plugins/* sits inside the arch-policy PORT_GLOBS — node:*,
  * process/Bun/Deno, provider literals and adapter-package imports are
  * all banned there — so implementations live in the adapter packages
- * (@ktb/eval-dataset-stub/-local/-cloud), which are the exempt edge.
+ * (@ktb/eval-adapter-stub/-local/-cloud), which are the exempt edge.
  *
  * Consumption (Phase 4): the eval composition root iterates
  * `ttsContributions`, registers each entry into a
@@ -38,8 +38,8 @@ declare module "@ktb/kernel" {
  * Declared contributions. `capability` entries name the port and the
  * adapter keys that implement it; `stage` entries name the pipeline
  * stage the capability serves (RunRecord.stage vocabulary). Adapter
- * keys → packages: "stub" → @ktb/eval-dataset-stub TtsPort layer,
- * "edge-tts" → @ktb/eval-dataset-local `makeLocalTts`.
+ * keys → packages: "stub" → @ktb/eval-adapter-stub TtsPort layer,
+ * "edge-tts" → @ktb/eval-adapter-local `makeLocalTts`.
  */
 export const ttsContributions: readonly Contribution[] = [
 	{
@@ -49,8 +49,8 @@ export const ttsContributions: readonly Contribution[] = [
 		meta: {
 			port: TtsPort.key,
 			adapters: {
-				stub: "@ktb/eval-dataset-stub",
-				"edge-tts": "@ktb/eval-dataset-local",
+				stub: "@ktb/eval-adapter-stub",
+				"edge-tts": "@ktb/eval-adapter-local",
 			},
 		},
 	},

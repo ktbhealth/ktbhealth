@@ -1,13 +1,11 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import type { Contribution } from "@ktb/eval-core";
 
-// Eval domain pack (P-074 phase 2a): the clinical consult eval domain —
+// Eval domain pack (P-074): the clinical consult eval domain —
 // schema, metrics, the S0–S7 pipeline, personas/scriptgen/generate,
 // anonymize, the ACP wire contract, locale profiles and the auto-accept
-// gate — moved out of @ktb/eval-dataset (which stays as the compat
-// import path until the adapters are rewired in later phases).
-// Re-exported here so `@ktb/eval-consult` is the domain's public
-// surface; the generic framework types these modules build on live in
+// gate. `@ktb/eval-consult` is the domain's public surface; the
+// generic framework types these modules build on live in
 // @ktb/eval-core.
 export * from "./accept.ts";
 export * from "./acp.ts";

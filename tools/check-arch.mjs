@@ -75,9 +75,9 @@ check(
 		"transcription-whisper",
 		"transcription-webspeech",
 		"db-sqlite",
-		"eval-dataset-stub",
-		"eval-dataset-local",
-		"eval-dataset-cloud",
+		"eval-adapter-stub",
+		"eval-adapter-local",
+		"eval-adapter-cloud",
 	].every((name) => IMPL_IMPORT_PATTERNS.includes(`@ktb/${name}`)),
 );
 

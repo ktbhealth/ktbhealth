@@ -14,9 +14,9 @@ describe("transcription.asr", () => {
 		const capability = registry.get("capability", "asr");
 		expect(capability.meta?.port).toBe(AsrPort.key);
 		expect(capability.meta?.adapters).toEqual({
-			stub: "@ktb/eval-dataset-stub",
-			"faster-whisper": "@ktb/eval-dataset-local",
-			"workers-ai": "@ktb/eval-dataset-cloud",
+			stub: "@ktb/eval-adapter-stub",
+			"faster-whisper": "@ktb/eval-adapter-local",
+			"workers-ai": "@ktb/eval-adapter-cloud",
 		});
 		expect(registry.get("stage", "transcribe").meta?.port).toBe(AsrPort.key);
 	});

@@ -1,0 +1,13 @@
+{
+	"name": "@ktb/eval-adapter-cloud",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-core": "workspace:*",
+		"effect": "4.1.2"
+	}
+}

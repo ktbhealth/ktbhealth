@@ -16,13 +16,13 @@ import type {
 } from "./schema.ts";
 
 // Generic ports moved to @ktb/eval-core (P-074) — re-exported so
-// `@ktb/eval-dataset` and `@ktb/eval-dataset/ports` keep their surface.
+// consumers import the tags from `@ktb/eval-consult` directly.
 export { EvalPort, PortError, ReportPort } from "@ktb/eval-core";
 export type { TaskEnvelope } from "@ktb/eval-core";
 
 /**
  * Eval-dataset ports — hexagonal boundary. The domain pipeline
- * (pipeline.ts) talks only to these tags; adapters (eval-dataset-stub,
+ * (pipeline.ts) talks only to these tags; adapters (eval-adapter-stub,
  * -local, -cloud) provide the layers. No platform APIs, no provider
  * literals.
  *
@@ -46,7 +46,7 @@ export class TtsPort extends Context.Service<
 			readonly acoustic: AcousticProfile;
 		}) => Effect.Effect<{ audio: AudioRef; record: RunRecord }, PortError>;
 	}
->()("@ktb/eval-dataset/TtsPort") {}
+>()("@ktb/eval-consult/TtsPort") {}
 
 /** Speech-to-text: audio ref → text + confidence-tagged segments.
  * `origin` is the CALLER-DECLARED provenance (sample manifest) — a
@@ -76,7 +76,7 @@ export class AsrPort extends Context.Service<
 			},
 		) => Effect.Effect<{ asr: AsrResult; record: RunRecord }, PortError>;
 	}
->()("@ktb/eval-dataset/AsrPort") {}
+>()("@ktb/eval-consult/AsrPort") {}
 
 /** Generative model port — ACP-delegated in live adapters.
  * `egress` declares whether envelope input text may leave the
@@ -96,7 +96,7 @@ export class LlmPort extends Context.Service<
 			envelope: TaskEnvelope,
 		) => Effect.Effect<{ edits: EditList; record: RunRecord }, PortError>;
 	}
->()("@ktb/eval-dataset/LlmPort") {}
+>()("@ktb/eval-consult/LlmPort") {}
 
 /** Manifest rows + audio blobs. */
 export class DatasetStorePort extends Context.Service<
@@ -140,4 +140,4 @@ export class DatasetStorePort extends Context.Service<
 			readonly runId?: string;
 		}) => Effect.Effect<readonly SampleResult[], PortError>;
 	}
->()("@ktb/eval-dataset/DatasetStorePort") {}
+>()("@ktb/eval-consult/DatasetStorePort") {}

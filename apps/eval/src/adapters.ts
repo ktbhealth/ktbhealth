@@ -5,7 +5,7 @@
  * The composition root's job: turn a resolved `adapters` map
  * (capability → adapter key) plus a workdir/env into concrete port
  * layers. Adapter implementations live in the exempt-edge packages
- * (@ktb/eval-dataset-stub/-local/-cloud); this file only selects and
+ * (@ktb/eval-adapter-stub/-local/-cloud); this file only selects and
  * configures them. Non-stub adapters that need endpoints/credentials
  * read env vars and fail with a named-variable error, never a silent
  * default that would egress somewhere unintended.
@@ -25,7 +25,7 @@ import * as Layer from "effect/Layer";
 
 import { EvalPort, PortError, type EvalAnswer, type RunRecord } from "@ktb/eval-core";
 import { AsrPort, LlmPort, TtsPort, type TaskEnvelope } from "@ktb/eval-consult";
-import { makeWorkersAiAsr } from "@ktb/eval-dataset-cloud";
+import { makeWorkersAiAsr } from "@ktb/eval-adapter-cloud";
 import {
 	makeAcpLlm,
 	makeJevEval,
@@ -34,8 +34,8 @@ import {
 	makeLocalStoreLayer,
 	makeLocalTts,
 	type AcpTransport,
-} from "@ktb/eval-dataset-local";
-import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-dataset-stub";
+} from "@ktb/eval-adapter-local";
+import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-adapter-stub";
 
 // ---------- stub port layers (deterministic, zero I/O) ----------
 
@@ -49,7 +49,7 @@ const stubRecord = (stage: string, taskId: string, engine: string): RunRecord =>
 	latencyMs: 0,
 });
 
-/** Same canned outputs as @ktb/eval-dataset-stub's makeStubLayer,
+/** Same canned outputs as @ktb/eval-adapter-stub's makeStubLayer,
  * exposed per-port so the CLI can mix stub model ports with the
  * persistent local store/report. */
 export const stubTtsLayer = Layer.succeed(

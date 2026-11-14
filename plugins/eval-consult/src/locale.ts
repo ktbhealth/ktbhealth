@@ -22,7 +22,7 @@ import type { PhiCategory } from "./anonymize.ts";
  *   English literals, but the region list itself is pt-BR geography.
  *   A second locale should ship its own matrix alongside its profile.
  * - Judge question phrasing in pipeline.ts is English already.
- * - eval-dataset-local adapter defaults (pt-BR edge-tts voices,
+ * - eval-adapter-local adapter defaults (pt-BR edge-tts voices,
  *   faster-whisper "pt") are edge/provider concerns, owned by the
  *   adapters — the profile's `asrLanguage` is what the domain sends.
  */

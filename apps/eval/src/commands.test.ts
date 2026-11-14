@@ -2,17 +2,38 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import * as Effect from "effect/Effect";
+import { FileSystem, Layer, Path, Stdio, Terminal } from "effect";
+import { ChildProcessSpawner } from "effect/process";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { storeReportLayers } from "./adapters.ts";
 import { repoRoot, type CmdContext } from "./context.ts";
-import { generateCommand } from "./commands/generate.ts";
-import { runCommand } from "./commands/run.ts";
-import { gateCommand } from "./commands/gate.ts";
-import { reportCommand } from "./commands/report.ts";
-import { benchCommand } from "./commands/bench.ts";
-import { listCommand } from "./commands/list.ts";
 import { run } from "./cli.ts";
+
+/** In-memory stand-ins for the CLI Environment services — the command
+ * handlers never touch them (they use node:fs directly); only the
+ * effect/cli runner needs them for help/error rendering. */
+const CliTestLayer = Layer.mergeAll(
+	FileSystem.layerNoop({}),
+	Path.layer,
+	Stdio.layerTest({}),
+	Layer.succeed(
+		Terminal.Terminal,
+		Terminal.make({
+			columns: Effect.succeed(80),
+			rows: Effect.succeed(24),
+			size: Effect.die("unused"),
+			readInput: Effect.die("unused"),
+			readLine: Effect.die("unused"),
+			display: () => Effect.void,
+		}),
+	),
+	Layer.succeed(
+		ChildProcessSpawner.ChildProcessSpawner,
+		ChildProcessSpawner.make(() => Effect.die("unused")),
+	),
+);
 
 let evalsDir = "";
 let workdir = "";
@@ -42,6 +63,9 @@ const ctx = (): CmdContext => ({
 	env: {},
 });
 
+/** Run the full command tree against argv (no "eval" prefix). */
+const exec = (args: readonly string[], c: CmdContext = ctx()) => run(args, c, CliTestLayer);
+
 beforeAll(() => {
 	evalsDir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-evals-"));
 	fs.writeFileSync(path.join(evalsDir, "fx.ts"), SUITE);
@@ -53,11 +77,11 @@ afterAll(() => {
 	fs.rmSync(workdir, { recursive: true, force: true });
 });
 
-describe("listCommand", () => {
+describe("list", () => {
 	test("prints suite + resolution summary", async () => {
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await listCommand([], ctx())).toBe(0);
+			expect(await exec(["list"])).toBe(0);
 			const out = spy.mock.calls.map((c) => String(c[0])).join("\n");
 			expect(out).toContain("fx — ");
 			expect(out).toContain("0 unresolved ref(s)");
@@ -74,8 +98,8 @@ describe("listCommand", () => {
 		);
 		try {
 			vi.spyOn(console, "log").mockImplementation(() => {});
-			expect(await listCommand(["--dir", badDir, "--strict"], ctx())).toBe(1);
-			expect(await listCommand(["--dir", badDir], ctx())).toBe(0);
+			expect(await exec(["list", "--dir", badDir, "--strict"])).toBe(1);
+			expect(await exec(["list", "--dir", badDir])).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(badDir, { recursive: true, force: true });
@@ -86,7 +110,7 @@ describe("listCommand", () => {
 		const empty = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-empty-"));
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await listCommand(["--dir", empty], ctx())).toBe(0);
+			expect(await exec(["list", "--dir", empty])).toBe(0);
 			expect(spy.mock.calls.flat().join(" ")).toContain("no suite manifests");
 		} finally {
 			spy.mockRestore();
@@ -95,12 +119,12 @@ describe("listCommand", () => {
 	});
 });
 
-describe("generateCommand", () => {
+describe("generate", () => {
 	test("generates samples end-to-end under stub profile", async () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
 			expect(
-				await generateCommand(["fx", "--n", "2", "--workdir", workdir], {
+				await exec(["generate", "fx", "--n", "2", "--workdir", workdir], {
 					...ctx(),
 					fetchImpl: fetch,
 				}),
@@ -117,27 +141,25 @@ describe("generateCommand", () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
 			expect(
-				await generateCommand(
-					[
-						"fx",
-						"--personas=1",
-						"--step",
-						"3",
-						"--seed",
-						"7",
-						"--noise",
-						"clinic",
-						"--template",
-						"followup",
-						"--concurrency",
-						"1",
-						"--run-id",
-						"gen-x",
-						"--workdir",
-						wd,
-					],
-					ctx(),
-				),
+				await exec([
+					"generate",
+					"fx",
+					"--personas=1",
+					"--step",
+					"3",
+					"--seed",
+					"7",
+					"--noise",
+					"clinic",
+					"--template",
+					"followup",
+					"--concurrency",
+					"1",
+					"--run-id",
+					"gen-x",
+					"--workdir",
+					wd,
+				]),
 			).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
@@ -145,23 +167,34 @@ describe("generateCommand", () => {
 		}
 	});
 
-	test("bad flags are errors", async () => {
-		await expect(generateCommand(["nope", "--workdir", workdir], ctx())).rejects.toThrow(
-			/unknown suite/,
-		);
-		await expect(
-			generateCommand(["fx", "--profile", "bogus", "--workdir", workdir], ctx()),
-		).rejects.toThrow(/unknown --profile/);
-		await expect(
-			generateCommand(["fx", "--noise", "loud", "--workdir", workdir], ctx()),
-		).rejects.toThrow(/--noise/);
-		await expect(
-			generateCommand(["fx", "--locale", "en", "--workdir", workdir], ctx()),
-		).rejects.toThrow(/unknown --locale/);
-		await expect(
-			generateCommand(["fx", "--template", "../x", "--workdir", workdir], ctx()),
-		).rejects.toThrow(/bare template name/);
-		await expect(generateCommand(["fx", "--workdir", "/etc"], ctx())).rejects.toThrow(/--workdir/);
+	test("bad flags are usage errors (exit 2)", async () => {
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			// Unknown suite → command error → 1.
+			expect(await exec(["generate", "nope", "--workdir", workdir])).toBe(1);
+			// Semantic flag validation → UsageError → 2.
+			expect(await exec(["generate", "fx", "--profile", "bogus", "--workdir", workdir])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("unknown --profile");
+			expect(await exec(["generate", "fx", "--noise", "loud", "--workdir", workdir])).toBe(2);
+			expect(await exec(["generate", "fx", "--locale", "en", "--workdir", workdir])).toBe(2);
+			expect(await exec(["generate", "fx", "--template", "../x", "--workdir", workdir])).toBe(2);
+			expect(await exec(["generate", "fx", "--workdir", "/etc"])).toBe(2);
+			expect(await exec(["generate", "fx", "--n", "0", "--workdir", workdir])).toBe(2);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("argv parse failures exit 2 (unknown flag, bad int)", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["generate", "fx", "--bogus", "1", "--workdir", workdir])).toBe(2);
+			expect(await exec(["generate", "fx", "--n", "abc", "--workdir", workdir])).toBe(2);
+			expect(await exec(["generate", "fx", "extra", "--workdir", workdir])).toBe(2);
+		} finally {
+			vi.restoreAllMocks();
+		}
 	});
 
 	test("unresolvable tts capability fails before any work", async () => {
@@ -170,11 +203,28 @@ describe("generateCommand", () => {
 			path.join(dir, "notts.ts"),
 			`export const suite = { id: "notts", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], schemaVersion: 1 };`,
 		);
-		const c = { ...ctx(), evalsDir: dir };
-		await expect(generateCommand(["notts", "--workdir", workdir], c)).rejects.toThrow(
-			/capability "tts"/,
-		);
-		fs.rmSync(dir, { recursive: true, force: true });
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			expect(
+				await exec(["generate", "notts", "--workdir", workdir], { ...ctx(), evalsDir: dir }),
+			).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain('capability "tts"');
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("missing template file is a command error (exit 1)", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(
+				await exec(["generate", "fx", "--template", "no-such-template", "--workdir", workdir]),
+			).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+		}
 	});
 
 	test("adapter failures surface as failed outcomes (exit 1)", { timeout: 30_000 }, async () => {
@@ -183,11 +233,9 @@ describe("generateCommand", () => {
 		try {
 			// local profile → edge-tts: the binary is absent in test env,
 			// so every synthesis fails and the command reports failures.
-			const code = await generateCommand(
-				["fx", "--profile", "local", "--n", "1", "--workdir", wd],
-				ctx(),
-			);
-			expect(code).toBe(1);
+			expect(
+				await exec(["generate", "fx", "--profile", "local", "--n", "1", "--workdir", wd]),
+			).toBe(1);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
@@ -199,15 +247,14 @@ describe("run/gate/report round-trip", () => {
 	test("run processes the generated cohort, gate reports, report renders", async () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			const runCode = await runCommand(["fx", "--workdir", workdir], ctx());
-			expect(runCode).toBe(0);
+			expect(await exec(["run", "fx", "--workdir", workdir])).toBe(0);
 
 			// gate without --enforce is a report (0); with it, red → 1.
-			expect(await gateCommand(["fx", "--workdir", workdir], ctx())).toBe(0);
-			expect(await gateCommand(["fx", "--workdir", workdir, "--enforce"], ctx())).toBe(1);
+			expect(await exec(["gate", "fx", "--workdir", workdir])).toBe(0);
+			expect(await exec(["gate", "fx", "--workdir", workdir, "--enforce"])).toBe(1);
 
-			expect(await reportCommand(["fx", "--workdir", workdir], ctx())).toBe(0);
-			expect(await reportCommand(["fx", "--workdir", workdir, "--run-id", "nope"], ctx())).toBe(0);
+			expect(await exec(["report", "fx", "--workdir", workdir])).toBe(0);
+			expect(await exec(["report", "fx", "--workdir", workdir, "--run-id", "nope"])).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 		}
@@ -217,10 +264,21 @@ describe("run/gate/report round-trip", () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-emptyrun-"));
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await runCommand(["fx", "--workdir", wd], ctx())).toBe(1);
+			expect(await exec(["run", "fx", "--workdir", wd])).toBe(1);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("run rejects --limit 0 and non-integer flags", async () => {
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "fx", "--workdir", workdir, "--limit", "0"])).toBe(2);
+			expect(await exec(["run", "fx", "--workdir", workdir, "--concurrency", "x"])).toBe(2);
+		} finally {
+			vi.restoreAllMocks();
 		}
 	});
 
@@ -228,8 +286,8 @@ describe("run/gate/report round-trip", () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-nodata-"));
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await gateCommand(["fx", "--workdir", wd], ctx())).toBe(0);
-			expect(await reportCommand(["fx", "--workdir", wd], ctx())).toBe(0);
+			expect(await exec(["gate", "fx", "--workdir", wd])).toBe(0);
+			expect(await exec(["report", "fx", "--workdir", wd])).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
@@ -239,7 +297,7 @@ describe("run/gate/report round-trip", () => {
 	test("gate on a missing runId is a clean no-op", async () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await gateCommand(["fx", "--workdir", workdir, "--run-id", "nope"], ctx())).toBe(0);
+			expect(await exec(["gate", "fx", "--workdir", workdir, "--run-id", "nope"])).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 		}
@@ -249,7 +307,6 @@ describe("run/gate/report round-trip", () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-green-"));
 		const { store } = storeReportLayers(wd);
 		const { DatasetStorePort } = await import("@ktb/eval-consult");
-		const { Effect } = await import("effect");
 		await Effect.runPromise(
 			Effect.gen(function* () {
 				const s = yield* DatasetStorePort;
@@ -275,7 +332,7 @@ describe("run/gate/report round-trip", () => {
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
 			expect(
-				await gateCommand(["fx", "--workdir", wd, "--run-id", "green-run", "--enforce"], ctx()),
+				await exec(["gate", "fx", "--workdir", wd, "--run-id", "green-run", "--enforce"]),
 			).toBe(0);
 			const out = spy.mock.calls.flat().join("\n");
 			expect(out).toContain("GREEN");
@@ -292,10 +349,32 @@ describe("run/gate/report round-trip", () => {
 			path.join(dir, "mgate.ts"),
 			`export const suite = { id: "mgate", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [{ id: "mystery-gate" }], schemaVersion: 1 };`,
 		);
-		const c = { ...ctx(), evalsDir: dir };
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
-			await expect(gateCommand(["mgate", "--workdir", workdir], c)).rejects.toThrow(/no runner/);
+			expect(await exec(["gate", "mgate", "--workdir", workdir], { ...ctx(), evalsDir: dir })).toBe(
+				1,
+			);
+			expect(err.mock.calls.flat().join(" ")).toContain("no runner");
 		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("gate with undecodable params is a usage error (exit 2)", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-bgate-"));
+		fs.writeFileSync(
+			path.join(dir, "bgate.ts"),
+			`export const suite = { id: "bgate", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [{ id: "auto-accept", params: { stage: "bogus" } }], schemaVersion: 1 };`,
+		);
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["gate", "bgate", "--workdir", workdir], { ...ctx(), evalsDir: dir })).toBe(
+				2,
+			);
+		} finally {
+			vi.restoreAllMocks();
 			fs.rmSync(dir, { recursive: true, force: true });
 		}
 	});
@@ -304,7 +383,6 @@ describe("run/gate/report round-trip", () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-report-"));
 		const { store } = storeReportLayers(wd);
 		const { DatasetStorePort } = await import("@ktb/eval-consult");
-		const { Effect } = await import("effect");
 		const put = (runId: string, sampleId: string, createdAt: number) =>
 			Effect.runPromise(
 				Effect.gen(function* () {
@@ -324,8 +402,8 @@ describe("run/gate/report round-trip", () => {
 		await put("zero-run", "s0", 0);
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await reportCommand(["fx", "--workdir", wd], ctx())).toBe(0);
-			expect(await reportCommand(["fx", "--workdir", wd, "--run-id", "old-run"], ctx())).toBe(0);
+			expect(await exec(["report", "fx", "--workdir", wd])).toBe(0);
+			expect(await exec(["report", "fx", "--workdir", wd, "--run-id", "old-run"])).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
@@ -338,17 +416,16 @@ describe("run/gate/report round-trip", () => {
 		try {
 			// --limit 1 over the 2-sample cohort.
 			expect(
-				await runCommand(["fx", "--workdir", workdir, "--limit", "1", "--run-id", "run-lim"], c),
+				await exec(["run", "fx", "--workdir", workdir, "--limit", "1", "--run-id", "run-lim"], c),
 			).toBe(0);
 
 			// A sample with no audio fails its step but not the batch.
 			const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-badsample-"));
-			await generateCommand(["fx", "--n", "1", "--workdir", wd], ctx());
+			await exec(["generate", "fx", "--n", "1", "--workdir", wd]);
 			const { DatasetStorePort: DSP } = await import("@ktb/eval-consult");
-			const { Effect: Eff } = await import("effect");
 			const { store } = storeReportLayers(wd);
-			await Eff.runPromise(
-				Eff.gen(function* () {
+			await Effect.runPromise(
+				Effect.gen(function* () {
 					const s = yield* DSP;
 					yield* s.putSample({
 						id: "no-audio",
@@ -359,59 +436,57 @@ describe("run/gate/report round-trip", () => {
 						persona: { region: "r", ageBand: "a", register: "f", specialty: "s" },
 						gold: { validatedBy: "generator" },
 					});
-				}).pipe(Eff.provide(store)),
+				}).pipe(Effect.provide(store)),
 			);
-			expect(await runCommand(["fx", "--workdir", wd], ctx())).toBe(1);
+			expect(await exec(["run", "fx", "--workdir", wd])).toBe(1);
 			fs.rmSync(wd, { recursive: true, force: true });
 		} finally {
 			vi.restoreAllMocks();
 		}
 	});
 
-	test("gate flag overrides and unknown gate ids", async () => {
+	test("gate flag overrides and invalid --stage", async () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			// Overrides parse and apply (still red — stub WER is huge).
 			expect(
-				await gateCommand(
-					[
-						"fx",
-						"--workdir",
-						workdir,
-						"--stage",
-						"asr",
-						"--max-wer",
-						"9",
-						"--min-n",
-						"0",
-						"--target",
-						"0.1",
-						"--max-risk",
-						"9",
-						"--max-harmful-edits",
-						"9",
-						"--max-unjudged-edits",
-						"9",
-						"--z",
-						"1",
-					],
-					ctx(),
-				),
+				await exec([
+					"gate",
+					"fx",
+					"--workdir",
+					workdir,
+					"--stage",
+					"asr",
+					"--max-wer",
+					"9",
+					"--min-n",
+					"0",
+					"--target",
+					"0.1",
+					"--max-risk",
+					"9",
+					"--max-harmful-edits",
+					"9",
+					"--max-unjudged-edits",
+					"9",
+					"--z",
+					"1",
+				]),
 			).toBe(0);
-			await expect(
-				gateCommand(["fx", "--workdir", workdir, "--stage", "bogus"], ctx()),
-			).rejects.toThrow(/--stage/);
+			expect(await exec(["gate", "fx", "--workdir", workdir, "--stage", "bogus"])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("--stage");
 		} finally {
 			vi.restoreAllMocks();
 		}
 	});
 });
 
-describe("benchCommand", () => {
+describe("bench", () => {
 	test("prints the deferral notice and exits 2", async () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
-			expect(await benchCommand([], ctx())).toBe(2);
+			expect(await exec(["bench"])).toBe(2);
 			expect(spy.mock.calls.flat().join(" ")).toContain("not yet wired");
 		} finally {
 			spy.mockRestore();
@@ -422,20 +497,24 @@ describe("benchCommand", () => {
 describe("cli.run dispatch", () => {
 	test("no args prints help, exit 2; help exits 0", async () => {
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
-			expect(await run([])).toBe(2);
-			expect(await run(["help"])).toBe(0);
-			expect(await run(["--help"])).toBe(0);
-			expect(spy.mock.calls.flat().join(" ")).toContain("usage: eval");
+			expect(await exec([])).toBe(2);
+			expect(await exec(["help"])).toBe(0);
+			expect(await exec(["--help"])).toBe(0);
+			expect(await exec(["--version"])).toBe(0);
+			const out = [...spy.mock.calls, ...errSpy.mock.calls].flat().join("\n");
+			expect(out).toContain("eval");
 		} finally {
-			spy.mockRestore();
+			vi.restoreAllMocks();
 		}
 	});
 
 	test("unknown command exits 2", async () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			expect(await run(["bogus"])).toBe(2);
+			expect(await exec(["bogus"])).toBe(2);
 		} finally {
 			vi.restoreAllMocks();
 		}
@@ -443,13 +522,13 @@ describe("cli.run dispatch", () => {
 
 	test("usage errors exit 2, command errors exit 1", async () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
 		try {
-			// Missing positional → UsageError → 2.
-			expect(await run(["generate"])).toBe(2);
-			// Unknown suite → Error → 1.
-			expect(await run(["generate", "ghost", "--workdir", workdir])).toBe(1);
-			// Unknown suite id on list path is N/A; gate on missing suite → 1.
-			expect(await run(["gate", "ghost", "--workdir", workdir])).toBe(1);
+			// Missing positional → parse error → 2.
+			expect(await exec(["generate"])).toBe(2);
+			// Unknown suite → command error → 1.
+			expect(await exec(["generate", "ghost", "--workdir", workdir])).toBe(1);
+			expect(await exec(["gate", "ghost", "--workdir", workdir])).toBe(1);
 		} finally {
 			vi.restoreAllMocks();
 		}
@@ -460,12 +539,12 @@ describe("cli.run dispatch", () => {
 		vi.spyOn(console, "log").mockImplementation(() => {});
 		vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
-			expect(await run(["generate", "fx", "--n", "1", "--workdir", wd], ctx())).toBe(0);
-			expect(await run(["run", "fx", "--workdir", wd], ctx())).toBe(0);
-			expect(await run(["report", "fx", "--workdir", wd], ctx())).toBe(0);
-			expect(await run(["list"])).toBe(0);
-			expect(await run(["gate", "fx", "--workdir", wd], ctx())).toBe(0);
-			expect(await run(["bench"])).toBe(2);
+			expect(await exec(["generate", "fx", "--n", "1", "--workdir", wd])).toBe(0);
+			expect(await exec(["run", "fx", "--workdir", wd])).toBe(0);
+			expect(await exec(["report", "fx", "--workdir", wd])).toBe(0);
+			expect(await exec(["list"])).toBe(0);
+			expect(await exec(["gate", "fx", "--workdir", wd])).toBe(0);
+			expect(await exec(["bench"])).toBe(2);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });

@@ -11,7 +11,7 @@ import { LlmPort } from "@ktb/eval-consult/ports";
  * ports — LlmPort (generative, ACP-delegated: script_gen + cleanup
  * stages) and EvalPort (typed decision/judge). Adapter
  * implementations stay in the exempt-edge packages
- * (@ktb/eval-dataset-stub/-local/-cloud) because plugins/* is inside
+ * (@ktb/eval-adapter-stub/-local/-cloud) because plugins/* is inside
  * arch-policy PORT_GLOBS — the Jev adapter's provider path literal
  * alone would trip ktb-arch/provider-lockin here. See
  * plugins/transcription-tts/src/index.ts for the full mechanism.
@@ -20,9 +20,9 @@ import { LlmPort } from "@ktb/eval-consult/ports";
  * code and stay in eval.consult — this plugin only declares which
  * adapters speak it.
  *
- * Adapter keys → packages: "stub" → @ktb/eval-dataset-stub,
- * "acp" → @ktb/eval-dataset-local `makeAcpLlm`,
- * "jev" → @ktb/eval-dataset-local `makeJevEval`.
+ * Adapter keys → packages: "stub" → @ktb/eval-adapter-stub,
+ * "acp" → @ktb/eval-adapter-local `makeAcpLlm`,
+ * "jev" → @ktb/eval-adapter-local `makeJevEval`.
  */
 export const llmEvalPlugin = definePlugin({
 	id: "llm.eval",
@@ -52,8 +52,8 @@ export const llmEvalContributions: readonly Contribution[] = [
 		meta: {
 			port: LlmPort.key,
 			adapters: {
-				stub: "@ktb/eval-dataset-stub",
-				acp: "@ktb/eval-dataset-local",
+				stub: "@ktb/eval-adapter-stub",
+				acp: "@ktb/eval-adapter-local",
 			},
 		},
 	},
@@ -64,8 +64,8 @@ export const llmEvalContributions: readonly Contribution[] = [
 		meta: {
 			port: EvalPort.key,
 			adapters: {
-				stub: "@ktb/eval-dataset-stub",
-				jev: "@ktb/eval-dataset-local",
+				stub: "@ktb/eval-adapter-stub",
+				jev: "@ktb/eval-adapter-local",
 			},
 		},
 	},

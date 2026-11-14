@@ -17,7 +17,7 @@ import {
 	type Sample,
 	type TaskEnvelope,
 } from "@ktb/eval-consult";
-import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-dataset-stub";
+import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-adapter-stub";
 
 import {
 	capabilityLayer,

@@ -21,7 +21,7 @@ import * as Data from "effect/Data";
  * host adapter code themselves (plugins/* is inside the arch-policy
  * PORT_GLOBS: no node:*, provider literals, or adapter imports), so
  * `meta.adapters` maps adapter keys to the exempt-edge packages
- * (@ktb/eval-dataset-stub/-local/-cloud) that implement the port named
+ * (@ktb/eval-adapter-stub/-local/-cloud) that implement the port named
  * by `meta.port`. Consumers compose by iterating the arrays and calling
  * `register` per entry — there is no global singleton.
  */
