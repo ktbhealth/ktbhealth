@@ -30,6 +30,8 @@
         "@ktb/consultations": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/db-sqlite": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "@ktb/email-smtp": "workspace:*",
         "@ktb/infra-cloudflare": "workspace:*",
         "@ktb/interop": "workspace:*",
         "@ktb/interop-fhir": "workspace:*",
@@ -149,6 +151,10 @@
         "@ktb/captcha-turnstile": "workspace:*",
         "@ktb/db": "workspace:*",
         "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "@ktb/email-cloudflare": "workspace:*",
+        "@ktb/email-smtp": "workspace:*",
+        "@ktb/email-stub": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/observability": "workspace:*",
         "@ktb/observability-otlp": "workspace:*",
@@ -259,6 +265,37 @@
       "name": "@ktb/driver-framework",
       "dependencies": {
         "@ktb/kernel": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email": {
+      "name": "@ktb/email",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email-cloudflare": {
+      "name": "@ktb/email-cloudflare",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email-smtp": {
+      "name": "@ktb/email-smtp",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email-stub": {
+      "name": "@ktb/email-stub",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
         "effect": "4.1.2",
       },
     },
@@ -465,6 +502,7 @@
       "dependencies": {
         "@ktb/auth-better": "workspace:*",
         "@ktb/captcha": "workspace:*",
+        "@ktb/email": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/server-fns": "workspace:*",
         "@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",
@@ -1242,6 +1280,14 @@
     "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
+
+    "@ktb/email": ["@ktb/email@workspace:packages/email"],
+
+    "@ktb/email-cloudflare": ["@ktb/email-cloudflare@workspace:packages/email-cloudflare"],
+
+    "@ktb/email-smtp": ["@ktb/email-smtp@workspace:packages/email-smtp"],
+
+    "@ktb/email-stub": ["@ktb/email-stub@workspace:packages/email-stub"],
 
     "@ktb/eval-dataset": ["@ktb/eval-dataset@workspace:packages/eval-dataset"],
 

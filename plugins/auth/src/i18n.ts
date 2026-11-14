@@ -27,6 +27,7 @@ export interface AuthMessages {
 	readonly pending: string;
 	readonly errorFallback: string;
 	readonly errorPasswordMismatch: string;
+	readonly verifyLink: string;
 }
 
 const en: AuthMessages = {
@@ -45,6 +46,7 @@ const en: AuthMessages = {
 	pending: "Please wait…",
 	errorFallback: "Could not sign in. Please try again.",
 	errorPasswordMismatch: "Passwords do not match.",
+	verifyLink: "Didn't get the verification email?",
 };
 
 const ptBR: AuthMessages = {
@@ -63,6 +65,7 @@ const ptBR: AuthMessages = {
 	pending: "Aguarde…",
 	errorFallback: "Não foi possível entrar. Tente novamente.",
 	errorPasswordMismatch: "As senhas não coincidem.",
+	verifyLink: "Não recebeu o e-mail de verificação?",
 };
 
 const es: AuthMessages = {
@@ -81,6 +84,7 @@ const es: AuthMessages = {
 	pending: "Espere…",
 	errorFallback: "No se pudo iniciar sesión. Inténtelo de nuevo.",
 	errorPasswordMismatch: "Las contraseñas no coinciden.",
+	verifyLink: "¿No recibiste el correo de verificación?",
 };
 
 const CATALOGS: Record<AuthLocale, AuthMessages> = { en, "pt-BR": ptBR, es };

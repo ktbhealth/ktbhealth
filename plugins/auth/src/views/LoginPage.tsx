@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
@@ -20,11 +21,18 @@ import { authMessages } from "../i18n.ts";
 /**
  * Sign-in / create-account page (moved from apps/web/src/routes/login.tsx,
  * P-062). `locale` arrives via the route loader (localeFn) — plugins
- * cannot import the host's Paraglide runtime. The better-auth client is
- * inherently impl-bound (documented vite.config exception, same role the
- * host route files had).
+ * cannot import the host's Paraglide runtime. `emailEnabled` tells the
+ * sign-up flow whether a verification message can actually be sent.
+ * The better-auth client is inherently impl-bound (documented
+ * vite.config exception, same role the host route files had).
  */
-export function LoginPage({ locale }: { readonly locale: string }) {
+export function LoginPage({
+	locale,
+	emailEnabled,
+}: {
+	readonly locale: string;
+	readonly emailEnabled: boolean;
+}) {
 	const t = authMessages(locale);
 	const [mode, setMode] = useState<"in" | "up">("in");
 	const [email, setEmail] = useState("");
@@ -51,16 +59,21 @@ export function LoginPage({ locale }: { readonly locale: string }) {
 				? await authClient.signUp.email({
 						...credentials,
 						name: signUpName,
+						// Where the emailed verification link lands.
+						callbackURL: "/verify-email",
 					} as Parameters<typeof authClient.signUp.email>[0])
 				: await authClient.signIn.email(
 						credentials as Parameters<typeof authClient.signIn.email>[0],
 					);
-		setPending(false);
 		if (res.error) {
+			setPending(false);
 			setError(res.error.message ?? t.errorFallback);
 			return;
 		}
-		window.location.assign("/");
+		// Signed in: stay pending until the browser navigates away. A new
+		// account goes through the verification step — but only when this
+		// deployment can actually send the email.
+		window.location.assign(mode === "up" && emailEnabled ? "/verify-email" : "/");
 	};
 
 	return (
@@ -134,6 +147,12 @@ export function LoginPage({ locale }: { readonly locale: string }) {
 							{pending ? t.pending : mode === "in" ? t.submitIn : t.submitUp}
 						</Button>
 					</form>
+					<Link
+						to="/verify-email"
+						className="mt-4 block text-center text-sm text-muted-foreground transition hover:text-foreground"
+					>
+						{t.verifyLink}
+					</Link>
 				</CardContent>
 			</Card>
 		</div>

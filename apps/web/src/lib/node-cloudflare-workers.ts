@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { makeSqliteDatabase } from "@ktb/db-sqlite";
+import { connect as nodeSocketConnect } from "@ktb/email-smtp/node-connect";
 import { OBSERVABILITY_ENV_KEYS } from "@ktb/observability";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
@@ -67,6 +68,9 @@ const ENV_KEYS = [
 	"AUDIO_TRANSCRIBE_MODEL",
 	"AI_STUB",
 	"AI_BASE_URL",
+	"SMTP_URL",
+	"EMAIL_FROM",
+	"EMAIL_STUB",
 	// Every ObservabilityEnv key — telemetryConfigFromEnv reads them off
 	// the worker env, so dev:node must forward the full canonical list
 	// (single source in @ktb/observability, pinned by its tests).
@@ -123,5 +127,10 @@ env.AUDIO_QUEUE = makeLocalQueue({
 // their honest "not configured" paths instead of a throwing stub.
 const aiStandIn = resolveAi(env as AiEnv);
 if (aiStandIn !== undefined) env.AI = aiStandIn;
+
+// Socket transport for the SMTP email driver (node:net stand-in for
+// workerd's cloudflare:sockets connect — see @ktb/email-smtp). Bound
+// unconditionally; the driver only reads it when SMTP_URL is set.
+env.SMTP_CONNECT = nodeSocketConnect;
 
 export { env };

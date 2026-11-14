@@ -21,9 +21,27 @@ vi.mock("@ktb/auth-better/client", () => ({
 	},
 }));
 
+const loaderData = { emailEnabled: false };
+
+// The view renders outside a router: Link degrades to a plain anchor and
+// `emailEnabled` arrives via the mutable `loaderData` above.
+vi.mock("@tanstack/react-router", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@tanstack/react-router")>();
+	const React = await import("react");
+	return {
+		...actual,
+		Link: ({ to, children, className }: { to: string; children?: unknown; className?: string }) =>
+			React.createElement("a", { href: to, className }, children as never),
+	};
+});
+
 import { LoginPage } from "../views/LoginPage.tsx";
 
-const Page = () => createElement(LoginPage, { locale: "en" }) as ReactElement;
+const Page = () =>
+	createElement(LoginPage, {
+		locale: "en",
+		emailEnabled: loaderData.emailEnabled,
+	}) as ReactElement;
 
 async function fillAndSubmit() {
 	fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
@@ -167,5 +185,55 @@ describe("sign-in page", () => {
 		render(createElement(Page));
 		await fillAndSubmit();
 		await screen.findByText("Could not sign in. Please try again.");
+	});
+
+	describe("post-submit destination", () => {
+		const assign = vi.fn<(url: string) => void>();
+
+		beforeEach(() => {
+			assign.mockClear();
+			loaderData.emailEnabled = false;
+			vi.stubGlobal("location", { assign });
+		});
+
+		afterEach(() => vi.unstubAllGlobals());
+
+		const signUp = async () => {
+			render(createElement(Page));
+			fireEvent.click(screen.getByRole("tab", { name: "Create account" }));
+			fireEvent.change(screen.getByLabelText("Email"), { target: { value: "dra@x.com" } });
+			fireEvent.change(screen.getByLabelText("Password"), { target: { value: "senha12345" } });
+			fireEvent.change(screen.getByLabelText("Confirm password"), {
+				target: { value: "senha12345" },
+			});
+			await act(async () => {
+				fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+			});
+		};
+
+		it("sends a new account to the verification step", async () => {
+			loaderData.emailEnabled = true;
+			await signUp();
+			await waitFor(() => expect(assign).toHaveBeenCalledWith("/verify-email"));
+		});
+
+		it("sends a new account home when email is disabled", async () => {
+			await signUp();
+			await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+		});
+
+		it("sends a sign-in straight home", async () => {
+			loaderData.emailEnabled = true;
+			render(createElement(Page));
+			await fillAndSubmit();
+			await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+		});
+	});
+
+	it("links to the resend-verification screen", () => {
+		render(createElement(Page));
+		expect(
+			screen.getByRole("link", { name: "Didn't get the verification email?" }).getAttribute("href"),
+		).toBe("/verify-email");
 	});
 });

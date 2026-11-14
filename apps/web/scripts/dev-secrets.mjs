@@ -32,6 +32,9 @@ const OPTIONAL = [
 	"PLATFORM_ADMIN_EMAILS",
 	"AUDIO_TRANSCRIBE_MODEL",
 	"CAPTCHA_STUB",
+	"EMAIL_STUB",
+	"SMTP_URL",
+	"EMAIL_FROM",
 	// Telemetry config — mirrors OBSERVABILITY_ENV_KEYS in
 	// @ktb/observability (config.ts); keep in sync. These are optional
 	// OTEL_*/KTB_* vars so `OTEL_EXPORTER_OTLP_ENDPOINT=… bun run

@@ -1,0 +1,13 @@
+{
+	"name": "@ktb/email-cloudflare",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/driver-framework": "workspace:*",
+		"@ktb/email": "workspace:*",
+		"effect": "4.1.2"
+	}
+}

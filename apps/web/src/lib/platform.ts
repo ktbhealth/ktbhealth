@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { connect as socketConnect } from "cloudflare:sockets";
 
 import {
 	audioStorageStats,
@@ -15,6 +16,7 @@ import { PluginStates } from "@ktb/platform/plugin-states";
 import { getLocale } from "#/paraglide/runtime.js";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
+import { verificationEmail } from "./emails.ts";
 import { makeTenantDirectory } from "./tenant-directory.ts";
 import { requestTelemetryContext } from "./telemetry.ts";
 import { makeFlushThrottler } from "./telemetry-flush.ts";
@@ -34,7 +36,7 @@ import { openEhrExporter } from "@ktb/interop-openehr";
 // binding (wrangler.dev.jsonc), so resolve before composing the app.
 const aiBinding = resolveAi(env as unknown as AiEnv);
 
-const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
+const appEnv = { ...env, AI: aiBinding, SMTP_CONNECT: socketConnect } as Record<string, unknown>;
 
 // Tenant resolution (P-053, phase A): the directory reads the groups
 // plugin's membership tables directly (edge adapter — the groups
@@ -49,7 +51,7 @@ const tenantResolver = makeTenantResolver({
 	selectDefault: (memberships) => (memberships.length === 1 ? memberships[0] : undefined),
 });
 
-const app = createApp(appEnv as unknown as typeof env, { tenantResolver });
+const app = createApp(appEnv as unknown as typeof env, { tenantResolver, verificationEmail });
 
 // T-105: hand the request middleware (start.ts — outside the Effect
 // runtime, and client-safe so it can't import this module) a way to
