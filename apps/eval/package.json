@@ -1,0 +1,14 @@
+{
+	"name": "@ktb/eval-cli",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"eval": "bun src/main.ts"
+	},
+	"dependencies": {
+		"@ktb/eval-dataset": "workspace:*",
+		"@ktb/eval-dataset-local": "workspace:*",
+		"@ktb/eval-dataset-stub": "workspace:*",
+		"effect": "4.1.2"
+	}
+}

@@ -29,7 +29,8 @@
 		"knip": "knip",
 		"gen:route-types": "bun tools/gen-plugin-route-types.mjs",
 		"gen:db-schema": "bun tools/gen-db-schema.mjs",
-		"check:arch": "bun tools/check-arch.mjs"
+		"check:arch": "bun tools/check-arch.mjs",
+		"eval": "bun apps/eval/src/main.ts"
 	},
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.2",

@@ -22,6 +22,10 @@ import {
  * Deterministic stub adapters — zero I/O, zero cost. The fast CI path
  * and unit tests run entirely on these; live adapters must match the
  * same output *shapes*.
+ *
+ * Each port has its own maker so callers can mix real and stub
+ * adapters (e.g. live ASR + stub judge). `makeStubLayer` composes
+ * them all with shared state handles for tests.
  */
 
 export const CANNED_AUDIO_BYTES = new Uint8Array([0x52, 0x49, 0x46, 0x46]); // "RIFF"
@@ -83,15 +87,8 @@ const answerOf = (q: { id: string; kind: string; options?: readonly string[] }):
 	probability: 0.95,
 });
 
-/** Build one merged layer with every stub port; fixtures override the
- * canned outputs for tests that need specific data. */
-export const makeStubLayer = (fixtures: StubFixtures = {}) => {
-	const samples = new Map<string, Sample>();
-	const blobs = new Map<string, Uint8Array>();
-	const results = new Map<string, SampleResult>();
-	const records: RunRecord[] = [];
-
-	const tts = Layer.succeed(
+export const makeStubTts = (fixtures: StubFixtures = {}) =>
+	Layer.succeed(
 		TtsPort,
 		TtsPort.of({
 			synthesize: (input) =>
@@ -106,7 +103,8 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
-	const asr = Layer.succeed(
+export const makeStubAsr = (fixtures: StubFixtures = {}) =>
+	Layer.succeed(
 		AsrPort,
 		AsrPort.of({
 			transcribe: () =>
@@ -114,7 +112,8 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
-	const llm = Layer.succeed(
+export const makeStubLlm = (fixtures: StubFixtures = {}) =>
+	Layer.succeed(
 		LlmPort,
 		LlmPort.of({
 			generate: (envelope) =>
@@ -130,7 +129,8 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
-	const evalPort = Layer.succeed(
+export const makeStubEval = (fixtures: StubFixtures = {}) =>
+	Layer.succeed(
 		EvalPort,
 		EvalPort.of({
 			judge: (input) =>
@@ -141,7 +141,19 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
-	const store = Layer.succeed(
+/** Shared mutable state behind the stub store — pass your own maps to
+ * inspect what the adapter persisted. */
+export interface StubStoreState {
+	readonly samples: Map<string, Sample>;
+	readonly blobs: Map<string, Uint8Array>;
+	readonly results: Map<string, SampleResult>;
+}
+
+export const makeStubStore = (state: Partial<StubStoreState> = {}) => {
+	const samples = state.samples ?? new Map<string, Sample>();
+	const blobs = state.blobs ?? new Map<string, Uint8Array>();
+	const results = state.results ?? new Map<string, SampleResult>();
+	return Layer.succeed(
 		DatasetStorePort,
 		DatasetStorePort.of({
 			putSample: (sample) => Effect.sync(() => void samples.set(sample.id, sample)),
@@ -168,8 +180,10 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 				),
 		}),
 	);
+};
 
-	const report = Layer.succeed(
+export const makeStubReport = (records: RunRecord[] = []) =>
+	Layer.succeed(
 		ReportPort,
 		ReportPort.of({
 			append: (r) => Effect.sync(() => void records.push(r)),
@@ -179,7 +193,26 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
-	return { layer: Layer.mergeAll(tts, asr, llm, evalPort, store, report), records, results };
+/** Build one merged layer with every stub port; fixtures override the
+ * canned outputs for tests that need specific data. */
+export const makeStubLayer = (fixtures: StubFixtures = {}) => {
+	const samples = new Map<string, Sample>();
+	const blobs = new Map<string, Uint8Array>();
+	const results = new Map<string, SampleResult>();
+	const records: RunRecord[] = [];
+
+	return {
+		layer: Layer.mergeAll(
+			makeStubTts(fixtures),
+			makeStubAsr(fixtures),
+			makeStubLlm(fixtures),
+			makeStubEval(fixtures),
+			makeStubStore({ samples, blobs, results }),
+			makeStubReport(records),
+		),
+		records,
+		results,
+	};
 };
 
 /** Default shared layer — canned everything. Stateless outputs, but

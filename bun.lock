@@ -16,6 +16,15 @@
         "vitest": "5.1.0",
       },
     },
+    "apps/eval": {
+      "name": "@ktb/eval-cli",
+      "dependencies": {
+        "@ktb/eval-dataset": "workspace:*",
+        "@ktb/eval-dataset-local": "workspace:*",
+        "@ktb/eval-dataset-stub": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
     "apps/web": {
       "name": "@ktb/web",
       "dependencies": {
@@ -1242,6 +1251,8 @@
     "@ktb/db-sqlite": ["@ktb/db-sqlite@workspace:packages/db-sqlite"],
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
+
+    "@ktb/eval-cli": ["@ktb/eval-cli@workspace:apps/eval"],
 
     "@ktb/eval-dataset": ["@ktb/eval-dataset@workspace:packages/eval-dataset"],
 

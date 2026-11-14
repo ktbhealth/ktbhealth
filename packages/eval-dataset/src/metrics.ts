@@ -22,6 +22,10 @@ export interface NormalizeOpts {
 	 * them, ASR output doesn't; comparing labeled gold to unlabeled
 	 * hyp inflates WER by construction. */
 	readonly stripSpeakers?: boolean;
+	/** BCP-47 locale for word segmentation — `Intl.Segmenter` splits
+	 * "tá bom"/"Sr." correctly under pt-BR and is the seam a future
+	 * LocaleProfile plugs into. Default "pt-BR". */
+	readonly locale?: string;
 }
 
 /** The pinned normalization profile — version this when it changes;
@@ -34,6 +38,7 @@ const DEFAULT_OPTS: Required<NormalizeOpts> = {
 	expandNumbers: true,
 	foldAccents: true,
 	stripSpeakers: true,
+	locale: "pt-BR",
 };
 
 const UNITS = [
@@ -150,13 +155,26 @@ const editDistance = (a: readonly string[], b: readonly string[]): number => {
 	return prev[short.length]!;
 };
 
-const words = (s: string): string[] => (s ? s.split(" ") : []);
+/** Word segmenters are cheap to build but stateful — cache one per
+ * locale instead of re-allocating per call. */
+const segmenters = new Map<string, Intl.Segmenter>();
+
+const words = (s: string, locale: string): string[] => {
+	if (!s) return [];
+	let seg = segmenters.get(locale);
+	if (seg === undefined) {
+		seg = new Intl.Segmenter(locale, { granularity: "word" });
+		segmenters.set(locale, seg);
+	}
+	return [...seg.segment(s)].flatMap((p) => (p.isWordLike ? [p.segment] : []));
+};
 
 /** Word error rate — normalized unless opts disable it. */
 export const wer = (ref: string, hyp: string, opts: NormalizeOpts = {}): number => {
-	const r = words(normalize(ref, opts));
-	if (r.length === 0) return words(normalize(hyp, opts)).length === 0 ? 0 : 1;
-	return editDistance(r, words(normalize(hyp, opts))) / r.length;
+	const locale = opts.locale ?? DEFAULT_OPTS.locale;
+	const r = words(normalize(ref, opts), locale);
+	if (r.length === 0) return words(normalize(hyp, opts), locale).length === 0 ? 0 : 1;
+	return editDistance(r, words(normalize(hyp, opts), locale)) / r.length;
 };
 
 /** Character error rate — Array.from for code points (spread trips
