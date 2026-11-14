@@ -10,13 +10,18 @@ import { Option, Schema } from "effect";
  * contributions (see registry.ts), never inlined. That is what makes a
  * manifest serializable, diffable, and safe to store as a run artifact.
  *
- * COMPOSABILITY STATUS (phase 1): stage/metric/gate refs are VALIDATED
- * against the contribution registry (`eval list --strict`, resolve.ts)
- * but they are not yet DISPATCHED — `meta.fn` on a contribution is a
- * human/ops pointer, not a callable key, and processSample runs a fixed
- * pipeline regardless of the `stages` list. Stage dispatch by
- * contribution id is phase-2 work; until then a manifest's stage list
- * documents intent rather than wiring behavior.
+ * COMPOSABILITY STATUS: stage/metric/gate refs are VALIDATED against
+ * the contribution registry (`eval list --strict`, resolve.ts) and
+ * stages are DISPATCHED — `eval run` maps the manifest's stage ids
+ * through the domain's run-stage selector and executes them in
+ * declared order (a selection may narrow the pipeline, never reorder
+ * it; see plugins/eval-consult pipeline.ts RUN_STAGE_FNS). Metric
+ * refs are validated pointers only — the pipeline emits one
+ * StageMetrics record per produced stage and gates consume all of
+ * it, so metrics are not individually dispatched. Gate refs dispatch
+ * through the composition root's gate decoders (apps/eval
+ * policy.ts). `meta.fn` on a contribution stays a human/ops pointer,
+ * not a callable key.
  *
  * This file knows nothing about transcripts, consultations, or any
  * domain vocabulary — domain packs declare their own `domain` plugin

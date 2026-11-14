@@ -30,11 +30,13 @@ import type {
 
 /**
  * Pipeline stage runners — pure port orchestration. The eval path
- * (S3 ASR → S4 cleanup → S7 judging) is composed by `processSample`;
- * the stage helpers it calls (`transcribeSample`, `cleanupTranscript`,
- * `entityQuestions`, `cleanupQuestions`) stay exported for tests and
- * for callers running stages individually. Generation-side stages
- * (S0 script, S1+S2 TTS) live in generate.ts/scriptgen.ts — the
+ * (S3 ASR → S4 cleanup → S7 judging) is composed by `processSample`,
+ * which dispatches the manifest-selected run stages through
+ * `RUN_STAGE_FNS` in declared order; the stage helpers it calls
+ * (`transcribeSample`, `cleanupTranscript`, `entityQuestions`,
+ * `cleanupQuestions`) stay exported for tests and for callers
+ * running stages individually. Generation-side stages (S0 script,
+ * S1+S2 TTS) live in generate.ts/scriptgen.ts — the
  * `generateScript`/`synthesizeAudio` wrappers that used to sit here
  * had no callers and were removed. Producing/consuming adapters
  * never appear here.
@@ -209,6 +211,68 @@ const editVerdictsFromAnswers = (
 		};
 	});
 
+// ---------- run-stage dispatch ----------
+
+/** Stage ids `eval run` can dispatch — the run-side subset of the
+ * manifest `stages` vocabulary. Generation stages (script_gen,
+ * synthesize) belong to `eval generate`; see GENERATION_STAGES. */
+export const RUN_STAGES = ["transcribe", "cleanup", "judge"] as const;
+export type RunStage = (typeof RUN_STAGES)[number];
+
+export const isRunStage = (id: string): id is RunStage =>
+	(RUN_STAGES as readonly string[]).includes(id);
+
+/** Stage ids owned by dataset generation (`eval generate`) — never
+ * dispatched by the eval run. */
+export const GENERATION_STAGES = ["script_gen", "synthesize"] as const;
+
+/** Canonical dependency order — each run stage consumes earlier
+ * stages' outputs (cleanup reads the ASR text, judge reads both).
+ * A manifest selection must be a SUBSEQUENCE of this order: it may
+ * narrow the pipeline, never reorder it. */
+const RUN_STAGE_ORDER: Readonly<Record<RunStage, number>> = {
+	transcribe: 0,
+	cleanup: 1,
+	judge: 2,
+};
+
+/** Validate a run-stage selection (order as given). Returns an error
+ * message, or null when runnable: every id must be a known run
+ * stage, listed once, in canonical dependency order, and a non-empty
+ * selection must include "transcribe" — cleanup/judge consume its
+ * output. */
+export const runStageError = (stages: readonly string[]): string | null => {
+	if (stages.length === 0) return "no run stages selected";
+	const seen = new Set<string>();
+	let prev = -1;
+	for (const s of stages) {
+		if (!isRunStage(s)) return `unknown run stage "${s}"`;
+		if (seen.has(s)) return `stage "${s}" is listed twice`;
+		seen.add(s);
+		const order = RUN_STAGE_ORDER[s];
+		if (order <= prev) {
+			return `stage "${s}" is out of order — run stages execute ${RUN_STAGES.join(" → ")}`;
+		}
+		prev = order;
+	}
+	if (!stages.includes("transcribe")) {
+		return 'run stages require "transcribe" — every other stage consumes its output';
+	}
+	return null;
+};
+
+/** Manifest stage ids → the validated run-stage subset, in declared
+ * order. Non-run ids (generation stages, foreign refs) are filtered
+ * out — the caller decides whether skipping them is legitimate.
+ * Throws Error with runStageError's message on an inconsistent
+ * selection. */
+export const runStageSelection = (stageIds: readonly string[]): readonly RunStage[] => {
+	const picked = stageIds.filter(isRunStage);
+	const err = runStageError(picked);
+	if (err !== null) throw new Error(`invalid run stage selection: ${err}`);
+	return picked;
+};
+
 // ---------- the S3 → S4 → S7 sample run ----------
 
 export interface SampleRun {
@@ -218,18 +282,142 @@ export interface SampleRun {
 	 * synthetic. Persist via `sampleForPersistence`, never the raw
 	 * ingest script (H2). */
 	readonly script: string;
+	/** ASR output — always present: any runnable selection includes
+	 * "transcribe" (see runStageError). */
 	readonly asr: AsrResult;
-	readonly edits: EditList;
-	readonly corrected: string;
+	/** Cleanup outputs — present iff the "cleanup" stage ran. */
+	readonly edits?: EditList;
+	readonly corrected?: string;
 	readonly asrMetrics: StageMetrics;
-	readonly correctedMetrics: StageMetrics;
+	/** Present iff "cleanup" ran — WER/CER/verdicts for the corrected
+	 * text. Absent means the run stopped before cleanup; consumers
+	 * must treat it as "no corrected-stage evidence", not a zero. */
+	readonly correctedMetrics?: StageMetrics;
+	/** One verdict per cleanup edit — "unjudged" for every edit when
+	 * the "judge" stage did not run (never silently benign). */
 	readonly editVerdicts: readonly EditVerdict[];
 	readonly confSegments: readonly ConfSegment[];
 	readonly records: readonly RunRecord[];
 }
 
+/** Mutable per-sample state the dispatched stage functions share —
+ * each stage reads what earlier stages produced and writes its own
+ * outputs back. */
+interface StageRun {
+	readonly sample: Sample;
+	readonly profile: LocaleProfile;
+	readonly entities: readonly ExpectedEntity[];
+	readonly runId: string;
+	/** The gated script every stage sees (see processSample). */
+	readonly script: string;
+	readonly tag: (r: RunRecord) => RunRecord;
+	readonly records: RunRecord[];
+	readonly provenance: { readonly blobMeta: BlobMeta | null } | undefined;
+	asr?: AsrResult;
+	edits?: EditList;
+	corrected?: string;
+	readonly answers: {
+		readonly id: string;
+		readonly kind: string;
+		readonly value: unknown;
+		readonly probability: number;
+	}[];
+}
+
+const stageTranscribe = (ctx: StageRun) =>
+	Effect.gen(function* () {
+		const { asr } = yield* transcribeSample(ctx.sample, ctx.profile, ctx.provenance, (r) =>
+			ctx.records.push(ctx.tag(r)),
+		);
+		ctx.asr = asr;
+	});
+
+const stageCleanup = (ctx: StageRun) =>
+	Effect.gen(function* () {
+		if (ctx.asr === undefined) {
+			return yield* new PortError({
+				port: "pipeline",
+				message: 'stage "cleanup" requires "transcribe" to run first',
+			});
+		}
+		const { edits, corrected } = yield* cleanupTranscript({
+			taskId: `${ctx.runId}-cleanup`,
+			raw: ctx.asr.text,
+			onRecord: (r) => ctx.records.push(ctx.tag(r)),
+		});
+		ctx.edits = edits;
+		ctx.corrected = corrected;
+	});
+
+const stageJudge = (ctx: StageRun) =>
+	Effect.gen(function* () {
+		if (ctx.asr === undefined) {
+			return yield* new PortError({
+				port: "pipeline",
+				message: 'stage "judge" requires "transcribe" to run first',
+			});
+		}
+		const asr = ctx.asr;
+		const corrected = ctx.corrected;
+		const edits = ctx.edits;
+		const ev = yield* EvalPort;
+		const asrQs = entityQuestions(ctx.entities, "asr");
+		const correctedQs = corrected === undefined ? [] : entityQuestions(ctx.entities, "corrected");
+		const editQs = edits === undefined ? [] : cleanupQuestions(edits);
+
+		// Scoped states — no judge sees a later stage's text. A stage
+		// output that does not exist yet (cleanup skipped or not yet
+		// run) simply gets no questions — its verdicts fall back to
+		// the text floor / "unjudged" at assembly.
+		if (asrQs.length > 0) {
+			const r = yield* ev.judge({
+				state: { script: ctx.script, text: asr.text, persona: ctx.sample.persona },
+				questions: asrQs,
+			});
+			ctx.answers.push(...r.answers);
+			ctx.records.push(ctx.tag(r.record));
+		}
+		if (corrected !== undefined && correctedQs.length > 0) {
+			const r = yield* ev.judge({
+				state: { script: ctx.script, text: corrected, persona: ctx.sample.persona },
+				questions: correctedQs,
+			});
+			ctx.answers.push(...r.answers);
+			ctx.records.push(ctx.tag(r.record));
+		}
+		if (edits !== undefined && editQs.length > 0) {
+			const r = yield* ev.judge({
+				state: { asrRaw: asr.text, corrected, edits: edits.ops },
+				questions: editQs,
+			});
+			ctx.answers.push(...r.answers);
+			ctx.records.push(ctx.tag(r.record));
+		}
+	});
+
+/** Stage id → runner — the dispatch seam suite manifests select
+ * through. Order is the caller's (validated) selection order; each
+ * runner reads prior stages' outputs off the shared StageRun. */
+export const RUN_STAGE_FNS: Readonly<
+	Record<
+		RunStage,
+		(
+			ctx: StageRun,
+		) => Effect.Effect<void, PortError, AsrPort | LlmPort | EvalPort | DatasetStorePort>
+	>
+> = {
+	transcribe: stageTranscribe,
+	cleanup: stageCleanup,
+	judge: stageJudge,
+};
+
 /**
- * S3 → S4 → S7 over one sample: transcribe, cleanup, then judge.
+ * The manifest-selected run stages over one sample: transcribe,
+ * cleanup, judge — in the order `input.stages` declares (validated
+ * by runStageError; default = all three in canonical order). Skipped
+ * stages produce honest absences, never fabricated outputs: no
+ * cleanup → no corrected text/metrics; no judge → entity verdicts
+ * come from the text floor only and every edit verdict is "unjudged".
  * Each stage gets its OWN judge state — scoring the ASR baseline
  * against a state that contains the corrected text contaminates the
  * measurement. Critical errors = any entity not "correct".
@@ -239,6 +427,9 @@ export const processSample = (input: {
 	readonly sample: Sample;
 	readonly runId?: string;
 	readonly entities?: readonly ExpectedEntity[];
+	/** Run-stage selection — ids from RUN_STAGES in executable order
+	 * (see runStageError). Absent = the full pipeline. */
+	readonly stages?: readonly RunStage[];
 	/** Locale profile — normalization, PHI scrub, ASR language.
 	 * Default pt-BR; `profile.id` is persisted as the metrics'
 	 * normalization label. */
@@ -309,62 +500,49 @@ export const processSample = (input: {
 		});
 		const records: RunRecord[] = input.recordsOut ?? [];
 
-		// Stage records are collected THROUGH the helpers' onRecord
-		// hooks — fired the moment each port call returns, before any
-		// subsequent fallible step (PHI scrub gate, edit application)
-		// — so even those mid-stage refusals leave their audit record.
-		const { asr } = yield* transcribeSample(input.sample, profile, provenance, (r) =>
-			records.push(tag(r)),
-		);
-
-		const { edits, corrected } = yield* cleanupTranscript({
-			taskId: `${runId}-cleanup`,
-			raw: asr.text,
-			onRecord: (r) => records.push(tag(r)),
-		});
-
-		const ev = yield* EvalPort;
-		const asrQs = entityQuestions(entities, "asr");
-		const correctedQs = entityQuestions(entities, "corrected");
-		const editQs = cleanupQuestions(edits);
-
-		// Scoped states — no judge sees a later stage's text.
-		const answers: { id: string; kind: string; value: unknown; probability: number }[] = [];
-		if (asrQs.length > 0) {
-			const r = yield* ev.judge({
-				state: { script, text: asr.text, persona: input.sample.persona },
-				questions: asrQs,
+		// Stage selection — validated BEFORE any port call so a bad
+		// manifest fails the sample honestly instead of half-running.
+		const stages = input.stages ?? RUN_STAGES;
+		const selectionError = runStageError(stages);
+		if (selectionError !== null) {
+			return yield* new PortError({
+				port: "pipeline",
+				message: `sample ${input.sample.id}: invalid stage selection — ${selectionError}`,
 			});
-			answers.push(...r.answers);
-			records.push(tag(r.record));
-		}
-		if (correctedQs.length > 0) {
-			const r = yield* ev.judge({
-				state: { script, text: corrected, persona: input.sample.persona },
-				questions: correctedQs,
-			});
-			answers.push(...r.answers);
-			records.push(tag(r.record));
-		}
-		if (editQs.length > 0) {
-			const r = yield* ev.judge({
-				state: { asrRaw: asr.text, corrected, edits: edits.ops },
-				questions: editQs,
-			});
-			answers.push(...r.answers);
-			records.push(tag(r.record));
 		}
 
+		// Dispatch in the manifest's declared order. Stage records are
+		// collected THROUGH the helpers' onRecord hooks — fired the
+		// moment each port call returns, before any subsequent
+		// fallible step (PHI scrub gate, edit application) — so even
+		// those mid-stage refusals leave their audit record.
+		const ctx: StageRun = {
+			sample: input.sample,
+			profile,
+			entities,
+			runId,
+			script,
+			tag,
+			records,
+			provenance,
+			answers: [],
+		};
+		for (const stage of stages) {
+			yield* RUN_STAGE_FNS[stage](ctx);
+		}
+
+		const asr = ctx.asr!; // runStageError guarantees "transcribe" ran
+		const answers = ctx.answers;
 		const merge = (stage: "asr" | "corrected", text: string): readonly EntityVerdict[] => {
 			const textCheck = checkEntities(entities, text, profile);
 			return verdictsFromAnswers(entities, stage, answers).map((v, i) =>
 				// Judge verdict wins when it produced a probability; the
-				// text floor (tagged text_floor) is the fallback.
+				// text floor (tagged text_floor) is the fallback — also
+				// the ONLY source when the "judge" stage was not selected.
 				v.probability !== undefined ? v : textCheck[i]!,
 			);
 		};
 		const asrEntities = merge("asr", asr.text);
-		const correctedEntities = merge("corrected", corrected);
 		const countCritical = (vs: readonly EntityVerdict[]) =>
 			vs.filter((v) => v.status !== "correct").length;
 
@@ -378,16 +556,26 @@ export const processSample = (input: {
 			runId,
 			normalization: profile.id,
 		};
-		const correctedMetrics: StageMetrics = {
-			wer: wer(script, corrected, { profile }),
-			cer: cer(script, corrected, { profile }),
-			criticalErrors: countCritical(correctedEntities),
-			entityVerdicts: correctedEntities,
-			stage: "corrected",
-			sampleId: input.sample.id,
-			runId,
-			normalization: profile.id,
-		};
+		// Corrected-stage metrics exist only when cleanup ran — the
+		// metrics array in a manifest selects WHICH contributions are
+		// referenced, not which numbers get computed: wer/cer/entity
+		// verdicts are one StageMetrics record per produced stage, and
+		// gates consume the whole record (see evals/README.md).
+		const correctedMetrics = ((): StageMetrics | undefined => {
+			const text = ctx.corrected;
+			if (text === undefined) return undefined;
+			const verdicts = merge("corrected", text);
+			return {
+				wer: wer(script, text, { profile }),
+				cer: cer(script, text, { profile }),
+				criticalErrors: countCritical(verdicts),
+				entityVerdicts: verdicts,
+				stage: "corrected",
+				sampleId: input.sample.id,
+				runId,
+				normalization: profile.id,
+			};
+		})();
 		// Honest floor for segment correctness: a
 		// segment counts correct when its normalized text appears in
 		// the normalized script — never blanket-true.
@@ -401,11 +589,11 @@ export const processSample = (input: {
 			sampleId: input.sample.id,
 			script,
 			asr,
-			edits,
-			corrected,
+			...(ctx.edits !== undefined ? { edits: ctx.edits } : {}),
+			...(ctx.corrected !== undefined ? { corrected: ctx.corrected } : {}),
 			asrMetrics,
-			correctedMetrics,
-			editVerdicts: editVerdictsFromAnswers(edits, answers),
+			...(correctedMetrics !== undefined ? { correctedMetrics } : {}),
+			editVerdicts: ctx.edits === undefined ? [] : editVerdictsFromAnswers(ctx.edits, answers),
 			confSegments,
 			records,
 		} satisfies SampleRun;
@@ -436,10 +624,16 @@ export const toSampleResult = (input: {
 	sampleId: input.sample.id,
 	datasetVersion: input.sample.datasetVersion,
 	asrText: input.run.asr.text,
-	correctedText: input.run.corrected,
-	edits: input.run.edits,
+	// Absent stages persist as absent fields — SampleResult's
+	// correctedText/edits/correctedMetrics are optionalKey for exactly
+	// this (a transcribe-only or judge-less run is partial evidence,
+	// not a zeroed corrected stage).
+	...(input.run.corrected !== undefined ? { correctedText: input.run.corrected } : {}),
+	...(input.run.edits !== undefined ? { edits: input.run.edits } : {}),
 	asrMetrics: input.run.asrMetrics,
-	correctedMetrics: input.run.correctedMetrics,
+	...(input.run.correctedMetrics !== undefined
+		? { correctedMetrics: input.run.correctedMetrics }
+		: {}),
 	editVerdicts: [...input.run.editVerdicts],
 	confSegments: [...input.run.confSegments],
 	createdAt: Date.now(),

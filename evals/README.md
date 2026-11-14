@@ -27,10 +27,29 @@ node apps/eval/src/cli.ts run consult-asr --workdir /tmp/eval-app
 
 ## Composability status
 
-Stage/metric/gate/capability refs are **validated** against the
-contribution registry (`eval list --strict` reports unresolved refs),
-but they are **not dispatched**: `meta.fn` on a contribution is a
-pointer for humans/ops, not a callable key, and `processSample` runs a
-fixed pipeline (transcribe → cleanup → judge) regardless of the
-`stages` list. Stage dispatch by contribution id is phase-2 work — see
-`packages/eval-core/src/suite.ts`.
+Stage refs are **dispatched**: `eval run` maps the manifest's
+`stages` through the domain's run-stage selector
+(`runStageSelection`/`RUN_STAGE_FNS` in
+`plugins/eval-consult/src/pipeline.ts`) and executes the run-stage
+subset (`transcribe`, `cleanup`, `judge`) in declared order. The
+canonical dependency order is transcribe → cleanup → judge — a
+selection may narrow the pipeline (skip `judge`, transcribe-only)
+but never reorder it; generation stages (`script_gen`, `synthesize`)
+belong to `eval generate`, and any other non-run stage id fails
+`eval run` loudly. Skipped stages persist as absent fields, never
+zeroed metrics: no cleanup → no `correctedMetrics`; no judge →
+entity verdicts come from the text floor only and every edit verdict
+is `unjudged`.
+
+Metric refs are **validated pointers only**: the pipeline emits one
+`StageMetrics` record per produced stage (wer/cer/entity verdicts)
+because gates consume the entire record — metrics are not
+individually dispatched. Metric-level selection is a report-time
+concern.
+
+Gate refs **dispatch** through `GATE_DECODERS` in
+`apps/eval/src/policy.ts`: manifest `gates[].params` decode to an
+`AcceptPolicy` (CLI flags may override individual fields) and
+`gateRun`/`decideAutoAccept` consume persisted results. `meta.fn` on
+a contribution remains a pointer for humans/ops, not a callable key.
+`eval list --strict` still reports unresolved refs.

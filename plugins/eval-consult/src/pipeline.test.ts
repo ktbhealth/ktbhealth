@@ -13,6 +13,9 @@ import {
 	saveSample,
 	sampleForPersistence,
 	toSampleResult,
+	RUN_STAGE_FNS,
+	runStageSelection,
+	type RunStage,
 } from "./pipeline.ts";
 import {
 	AsrPort,
@@ -312,7 +315,7 @@ describe("question builders", () => {
 describe("processSample", () => {
 	it("runs S3→S4→S7 and reports per-stage metrics", async () => {
 		const r = await run(processSample({ sample, entities }));
-		expect(r.corrected.startsWith("O")).toBe(true);
+		expect(r.corrected!.startsWith("O")).toBe(true);
 		expect(r.asrMetrics.wer).toBe(0);
 		expect(r.asrMetrics.criticalErrors).toBe(0);
 		expect(r.editVerdicts[0]?.classification).toBe("justified_fix");
@@ -323,12 +326,22 @@ describe("processSample", () => {
 		const xx = { ...ptBR, id: "xx-v1", asrLanguage: "xx" };
 		const r = await run(processSample({ sample, entities, profile: xx }));
 		expect(r.asrMetrics.normalization).toBe("xx-v1");
-		expect(r.correctedMetrics.normalization).toBe("xx-v1");
+		expect(r.correctedMetrics!.normalization).toBe("xx-v1");
 	});
 
 	it("skips judging when there is nothing to ask", async () => {
 		const r = await run(processSample({ sample, entities: [] }));
 		expect(r.asrMetrics.entityVerdicts).toHaveLength(0);
+	});
+
+	it("sample without audio fails at transcribe (no provenance lookup)", async () => {
+		const err = await run(
+			processSample({ sample: { ...sample, audio: undefined }, entities }).pipe(
+				Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("no audio");
 	});
 
 	it("real_anonymized: fails closed when the PHI gate finds residuals", async () => {
@@ -925,5 +938,101 @@ describe("defaults", () => {
 	it("processSample with no entities arg and no gold.entities judges nothing", async () => {
 		const r = await run(processSample({ sample }));
 		expect(r.asrMetrics.entityVerdicts).toHaveLength(0);
+	});
+});
+
+describe("run-stage selection", () => {
+	it("runStageSelection keeps run ids in declared order, drops the rest", () => {
+		expect(runStageSelection(["script_gen", "synthesize", "transcribe", "cleanup"])).toEqual([
+			"transcribe",
+			"cleanup",
+		]);
+		expect(runStageSelection(["transcribe", "cleanup", "judge"])).toEqual([
+			"transcribe",
+			"cleanup",
+			"judge",
+		]);
+	});
+
+	it("rejects empty, duplicate, out-of-order and transcribe-less selections", () => {
+		expect(() => runStageSelection(["script_gen"])).toThrow(/no run stages selected/);
+		expect(() => runStageSelection(["transcribe", "transcribe"])).toThrow(/listed twice/);
+		expect(() => runStageSelection(["cleanup", "transcribe"])).toThrow(/out of order/);
+		expect(() => runStageSelection(["judge", "cleanup", "transcribe"])).toThrow(/out of order/);
+		expect(() => runStageSelection(["cleanup"])).toThrow(/require "transcribe"/);
+		expect(() => runStageSelection(["judge"])).toThrow(/require "transcribe"/);
+	});
+
+	it("stages [transcribe, cleanup] skips the judge — floor verdicts, unjudged edits", async () => {
+		const r = await run(processSample({ sample, entities, stages: ["transcribe", "cleanup"] }));
+		expect(r.corrected).toBeDefined();
+		expect(r.correctedMetrics).toBeDefined();
+		// No judge ran → every verdict is the text floor, every edit
+		// verdict is "unjudged" (the live judge would have answered).
+		expect(r.correctedMetrics!.entityVerdicts.every((v) => v.source === "text_floor")).toBe(true);
+		expect(r.editVerdicts.length).toBeGreaterThan(0);
+		expect(r.editVerdicts.every((v) => v.classification === "unjudged")).toBe(true);
+	});
+
+	it("stages [transcribe] produces asr-only results", async () => {
+		const r = await run(processSample({ sample, entities, stages: ["transcribe"] }));
+		expect(r.asrMetrics.wer).toBe(0);
+		expect(r.edits).toBeUndefined();
+		expect(r.corrected).toBeUndefined();
+		expect(r.correctedMetrics).toBeUndefined();
+		expect(r.editVerdicts).toEqual([]);
+		const result = toSampleResult({ sample, runId: "r-asr", run: r });
+		expect(result.asrText).toBe(r.asr.text);
+		expect(result.correctedText).toBeUndefined();
+		expect(result.edits).toBeUndefined();
+		expect(result.correctedMetrics).toBeUndefined();
+	});
+
+	it("stages [transcribe, judge] judges the asr stage only", async () => {
+		const r = await run(processSample({ sample, entities, stages: ["transcribe", "judge"] }));
+		expect(r.asrMetrics.entityVerdicts.every((v) => v.source === "judge")).toBe(true);
+		expect(r.correctedMetrics).toBeUndefined();
+		expect(r.editVerdicts).toEqual([]);
+	});
+
+	it("rejects an inconsistent selection before any port call", async () => {
+		const cases: readonly (readonly RunStage[])[] = [
+			["cleanup", "transcribe"],
+			["transcribe", "transcribe"],
+			["judge"],
+			[],
+		];
+		for (const stages of cases) {
+			const err = await run(
+				processSample({ sample, entities, stages }).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+			);
+			expect(err).toBeInstanceOf(PortError);
+			expect(String((err as PortError).message)).toContain("invalid stage selection");
+		}
+	});
+
+	it("rejects an unknown stage id at runtime", async () => {
+		const err = await run(
+			processSample({ sample, entities, stages: ["bogus" as never, "transcribe"] }).pipe(
+				Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain('unknown run stage "bogus"');
+	});
+
+	it("stage runners refuse to run without their inputs", async () => {
+		const empty = {} as unknown as Parameters<(typeof RUN_STAGE_FNS)["cleanup"]>[0];
+		for (const stage of ["cleanup", "judge"] as const) {
+			const err = await run(
+				RUN_STAGE_FNS[stage](empty).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+			);
+			expect(err).toBeInstanceOf(PortError);
+			expect(String((err as PortError).message)).toContain("requires");
+		}
 	});
 });

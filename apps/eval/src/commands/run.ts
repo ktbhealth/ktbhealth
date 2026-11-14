@@ -6,10 +6,13 @@
  *
  * Samples are read from the suite's datasetVersion pin in the local
  * store (run `generate` first), then each goes through
- * processSample — transcribe → cleanup → judge — with every
- * RunRecord appended to the report and every SampleResult persisted.
- * Resilience is runBatch's: bounded concurrency, retry schedule,
- * per-attempt timeout, per-sample failure isolation.
+ * processSample — the manifest's run-stage subset dispatched in
+ * declared order (transcribe → cleanup → judge is the canonical
+ * dependency order; a selection may narrow it, never reorder it) —
+ * with every RunRecord appended to the report and every
+ * SampleResult persisted. Resilience is runBatch's: bounded
+ * concurrency, retry schedule, per-attempt timeout, per-sample
+ * failure isolation.
  */
 
 import * as Effect from "effect/Effect";
@@ -21,8 +24,11 @@ import { Argument, Command, Flag } from "effect/cli";
 import { runBatch } from "@ktb/eval-core";
 import {
 	DatasetStorePort,
+	GENERATION_STAGES,
+	isRunStage,
 	processSample,
 	recordAll,
+	runStageSelection,
 	sampleForPersistence,
 	saveResult,
 	saveSample,
@@ -33,7 +39,7 @@ import {
 
 import { modelLayer, storeReportLayers, type WireContext } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
-import { CommandExit } from "../errors.ts";
+import { CommandExit, UsageError } from "../errors.ts";
 import { findSuite } from "../suites.ts";
 import {
 	assertCapabilities,
@@ -53,7 +59,9 @@ const optStr = Option.getOrUndefined;
 interface RunValue {
 	readonly sampleId: string;
 	readonly werAsr: number;
-	readonly werCorrected: number;
+	/** Absent when the manifest's stage selection stops before
+	 * cleanup — there is no corrected text to score. */
+	readonly werCorrected?: number;
 }
 
 export const makeRunCommand = (ctx: CmdContext) =>
@@ -88,6 +96,36 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				// patterns and normalization must match the locale the
 				// dataset was generated under.
 				const locale = yield* localeFlag(cfg.locale);
+
+				// Manifest stage dispatch: `eval run` executes the
+				// manifest's run-stage subset in declared order —
+				// transcribe → cleanup → judge is the canonical
+				// dependency order, so a selection may narrow the
+				// pipeline (skip judge, transcribe-only) but never
+				// reorder it. Generation stages (script_gen,
+				// synthesize) belong to `eval generate`; any other
+				// non-run id has no runner and fails loudly instead
+				// of being silently skipped. An inconsistent
+				// selection is a manifest bug → usage error (exit 2),
+				// same rule as malformed gate params.
+				const unrunnable = manifest.stages.filter(
+					(s) => !isRunStage(s) && !(GENERATION_STAGES as readonly string[]).includes(s),
+				);
+				if (unrunnable.length > 0) {
+					return yield* userError(
+						new Error(
+							`suite "${manifest.id}" stage(s) have no eval-run runner: ${unrunnable.join(", ")}`,
+						),
+					);
+				}
+				const stages = yield* Effect.try({
+					try: () => runStageSelection(manifest.stages),
+					catch: (e) =>
+						new UsageError({
+							/* v8 ignore next -- runStageSelection only throws Error */
+							message: e instanceof Error ? e.message : String(e),
+						}),
+				});
 
 				const wire: WireContext = {
 					workdir,
@@ -143,6 +181,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 							const run = yield* processSample({
 								sample,
 								runId,
+								stages,
 								profile: locale,
 								recordsOut: collected,
 							});
@@ -153,7 +192,9 @@ export const makeRunCommand = (ctx: CmdContext) =>
 							return {
 								sampleId: sample.id,
 								werAsr: run.asrMetrics.wer,
-								werCorrected: run.correctedMetrics.wer,
+								...(run.correctedMetrics !== undefined
+									? { werCorrected: run.correctedMetrics.wer }
+									: {}),
 							} satisfies RunValue;
 						});
 						return yield* attempt.pipe(
@@ -183,9 +224,10 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				);
 
 				for (const o of result.outcomes) {
-					const mark = outcomeMark(
-						o,
-						(v) => `ok WER ${v.werAsr.toFixed(3)}→${v.werCorrected.toFixed(3)}`,
+					const mark = outcomeMark(o, (v) =>
+						v.werCorrected === undefined
+							? `ok WER ${v.werAsr.toFixed(3)} (no corrected stage)`
+							: `ok WER ${v.werAsr.toFixed(3)}→${v.werCorrected.toFixed(3)}`,
 					);
 					yield* Console.log(`  [${o.index}] ${o.item.id} — ${mark} (${o.attempts} attempts)`);
 				}
@@ -197,4 +239,8 @@ export const makeRunCommand = (ctx: CmdContext) =>
 					return yield* new CommandExit({ code: 1 });
 				}
 			}),
-	).pipe(Command.withDescription("transcribe → cleanup → judge over the persisted cohort."));
+	).pipe(
+		Command.withDescription(
+			"Run the manifest's stage selection (transcribe/cleanup/judge) over the persisted cohort.",
+		),
+	);

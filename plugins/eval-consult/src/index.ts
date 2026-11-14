@@ -37,9 +37,15 @@ export const plugins: readonly Plugin[] = [evalConsultPlugin];
 /**
  * Domain metric + gate contributions (P-074 phase 4). The pipeline
  * computes these inline (StageMetrics carries wer/cer/entityVerdicts;
- * accept.ts owns the auto-accept policy), so `meta.fn` is a pointer
- * for humans/ops, not a dispatch key — suites reference the ids as
- * data and the composition root maps the ones it implements.
+ * accept.ts owns the auto-accept policy), so `meta.fn` remains a
+ * pointer for humans/ops, not a dispatch key — EXCEPT for stages:
+ * suite `stages` refs now really dispatch. `eval run` maps the
+ * manifest's stage ids through `runStageSelection` (pipeline.ts) and
+ * executes them via `RUN_STAGE_FNS` in declared order — a selection
+ * may narrow the pipeline (skip judge, transcribe-only) but never
+ * reorder it (canonical order transcribe → cleanup → judge).
+ * Generation stages (script_gen/synthesize) are owned by
+ * `eval generate` (GENERATION_STAGES).
  */
 export const consultContributions: readonly Contribution[] = [
 	{ kind: "metric", id: "wer", version: "1", meta: { fn: "wer" } },

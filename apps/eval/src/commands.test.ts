@@ -4,12 +4,14 @@ import * as path from "node:path";
 
 import * as Effect from "effect/Effect";
 import { FileSystem, Layer, Path, Stdio, Terminal } from "effect";
+import { Command } from "effect/cli";
 import { ChildProcessSpawner } from "effect/process";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { storeReportLayers } from "./adapters.ts";
 import { repoRoot, type CmdContext } from "./context.ts";
-import { run } from "./cli.ts";
+import { exitCodeOf, run } from "./cli.ts";
+import { makeBenchCommand, nodeSpawn, type BenchSpawn } from "./commands/bench.ts";
 
 /** In-memory stand-ins for the CLI Environment services — the command
  * handlers never touch them (they use node:fs directly); only the
@@ -66,9 +68,31 @@ const ctx = (): CmdContext => ({
 /** Run the full command tree against argv (no "eval" prefix). */
 const exec = (args: readonly string[], c: CmdContext = ctx()) => run(args, c, CliTestLayer);
 
+/** Same dataset pin as SUITE but WITHOUT the judge stage — exercises
+ * manifest stage dispatch (transcribe + cleanup only). */
+const SUITE_NOJUDGE = SUITE.replace(
+	'stages: ["transcribe", "cleanup", "judge"]',
+	'stages: ["script_gen", "synthesize", "transcribe", "cleanup"]',
+).replace('id: "fx"', 'id: "fx-nojudge"');
+
+/** Out-of-order run stages — a manifest bug run must reject. */
+const SUITE_BADORDER = SUITE.replace(
+	'stages: ["transcribe", "cleanup", "judge"]',
+	'stages: ["cleanup", "transcribe"]',
+).replace('id: "fx"', 'id: "fx-badorder"');
+
+/** Transcribe-only selection — no corrected stage at all. */
+const SUITE_ASR = SUITE.replace(
+	'stages: ["transcribe", "cleanup", "judge"]',
+	'stages: ["script_gen", "synthesize", "transcribe"]',
+).replace('id: "fx"', 'id: "fx-asr"');
+
 beforeAll(() => {
 	evalsDir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-evals-"));
 	fs.writeFileSync(path.join(evalsDir, "fx.suite.ts"), SUITE);
+	fs.writeFileSync(path.join(evalsDir, "fx-nojudge.suite.ts"), SUITE_NOJUDGE);
+	fs.writeFileSync(path.join(evalsDir, "fx-badorder.suite.ts"), SUITE_BADORDER);
+	fs.writeFileSync(path.join(evalsDir, "fx-asr.suite.ts"), SUITE_ASR);
 	workdir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-data-"));
 });
 
@@ -570,15 +594,428 @@ describe("run/gate/report round-trip", () => {
 	});
 });
 
-describe("bench", () => {
-	test("prints the deferral notice and exits 2", async () => {
-		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+describe("stage dispatch", () => {
+	test("a manifest without the judge stage runs transcribe+cleanup only", async () => {
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const c = { ...ctx(), fetchImpl: fetch };
 		try {
-			expect(await exec(["bench"])).toBe(2);
-			expect(spy.mock.calls.flat().join(" ")).toContain("not yet wired");
+			// Same dataset pin as fx — the cohort generated earlier is
+			// shared; only the stage selection differs.
+			expect(await exec(["run", "fx-nojudge", "--workdir", workdir, "--run-id", "run-nj"], c)).toBe(
+				0,
+			);
+			const { store } = storeReportLayers(workdir);
+			const { DatasetStorePort } = await import("@ktb/eval-consult");
+			const results = await Effect.runPromise(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					return yield* s.listResults({ runId: "run-nj" });
+				}).pipe(Effect.provide(store)),
+			);
+			expect(results.length).toBeGreaterThan(0);
+			for (const r of results) {
+				expect(r.correctedText).toBeDefined();
+				// Judge never ran → floor verdicts + unjudged edits.
+				expect(r.correctedMetrics?.entityVerdicts.every((v) => v.source === "text_floor")).toBe(
+					true,
+				);
+				expect(r.editVerdicts.every((v) => v.classification === "unjudged")).toBe(true);
+			}
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("a transcribe-only manifest persists asr-only results", async () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const c = { ...ctx(), fetchImpl: fetch };
+		try {
+			expect(await exec(["run", "fx-asr", "--workdir", workdir, "--run-id", "run-asr"], c)).toBe(0);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain("no corrected stage");
+			const { store } = storeReportLayers(workdir);
+			const { DatasetStorePort } = await import("@ktb/eval-consult");
+			const results = await Effect.runPromise(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					return yield* s.listResults({ runId: "run-asr" });
+				}).pipe(Effect.provide(store)),
+			);
+			expect(results.length).toBeGreaterThan(0);
+			for (const r of results) {
+				expect(r.asrMetrics).toBeDefined();
+				expect(r.correctedMetrics).toBeUndefined();
+				expect(r.correctedText).toBeUndefined();
+				expect(r.edits).toBeUndefined();
+			}
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("out-of-order and unrunnable stage selections fail before the batch", async () => {
+		// fx-unrunnable lives in its own evals dir: its stage id is
+		// unregistered, which would pollute the shared dir's
+		// `eval list` unresolved count.
+		const unrunnableDir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-unrun-"));
+		fs.writeFileSync(
+			path.join(unrunnableDir, "fx-unrunnable.suite.ts"),
+			SUITE.replace(
+				'stages: ["transcribe", "cleanup", "judge"]',
+				'stages: ["transcribe", "mystery-stage"]',
+			).replace('id: "fx"', 'id: "fx-unrunnable"'),
+		);
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "fx-badorder", "--workdir", workdir])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("out of order");
+			expect(
+				await exec(["run", "fx-unrunnable", "--workdir", workdir], {
+					...ctx(),
+					evalsDir: unrunnableDir,
+				}),
+			).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain("no eval-run runner");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(unrunnableDir, { recursive: true, force: true });
+		}
+	});
+});
+
+interface SpawnCall {
+	readonly file: string;
+	readonly args: readonly string[];
+	readonly env: Readonly<Record<string, string | undefined>>;
+}
+
+const okResult = { status: 0, stdout: "", stderr: "" };
+
+/** Spawn fake that satisfies every bench step without touching the
+ * network: import checks + ffmpeg pass, gen-audio.py materializes
+ * fixtures into BENCH_AUDIO_DIR, bench-asr.py writes `results` to
+ * BENCH_RESULTS. */
+const benchSpawn = (
+	calls: SpawnCall[],
+	fixture: { wav: string; txt: string },
+	results: unknown,
+): BenchSpawn => {
+	return (file, args, env) => {
+		calls.push({ file, args, env });
+		const script = args[0] ?? "";
+		if (script.endsWith("gen-audio.py")) {
+			// gen-audio.py does OUT.mkdir(parents=True) — mirror it.
+			fs.mkdirSync(env.BENCH_AUDIO_DIR!, { recursive: true });
+			fs.writeFileSync(path.join(env.BENCH_AUDIO_DIR!, fixture.wav), "x");
+			fs.writeFileSync(path.join(env.BENCH_AUDIO_DIR!, fixture.txt), "gold text");
+			return okResult;
+		}
+		if (script.endsWith("bench-asr.py")) {
+			fs.writeFileSync(env.BENCH_RESULTS!, JSON.stringify(results));
+			return okResult;
+		}
+		return okResult;
+	};
+};
+
+/** Run the bench command alone (argv = its own flags) with an
+ * injected spawn — same runner/teardown as cli.run. */
+const execBench = (
+	args: readonly string[],
+	spawn: BenchSpawn,
+	c: CmdContext = ctx(),
+): Promise<number> =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const exit = yield* Effect.exit(
+				Command.runWith(makeBenchCommand(c, spawn), { version: "0" })(args),
+			);
+			return exitCodeOf(exit);
+		}).pipe(Effect.provide(CliTestLayer)),
+	);
+
+const benchDir = () => fs.mkdtempSync(path.join(os.tmpdir(), "eval-bench-"));
+
+describe("bench", () => {
+	test("scores fixtures end-to-end with an injected spawn", async () => {
+		const dir = benchDir();
+		fs.writeFileSync(path.join(dir, "s0.wav"), "x");
+		fs.writeFileSync(path.join(dir, "s0.txt"), "o paciente nega febre");
+		const results = path.join(dir, "results.json");
+		const calls: SpawnCall[] = [];
+		const spawn = benchSpawn(calls, { wav: "s0.wav", txt: "s0.txt" }, [
+			{ model: "tiny", rtf: 0.1, peak_rss_mb: 100, hyps: ["o paciente nega febre"] },
+			{ model: "base", rtf: 0.2, peak_rss_mb: 200, load_s: 1.5, hyps: ["paciente febre"] },
+		]);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await execBench(["--audio-dir", dir, "--results", results], spawn)).toBe(0);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain("=== tiny");
+			expect(out).toContain("mean WER=0.000");
+			expect(out).toContain('s0: wer=0.00  "o paciente nega febre"');
+			expect(out).toContain("load=1.5s");
+			expect(out).toContain("load=-");
+			// bench-asr.py got the audio/results env contract.
+			const sweep = calls.find((c) => c.args[0]?.endsWith("bench-asr.py"));
+			expect(sweep?.env.BENCH_AUDIO_DIR).toBe(dir);
+			expect(sweep?.env.BENCH_RESULTS).toBe(results);
+			expect(sweep?.args.slice(1)).toEqual(["tiny", "base", "small"]);
+		} finally {
+			spy.mockRestore();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("committed fixtures + results score with default paths", async () => {
+		// No --audio-dir/--results: the real scripts/bench fixtures and
+		// asr-results.json are used; the fake spawn only has to not
+		// fail — scoring reads the committed JSON.
+		const spawn: BenchSpawn = () => okResult;
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await execBench([], spawn)).toBe(0);
+			const out = spy.mock.calls.flat().join("\n");
+			expect(out).toContain("=== turbo");
+			expect(out).toContain("mean WER=");
 		} finally {
 			spy.mockRestore();
 		}
+	});
+
+	test("python selection: flag > EVAL_BENCH_PYTHON > python3", async () => {
+		const dir = benchDir();
+		fs.writeFileSync(path.join(dir, "s0.wav"), "x");
+		fs.writeFileSync(path.join(dir, "s0.txt"), "gold");
+		const results = path.join(dir, "results.json");
+		const gold = [{ model: "m", rtf: 0, peak_rss_mb: 0, hyps: ["gold"] }];
+		const run1 = async (extra: readonly string[], env: Record<string, string> = {}) => {
+			const calls: SpawnCall[] = [];
+			const c: CmdContext = { ...ctx(), env };
+			await execBench(
+				[...extra, "--audio-dir", dir, "--results", results],
+				benchSpawn(calls, { wav: "s0.wav", txt: "s0.txt" }, gold),
+				c,
+			);
+			return calls.find((x) => x.args[0] === "-c")?.file;
+		};
+		try {
+			expect(await run1(["--python", "py3.12"])).toBe("py3.12");
+			expect(await run1([], { EVAL_BENCH_PYTHON: "envpy" })).toBe("envpy");
+			expect(await run1([])).toBe("python3");
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("--profile is validated; only local profiles apply", async () => {
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await execBench(["--profile", "bogus"], nodeSpawn)).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("unknown --profile");
+			expect(await execBench(["--profile", "stub"], nodeSpawn)).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("only applies to local profiles");
+			// local + local-systemone pass validation (then fail on
+			// missing python in this env — either way not a usage error).
+			for (const p of ["local", "local-systemone"]) {
+				const code = await execBench(
+					["--profile", p, "--python", "definitely-missing-py-xyz"],
+					nodeSpawn,
+				);
+				expect(code).toBe(1);
+			}
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("--models must name at least one model", async () => {
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			expect(await execBench(["--models", " , "], nodeSpawn)).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("--models");
+		} finally {
+			err.mockRestore();
+		}
+	});
+
+	test("fixture regeneration path: edge-tts + ffmpeg + gen-audio.py", async () => {
+		const dir = benchDir();
+		const audio = path.join(dir, "audio"); // does not exist yet
+		const results = path.join(dir, "results.json");
+		const calls: SpawnCall[] = [];
+		const spawn = benchSpawn(calls, { wav: "s0.wav", txt: "s0.txt" }, [
+			{ model: "m", rtf: 0, peak_rss_mb: 0, hyps: ["gold text"] },
+		]);
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// --regen-audio forces the path even though… fixtures absent anyway.
+			expect(
+				await execBench(["--audio-dir", audio, "--results", results, "--regen-audio"], spawn),
+			).toBe(0);
+			const files = calls.map((c) => c.file);
+			expect(files).toContain("ffmpeg");
+			expect(calls.some((c) => c.args[0] === "-c" && c.args[1] === "import edge_tts")).toBe(true);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("regen failures name the missing piece", async () => {
+		const dir = benchDir();
+		const audio = path.join(dir, "audio");
+		const results = path.join(dir, "results.json");
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const spawnWhere =
+			(
+				pick: (file: string, args: readonly string[]) => boolean,
+				result: { status: number | null; stdout?: string; stderr?: string; error?: string },
+			): BenchSpawn =>
+			(file, args) =>
+				pick(file, args)
+					? {
+							status: result.status,
+							stdout: result.stdout ?? "",
+							stderr: result.stderr ?? "",
+							...(result.error !== undefined ? { error: result.error } : {}),
+						}
+					: okResult;
+		try {
+			// edge-tts import fails.
+			expect(
+				await execBench(
+					["--audio-dir", audio, "--results", results],
+					spawnWhere((f, a) => a[0] === "-c", { status: 1, stderr: "ModuleNotFoundError" }),
+				),
+			).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("edge-tts");
+			// ffmpeg missing.
+			expect(
+				await execBench(
+					["--audio-dir", audio, "--results", results],
+					spawnWhere((f) => f === "ffmpeg", { status: null, error: "ENOENT" }),
+				),
+			).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("ffmpeg");
+			// gen-audio.py fails.
+			expect(
+				await execBench(
+					["--audio-dir", audio, "--results", results],
+					spawnWhere((f, a) => (a[0] ?? "").endsWith("gen-audio.py"), {
+						status: 2,
+						stderr: "boom",
+					}),
+				),
+			).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("gen-audio.py");
+			// regen succeeds but produces nothing.
+			expect(await execBench(["--audio-dir", audio, "--results", results], () => okResult)).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("no s*.wav fixtures");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("missing gold script and empty sweep output are named errors", async () => {
+		const dir = benchDir();
+		fs.writeFileSync(path.join(dir, "s0.wav"), "x"); // no s0.txt
+		const results = path.join(dir, "results.json");
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await execBench(["--audio-dir", dir, "--results", results], () => okResult)).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("gold script missing");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("sweep dependency failure and sweep failure are named errors", async () => {
+		const dir = benchDir();
+		fs.writeFileSync(path.join(dir, "s0.wav"), "x");
+		fs.writeFileSync(path.join(dir, "s0.txt"), "gold");
+		const results = path.join(dir, "results.json");
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// faster_whisper import fails (fixtures exist → no regen).
+			const depFail = (_file: string, args: readonly string[]) =>
+				args[0] === "-c" && args[1]?.includes("faster_whisper")
+					? { status: 1, stdout: "", stderr: "no module" }
+					: okResult;
+			expect(await execBench(["--audio-dir", dir, "--results", results], depFail)).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("faster-whisper");
+			// bench-asr.py itself fails.
+			const sweepFail = (_file: string, args: readonly string[]) =>
+				(args[0] ?? "").endsWith("bench-asr.py")
+					? { status: 3, stdout: "", stderr: "CUDA?" }
+					: okResult;
+			expect(await execBench(["--audio-dir", dir, "--results", results], sweepFail)).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("bench-asr.py");
+			// Failure with EMPTY output — the error tail branch.
+			const silentFail = (_file: string, args: readonly string[]) =>
+				args[0] === "-c" ? { status: 1, stdout: "", stderr: "" } : okResult;
+			expect(await execBench(["--audio-dir", dir, "--results", results], silentFail)).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("bad results file: invalid JSON, wrong shape, hyp-count mismatch", async () => {
+		const dir = benchDir();
+		fs.writeFileSync(path.join(dir, "s0.wav"), "x");
+		fs.writeFileSync(path.join(dir, "s0.txt"), "gold");
+		const results = path.join(dir, "results.json");
+		const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		const spawnWriting =
+			(content: string): BenchSpawn =>
+			(file, args, env) => {
+				if ((args[0] ?? "").endsWith("bench-asr.py")) {
+					fs.writeFileSync(env.BENCH_RESULTS!, content);
+				}
+				return okResult;
+			};
+		try {
+			// Not JSON at all.
+			fs.writeFileSync(results, "not json{");
+			// sweep "succeeds" but leaves the bad file in place.
+			expect(await execBench(["--audio-dir", dir, "--results", results], () => okResult)).toBe(1);
+			// Valid JSON, wrong shape.
+			expect(
+				await execBench(["--audio-dir", dir, "--results", results], spawnWriting('{"a":1}')),
+			).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("not bench-asr.py output");
+			// Right shape, wrong hyp count for the fixture set.
+			expect(
+				await execBench(
+					["--audio-dir", dir, "--results", results],
+					spawnWriting(JSON.stringify([{ model: "m", rtf: 0, peak_rss_mb: 0, hyps: ["a", "b"] }])),
+				),
+			).toBe(1);
+			expect(errSpy.mock.calls.flat().join(" ")).toContain("hypotheses for 1 fixtures");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("nodeSpawn covers the real spawnSync boundary", () => {
+		// True/false exist on unix CI; a bogus binary exercises the
+		// error branch. (SpawnSync with utf8 never yields null stdout.)
+		const ok = nodeSpawn("true", [], {});
+		expect(ok.status).toBe(0);
+		const fail = nodeSpawn("false", [], {});
+		expect(fail.status).toBe(1);
+		const missing = nodeSpawn("definitely-not-a-real-binary-xyz", [], {});
+		expect(missing.error).toBeDefined();
 	});
 });
 
@@ -632,7 +1069,9 @@ describe("cli.run dispatch", () => {
 			expect(await exec(["report", "fx", "--workdir", wd])).toBe(0);
 			expect(await exec(["list"])).toBe(0);
 			expect(await exec(["gate", "fx", "--workdir", wd])).toBe(0);
-			expect(await exec(["bench"])).toBe(2);
+			// A bogus profile is a usage error — deterministic, unlike a
+			// bare `bench` which would probe the real python env.
+			expect(await exec(["bench", "--profile", "bogus"])).toBe(2);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });
