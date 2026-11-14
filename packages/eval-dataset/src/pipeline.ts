@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 
+import { gateTranscript } from "./anonymize.ts";
 import { applyEdits, EditApplyError, type EditList } from "./diff.ts";
 import {
 	cer,
@@ -82,7 +83,10 @@ export const transcribeSample = (sample: Sample) =>
 			});
 		}
 		const asr = yield* AsrPort;
-		return yield* asr.transcribe(sample.audio, { language: "pt" });
+		// Provenance flows to the adapter so cloud ASR can refuse
+		// real-anonymized audio — voice is PHI, only synthetic audio
+		// may leave the perimeter (see AsrPort in ports.ts).
+		return yield* asr.transcribe(sample.audio, { language: "pt", origin: sample.origin });
 	});
 
 // ---------- S4: LLM cleanup → reversible edits → corrected text ----------
@@ -208,6 +212,24 @@ export const processSample = (input: {
 		// Include datasetVersion — the same sample.id re-run under a new
 		// dataset version must not collide with the old run's records.
 		const runId = input.runId ?? `run-${input.sample.datasetVersion}-${input.sample.id}`;
+		// PHI gate (M4): a real_anonymized script is re-scrubbed before
+		// ANY stage can egress it — judge state, cleanup input via ASR
+		// text, metrics. gateTranscript returns audit counts and never
+		// throws; null means residual identifiers survived scrubbing —
+		// fail closed before a single port call. Synthetic scripts are
+		// generator output and skip the gate (scrubbing would corrupt
+		// the gold text metrics compare against).
+		const gated =
+			input.sample.origin === "real_anonymized" ? gateTranscript(input.sample.script) : undefined;
+		if (input.sample.origin === "real_anonymized" && gated === null) {
+			return yield* new PortError({
+				port: "pipeline",
+				message: `sample ${input.sample.id} failed the PHI gate: residual identifiers in script`,
+			});
+		}
+		// Downstream stages see the scrubbed text, not the stored
+		// script — ingest owns persisting the clean form.
+		const script = gated?.text ?? input.sample.script;
 		const tag = (r: RunRecord): RunRecord => ({
 			...r,
 			runId,
@@ -238,7 +260,7 @@ export const processSample = (input: {
 		const answers: { id: string; kind: string; value: unknown; probability: number }[] = [];
 		if (asrQs.length > 0) {
 			const r = yield* ev.judge({
-				state: { script: input.sample.script, text: asr.text, persona: input.sample.persona },
+				state: { script, text: asr.text, persona: input.sample.persona },
 				questions: asrQs,
 			});
 			answers.push(...r.answers);
@@ -246,7 +268,7 @@ export const processSample = (input: {
 		}
 		if (correctedQs.length > 0) {
 			const r = yield* ev.judge({
-				state: { script: input.sample.script, text: corrected, persona: input.sample.persona },
+				state: { script, text: corrected, persona: input.sample.persona },
 				questions: correctedQs,
 			});
 			answers.push(...r.answers);
@@ -275,8 +297,8 @@ export const processSample = (input: {
 			vs.filter((v) => v.status !== "correct").length;
 
 		const asrMetrics: StageMetrics = {
-			wer: wer(input.sample.script, asr.text),
-			cer: cer(input.sample.script, asr.text),
+			wer: wer(script, asr.text),
+			cer: cer(script, asr.text),
 			criticalErrors: countCritical(asrEntities),
 			entityVerdicts: asrEntities,
 			stage: "asr",
@@ -285,8 +307,8 @@ export const processSample = (input: {
 			normalization: NORMALIZATION_PROFILE,
 		};
 		const correctedMetrics: StageMetrics = {
-			wer: wer(input.sample.script, corrected),
-			cer: cer(input.sample.script, corrected),
+			wer: wer(script, corrected),
+			cer: cer(script, corrected),
 			criticalErrors: countCritical(correctedEntities),
 			entityVerdicts: correctedEntities,
 			stage: "corrected",
@@ -297,7 +319,7 @@ export const processSample = (input: {
 		// Honest floor until real segment↔gold alignment lands: a
 		// segment counts correct when its normalized text appears in
 		// the normalized script — never blanket-true.
-		const normScript = normalize(input.sample.script);
+		const normScript = normalize(script);
 		const confSegments: ConfSegment[] = asr.segments.map((s) => ({
 			...(s.confidence !== undefined ? { confidence: s.confidence } : {}),
 			correct: s.text.trim().length > 0 && normScript.includes(normalize(s.text)),

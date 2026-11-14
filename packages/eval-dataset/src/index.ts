@@ -13,3 +13,4 @@ export * from "./align.ts";
 export * from "./calibrate.ts";
 export * from "./negation.ts";
 export * from "./accept.ts";
+export * from "./anonymize.ts";

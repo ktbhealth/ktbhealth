@@ -1,0 +1,12 @@
+{
+	"name": "@ktb/eval-dataset-cloud",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/eval-dataset": "workspace:*",
+		"effect": "4.1.2"
+	}
+}
