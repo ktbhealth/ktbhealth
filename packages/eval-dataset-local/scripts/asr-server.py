@@ -15,6 +15,7 @@ GET /health → 200 {"model": name, "status": "ok"}
 """
 
 import json
+import math
 import os
 import sys
 import traceback
@@ -57,12 +58,31 @@ class Handler(BaseHTTPRequestHandler):
                 return
             language = body.get("language")
             segments, info = MODEL_OBJ.transcribe(audio_path, language=language)
+            # NOTE on "confidence": this is an APPROXIMATION, not a
+            # calibrated confidence. faster-whisper exposes
+            # `avg_logprob` (mean per-token log-probability, <= 0);
+            # exp() squashes it into (0, 1] as a ranking signal for
+            # the downstream confidence buckets. `no_speech_prob` was
+            # rejected — it is P(non-speech), ~1.0 for any voiced
+            # segment, and would corrupt the metrics. Missing
+            # avg_logprob falls back to ~0 (worst bucket).
             segs = [
                 {
                     "t0": round(s.start, 3),
                     "t1": round(s.end, 3),
                     "text": s.text.strip(),
-                    "confidence": round(1.0 - (s.no_speech_prob or 0.0), 4),
+                    "confidence": round(
+                        min(
+                            1.0,
+                            max(
+                                0.0,
+                                math.exp(
+                                    s.avg_logprob if s.avg_logprob is not None else -20.0
+                                ),
+                            ),
+                        ),
+                        4,
+                    ),
                 }
                 for s in segments
             ]

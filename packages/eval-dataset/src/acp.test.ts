@@ -44,6 +44,23 @@ describe("decodeTaskResult", () => {
 		expect(out).toBe("done");
 	});
 
+	it("validates ConsultationScript payloads (non-empty string)", () => {
+		const out = decodeTaskResult({
+			response: okResponse("Doctor: o que sente?"),
+			envelope: envelope({ outputSchema: "ConsultationScript" }),
+		});
+		expect(out).toBe("Doctor: o que sente?");
+	});
+
+	it("rejects empty ConsultationScript payloads", () => {
+		expect(() =>
+			decodeTaskResult({
+				response: okResponse("   "),
+				envelope: envelope({ outputSchema: "ConsultationScript" }),
+			}),
+		).toThrow(/ConsultationScript validation/);
+	});
+
 	it("validates EditList payloads through the Schema", () => {
 		const edits = { ops: [{ at: 0, remove: "a", insert: "b", kind: "fix" }] };
 		const out = decodeTaskResult({

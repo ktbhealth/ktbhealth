@@ -50,6 +50,15 @@ export const outputValidators: Record<string, OutputValidator> = {
 		}
 		return payload;
 	},
+	// S0 script generation (pipeline.generateScript) — the script is
+	// plain text, but an EMPTY script is a failed generation, not a
+	// valid one.
+	ConsultationScript: (payload) => {
+		if (typeof payload !== "string" || payload.trim().length === 0) {
+			throw new Error("expected non-empty string payload");
+		}
+		return payload;
+	},
 	EditList: (payload) => Schema.decodeUnknownSync(EditList)(payload),
 };
 
@@ -79,20 +88,20 @@ export const decodeTaskResult = (input: {
 		res.jsonrpc !== ACP_VERSION ||
 		res.id !== input.envelope.taskId
 	) {
-		throw fail("acp", "response does not match request id/version");
+		throw fail("llm", "response does not match request id/version");
 	}
 	if (res.error !== undefined) {
-		throw fail("acp", `agent error ${res.error.code}: ${res.error.message}`);
+		throw fail("llm", `agent error ${res.error.code}: ${res.error.message}`);
 	}
 	const validator = (input.validators ?? outputValidators)[input.envelope.outputSchema];
 	if (validator === undefined) {
-		throw fail("acp", `unknown outputSchema: ${input.envelope.outputSchema}`);
+		throw fail("llm", `unknown outputSchema: ${input.envelope.outputSchema}`);
 	}
 	try {
 		return validator(res.result?.payload);
 	} catch (e) {
 		throw fail(
-			"acp",
+			"llm",
 			`payload failed ${input.envelope.outputSchema} validation: ${e instanceof Error ? e.message : String(e)}`,
 		);
 	}
