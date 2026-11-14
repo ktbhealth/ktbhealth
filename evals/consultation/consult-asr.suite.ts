@@ -22,8 +22,22 @@ import { defineSuite } from "@ktb/eval-core";
  * evals/consultation/src/pipeline.ts (RUN_STAGE_FNS) and
  * evals/README.md.
  *
- * `gates[0].params` is an AcceptPolicy (evals/consultation
- * accept.ts) — every field named so the gate is data, not code.
+ * `gates` uses the contributed `consult.standard` preset (P-078):
+ * an `eval.gatepreset` bundle that expands to the auto-accept gate
+ * with the AcceptPolicy params this suite always declared — same
+ * gate semantics as the pre-preset `params` object, now named and
+ * versioned data. `consult.strict` is the tighter variant; a
+ * manifest may also write `{id: "auto-accept", config: {...}}`
+ * directly or override single preset gates via `overrides`.
+ *
+ * Stage/metric entries may carry `config` validated by the
+ * contribution's own schema (evals/consultation/src/config.ts,
+ * P-078) — this suite keeps bare ids because the consultation
+ * runner computes one StageMetrics record per produced stage
+ * (pipeline.ts): metric `config` is validated at resolution but no
+ * runner consumes it yet, so declaring it here would imply behavior
+ * that does not happen. Gate `config` IS consumed — `eval gate`
+ * decodes it into the AcceptPolicy.
  */
 export const suite = defineSuite({
 	id: "consult-asr",
@@ -40,20 +54,7 @@ export const suite = defineSuite({
 		registry: "storage.dataset",
 	},
 	metrics: ["wer", "cer", "entity-verdicts", "confidence-calibration", "risk-score"],
-	gates: [
-		{
-			id: "auto-accept",
-			params: {
-				stage: "corrected",
-				maxWer: 0.05,
-				target: 0.9,
-				minN: 40,
-				maxRisk: 0,
-				maxHarmfulEdits: 0,
-				maxUnjudgedEdits: 0,
-			},
-		},
-	],
+	gates: [{ preset: "consult.standard" }],
 	schemaVersion: 1,
 	adapterProfile: "stub",
 });

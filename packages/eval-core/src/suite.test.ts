@@ -1,7 +1,14 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { defineSuite, stageIdOf, stageIdsOf, stageNodesOf, validateManifest } from "./suite.ts";
+import {
+	defineSuite,
+	gateEntryConfig,
+	stageIdOf,
+	stageIdsOf,
+	stageNodesOf,
+	validateManifest,
+} from "./suite.ts";
 
 const valid = {
 	id: "demo-cleanup",
@@ -101,6 +108,60 @@ describe("defineSuite", () => {
 			Schema.SchemaError,
 		);
 	});
+
+	it("accepts metric ref objects, stage config, and gate presets (P-078)", () => {
+		const m = defineSuite({
+			...valid,
+			stages: ["asr", { id: "judge", config: { questions: "q1" } }],
+			metrics: ["wer", { id: "cer", config: { profile: "ptbr-v1" } }],
+			gates: [
+				{ id: "auto-accept", config: { target: 0.95 } },
+				{ preset: "consult.strict", overrides: { "auto-accept": { minN: 80 } } },
+			],
+		});
+		expect(m.stages[1]).toEqual({ id: "judge", config: { questions: "q1" } });
+		expect(m.metrics[1]).toEqual({ id: "cer", config: { profile: "ptbr-v1" } });
+		expect(m.gates[0]).toEqual({ id: "auto-accept", config: { target: 0.95 } });
+		expect(m.gates[1]).toEqual({
+			preset: "consult.strict",
+			overrides: { "auto-accept": { minN: 80 } },
+		});
+	});
+
+	it("rejects ambiguous or misplaced gate entry fields (P-078)", () => {
+		// Neither id nor preset.
+		expect(() => defineSuite({ ...valid, gates: [{ config: {} }] })).toThrowError(
+			Schema.SchemaError,
+		);
+		// Both id and preset.
+		expect(() => defineSuite({ ...valid, gates: [{ id: "g", preset: "p" }] })).toThrowError(
+			Schema.SchemaError,
+		);
+		// config + legacy params together.
+		expect(() =>
+			defineSuite({ ...valid, gates: [{ id: "g", config: {}, params: {} }] }),
+		).toThrowError(Schema.SchemaError);
+		// overrides on an id entry.
+		expect(() => defineSuite({ ...valid, gates: [{ id: "g", overrides: {} }] })).toThrowError(
+			Schema.SchemaError,
+		);
+		// config on a preset entry.
+		expect(() => defineSuite({ ...valid, gates: [{ preset: "p", config: {} }] })).toThrowError(
+			Schema.SchemaError,
+		);
+	});
+
+	it("rejects non-JSON config on metric/stage/gate entries", () => {
+		expect(() =>
+			defineSuite({ ...valid, metrics: [{ id: "wer", config: { f: () => 1 } }] }),
+		).toThrowError(Schema.SchemaError);
+		expect(() =>
+			defineSuite({ ...valid, stages: [{ id: "x", config: { f: () => 1 } }] }),
+		).toThrowError(Schema.SchemaError);
+		expect(() =>
+			defineSuite({ ...valid, gates: [{ id: "g", config: { f: () => 1 } }] }),
+		).toThrowError(Schema.SchemaError);
+	});
 });
 
 describe("stage entry helpers", () => {
@@ -110,6 +171,18 @@ describe("stage entry helpers", () => {
 		expect(stageIdOf(entries[1])).toBe("b");
 		expect(stageIdsOf(entries)).toEqual(["a", "b"]);
 		expect(stageNodesOf(entries)).toEqual([{ id: "a" }, { id: "b", needs: [] }]);
+	});
+});
+
+describe("gateEntryConfig", () => {
+	it("normalizes id-entry config, prefers config over legacy params, ignores presets", () => {
+		expect(gateEntryConfig({ id: "g" })).toBeUndefined();
+		expect(gateEntryConfig({ id: "g", config: { a: 1 } })).toEqual({ a: 1 });
+		expect(gateEntryConfig({ id: "g", params: { b: 2 } })).toEqual({ b: 2 });
+		// Schema rejects config+params together; config still wins
+		// defensively if a hand-built entry bypasses decoding.
+		expect(gateEntryConfig({ id: "g", config: { a: 1 }, params: { b: 2 } })).toEqual({ a: 1 });
+		expect(gateEntryConfig({ preset: "p", overrides: { g: {} } })).toBeUndefined();
 	});
 });
 

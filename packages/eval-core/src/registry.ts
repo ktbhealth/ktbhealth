@@ -41,6 +41,7 @@ export const ContributionKind = Schema.Literals([
 	"eval.stage",
 	"eval.metric",
 	"eval.gate",
+	"eval.gatepreset",
 	"eval.condition",
 	"eval.capability",
 ]);
@@ -56,6 +57,41 @@ export const Contribution = Schema.Struct({
 	meta: Schema.optionalKey(Schema.JsonObject),
 });
 export type Contribution = typeof Contribution.Type;
+
+/**
+ * Outcome of a contribution-declared config validation (P-078).
+ * `ok` carries the decoded config (schema defaults applied);
+ * `error` is a human-readable reason surfaced by `eval list` /
+ * command resolution.
+ */
+export type ConfigValidation =
+	| { readonly ok: true; readonly config: unknown }
+	| { readonly ok: false; readonly error: string };
+
+/**
+ * A contribution's config validator (P-078) — CODE owned by the
+ * contributor. effect/Schema is not JSON-serializable, so the config
+ * shape cannot live in `meta`; instead the contributor registers a
+ * function beside its contribution and manifests stay pure data.
+ * `config` is the manifest entry's `config` object — legacy gate
+ * `params` are normalized to it before validation — or `undefined`
+ * when the entry declares none (validators treat that as "defaults"
+ * and may still reject when config is required).
+ */
+export type ConfigValidator = (config: unknown) => ConfigValidation;
+
+/**
+ * A `Contribution` plus its optional runtime config validator. The
+ * validator cannot be a Schema field (functions are not data) nor
+ * `meta` (JSON-only), so it rides beside the data on the same
+ * object: plugin manifests carry it through `toEvalContribution`
+ * (kinds.ts) and domain packs declare it inline on their plain
+ * contribution arrays. eval-core never calls it — apps/eval resolve
+ * does, keeping this package domain-blind.
+ */
+export interface ContributionWithConfig extends Contribution {
+	readonly validateConfig?: ConfigValidator;
+}
 
 /** Same kind+id registered twice — ids must be unique per kind. */
 export class DuplicateContributionError extends Data.TaggedError("DuplicateContributionError")<{
@@ -76,11 +112,13 @@ const keyOf = (kind: ContributionKind, id: string): string => `${kind}:${id}`;
  * compose it inside their own Effect services; typed errors are thrown
  * (TaggedError), so `Effect.try`/`Effect.catch` can lift them. */
 export class ContributionRegistry {
-	private readonly entries = new Map<string, Contribution>();
+	private readonly entries = new Map<string, ContributionWithConfig>();
 
 	/** Register a contribution. Throws `DuplicateContributionError`
-	 * when the same kind+id is already registered. */
-	register(contribution: Contribution): void {
+	 * when the same kind+id is already registered. `validateConfig`
+	 * (P-078) rides along untouched — it is a runtime function, not
+	 * registry data. */
+	register(contribution: ContributionWithConfig): void {
 		const key = keyOf(contribution.kind, contribution.id);
 		if (this.entries.has(key)) {
 			throw new DuplicateContributionError({
@@ -93,13 +131,22 @@ export class ContributionRegistry {
 	}
 
 	/** Look up a contribution by kind+id. Throws
-	 * `UnknownContributionError` when absent. */
-	get(kind: ContributionKind, id: string): Contribution {
+	 * `UnknownContributionError` when absent. The returned type keeps
+	 * `validateConfig` visible (P-078). */
+	get(kind: ContributionKind, id: string): ContributionWithConfig {
 		const entry = this.entries.get(keyOf(kind, id));
 		if (entry === undefined) {
 			throw new UnknownContributionError({ kind, id });
 		}
 		return entry;
+	}
+
+	/** The contribution's declared config validator (P-078), or
+	 * `undefined` when it declares none — callers treat "config on a
+	 * validator-less contribution" as unverifiable, never silently
+	 * accepted. */
+	configValidator(kind: ContributionKind, id: string): ConfigValidator | undefined {
+		return this.entries.get(keyOf(kind, id))?.validateConfig;
 	}
 
 	has(kind: ContributionKind, id: string): boolean {
@@ -108,7 +155,7 @@ export class ContributionRegistry {
 
 	/** All registered contributions, optionally filtered by kind, in
 	 * registration order. */
-	list(kind?: ContributionKind): readonly Contribution[] {
+	list(kind?: ContributionKind): readonly ContributionWithConfig[] {
 		const all = [...this.entries.values()];
 		return kind === undefined ? all : all.filter((c) => c.kind === kind);
 	}

@@ -3,12 +3,15 @@
  * phase 4).
  *
  * A suite manifest references stages/metrics/gates/capabilities BY
- * ID. Resolution answers two questions without wiring anything:
+ * ID. Resolution answers these questions without wiring anything:
  *
  *   1. Does a registered contribution exist for each ref?
  *   2. For each capability, which adapter key does the selected
  *      profile resolve to — and does that adapter exist in the
  *      contribution's `meta.adapters` map?
+ *   3. (P-078) Do entry `config` objects pass the contribution's
+ *      declared `validateConfig`, and do `preset` gate refs expand
+ *      against registered `eval.gatepreset` contributions?
  *
  * `list` prints the result; commands fail fast on refs they cannot
  * wire. Pure data in, pure data out — no Effect, no fs.
@@ -16,12 +19,16 @@
 
 import {
 	buildStagePlan,
+	refConfigOf,
+	refIdOf,
 	stageNodesOf,
 	StageGraphError,
 	type ContributionKind,
 	type ContributionRegistry,
 	type EvalSuiteManifest,
 } from "@ktb/eval-core";
+
+import { expandGates, type ExpandedGate } from "./presets.ts";
 
 interface UnresolvedRef {
 	readonly kind: ContributionKind;
@@ -34,6 +41,16 @@ interface ResolvedRef {
 	readonly id: string;
 }
 
+/** A contribution config that failed its declared validator
+ * (P-078) — distinct from `unresolved` (missing contributions): the
+ * ref EXISTS, its config is malformed. Commands fail on these;
+ * `eval list` prints them and counts them toward --strict. */
+interface ConfigErrorRef {
+	readonly kind: ContributionKind;
+	readonly id: string;
+	readonly error: string;
+}
+
 export interface SuiteResolution {
 	readonly resolved: readonly ResolvedRef[];
 	readonly unresolved: readonly UnresolvedRef[];
@@ -44,6 +61,15 @@ export interface SuiteResolution {
 	 * unknown/self needs, or a cycle. Absent when the manifest's
 	 * `stages` form a valid DAG. */
 	readonly dagError?: string;
+	/** Concrete gate invocations after preset expansion (P-078) —
+	 * `id` entries normalized (`params`→`config`) plus every gate a
+	 * referenced `eval.gatepreset` declares, with `overrides`
+	 * merged. Commands consume THIS list, never `manifest.gates`
+	 * raw. */
+	readonly gates: readonly ExpandedGate[];
+	/** Config objects that failed their contribution's declared
+	 * `validateConfig` (P-078). */
+	readonly configErrors: readonly ConfigErrorRef[];
 }
 
 /**
@@ -115,6 +141,7 @@ export const resolveSuite = (
 ): SuiteResolution => {
 	const resolved: ResolvedRef[] = [];
 	const unresolved: UnresolvedRef[] = [];
+	const configErrors: ConfigErrorRef[] = [];
 	const adapters: Record<string, string> = {};
 	let dagError: string | undefined;
 
@@ -127,12 +154,40 @@ export const resolveSuite = (
 		return false;
 	};
 
+	// Config validation (P-078): every ref's `config` runs through the
+	// contribution's declared `validateConfig`. A contribution with
+	// NO validator rejects any declared config — unverifiable config
+	// is a manifest bug, never silently accepted. Validators also
+	// run on absent config (`undefined`) so a contribution that
+	// REQUIRES config is caught.
+	const checkConfig = (kind: ContributionKind, id: string, config: unknown): void => {
+		const validate = registry.configValidator(kind, id);
+		if (validate === undefined) {
+			if (config !== undefined) {
+				configErrors.push({ kind, id, error: "no config validator declared" });
+			}
+			return;
+		}
+		const v = validate(config);
+		if (!v.ok) {
+			configErrors.push({ kind, id, error: v.error });
+		}
+	};
+
 	// Stage entries are StageEntry = id string | StageNode — resolve
 	// every node id plus each `when.condition` guard ref, then
-	// validate the graph shape itself (P-077).
+	// validate the graph shape itself (P-077). Node `config` and
+	// condition `params` validate against their contributions (P-078).
 	for (const node of stageNodesOf(manifest.stages)) {
-		check("eval.stage", node.id);
-		if (node.when !== undefined) check("eval.condition", node.when.condition);
+		// Config validation only when the contribution exists — a
+		// missing ref is already `unresolved`; piling a config error
+		// on top would double-report the same manifest bug.
+		if (check("eval.stage", node.id)) checkConfig("eval.stage", node.id, node.config);
+		if (node.when !== undefined) {
+			if (check("eval.condition", node.when.condition)) {
+				checkConfig("eval.condition", node.when.condition, node.when.params);
+			}
+		}
 	}
 	try {
 		buildStagePlan(manifest.stages);
@@ -141,8 +196,28 @@ export const resolveSuite = (
 		const err = e as StageGraphError;
 		dagError = err.detail !== undefined ? `${err.message} (${err.detail})` : err.message;
 	}
-	for (const id of manifest.metrics) check("eval.metric", id);
-	for (const g of manifest.gates) check("eval.gate", g.id);
+	// Metric entries are string | {id, config} (P-078).
+	for (const m of manifest.metrics) {
+		const id = refIdOf(m);
+		if (check("eval.metric", id)) checkConfig("eval.metric", id, refConfigOf(m));
+	}
+	// Gate entries expand presets first (P-078): `{preset}` refs
+	// become concrete `{id, config}` invocations; expansion problems
+	// surface as unresolved `eval.gatepreset` refs. Valid presets
+	// still resolve as contributions for the list counts.
+	const gateExpansion = expandGates(registry, manifest.gates);
+	const badPresets = new Set(gateExpansion.problems.map((p) => p.preset));
+	for (const g of manifest.gates) {
+		if (g.preset !== undefined && !badPresets.has(g.preset)) {
+			check("eval.gatepreset", g.preset);
+		}
+	}
+	for (const p of gateExpansion.problems) {
+		unresolved.push({ kind: "eval.gatepreset", id: p.preset, reason: p.reason });
+	}
+	for (const g of gateExpansion.gates) {
+		if (check("eval.gate", g.id)) checkConfig("eval.gate", g.id, g.config);
+	}
 
 	const profileMap = profile === undefined ? undefined : ADAPTER_PROFILES[profile];
 	for (const capId of Object.keys(manifest.caps)) {
@@ -176,6 +251,8 @@ export const resolveSuite = (
 		resolved,
 		unresolved,
 		adapters,
+		gates: gateExpansion.gates,
+		configErrors,
 		...(dagError !== undefined ? { dagError } : {}),
 	};
 };

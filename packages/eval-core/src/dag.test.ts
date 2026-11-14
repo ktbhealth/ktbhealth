@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { BatchDefect } from "./batch.ts";
 import {
+	builtinConditionContributions,
 	buildStagePlan,
 	builtinConditions,
 	runStageGraph,
@@ -284,5 +285,39 @@ describe("builtinConditions", () => {
 		const ctx = { params: undefined, outputs: new Map() };
 		expect(builtinConditions.always!(ctx)).toBe(true);
 		expect(builtinConditions.never!(ctx)).toBe(false);
+	});
+});
+
+describe("builtinConditionContributions (P-078)", () => {
+	const validator = (id: string) =>
+		builtinConditionContributions.find((c) => c.id === id)!.validateConfig!;
+
+	it("declares eval.condition contributions for each builtin", () => {
+		expect(builtinConditionContributions.map((c) => `${c.kind}:${c.id}`)).toEqual([
+			"eval.condition:nonempty",
+			"eval.condition:always",
+			"eval.condition:never",
+		]);
+	});
+
+	it("nonempty requires a string key param and rejects unknown keys", () => {
+		const v = validator("nonempty");
+		expect(v(undefined)).toEqual({
+			ok: false,
+			error: 'condition param "key" must be a non-empty string',
+		});
+		expect(v({ key: "stage" })).toEqual({ ok: true, config: { key: "stage" } });
+		expect(v({ key: 1 })).toMatchObject({ ok: false });
+		expect(v({ key: "s", extra: 1 })).toMatchObject({ ok: false });
+		expect(v("nope")).toEqual({ ok: false, error: "condition params must be a JSON object" });
+	});
+
+	it("always/never reject any declared params", () => {
+		for (const id of ["always", "never"]) {
+			const v = validator(id);
+			expect(v(undefined)).toEqual({ ok: true, config: {} });
+			expect(v({})).toEqual({ ok: true, config: {} });
+			expect(v({ anything: 1 })).toMatchObject({ ok: false });
+		}
 	});
 });

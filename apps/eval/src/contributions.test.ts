@@ -24,6 +24,17 @@ describe("buildRegistry", () => {
 			expect(registry.has("eval.metric", id)).toBe(true);
 		}
 		expect(registry.has("eval.gate", "auto-accept")).toBe(true);
+		// P-078: gate presets, domain condition, builtin conditions.
+		expect(registry.has("eval.gatepreset", "consult.standard")).toBe(true);
+		expect(registry.has("eval.gatepreset", "consult.strict")).toBe(true);
+		expect(registry.has("eval.condition", "wer-above")).toBe(true);
+		for (const id of ["nonempty", "always", "never"]) {
+			expect(registry.has("eval.condition", id)).toBe(true);
+		}
+		// Domain contributions carry config validators; capability
+		// plugin contributions do not (yet).
+		expect(registry.configValidator("eval.gate", "auto-accept")).toBeTypeOf("function");
+		expect(registry.configValidator("eval.stage", "judge")).toBeUndefined();
 	});
 
 	test("fresh registries are independent", () => {

@@ -68,4 +68,21 @@ describe("ContributionRegistry", () => {
 		expect(r.list("eval.stage").map((c) => c.id)).toEqual(["asr", "cleanup"]);
 		expect(r.list("eval.gate")).toEqual([]);
 	});
+
+	it("configValidator returns the declared validator or undefined (P-078)", () => {
+		const r = new ContributionRegistry();
+		const validate = () => ({ ok: true as const, config: {} });
+		r.register({ ...stage("asr"), validateConfig: validate });
+		r.register(stage("cleanup"));
+		expect(r.configValidator("eval.stage", "asr")).toBe(validate);
+		expect(r.configValidator("eval.stage", "cleanup")).toBeUndefined();
+		// Unknown kind+id → undefined, never a throw.
+		expect(r.configValidator("eval.gate", "ghost")).toBeUndefined();
+		// get()/list() are runtime views — the validator rides along
+		// (it lives beside the data, never inside `meta`, so serialized
+		// contribution metadata stays pure JSON).
+		expect(r.get("eval.stage", "asr").validateConfig).toBe(validate);
+		expect(r.list("eval.stage")[0]?.validateConfig).toBe(validate);
+		expect(JSON.stringify(r.get("eval.stage", "asr").meta ?? {})).not.toContain("validate");
+	});
 });

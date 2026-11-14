@@ -96,6 +96,17 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				const profile = yield* selectProfile(cfg.profile, suite);
 				const { resolution } = resolveFor(suite, profile);
 				yield* assertCapabilities(suite, resolution, ["asr", "llm", "eval"]);
+				// Contribution config validation (P-078): a manifest
+				// `config` that fails its contribution's declared
+				// validator is a manifest bug — fail before any work,
+				// same rule as malformed gate params.
+				if (resolution.configErrors.length > 0) {
+					return yield* new UsageError({
+						message:
+							`suite "${manifest.id}" has invalid contribution config: ` +
+							resolution.configErrors.map((e) => `${e.kind} "${e.id}": ${e.error}`).join("; "),
+					});
+				}
 
 				const workdir = yield* workdirFlag(cfg.workdir);
 				const concurrency = yield* intFlag("concurrency", cfg.concurrency, 2, 1);

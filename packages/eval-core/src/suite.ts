@@ -1,4 +1,5 @@
 import { Option, Schema } from "effect";
+import type { JsonObject } from "effect/Schema";
 
 /**
  * suite.ts — the eval suite manifest contract (P-074, DAG + inputs
@@ -31,6 +32,19 @@ import { Option, Schema } from "effect";
  * decoders (apps/eval policy.ts). `meta.fn` on a contribution stays a
  * human/ops pointer, not a callable key.
  *
+ * CONFIG EXPRESSIVENESS (P-078): stage/metric/gate/condition entries
+ * may carry a `config` JSON object (gates also accept legacy `params`,
+ * normalized to `config` at resolution). The config SHAPE is owned by
+ * the contribution: each contribution may declare a `validateConfig`
+ * function (registry.ts `ContributionWithConfig`) that apps/eval runs
+ * at `eval list`/`eval run` resolution — effect/Schema is not
+ * JSON-serializable, so validation is contributor code, never
+ * manifest data. Gate entries may instead name an `eval.gatepreset`
+ * contribution (`{preset, overrides?}`) — a versioned bundle of gate
+ * refs contributed as data (`meta.gates`, see GatePresetPayload)
+ * that expands to concrete `{id, config}` invocations, with
+ * `overrides` shallow-merging per gate id.
+ *
  * `inputs` (P-077) declares cross-suite composition: refs to other
  * suites' persisted SampleResult artifacts (`{suite, stage?, field?,
  * runId?, datasetVersion?}`). apps/eval resolves them against the
@@ -51,13 +65,82 @@ export const SuiteDataset = Schema.Struct({
 });
 export type SuiteDataset = typeof SuiteDataset.Type;
 
-/** One gate invocation — the registered gate id plus its params.
- * `params` is a JSON object: gate policies are data, not closures. */
-export const SuiteGate = Schema.Struct({
+/** One named reference to a registered contribution with optional
+ * config (P-078): `config` is a JSON object validated against the
+ * contribution's own `validateConfig` at resolution time
+ * (apps/eval resolve.ts) — the config SHAPE is contributor-owned,
+ * eval-core stays domain-blind. Metric entries use this; stage
+ * nodes carry the same field inline (StageNode.config). */
+export const ContributionRef = Schema.Struct({
 	id: Schema.String,
-	params: Schema.optionalKey(Schema.JsonObject),
+	config: Schema.optionalKey(Schema.JsonObject),
 });
-export type SuiteGate = typeof SuiteGate.Type;
+export type ContributionRef = typeof ContributionRef.Type;
+
+/** The stage id + config of one metric-style ref entry. */
+export const refIdOf = (entry: string | ContributionRef): string =>
+	typeof entry === "string" ? entry : entry.id;
+
+/** The declared config of a ref entry — `undefined` for bare ids. */
+export const refConfigOf = (entry: string | ContributionRef): JsonObject | undefined =>
+	typeof entry === "string" ? undefined : entry.config;
+
+/** One gate invocation — EITHER a registered gate id (`id`, with
+ * `config` — or legacy `params`, normalized to config at resolution)
+ * OR a named gate preset (`preset`, an `eval.gatepreset` contribution
+ * id whose meta.gates bundle expands to concrete gate refs, with
+ * optional per-gate `overrides`). Exactly one of `id`/`preset` must
+ * be set; `config`/`params` belong on `id` entries, `overrides` on
+ * `preset` entries. All fields are JSON data — gate policies are
+ * data, not closures. */
+export const SuiteGateEntry = Schema.Struct({
+	id: Schema.optionalKey(Schema.String),
+	preset: Schema.optionalKey(Schema.String),
+	config: Schema.optionalKey(Schema.JsonObject),
+	/** @deprecated legacy alias for `config` — kept so pre-P-078
+	 * manifests keep working; setting both is rejected. */
+	params: Schema.optionalKey(Schema.JsonObject),
+	overrides: Schema.optionalKey(Schema.Record(Schema.String, Schema.JsonObject)),
+}).pipe(
+	Schema.check(
+		Schema.makeFilter((g) => {
+			const hasId = g.id !== undefined;
+			const hasPreset = g.preset !== undefined;
+			if (hasId === hasPreset) {
+				return "gate entry needs exactly one of `id` or `preset`";
+			}
+			if (hasId) {
+				if (g.config !== undefined && g.params !== undefined) {
+					return "gate entry cannot set both `config` and legacy `params`";
+				}
+				if (g.overrides !== undefined) {
+					return "`overrides` is only valid on a `preset` gate entry";
+				}
+				return true;
+			}
+			if (g.config !== undefined || g.params !== undefined) {
+				return "`config`/`params` belong on `id` gate entries — preset entries take `overrides`";
+			}
+			return true;
+		}),
+	),
+);
+export type SuiteGateEntry = typeof SuiteGateEntry.Type;
+
+/** The effective config of an `id` gate entry — `config` wins,
+ * legacy `params` is the fallback. `undefined` on preset entries
+ * (their per-gate configs live in the preset payload). */
+export const gateEntryConfig = (entry: SuiteGateEntry): JsonObject | undefined =>
+	entry.id !== undefined ? (entry.config ?? entry.params) : undefined;
+
+/** Declared payload of an `eval.gatepreset` contribution's `meta`
+ * (P-078): a named, versioned bundle of gate refs — the same
+ * `{id, config}` shape manifests use, pure JSON data. apps/eval
+ * validates `meta` against this before expanding. */
+export const GatePresetPayload = Schema.Struct({
+	gates: Schema.Array(ContributionRef),
+});
+export type GatePresetPayload = typeof GatePresetPayload.Type;
 
 /** Conditional-stage guard (P-077): `condition` is a registered
  * `eval.condition` contribution id; `params` is a JSON object —
@@ -85,6 +168,9 @@ export const StageNode = Schema.Struct({
 	needs: Schema.optionalKey(Schema.Array(Schema.String)),
 	optional: Schema.optionalKey(Schema.Boolean),
 	when: Schema.optionalKey(StageCondition),
+	/** Optional stage config (P-078) — validated against the stage
+	 * contribution's `validateConfig` at resolution time. */
+	config: Schema.optionalKey(Schema.JsonObject),
 });
 export type StageNode = typeof StageNode.Type;
 
@@ -121,8 +207,13 @@ export const EvalSuiteManifest = Schema.Struct({
 	dataset: SuiteDataset,
 	stages: Schema.Array(StageEntry),
 	caps: Schema.Record(Schema.String, Schema.String),
-	metrics: Schema.Array(Schema.String),
-	gates: Schema.Array(SuiteGate),
+	/** Metric refs — bare id string or `{id, config}` (P-078);
+	 * `config` validates against the metric contribution's
+	 * `validateConfig` at resolution. */
+	metrics: Schema.Array(Schema.Union([Schema.String, ContributionRef])),
+	/** Gate entries — `{id, config?|params?}` or `{preset, overrides?}`
+	 * (P-078); presets expand to concrete gate refs at resolution. */
+	gates: Schema.Array(SuiteGateEntry),
 	schemaVersion: Schema.Number,
 	/** Optional adapter profile selector — which adapter set resolves
 	 * the suite's ports (e.g. "stub", "local", "cloud"). */

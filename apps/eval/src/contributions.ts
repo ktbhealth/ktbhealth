@@ -21,10 +21,11 @@
 import { orderPlugins } from "@ktb/driver-framework";
 import type { Plugin } from "@ktb/kernel";
 import {
+	builtinConditionContributions,
 	ContributionRegistry,
 	isEvalContributionKind,
 	toEvalContribution,
-	type Contribution,
+	type ContributionWithConfig,
 } from "@ktb/eval-core";
 import { consultContributions } from "@ktb/eval-consultation";
 import { plugins as llmEvalPlugins } from "@ktb/llm-eval";
@@ -50,7 +51,9 @@ export const evalPlugins = orderPlugins([
  * this consumer does not know throw — a manifest declaring a foreign
  * kind is a packaging bug, not something to paper over.
  */
-export const collectEvalContributions = (plugins: readonly Plugin[]): readonly Contribution[] =>
+export const collectEvalContributions = (
+	plugins: readonly Plugin[],
+): readonly ContributionWithConfig[] =>
 	plugins.flatMap((plugin) =>
 		(plugin.contributions ?? []).map((entry) => {
 			if (!isEvalContributionKind(entry.kind)) {
@@ -65,13 +68,16 @@ export const collectEvalContributions = (plugins: readonly Plugin[]): readonly C
 		}),
 	);
 
-/** Every contribution the eval CLI knows about — domain metrics/gates
- * come from the domain packs' plain contribution arrays
- * (`consultContributions`); stages and capabilities from the
- * capability plugins. Domain contributions come last, matching the
- * order the dissolved eval.consult plugin occupied. */
-export const ALL_CONTRIBUTIONS: readonly Contribution[] = [
+/** Every contribution the eval CLI knows about — capability plugins'
+ * manifest contributions, the framework's builtin `eval.condition`
+ * declarations (P-078: nonempty/always/never — their evaluators are
+ * eval-core's `builtinConditions`), then domain metrics/gates/
+ * presets/conditions from the domain packs' plain contribution
+ * arrays (`consultContributions`). Domain contributions come last,
+ * matching the order the dissolved eval.consult plugin occupied. */
+export const ALL_CONTRIBUTIONS: readonly ContributionWithConfig[] = [
 	...collectEvalContributions(evalPlugins),
+	...builtinConditionContributions,
 	...consultContributions,
 ];
 

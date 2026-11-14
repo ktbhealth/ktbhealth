@@ -1,4 +1,14 @@
-import type { Contribution } from "@ktb/eval-core";
+import type { ContributionWithConfig } from "@ktb/eval-core";
+
+import {
+	ConfidenceCalibrationConfig,
+	EntityVerdictsConfig,
+	NormalizeConfig,
+	RiskScoreConfig,
+	schemaConfigValidator,
+	validateAutoAcceptConfig,
+	WerAboveConfig,
+} from "./config.ts";
 
 // Eval domain pack (P-074, moved under evals/ by P-075): the clinical
 // consult eval domain — schema, metrics, the S0–S7 pipeline,
@@ -14,6 +24,7 @@ import type { Contribution } from "@ktb/eval-core";
 // the eval composition root (apps/eval/src/contributions.ts) collects
 // directly.
 export * from "./accept.ts";
+export * from "./config.ts";
 export * from "./acp.ts";
 export * from "./anonymize.ts";
 export * from "./generate.ts";
@@ -44,26 +55,104 @@ export * from "./scriptgen.ts";
  * (script_gen/synthesize) are owned by `eval generate`
  * (GENERATION_STAGES).
  */
-export const consultContributions: readonly Contribution[] = [
-	{ kind: "eval.metric", id: "wer", version: "1", meta: { fn: "wer" } },
-	{ kind: "eval.metric", id: "cer", version: "1", meta: { fn: "cer" } },
+export const consultContributions: readonly ContributionWithConfig[] = [
+	{
+		kind: "eval.metric",
+		id: "wer",
+		version: "1",
+		meta: { fn: "wer" },
+		validateConfig: schemaConfigValidator(NormalizeConfig),
+	},
+	{
+		kind: "eval.metric",
+		id: "cer",
+		version: "1",
+		meta: { fn: "cer" },
+		validateConfig: schemaConfigValidator(NormalizeConfig),
+	},
 	{
 		kind: "eval.metric",
 		id: "entity-verdicts",
 		version: "1",
 		meta: { fn: "checkEntities+judge", stage: "asr|corrected" },
+		validateConfig: schemaConfigValidator(EntityVerdictsConfig),
 	},
 	{
 		kind: "eval.metric",
 		id: "confidence-calibration",
 		version: "1",
 		meta: { fn: "bucketByConfidence+calibrate" },
+		validateConfig: schemaConfigValidator(ConfidenceCalibrationConfig),
 	},
-	{ kind: "eval.metric", id: "risk-score", version: "1", meta: { fn: "riskScore" } },
+	{
+		kind: "eval.metric",
+		id: "risk-score",
+		version: "1",
+		meta: { fn: "riskScore" },
+		validateConfig: schemaConfigValidator(RiskScoreConfig),
+	},
 	{
 		kind: "eval.gate",
 		id: "auto-accept",
 		version: "1",
 		meta: { fn: "decideAutoAccept+gateRun", policy: "AcceptPolicy" },
+		validateConfig: validateAutoAcceptConfig,
+	},
+	// Named gate presets (P-078): versioned bundles of gate refs as
+	// pure data (`meta.gates` = GatePresetPayload). Manifests
+	// reference them via `gates: [{preset: "<id>", overrides?}]`;
+	// `consult.standard` preserves the pre-preset consult-asr params,
+	// `consult.strict` tightens WER/precision floors.
+	{
+		kind: "eval.gatepreset",
+		id: "consult.standard",
+		version: "1",
+		meta: {
+			gates: [
+				{
+					id: "auto-accept",
+					config: {
+						stage: "corrected",
+						maxWer: 0.05,
+						target: 0.9,
+						minN: 40,
+						maxRisk: 0,
+						maxHarmfulEdits: 0,
+						maxUnjudgedEdits: 0,
+					},
+				},
+			],
+		},
+	},
+	{
+		kind: "eval.gatepreset",
+		id: "consult.strict",
+		version: "1",
+		meta: {
+			gates: [
+				{
+					id: "auto-accept",
+					config: {
+						stage: "corrected",
+						maxWer: 0.02,
+						target: 0.95,
+						minN: 40,
+						maxRisk: 0,
+						maxHarmfulEdits: 0,
+						maxUnjudgedEdits: 0,
+					},
+				},
+			],
+		},
+	},
+	// Domain condition (P-078): `when: {condition: "wer-above",
+	// params: {threshold, key?}}` — evaluator in consultConditions
+	// (config.ts), params validated by WerAboveConfig.
+	{
+		kind: "eval.condition",
+		id: "wer-above",
+		version: "1",
+		meta: { fn: "werAbove" },
+		validateConfig: schemaConfigValidator(WerAboveConfig),
 	},
 ];

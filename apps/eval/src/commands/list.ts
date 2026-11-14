@@ -4,9 +4,10 @@
  *   eval list [--dir <path>] [--strict] [--workdir d]
  *
  * The CI-checkable command: every suite's refs are resolved against
- * the built ContributionRegistry under its declared adapterProfile.
- * Unresolved refs are printed, not hidden; --strict exits 1 when any
- * suite has one.
+ * the built ContributionRegistry under its declared adapterProfile —
+ * including contribution `config` validation and gate preset
+ * expansion (P-078). Unresolved refs and invalid configs are printed,
+ * not hidden; --strict exits 1 when any suite has one.
  *
  * Dataset registry check (P-076): when --workdir is given, each
  * suite's `dataset {id, version}` pin is looked up in that workdir's
@@ -72,10 +73,12 @@ export const makeListCommand = (ctx: CmdContext) =>
 				let datasetMissing = 0;
 				let dagErrors = 0;
 				let inputMissing = 0;
+				let configErrorTotal = 0;
 				for (const { file, manifest } of suites) {
 					const profile = manifest.adapterProfile ?? "stub";
 					const res = resolveSuite(registry, manifest, profile);
 					unresolvedTotal += res.unresolved.length;
+					configErrorTotal += res.configErrors.length;
 					const adapters = Object.entries(res.adapters)
 						.map(([cap, key]) => `${cap}=${key}`)
 						.join(" ");
@@ -91,11 +94,23 @@ export const makeListCommand = (ctx: CmdContext) =>
 					};
 					yield* Console.log(`  ${counts("eval.stage", manifest.stages.length)}`);
 					yield* Console.log(`  ${counts("eval.metric", manifest.metrics.length)}`);
-					yield* Console.log(`  ${counts("eval.gate", manifest.gates.length)}`);
+					// Gates display the EXPANDED count (P-078): preset
+					// refs resolve to their concrete gate invocations.
+					yield* Console.log(`  ${counts("eval.gate", res.gates.length)}`);
+					const presetCount = manifest.gates.filter((g) => g.preset !== undefined).length;
+					if (presetCount > 0) {
+						yield* Console.log(`  ${counts("eval.gatepreset", presetCount)}`);
+					}
 					yield* Console.log(`  ${counts("eval.capability", Object.keys(manifest.caps).length)}`);
 					if (adapters !== "") yield* Console.log(`  adapters  ${adapters}`);
 					for (const u of res.unresolved) {
 						yield* Console.log(`  ! ${kindLabel(u.kind)} "${u.id}" — ${u.reason}`);
+					}
+					// Contribution config validation failures (P-078) —
+					// the ref exists; its `config` failed the declared
+					// validator.
+					for (const e of res.configErrors) {
+						yield* Console.log(`  ! ${kindLabel(e.kind)} "${e.id}" — invalid config: ${e.error}`);
 					}
 					if (res.dagError !== undefined) {
 						dagErrors++;
@@ -146,6 +161,7 @@ export const makeListCommand = (ctx: CmdContext) =>
 
 				yield* Console.log(
 					`${suites.length} suite(s), ${unresolvedTotal} unresolved ref(s)` +
+						(configErrorTotal > 0 ? `, ${configErrorTotal} invalid config(s)` : "") +
 						(dagErrors > 0 ? `, ${dagErrors} invalid stage graph(s)` : "") +
 						(datasetMissing > 0 ? `, ${datasetMissing} missing dataset(s)` : "") +
 						(inputMissing > 0 ? `, ${inputMissing} unresolvable input(s)` : "") +
@@ -158,7 +174,11 @@ export const makeListCommand = (ctx: CmdContext) =>
 				}
 				if (
 					cfg.strict &&
-					(unresolvedTotal > 0 || datasetMissing > 0 || dagErrors > 0 || inputMissing > 0)
+					(unresolvedTotal > 0 ||
+						configErrorTotal > 0 ||
+						datasetMissing > 0 ||
+						dagErrors > 0 ||
+						inputMissing > 0)
 				) {
 					return yield* new CommandExit({ code: 1 });
 				}

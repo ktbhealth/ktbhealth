@@ -45,7 +45,7 @@ describe("decodeAcceptPolicy", () => {
 	});
 
 	test("rejects unknown params keys", () => {
-		expect(() => decodeAcceptPolicy({ bogus: 1 })).toThrow(/unknown params key/);
+		expect(() => decodeAcceptPolicy({ bogus: 1 })).toThrow(/unknown config key/);
 	});
 
 	test("rejects bad stage", () => {
@@ -62,25 +62,25 @@ describe("decodeAcceptPolicy", () => {
 	test("rejects gate-weakening ranges on every numeric param", () => {
 		// z <= 0 degenerates the Wilson bound — a negative z would
 		// silently weaken the precision gate.
-		expect(() => decodeAcceptPolicy({ z: 0 })).toThrow(/params\.z must be > 0/);
-		expect(() => decodeAcceptPolicy({ z: -1.5 })).toThrow(/params\.z must be > 0/);
+		expect(() => decodeAcceptPolicy({ z: 0 })).toThrow(/config\.z must be > 0/);
+		expect(() => decodeAcceptPolicy({ z: -1.5 })).toThrow(/config\.z must be > 0/);
 		// Negative error budgets / out-of-range targets weaken gates.
-		expect(() => decodeAcceptPolicy({ maxWer: -0.1 })).toThrow(/params\.maxWer must be >= 0/);
-		expect(() => decodeAcceptPolicy({ maxRisk: -1 })).toThrow(/params\.maxRisk must be >= 0/);
+		expect(() => decodeAcceptPolicy({ maxWer: -0.1 })).toThrow(/config\.maxWer must be >= 0/);
+		expect(() => decodeAcceptPolicy({ maxRisk: -1 })).toThrow(/config\.maxRisk must be >= 0/);
 		expect(() => decodeAcceptPolicy({ maxHarmfulEdits: -1 })).toThrow(
-			/params\.maxHarmfulEdits must be >= 0/,
+			/config\.maxHarmfulEdits must be >= 0/,
 		);
 		expect(() => decodeAcceptPolicy({ maxUnjudgedEdits: -1 })).toThrow(
-			/params\.maxUnjudgedEdits must be >= 0/,
+			/config\.maxUnjudgedEdits must be >= 0/,
 		);
-		expect(() => decodeAcceptPolicy({ target: 1.5 })).toThrow(/params\.target must be in \[0, 1\]/);
+		expect(() => decodeAcceptPolicy({ target: 1.5 })).toThrow(/config\.target must be in \[0, 1\]/);
 		expect(() => decodeAcceptPolicy({ target: -0.1 })).toThrow(
-			/params\.target must be in \[0, 1\]/,
+			/config\.target must be in \[0, 1\]/,
 		);
 	});
 
 	test("rejects explicit null — it is malformed data, not absent", () => {
-		expect(() => decodeAcceptPolicy({ maxWer: null })).toThrow(/params\.maxWer must not be null/);
+		expect(() => decodeAcceptPolicy({ maxWer: null })).toThrow(/config\.maxWer must not be null/);
 		expect(() => decodeAcceptPolicy({ minN: null })).toThrow(/must not be null/);
 		expect(() => decodeAcceptPolicy({ z: null })).toThrow(/must not be null/);
 		expect(() => decodeAcceptPolicy({ stage: null })).toThrow(/must not be null/);

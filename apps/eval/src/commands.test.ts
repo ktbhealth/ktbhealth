@@ -131,6 +131,30 @@ describe("list", () => {
 		}
 	});
 
+	test("list prints preset expansion and invalid configs (P-078)", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-listcfg-"));
+		fs.writeFileSync(
+			path.join(dir, "cfg.suite.ts"),
+			`export const suite = { id: "cfg", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [{ id: "wer", config: { bogus: 1 } }], gates: [{ preset: "consult.strict" }, { preset: "ghost" }], schemaVersion: 1 };`,
+		);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["list", "--dir", dir])).toBe(0);
+			const out = spy.mock.calls.map((c) => String(c[0])).join("\n");
+			// Expanded gate count: consult.strict → 1 gate; ghost → 0.
+			expect(out).toMatch(/gate\s+1\/1 resolved/);
+			expect(out).toMatch(/gatepreset\s+1\/2 resolved, 1 unresolved/);
+			expect(out).toContain('gatepreset "ghost"');
+			expect(out).toContain('metric "wer" — invalid config:');
+			expect(out).toContain("1 unresolved ref(s), 1 invalid config(s)");
+			// --strict fails on BOTH unresolved refs and bad configs.
+			expect(await exec(["list", "--dir", dir, "--strict"])).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("empty dir prints a notice", async () => {
 		const empty = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-empty-"));
 		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -307,6 +331,23 @@ describe("run/gate/report round-trip", () => {
 		}
 	});
 
+	test("run fails on invalid contribution config before any work (P-078)", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-cfg-"));
+		fs.writeFileSync(
+			path.join(dir, "cfg.suite.ts"),
+			`export const suite = { id: "cfg", domain: "d", dataset: { id: "d", version: "1" }, stages: ["transcribe"], caps: { asr: "transcription.asr", llm: "llm.eval", eval: "llm.eval" }, metrics: [{ id: "wer", config: { bogus: 1 } }], gates: [], schemaVersion: 1 };`,
+		);
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["run", "cfg", "--workdir", workdir], { ...ctx(), evalsDir: dir })).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("invalid contribution config");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("gate/report on empty stores are clean no-ops", async () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-nodata-"));
 		vi.spyOn(console, "log").mockImplementation(() => {});
@@ -446,6 +487,43 @@ describe("run/gate/report round-trip", () => {
 			expect(await exec(["gate", "bgate", "--workdir", workdir], { ...ctx(), evalsDir: dir })).toBe(
 				2,
 			);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("gate expands preset refs and applies overrides (P-078)", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-pgate-"));
+		fs.writeFileSync(
+			path.join(dir, "pgate.suite.ts"),
+			`export const suite = { id: "pgate", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [{ preset: "consult.strict", overrides: { "auto-accept": { minN: 1 } } }], schemaVersion: 1 };`,
+		);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["gate", "pgate", "--workdir", workdir], { ...ctx(), evalsDir: dir })).toBe(
+				0,
+			);
+			// No results under this dataset pin → honest empty report.
+			expect(spy.mock.calls.flat().join(" ")).toContain("no results");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	test("gate with an unresolvable preset is a usage error (exit 2)", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-ggate-"));
+		fs.writeFileSync(
+			path.join(dir, "ggate.suite.ts"),
+			`export const suite = { id: "ggate", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [{ preset: "ghost" }], schemaVersion: 1 };`,
+		);
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			expect(await exec(["gate", "ggate", "--workdir", workdir], { ...ctx(), evalsDir: dir })).toBe(
+				2,
+			);
+			expect(err.mock.calls.flat().join(" ")).toContain("ghost");
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(dir, { recursive: true, force: true });

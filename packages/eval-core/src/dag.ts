@@ -5,6 +5,7 @@ import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 
 import { BatchDefect } from "./batch.ts";
+import type { ConfigValidation, ContributionWithConfig } from "./registry.ts";
 import { stageNodesOf, type StageEntry, type StageNode } from "./suite.ts";
 
 /**
@@ -203,6 +204,69 @@ export const builtinConditions: Readonly<Record<string, ConditionEvaluator<unkno
 	/** Unconditional skip — template for domain conditions. */
 	never: () => false,
 };
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Shared shape check for builtin-condition params: `config` must be
+ * absent or a JSON object whose keys are all in `allowed`. */
+const paramsValidator =
+	(allowed: readonly string[], requireKey?: string) =>
+	(config: unknown): ConfigValidation => {
+		if (config !== undefined && !isRecord(config)) {
+			return { ok: false, error: "condition params must be a JSON object" };
+		}
+		const p = (config ?? {}) as Record<string, unknown>;
+		for (const key of Object.keys(p)) {
+			if (!allowed.includes(key)) {
+				return {
+					ok: false,
+					error: `unknown condition param "${key}" (known: ${allowed.join(", ") || "none"})`,
+				};
+			}
+		}
+		if (requireKey !== undefined) {
+			const v = p[requireKey];
+			if (typeof v !== "string" || v === "") {
+				return { ok: false, error: `condition param "${requireKey}" must be a non-empty string` };
+			}
+		}
+		return { ok: true, config: p };
+	};
+
+/**
+ * `eval.condition` contribution declarations for the builtin
+ * evaluators above (P-078): registering them makes `when.condition`
+ * ids resolvable through the contribution registry — `eval list`
+ * validates the ref AND its params shape via `validateConfig`, and
+ * domain packs contribute their own condition ids the same way.
+ * `meta.builtin` marks framework-owned ids.
+ */
+export const builtinConditionContributions: readonly ContributionWithConfig[] = [
+	{
+		kind: "eval.condition",
+		id: "nonempty",
+		version: "1",
+		meta: { builtin: true },
+		validateConfig: paramsValidator(["key"], "key"),
+	},
+	{
+		kind: "eval.condition",
+		id: "always",
+		version: "1",
+		meta: { builtin: true },
+		// always/never ignore params entirely — declaring any is a
+		// manifest bug, not something to silently drop.
+		validateConfig: paramsValidator([]),
+	},
+	{
+		kind: "eval.condition",
+		id: "never",
+		version: "1",
+		meta: { builtin: true },
+		validateConfig: paramsValidator([]),
+	},
+];
 
 /**
  * Schedule a stage graph. Builds the plan (StageGraphError on invalid

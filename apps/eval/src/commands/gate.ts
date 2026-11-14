@@ -6,8 +6,12 @@
  *     [--max-risk n] [--max-harmful-edits n] [--max-unjudged-edits n]
  *     [--z n]
  *
- * Each manifest gate's params decode to an AcceptPolicy
- * (policy.ts); CLI flags override individual fields — every numeric
+ * Gate entries expand first (P-078): `{preset}` refs resolve
+ * against `eval.gatepreset` contributions into concrete
+ * `{id, config}` invocations (`overrides` merged per gate id), then
+ * each gate's config decodes to an AcceptPolicy (policy.ts — the
+ * domain-owned decoder registered as the contribution's
+ * `validateConfig`). CLI flags override individual fields — every numeric
  * override is range-checked against the same rules as manifest params
  * (policyNumberError), so `--target 5` or `--z -1` is a usage error,
  * never a silently-weakened gate. Results are scoped to the manifest's
@@ -33,8 +37,10 @@ import {
 
 import { storeReportLayers } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
+import { buildRegistry } from "../contributions.ts";
 import { CommandExit, UsageError } from "../errors.ts";
 import { GATE_DECODERS, policyNumberError } from "../policy.ts";
+import { expandGates, type ExpandedGate } from "../presets.ts";
 import { findSuite } from "../suites.ts";
 import { datasetVersionOf, userError, workdirFlag } from "../shared.ts";
 
@@ -123,14 +129,27 @@ export const makeGateCommand = (ctx: CmdContext) =>
 					});
 				}
 
+				// Expand gate presets (P-078) BEFORE touching the store:
+				// `{preset}` refs become concrete `{id, config}`
+				// invocations; expansion problems are usage errors
+				// (exit 2), same rule as malformed gate configs.
+				const expansion = expandGates(buildRegistry(), manifest.gates);
+				if (expansion.problems.length > 0) {
+					return yield* new UsageError({
+						message:
+							`suite "${manifest.id}" gate presets failed to resolve: ` +
+							expansion.problems.map((p) => `preset "${p.preset}": ${p.reason}`).join("; "),
+					});
+				}
+
 				// Decode + override every declared gate BEFORE touching
 				// the store: a malformed gate or out-of-range flag is a
 				// usage error regardless of whether results exist.
 				const gates: {
-					readonly gate: (typeof manifest.gates)[number];
+					readonly gate: ExpandedGate;
 					readonly policy: AcceptPolicy;
 				}[] = [];
-				for (const gate of manifest.gates) {
+				for (const gate of expansion.gates) {
 					const decode = GATE_DECODERS[gate.id];
 					if (decode === undefined) {
 						return yield* userError(
@@ -141,9 +160,11 @@ export const makeGateCommand = (ctx: CmdContext) =>
 					}
 					// decodeAcceptPolicy's contract is UsageError-only
 					// throws (policy.ts) — lift it into the error channel
-					// so the exit-2 mapping survives.
+					// so the exit-2 mapping survives. `gate.config` is the
+					// normalized config (entry config ?? legacy params,
+					// preset config merged with overrides).
 					const decoded = yield* Effect.try({
-						try: () => decode(gate.params, gate.id),
+						try: () => decode(gate.config, gate.id),
 						catch: (e) => e as UsageError,
 					});
 					const policy = yield* applyOverrides(decoded, {

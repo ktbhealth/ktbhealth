@@ -1,6 +1,6 @@
 import type { ContributionKindDescriptor, PluginContribution } from "@ktb/kernel";
 
-import type { Contribution, ContributionKind } from "./registry.ts";
+import type { ConfigValidator, ContributionKind, ContributionWithConfig } from "./registry.ts";
 
 /**
  * kinds.ts — the eval domain's contribution-kind descriptors (P-070).
@@ -33,6 +33,7 @@ export const EVAL_CONTRIBUTION_KINDS: readonly ContributionKindDescriptor[] = [
 	evalKind("eval.stage"),
 	evalKind("eval.metric"),
 	evalKind("eval.gate"),
+	evalKind("eval.gatepreset"),
 	evalKind("eval.condition"),
 	evalKind("eval.capability"),
 ];
@@ -51,10 +52,23 @@ export const isEvalContributionKind = (kind: string): kind is ContributionKind =
  * is required by the eval contract: entries missing it are a packaging
  * bug and throw rather than silently default.
  */
-export const toEvalContribution = (entry: PluginContribution): Contribution | undefined => {
+export const toEvalContribution = (
+	entry: PluginContribution,
+): ContributionWithConfig | undefined => {
 	if (!isEvalContributionKind(entry.kind)) return undefined;
 	if (entry.version === undefined) {
 		throw new Error(`eval contribution "${entry.kind}:${entry.id}" is missing a version`);
 	}
-	return { kind: entry.kind, id: entry.id, version: entry.version, meta: entry.meta };
+	// `validateConfig` (P-078) is not part of the kernel's JSON-only
+	// PluginContribution contract — it rides as an extra field on the
+	// entry object and is passed through untouched. Absent → omitted
+	// so the decoded shape stays `{kind, id, version, meta}`.
+	const validateConfig = (entry as { validateConfig?: ConfigValidator }).validateConfig;
+	return {
+		kind: entry.kind,
+		id: entry.id,
+		version: entry.version,
+		meta: entry.meta,
+		...(validateConfig !== undefined ? { validateConfig } : {}),
+	};
 };

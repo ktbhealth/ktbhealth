@@ -136,8 +136,27 @@ individually dispatched. Metric-level selection is a report-time
 concern.
 
 Gate refs **dispatch** through `GATE_DECODERS` in
-`apps/eval/src/policy.ts`: manifest `gates[].params` decode to an
+`apps/eval/src/policy.ts`: each gate's `config` decodes to an
 `AcceptPolicy` (CLI flags may override individual fields) and
 `gateRun`/`decideAutoAccept` consume persisted results. `meta.fn` on
 a contribution remains a pointer for humans/ops, not a callable key.
 `eval list --strict` still reports unresolved refs.
+
+**Config expressiveness (P-078).** Stage/metric/gate/condition
+entries may carry a `config` JSON object (gates also accept legacy
+`params`, normalized to `config` at resolution). The config SHAPE is
+contributor-owned: each contribution may declare a `validateConfig`
+function beside its registry entry (`ContributionWithConfig` in
+`@ktb/eval-core`) — effect/Schema is not JSON-serializable, so
+validation is contributor code, never manifest data. `eval list` and
+`eval run` run every declared validator at resolution; unknown config
+keys are rejected, and config on a validator-less contribution is an
+error, never silently accepted. Gate entries may instead name an
+`eval.gatepreset` contribution (`{preset, overrides?}`) — a
+versioned, named bundle of `{id, config}` gate refs contributed as
+data (`meta.gates`); `overrides` shallow-merges per gate id. The
+consultation pack ships `consult.standard` and `consult.strict`.
+Stage `when.condition` ids resolve as `eval.condition` contributions
+— the builtins (`nonempty`/`always`/`never`) are declared alongside
+their eval-core evaluators, and domain packs contribute their own
+(e.g. `wer-above`).
