@@ -3,12 +3,20 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as Schedule from "effect/Schedule";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PortError, TtsPort } from "@ktb/eval-dataset";
 
-import { defaultRun, ffmpegDegradeArgs, makeLocalTts, type CliRunner } from "./tts.ts";
+import {
+	defaultRun,
+	ffmpegDegradeArgs,
+	makeDefaultRun,
+	makeLocalTts,
+	type CliRunner,
+} from "./tts.ts";
 
 const profile = (noise: "clean" | "clinic" | "phone_bandpass" | "far_mic" = "clean") => ({
 	ttsModel: "edge",
@@ -176,17 +184,66 @@ describe("makeLocalTts", () => {
 		);
 		expect(missing._tag).toBe("Failure");
 
-		// Layer built without `run` uses the real executor — edge-tts is
-		// not on PATH in CI/dev → typed PortError, no retries.
-		const err = await synth({
-			run: undefined,
-			retry: Schedule.recurs(0),
-			workDir: dir(),
-		}).then(
+		// Layer built without `run` uses the real executor — PATH is
+		// pointed at an empty dir so edge-tts is guaranteed absent →
+		// typed PortError, no retries, no network (hermetic).
+		vi.stubEnv("PATH", dir());
+		try {
+			const err = await synth({
+				run: undefined,
+				retry: Schedule.recurs(0),
+				workDir: dir(),
+			}).then(
+				() => null,
+				(e) => e,
+			);
+			expect(err).toBeInstanceOf(PortError);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it("maps exec timeouts to a typed PortError", async () => {
+		const res = await Effect.runPromise(Effect.result(makeDefaultRun(50)(["sleep", "30"])));
+		expect(res).toMatchObject({ _tag: "Failure", failure: expect.any(PortError) });
+	});
+
+	it("kills the child process when the run is interrupted", async () => {
+		const fiber = Effect.runFork(defaultRun(["sleep", "30"]));
+		await Effect.runPromise(Effect.sleep("50 millis"));
+		await Effect.runPromise(Fiber.interrupt(fiber));
+		const exit = await Effect.runPromiseExit(Fiber.join(fiber));
+		expect(Exit.hasInterrupts(exit)).toBe(true);
+	});
+
+	it("fails typed when the audio dir cannot be created", async () => {
+		// workDir is an existing FILE — mkdirSync(<file>/audio) throws
+		// ENOTDIR → PortError, not a defect.
+		const file = path.join(dir(), "not-a-dir");
+		fs.writeFileSync(file, "x");
+		const err = await synth({ workDir: file }).then(
 			() => null,
 			(e) => e,
 		);
 		expect(err).toBeInstanceOf(PortError);
+		expect(err.message).toContain("mkdir audio");
+	});
+
+	it("fails typed when the degraded output is missing at stat time", async () => {
+		// edge-tts writes its mp3 but ffmpeg "succeeds" without writing —
+		// statSync(out) throws ENOENT → PortError.
+		const run: CliRunner = (cmd) =>
+			Effect.sync(() => {
+				if (cmd[0] === "edge-tts") {
+					fs.writeFileSync(cmd[cmd.length - 1]!, "mp3");
+				}
+			});
+		const err = await synth({ run }).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(err.message).toContain("stat ");
 	});
 
 	it("caps concurrent syntheses via the semaphore", async () => {
