@@ -234,3 +234,7 @@ export const makeLocalReportLayer = (filePath: string) =>
 				}),
 		}),
 	);
+export * from "./tts.ts";
+export * from "./asr.ts";
+export * from "./llm.ts";
+export * from "./eval.ts";

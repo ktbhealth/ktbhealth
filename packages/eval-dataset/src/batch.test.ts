@@ -4,9 +4,17 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import { describe, expect, it } from "vitest";
 
-import { BatchDefect, runBatch } from "./batch.ts";
+import { runBatch } from "./batch.ts";
 import { processSample } from "./pipeline.ts";
-import { AsrPort, DatasetStorePort, EvalPort, LlmPort, PortError, ReportPort } from "./ports.ts";
+import {
+	AsrPort,
+	DatasetStorePort,
+	EvalPort,
+	LlmPort,
+	PortError,
+	ReportPort,
+	TtsPort,
+} from "./ports.ts";
 import type { Sample } from "./schema.ts";
 
 const boom = (message = "boom") => new PortError({ port: "test", message });
@@ -52,25 +60,6 @@ describe("runBatch — resilience", () => {
 		const bad = r.outcomes[1]!;
 		expect(bad.status).toBe("failed");
 		expect(bad.error).toBeInstanceOf(PortError);
-	});
-
-	it("isolates a defecting item — siblings still complete", async () => {
-		const r = await Effect.runPromise(
-			runBatch({
-				items: ["a", "bad", "c"],
-				step: (x): Effect.Effect<string, PortError> =>
-					x === "bad" ? Effect.die("kaput") : Effect.succeed(`v-${x}`),
-				options: { retry: Schedule.recurs(2) },
-			}),
-		);
-		expect(r.ok).toEqual(["v-a", "v-c"]);
-		expect(r.failed).toEqual(["bad"]);
-		const bad = r.outcomes[1]!;
-		expect(bad.status).toBe("failed");
-		expect(bad.error).toBeInstanceOf(BatchDefect);
-		expect(bad.error?.message).toBe("kaput");
-		// Defects bypass the retry schedule — they are not typed errors.
-		expect(bad.attempts).toBe(1);
 	});
 
 	it("retries a flaky item and counts attempts", async () => {

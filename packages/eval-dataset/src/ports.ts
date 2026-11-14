@@ -11,6 +11,7 @@ import type {
 	EvalQuestion,
 	RunRecord,
 	Sample,
+	SampleOrigin,
 	SampleResult,
 } from "./schema.ts";
 
@@ -42,13 +43,16 @@ export class TtsPort extends Context.Service<
 	}
 >()("@ktb/eval-dataset/TtsPort") {}
 
-/** Speech-to-text: audio ref → text + confidence-tagged segments. */
+/** Speech-to-text: audio ref → text + confidence-tagged segments.
+ * `origin` carries the sample's provenance so adapters that egress
+ * audio to third parties (cloud ASR) can enforce the PHI boundary —
+ * voice is PHI, only `synthetic` audio may leave the perimeter. */
 export class AsrPort extends Context.Service<
 	AsrPort,
 	{
 		readonly transcribe: (
 			audio: AudioRef,
-			opts?: { readonly language?: string },
+			opts?: { readonly language?: string; readonly origin?: SampleOrigin },
 		) => Effect.Effect<{ asr: AsrResult; record: RunRecord }, PortError>;
 	}
 >()("@ktb/eval-dataset/AsrPort") {}

@@ -1,0 +1,7 @@
+<% /* Follow-up visit: greeting → progress report → prescription adjust → allergy → closing. */ %>
+<%= it.slots.greeting %>
+<%= it.slots.chief_complaint %>
+<%= it.slots.prescription %>
+<%= it.slots.allergy_question %>
+<%= it.slots.allergy_answer %>
+<%= it.slots.closing %>
