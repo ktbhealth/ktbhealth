@@ -12,6 +12,12 @@
  *
  * Pure — the caller picks the stage ("asr" gates the raw transcript,
  * "corrected" gates post-cleanup, the default).
+ *
+ * Evidence scope: `result.confSegments` is produced from the ASR
+ * stage's segments today (see pipeline.ts), so the calibration gate
+ * measures ASR-derived confidence regardless of `stage`. Stage-scoped
+ * confSegments is future work; until then treat `stage` as selecting
+ * WHICH metric gates, not which evidence calibrates.
  */
 
 import { calibrate } from "./calibrate.ts";
@@ -68,8 +74,9 @@ export const decideAutoAccept = (result: SampleResult, policy: AcceptPolicy): Ac
 };
 
 /** Aggregate gate over a whole run — the CI hook reads this. A run is
- * only "green" when EVERY sample passes AND the cohort calibration
- * passes at aggregate level. */
+ * "green" only when EVERY sample passes: one unsafe sample sinks the
+ * run, which is the intent — a large clean cohort must never mask a
+ * bad tail. */
 export const gateRun = (
 	results: readonly SampleResult[],
 	policy: AcceptPolicy,

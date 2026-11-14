@@ -52,6 +52,11 @@ describe("buildScriptContext", () => {
 		);
 		expect(denial).toBeDefined();
 		expect(denial?.slots.allergy_answer).toContain("alergia");
+		// The gold entity is the negation MARKER — must be a substring of
+		// the utterance or substring alignment can never match it.
+		const marker = denial?.entities.find((e) => e.category === "negation")?.value;
+		expect(marker).toBeDefined();
+		expect(denial?.slots.allergy_answer).toContain(marker);
 	});
 
 	it("emits a medication entity for the allergen when affirmed", () => {

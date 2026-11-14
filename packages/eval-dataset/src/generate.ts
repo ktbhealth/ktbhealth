@@ -68,7 +68,9 @@ export const generateDataset = (
 						seed: baseSeed + index,
 					});
 					const acoustic = input.acoustic(persona, index);
-					const id = `s-${fnvHex(`${persona.region}:${persona.ageBand}:${persona.register}:${persona.specialty}:${baseSeed + index}`)}`;
+					// datasetVersion is part of the id — regenerating under a
+					// new version must coexist, not overwrite the old manifest.
+					const id = `s-${fnvHex(`${input.datasetVersion}:${persona.region}:${persona.ageBand}:${persona.register}:${persona.specialty}:${baseSeed + index}`)}`;
 
 					const { audio, record } = yield* tts.synthesize({
 						script: render.script,
