@@ -14,6 +14,7 @@ import { Route as splatRouteImport } from './routes/$'
 import { Route as captureTestRouteImport } from './routes/capture-test'
 import { Route as DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRouteImport } from './../../../plugins/auth/src/routes/login'
 import { Route as platformRouteImport } from './routes/platform'
+import { Route as verifyEmailRouteImport } from './routes/verify-email'
 import { Route as ApiBotsRouteImport } from './../../../plugins/consultations/src/api-routes/bots'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiJobsRouteImport } from './../../../plugins/jobs/src/api-routes/jobs'
@@ -62,6 +63,11 @@ const DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute =
 const platformRoute = platformRouteImport.update({
   id: '/platform',
   path: '/platform',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const verifyEmailRoute = verifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBotsRoute = ApiBotsRouteImport.update({
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/capture-test': typeof captureTestRoute
   '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
+  '/verify-email': typeof verifyEmailRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/jobs': typeof ApiJobsRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/$': typeof splatRoute
   '/capture-test': typeof captureTestRoute
   '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
+  '/verify-email': typeof verifyEmailRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/jobs': typeof ApiJobsRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/capture-test': typeof captureTestRoute
   '/login': typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   '/platform': typeof platformRouteWithChildren
+  '/verify-email': typeof verifyEmailRoute
   '/api/bots': typeof ApiBotsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/jobs': typeof ApiJobsRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/capture-test'
     | '/login'
     | '/platform'
+    | '/verify-email'
     | '/api/bots'
     | '/api/health'
     | '/api/jobs'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/capture-test'
     | '/login'
+    | '/verify-email'
     | '/api/bots'
     | '/api/health'
     | '/api/jobs'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/capture-test'
     | '/login'
     | '/platform'
+    | '/verify-email'
     | '/api/bots'
     | '/api/health'
     | '/api/jobs'
@@ -371,6 +383,7 @@ export interface RootRouteChildren {
   captureTestRoute: typeof captureTestRoute
   DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute: typeof DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute
   platformRoute: typeof platformRouteWithChildren
+  verifyEmailRoute: typeof verifyEmailRoute
   ApiBotsRoute: typeof ApiBotsRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   ApiJobsRoute: typeof ApiJobsRoute
@@ -428,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/platform'
       fullPath: '/platform'
       preLoaderRoute: typeof platformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof verifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/bots': {
@@ -626,6 +646,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute:
     DotDotDotDotDotDotDotDotPluginsAuthSrcRoutesLoginRoute,
   platformRoute: platformRouteWithChildren,
+  verifyEmailRoute: verifyEmailRoute,
   ApiBotsRoute: ApiBotsRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   ApiJobsRoute: ApiJobsRoute,

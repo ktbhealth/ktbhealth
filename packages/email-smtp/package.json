@@ -1,0 +1,14 @@
+{
+	"name": "@ktb/email-smtp",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./node-connect": "./src/node-connect.ts"
+	},
+	"dependencies": {
+		"@ktb/driver-framework": "workspace:*",
+		"@ktb/email": "workspace:*",
+		"effect": "4.1.2"
+	}
+}

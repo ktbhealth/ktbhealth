@@ -38,6 +38,7 @@ import {
 	countMyUnreadNotificationsFn,
 	createPatientFn,
 	deletePatientFn,
+	emailEnabledFn,
 	extractAnamnesisFn,
 	getConsultationFn,
 	getLiveConsultationFn,
@@ -107,6 +108,15 @@ async function signIn(email: string) {
 describe("server fns", () => {
 	beforeAll(async () => {
 		cookie = await signIn("fns@x.com");
+	});
+
+	it("reports whether the deployment can send email", async () => {
+		// Mirrors the bound Email driver: the test worker env decides.
+		const { env } = await import("cloudflare:workers");
+		const bound = env as { EMAIL_STUB?: unknown; EMAIL?: unknown; EMAIL_FROM?: unknown };
+		expect(await emailEnabledFn()).toBe(
+			Boolean(bound.EMAIL_STUB) || (Boolean(bound.EMAIL) && Boolean(bound.EMAIL_FROM)),
+		);
 	});
 
 	it("anonymous users get empty/null results", async () => {

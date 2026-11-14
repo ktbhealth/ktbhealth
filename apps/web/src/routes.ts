@@ -27,6 +27,7 @@ export const routes = rootRoute("__root.tsx", [
 	index("index.tsx"),
 	...routePlugins.flatMap((p) => p.routes ?? []),
 	route("capture-test", "capture-test.tsx"),
+	route("verify-email", "verify-email.tsx"),
 	physical("/api", "api"),
 	// Root splat (P-059): dispatches plugin-contributed `pages` at
 	// arbitrary app paths; static routes above keep match priority.

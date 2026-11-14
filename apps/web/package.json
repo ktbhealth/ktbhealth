@@ -35,6 +35,8 @@
 		"@ktb/consultations": "workspace:*",
 		"@ktb/db": "workspace:*",
 		"@ktb/db-sqlite": "workspace:*",
+		"@ktb/email": "workspace:*",
+		"@ktb/email-smtp": "workspace:*",
 		"@ktb/infra-cloudflare": "workspace:*",
 		"@ktb/interop": "workspace:*",
 		"@ktb/interop-fhir": "workspace:*",

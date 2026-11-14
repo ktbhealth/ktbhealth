@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
+import { Email } from "@ktb/email";
 import { Notifications, rowToConsole } from "@ktb/notifications";
 import { run, runAs, serverPlugins } from "#/lib/platform.ts";
 import {
@@ -25,6 +26,15 @@ import * as Effect from "effect/Effect";
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
 export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
+
+/**
+ * True when this deployment can send email (an Email driver other than
+ * the disabled one is bound). Lets the UI skip flows that would promise
+ * a message that is never sent — e.g. the post-sign-up verification step.
+ */
+export const emailEnabledFn = createServerFn({ method: "GET" }).handler(() =>
+	run(Effect.map(Effect.service(Email), (sender) => sender !== null)),
+);
 
 /**
  * Enabled plugin ids for chrome/landing/panel filtering (P-058). No row

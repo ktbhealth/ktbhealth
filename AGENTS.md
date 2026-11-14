@@ -39,6 +39,24 @@ old URLs redirect).
 - `cd apps/web && bun run infra:deploy` — deploy to Cloudflare prod
   (needs cuora vault access)
 
+### Email in dev
+
+Outbound email is a driver behind the `@ktb/email` port (see
+`@ktb/app-host` registration order): `EMAIL_STUB=1` logs messages
+(default dev), Cloudflare `send_email` binding in prod, and
+`@ktb/email-smtp` when `SMTP_URL` + `EMAIL_FROM` are set — works in both
+`bun run dev` (workerd `cloudflare:sockets`) and `dev:node`. To capture
+real messages locally, run a Mailpit container:
+
+```
+docker run -d --name ktb-mailpit -p 1026:1025 -p 8026:8025 axllent/mailpit
+SMTP_URL=smtp://localhost:1026 EMAIL_FROM=noreply@ktb.local bun run dev
+```
+
+Web UI at http://localhost:8026. Ports 1025/8025 are the defaults — this
+setup uses 1026/8026 to avoid clashing with other local mail catchers;
+adjust `SMTP_URL` accordingly.
+
 ## Conventions
 
 - English everywhere (code, comments, commit messages).

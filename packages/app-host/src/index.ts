@@ -35,6 +35,10 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Clock from "effect/Clock";
 import { Binding, DbLive, makeDb, type SqlDatabase } from "@ktb/db";
 import { makeAuth, makeAuthService } from "@ktb/auth-better";
+import { Email, nullEmailDriver, type EmailMessage } from "@ktb/email";
+import { cloudflareEmailDriver } from "@ktb/email-cloudflare";
+import { smtpEmailDriver } from "@ktb/email-smtp";
+import { stubEmailDriver } from "@ktb/email-stub";
 import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
 import { turnstileCaptchaDriver } from "@ktb/captcha-turnstile";
@@ -111,6 +115,17 @@ export interface AppEnv extends ObservabilityEnv {
 	readonly BETTER_AUTH_URL?: string;
 	readonly CAPTCHA_STUB?: unknown;
 	readonly TURNSTILE_SECRET_KEY?: string;
+	/** Dev-only: log outbound email instead of delivering it. */
+	readonly EMAIL_STUB?: unknown;
+	/** Provider send binding (e.g. the Workers `send_email` binding). */
+	readonly EMAIL?: unknown;
+	/** Sender address for outbound email. */
+	readonly EMAIL_FROM?: string;
+	/** SMTP server URL — e.g. smtp://localhost:1025 against a dev mailpit. */
+	readonly SMTP_URL?: string;
+	/** Socket transport for the SMTP driver — the deploy target injects
+	 * `cloudflare:sockets` connect (workerd) or its node:net stand-in. */
+	readonly SMTP_CONNECT?: unknown;
 	readonly ANTHROPIC_API_KEY?: string;
 	readonly LLM_API_KEY?: string;
 	readonly OPENAI_API_KEY?: string;
@@ -164,6 +179,26 @@ export const assertCaptchaConfigured = (
 	}
 };
 
+/** Subject and body of a transactional email, before addressing. */
+export type EmailContent = Omit<EmailMessage, "to">;
+
+/** Default (English) verification email — apps override it through
+ * `AppOptions.verificationEmail` to localize or brand the copy. */
+export const defaultVerificationEmail = (input: {
+	readonly name: string | null;
+	readonly url: string;
+}): EmailContent => ({
+	subject: "Confirm your email — KTB Health",
+	text: [
+		input.name ? `Hello, ${input.name}.` : "Hello.",
+		"",
+		"Confirm your email address to finish setting up your KTB Health account:",
+		input.url,
+		"",
+		"If you did not create this account, you can ignore this message.",
+	].join("\n"),
+});
+
 export interface AppOptions {
 	/**
 	 * Optional tenant resolver (P-053): when provided, `runAs` resolves
@@ -174,6 +209,9 @@ export interface AppOptions {
 	 * `runAs` behaves exactly as before.
 	 */
 	readonly tenantResolver?: TenantResolverShape;
+	/** Composes the sign-up verification email. Defaults to
+	 * {@link defaultVerificationEmail}. */
+	readonly verificationEmail?: typeof defaultVerificationEmail;
 }
 
 /**
@@ -189,10 +227,6 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	assertCaptchaConfigured(env, import.meta.env.PROD);
 	const BindingLive = Layer.succeed(Binding, env.DB);
 	const db = makeDb(env.DB);
-	const auth = makeAuth(db, {
-		secret: env.BETTER_AUTH_SECRET,
-		baseURL: env.BETTER_AUTH_URL,
-	});
 
 	// Port→impl selection is data: impl packages export Driver descriptors
 	// and the first enabled driver for a port wins (array order is the
@@ -200,7 +234,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	// before Turnstile before the disabled verifier; LLM drivers carry
 	// their own when predicates mirroring the old factory branches.
 	// Auth and Db stay manual on purpose: they are single-impl ports
-	// wrapping live instances built above (the better-auth object the
+	// wrapping live instances built here (the better-auth object the
 	// routes call directly; the drizzle client over the SqlDatabase
 	// binding), not env-selectable adapters. Engine variance already
 	// lives at the edges — SqlDatabase at `Binding`, better-auth config
@@ -213,6 +247,10 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		stubCaptchaDriver,
 		turnstileCaptchaDriver,
 		nullCaptchaDriver,
+		smtpEmailDriver,
+		stubEmailDriver,
+		cloudflareEmailDriver,
+		nullEmailDriver,
 		...llmDrivers,
 		// Telemetry port: OTLP exporter wins when an endpoint is bound;
 		// the console driver is the always-eligible local/DX fallback.
@@ -230,6 +268,32 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	// its secret is bound; null skips verification entirely.
 	const BotLive = layerFor<Bot>(Bot.key, env);
 	const CaptchaLive = layerFor<Captcha>(Captcha.key, env);
+
+	// Outbound email. SMTP_URL + EMAIL_FROM select the SMTP driver — an
+	// explicit opt-in that wins over EMAIL_STUB (which stays the dev
+	// default when no SMTP_URL is set); then the stub, then the provider
+	// driver (EMAIL binding + EMAIL_FROM); null disables email — sign-up
+	// then sends no verification.
+	const EmailLive = layerFor<Email>(Email.key, env);
+	const emailSender = Effect.runSync(Effect.service(Email).pipe(Effect.provide(EmailLive)));
+	const verificationEmail = options?.verificationEmail ?? defaultVerificationEmail;
+	const auth = makeAuth(db, {
+		secret: env.BETTER_AUTH_SECRET,
+		baseURL: env.BETTER_AUTH_URL,
+		...(emailSender === null
+			? {}
+			: {
+					// A failed delivery must not fail the sign-up itself — the
+					// account exists and the link can be requested again.
+					sendVerificationEmail: async ({ email, name, url }) => {
+						try {
+							await emailSender.send({ to: email, ...verificationEmail({ name, url }) });
+						} catch (error) {
+							console.error("verification email failed", error);
+						}
+					},
+				}),
+	});
 
 	// Plugin services compose in topo order: each plugin's layer is
 	// provided the accumulated outputs of everything before it, so a
@@ -286,6 +350,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	const core = Layer.mergeAll(
 		BotLive,
 		CaptchaLive,
+		EmailLive,
 		DbLive,
 		AuthServiceLive,
 		AnamnesisEngineLive,
@@ -572,6 +637,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		plugins,
 		BindingLive,
 		CaptchaLive,
+		EmailLive,
 		AppLive,
 		runtime,
 		run,

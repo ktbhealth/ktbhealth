@@ -10,7 +10,7 @@ import {
 } from "../../../plugins/notifications/src/api.ts";
 import * as Effect from "effect/Effect";
 
-import { assertCaptchaConfigured, createApp, plugins } from "./index.ts";
+import { assertCaptchaConfigured, createApp, defaultVerificationEmail, plugins } from "./index.ts";
 
 const DDL = `
 CREATE TABLE notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, body TEXT, payload TEXT, read_at INTEGER, created_at INTEGER NOT NULL);
@@ -277,5 +277,87 @@ describe("createApp", () => {
 				engine: expect.stringContaining("workers-ai"),
 			});
 		});
+	});
+});
+
+describe("verification email", () => {
+	const base = {
+		BETTER_AUTH_SECRET: "test-secret-at-least-32-characters-long!!",
+		BETTER_AUTH_URL: "http://localhost:3000",
+	};
+	const url = "http://localhost:3000/api/auth/verify-email?token=t";
+	const verify = (target: ReturnType<typeof createApp>, name?: string) =>
+		target.auth.options.emailVerification.sendVerificationEmail({
+			user: { id: "u1", email: "a@ktb.test", name } as never,
+			url,
+			token: "t",
+		});
+
+	it("composes the default copy with and without a name", () => {
+		const named = defaultVerificationEmail({ name: "Ana", url });
+		expect(named.subject).toContain("KTB Health");
+		expect(named.text).toContain("Hello, Ana.");
+		expect(named.text).toContain(url);
+		expect(defaultVerificationEmail({ name: null, url }).text).toMatch(/^Hello\.\n/);
+	});
+
+	it("is disabled when no email driver is configured", async () => {
+		expect(app.auth.options.emailVerification.sendOnSignUp).toBe(false);
+		await expect(verify(app)).resolves.toBeUndefined();
+	});
+
+	it("sends through the provider binding with the configured sender", async () => {
+		const send = vi.fn<(builder: unknown) => Promise<unknown>>(async () => ({}));
+		const withEmail = createApp({
+			...base,
+			DB: makeD1(DDL),
+			EMAIL: { send },
+			EMAIL_FROM: "noreply@ktb.test",
+		});
+		try {
+			expect(withEmail.auth.options.emailVerification.sendOnSignUp).toBe(true);
+			await verify(withEmail, "Ana");
+			expect(send).toHaveBeenCalledWith({
+				from: "noreply@ktb.test",
+				to: "a@ktb.test",
+				...defaultVerificationEmail({ name: "Ana", url }),
+			});
+		} finally {
+			await withEmail.runtime.dispose();
+		}
+	});
+
+	it("uses the app-supplied copy and survives a failed delivery", async () => {
+		const failure = new Error("sender not verified");
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		const withEmail = createApp(
+			{
+				...base,
+				DB: makeD1(DDL),
+				EMAIL: { send: async () => Promise.reject(failure) },
+				EMAIL_FROM: "noreply@ktb.test",
+			},
+			{ verificationEmail: ({ url: link }) => ({ subject: "Confirme", text: link }) },
+		);
+		try {
+			await expect(verify(withEmail)).resolves.toBeUndefined();
+			expect(errors).toHaveBeenCalledWith(
+				"verification email failed",
+				expect.objectContaining({ name: "EmailSendError", cause: failure }),
+			);
+		} finally {
+			await withEmail.runtime.dispose();
+		}
+	});
+
+	it("logs instead of sending under EMAIL_STUB", async () => {
+		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+		const stubbed = createApp({ ...base, DB: makeD1(DDL), EMAIL_STUB: "1" });
+		try {
+			await verify(stubbed);
+			expect(info).toHaveBeenCalledWith(expect.stringContaining("[email-stub] to=a@ktb.test"));
+		} finally {
+			await stubbed.runtime.dispose();
+		}
 	});
 });

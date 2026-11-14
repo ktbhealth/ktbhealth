@@ -259,6 +259,12 @@ export default defineConfig({
 								"@ktb/captcha-stub/**",
 								"@ktb/captcha-turnstile",
 								"@ktb/captcha-turnstile/**",
+								"@ktb/email-cloudflare",
+								"@ktb/email-cloudflare/**",
+								"@ktb/email-smtp",
+								"@ktb/email-smtp/**",
+								"@ktb/email-stub",
+								"@ktb/email-stub/**",
 								"@ktb/transcription-whisper",
 								"@ktb/transcription-whisper/**",
 								"@ktb/transcription-webspeech",
@@ -301,13 +307,15 @@ export default defineConfig({
 				// - plugins/auth's login view uses the better-auth client
 				//   SDK (moved from the host's login.tsx in P-062), which is
 				//   inherently impl-bound — same exception the host route
-				//   files had. __root.tsx / platform.tsx keep theirs.
+				//   files had. __root.tsx / platform.tsx keep theirs, as does
+				//   verify-email.tsx (still a host route).
 				// - *.test.* may mock impl packages.
 				files: [
 					"apps/web/src/lib/platform.ts",
 					"apps/web/src/lib/registry.ts",
 					"apps/web/src/lib/node-cloudflare-workers.ts",
 					"apps/web/src/plugins.ts",
+					"apps/web/src/routes/verify-email.tsx",
 					"apps/web/src/routes/__root.tsx",
 					"apps/web/src/routes/platform.tsx",
 					"apps/web/src/**/*.test.{ts,tsx}",
