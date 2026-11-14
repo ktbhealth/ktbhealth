@@ -19,6 +19,11 @@ export const contributionKinds = (plugin: Plugin): readonly string[] => {
 	if (plugin.landing !== undefined) kinds.push("landing");
 	if (plugin.chrome !== undefined) kinds.push("chrome");
 	if (plugin.panel !== undefined) kinds.push("panel");
+	// Generic contribution kinds (P-070): entries on the `contributions`
+	// channel surface under their registered kind id (e.g. "eval.stage").
+	for (const entry of plugin.contributions ?? []) {
+		if (!kinds.includes(entry.kind)) kinds.push(entry.kind);
+	}
 	return kinds;
 };
 

@@ -8,7 +8,7 @@ import {
 } from "./registry.ts";
 
 const stage = (id: string, version = "1.0.0"): Contribution => ({
-	kind: "stage",
+	kind: "eval.stage",
 	id,
 	version,
 });
@@ -18,16 +18,16 @@ describe("ContributionRegistry", () => {
 		const r = new ContributionRegistry();
 		const c = stage("asr", "2.0.0");
 		r.register(c);
-		expect(r.get("stage", "asr")).toBe(c);
-		expect(r.has("stage", "asr")).toBe(true);
+		expect(r.get("eval.stage", "asr")).toBe(c);
+		expect(r.has("eval.stage", "asr")).toBe(true);
 	});
 
 	it("same id under different kinds does not collide", () => {
 		const r = new ContributionRegistry();
 		r.register(stage("wer"));
-		r.register({ kind: "metric", id: "wer", version: "1.0.0" });
-		expect(r.get("stage", "wer").kind).toBe("stage");
-		expect(r.get("metric", "wer").kind).toBe("metric");
+		r.register({ kind: "eval.metric", id: "wer", version: "1.0.0" });
+		expect(r.get("eval.stage", "wer").kind).toBe("eval.stage");
+		expect(r.get("eval.metric", "wer").kind).toBe("eval.metric");
 	});
 
 	it("throws DuplicateContributionError on re-register", () => {
@@ -35,32 +35,37 @@ describe("ContributionRegistry", () => {
 		r.register(stage("asr"));
 		expect(() => r.register(stage("asr", "9.9.9"))).toThrowError(DuplicateContributionError);
 		expect(() => r.register(stage("asr", "9.9.9"))).toThrowError(
-			expect.objectContaining({ kind: "stage", id: "asr", version: "9.9.9" }),
+			expect.objectContaining({ kind: "eval.stage", id: "asr", version: "9.9.9" }),
 		);
 	});
 
 	it("throws UnknownContributionError on missing lookup", () => {
 		const r = new ContributionRegistry();
-		expect(() => r.get("gate", "nope")).toThrowError(UnknownContributionError);
-		expect(() => r.get("gate", "nope")).toThrowError(
-			expect.objectContaining({ kind: "gate", id: "nope" }),
+		expect(() => r.get("eval.gate", "nope")).toThrowError(UnknownContributionError);
+		expect(() => r.get("eval.gate", "nope")).toThrowError(
+			expect.objectContaining({ kind: "eval.gate", id: "nope" }),
 		);
-		expect(r.has("gate", "nope")).toBe(false);
+		expect(r.has("eval.gate", "nope")).toBe(false);
 	});
 
 	it("list returns registration order, optionally filtered by kind", () => {
 		const r = new ContributionRegistry();
 		r.register(stage("asr"));
-		r.register({ kind: "metric", id: "wer", version: "1" });
+		r.register({ kind: "eval.metric", id: "wer", version: "1" });
 		r.register(stage("cleanup"));
-		r.register({ kind: "capability", id: "asr.pt", version: "1", meta: { adapter: "whisper" } });
+		r.register({
+			kind: "eval.capability",
+			id: "asr.pt",
+			version: "1",
+			meta: { adapter: "whisper" },
+		});
 		expect(r.list().map((c) => `${c.kind}:${c.id}`)).toEqual([
-			"stage:asr",
-			"metric:wer",
-			"stage:cleanup",
-			"capability:asr.pt",
+			"eval.stage:asr",
+			"eval.metric:wer",
+			"eval.stage:cleanup",
+			"eval.capability:asr.pt",
 		]);
-		expect(r.list("stage").map((c) => c.id)).toEqual(["asr", "cleanup"]);
-		expect(r.list("gate")).toEqual([]);
+		expect(r.list("eval.stage").map((c) => c.id)).toEqual(["asr", "cleanup"]);
+		expect(r.list("eval.gate")).toEqual([]);
 	});
 });

@@ -2,12 +2,13 @@ import { Schema } from "effect";
 import * as Data from "effect/Data";
 
 /**
- * registry.ts — the mini contribution registry (P-070 fallback path).
+ * registry.ts — the eval contribution registry (P-070).
  *
- * Until the full plugin registry lands, suites resolve their stage /
- * metric / gate / capability references through this small typed
- * registry: plugins (or a domain pack) register `{kind, id, version}`
- * entries and the runner looks them up by id. Ids are unique per kind —
+ * Suites resolve their stage / metric / gate / capability references
+ * through this small typed registry: plugins register
+ * `{kind, id, version}` entries (declared on their manifests'
+ * `contributions` channel — see kinds.ts) and the runner looks them up
+ * by id. Ids are unique per kind —
  * a duplicate registration or an unknown lookup is a typed error, never
  * a silent override.
  *
@@ -16,17 +17,32 @@ import * as Data from "effect/Data";
  * or gate DOES is the contributor's business.
  *
  * Contributors (P-074 phase 3): capability plugins under plugins/* are
- * data-only registrars — each exports a `*Contributions: readonly
- * Contribution[]` array next to its `plugins` manifest. They cannot
+ * data-only registrars — each declares a `contributions` array on its
+ * plugin manifest (P-070). They cannot
  * host adapter code themselves (plugins/* is inside the arch-policy
  * PORT_GLOBS: no node:*, provider literals, or adapter imports), so
  * `meta.adapters` maps adapter keys to the exempt-edge packages
  * (@ktb/eval-adapter-stub/-local/-cloud) that implement the port named
- * by `meta.port`. Consumers compose by iterating the arrays and calling
+ * by `meta.port`. Consumers compose by collecting the manifests'
+ * `contributions` entries (kind descriptors in ./kinds.ts) and calling
  * `register` per entry — there is no global singleton.
  */
 
-export const ContributionKind = Schema.Literals(["stage", "metric", "gate", "capability"]);
+/**
+ * The eval contribution kinds (P-070): namespaced `eval.*` ids so they
+ * can share the generalized plugin `contributions` channel without
+ * colliding with other domains' kinds. Each id is also a registered
+ * `ContributionKindDescriptor` (see ./kinds.ts) whose slot is
+ * "contributions" — eval plugins declare these entries on their
+ * manifests and consumers (apps/eval) collect them from the plugin
+ * graph.
+ */
+export const ContributionKind = Schema.Literals([
+	"eval.stage",
+	"eval.metric",
+	"eval.gate",
+	"eval.capability",
+]);
 export type ContributionKind = typeof ContributionKind.Type;
 
 /** A registered contribution — the unit suites reference by id. */

@@ -39,8 +39,10 @@ export interface PanelHeaderAction {
  * contribution — every union member below forbids the other
  * contribution keys (`?: never`), so a multi-concern plugin object is a
  * compile error. A plugin that only anchors dependency edges (e.g.
- * `platform.admin`, `platform.panel`) is a MarkerPlugin: no contribution
- * field at all. Everything is statically imported — workerd can't do
+ * `platform.admin`, `platform.panel`) is a MarkerPlugin: no dedicated
+ * contribution field — it may still carry generic `contributions`
+ * entries (P-070) for kinds without a typed field. Everything is
+ * statically imported — workerd can't do
  * dynamic module loading, and static keeps 100% type safety.
  *
  * Consumers read a contribution with optional access (`p.landingNav ?? []`) —
@@ -123,7 +125,8 @@ export interface Page {
 	readonly context?: "app" | "console";
 }
 
-/** Dependency anchor only — no contribution of its own. */
+/** Dependency anchor only — no dedicated contribution field (generic
+ * `contributions` entries are still allowed, P-070). */
 export interface MarkerPlugin extends PluginBase, ForbiddenContributions<never> {}
 
 /** Drizzle table slice composed into @ktb/db/schema. */

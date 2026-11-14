@@ -3,33 +3,21 @@ import type { Contribution } from "@ktb/eval-core";
 import { AsrPort } from "@ktb/eval-consult/ports";
 
 /**
- * transcription.asr — ASR capability plugin (P-074 phase 3).
+ * transcription.asr — ASR capability plugin (P-074 phase 3, P-070).
  *
  * DATA-ONLY registrar, same contract as transcription.tts: declares
- * the eval-core contributions and adapter keys for AsrPort; adapter
- * implementations stay in the exempt-edge packages
- * (@ktb/eval-adapter-stub/-local/-cloud) because plugins/* is inside
- * arch-policy PORT_GLOBS (no node:*, provider literals, or adapter
- * imports). See plugins/transcription-tts/src/index.ts for the full
- * mechanism — Phase 4 resolves `meta.adapters[key]` per `meta.port`.
+ * the eval-core contributions (on the manifest's `contributions`
+ * channel) and adapter keys for AsrPort; adapter implementations stay
+ * in the exempt-edge packages (@ktb/eval-adapter-stub/-local/-cloud)
+ * because plugins/* is inside arch-policy PORT_GLOBS (no node:*,
+ * provider literals, or adapter imports). See
+ * plugins/transcription-tts/src/index.ts for the full mechanism —
+ * apps/eval resolves `meta.adapters[key]` per `meta.port`.
  *
  * Adapter keys → packages: "stub" → @ktb/eval-adapter-stub AsrPort
  * layer, "faster-whisper" → @ktb/eval-adapter-local `makeLocalAsr`,
  * "workers-ai" → @ktb/eval-adapter-cloud `makeWorkersAiAsr`.
  */
-export const asrPlugin = definePlugin({
-	id: "transcription.asr",
-});
-
-export const plugins: readonly Plugin[] = [asrPlugin];
-
-// Compile-time dep registry: ids declared here are referenceable in
-// requiredDeps/optionalDeps of any plugin that imports this module.
-declare module "@ktb/kernel" {
-	interface PluginRegistry {
-		"transcription.asr": true;
-	}
-}
 
 /**
  * Declared contributions. ASR is the PHI-sensitive port: every adapter
@@ -39,7 +27,7 @@ declare module "@ktb/kernel" {
  */
 export const asrContributions: readonly Contribution[] = [
 	{
-		kind: "capability",
+		kind: "eval.capability",
 		id: "asr",
 		version: "1",
 		meta: {
@@ -52,9 +40,24 @@ export const asrContributions: readonly Contribution[] = [
 		},
 	},
 	{
-		kind: "stage",
+		kind: "eval.stage",
 		id: "transcribe",
 		version: "1",
 		meta: { port: AsrPort.key },
 	},
 ];
+
+export const asrPlugin = definePlugin({
+	id: "transcription.asr",
+	contributions: asrContributions,
+});
+
+export const plugins: readonly Plugin[] = [asrPlugin];
+
+// Compile-time dep registry: ids declared here are referenceable in
+// requiredDeps/optionalDeps of any plugin that imports this module.
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		"transcription.asr": true;
+	}
+}

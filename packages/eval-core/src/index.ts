@@ -6,3 +6,4 @@ export * from "./calibrate.ts";
 export * from "./batch.ts";
 export * from "./suite.ts";
 export * from "./registry.ts";
+export * from "./kinds.ts";

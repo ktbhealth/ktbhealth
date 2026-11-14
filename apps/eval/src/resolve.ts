@@ -105,30 +105,30 @@ export const resolveSuite = (
 		return false;
 	};
 
-	for (const id of manifest.stages) check("stage", id);
-	for (const id of manifest.metrics) check("metric", id);
-	for (const g of manifest.gates) check("gate", g.id);
+	for (const id of manifest.stages) check("eval.stage", id);
+	for (const id of manifest.metrics) check("eval.metric", id);
+	for (const g of manifest.gates) check("eval.gate", g.id);
 
 	const profileMap = profile === undefined ? undefined : ADAPTER_PROFILES[profile];
 	for (const capId of Object.keys(manifest.caps)) {
 		// The caps value (providing plugin id) is documentation for the
 		// manifest reader — resolution keys off the capability id,
 		// which is what contributions register.
-		if (!check("capability", capId)) continue;
+		if (!check("eval.capability", capId)) continue;
 		if (profile === undefined) continue;
 		const key = profileMap?.[capId];
 		if (key === undefined) {
 			unresolved.push({
-				kind: "capability",
+				kind: "eval.capability",
 				id: capId,
 				reason: `profile "${profile}" selects no adapter`,
 			});
 			continue;
 		}
-		const declared = metaAdapters(registry.get("capability", capId).meta);
+		const declared = metaAdapters(registry.get("eval.capability", capId).meta);
 		if (declared[key] === undefined) {
 			unresolved.push({
-				kind: "capability",
+				kind: "eval.capability",
 				id: capId,
 				reason: `profile "${profile}" adapter "${key}" not declared`,
 			});

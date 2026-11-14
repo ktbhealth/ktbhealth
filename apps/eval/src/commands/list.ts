@@ -23,6 +23,10 @@ import type { CmdContext } from "../context.ts";
 const group = <T extends { kind: string }>(items: readonly T[], kind: string): T[] =>
 	items.filter((i) => i.kind === kind);
 
+/** Display label for a contribution kind — the `eval.` namespace is
+ * registry plumbing, not something suite authors need to read. */
+const kindLabel = (kind: string): string => kind.replace(/^eval\./, "");
+
 export const makeListCommand = (ctx: CmdContext) =>
 	Command.make(
 		"list",
@@ -59,15 +63,15 @@ export const makeListCommand = (ctx: CmdContext) =>
 					const counts = (kind: string, n: number) => {
 						const r = group(res.resolved, kind).length;
 						const u = group(res.unresolved, kind).length;
-						return `${kind.padEnd(11)} ${r}/${n} resolved${u > 0 ? `, ${u} unresolved` : ""}`;
+						return `${kindLabel(kind).padEnd(11)} ${r}/${n} resolved${u > 0 ? `, ${u} unresolved` : ""}`;
 					};
-					yield* Console.log(`  ${counts("stage", manifest.stages.length)}`);
-					yield* Console.log(`  ${counts("metric", manifest.metrics.length)}`);
-					yield* Console.log(`  ${counts("gate", manifest.gates.length)}`);
-					yield* Console.log(`  ${counts("capability", Object.keys(manifest.caps).length)}`);
+					yield* Console.log(`  ${counts("eval.stage", manifest.stages.length)}`);
+					yield* Console.log(`  ${counts("eval.metric", manifest.metrics.length)}`);
+					yield* Console.log(`  ${counts("eval.gate", manifest.gates.length)}`);
+					yield* Console.log(`  ${counts("eval.capability", Object.keys(manifest.caps).length)}`);
 					if (adapters !== "") yield* Console.log(`  adapters  ${adapters}`);
 					for (const u of res.unresolved) {
-						yield* Console.log(`  ! ${u.kind} "${u.id}" — ${u.reason}`);
+						yield* Console.log(`  ! ${kindLabel(u.kind)} "${u.id}" — ${u.reason}`);
 					}
 					yield* Console.log("");
 				}
