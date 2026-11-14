@@ -11,6 +11,7 @@ import {
 	TtsPort,
 	type AsrResult,
 	type AudioRef,
+	type BlobMeta,
 	type EditList,
 	type EvalAnswer,
 	type RunRecord,
@@ -88,6 +89,7 @@ const answerOf = (q: { id: string; kind: string; options?: readonly string[] }):
 export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const samples = new Map<string, Sample>();
 	const blobs = new Map<string, Uint8Array>();
+	const blobMeta = new Map<string, BlobMeta>();
 	const results = new Map<string, SampleResult>();
 	const records: RunRecord[] = [];
 
@@ -154,8 +156,15 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 							(filter?.datasetVersion === undefined || s.datasetVersion === filter.datasetVersion),
 					),
 				),
-			putBlob: (uri, bytes) => Effect.sync(() => void blobs.set(uri, bytes)),
+			putBlob: (uri, bytes, meta) =>
+				Effect.sync(() => {
+					blobs.set(uri, bytes);
+					// Same default as the real adapters: no declared
+					// origin records "unknown", never silently synthetic.
+					blobMeta.set(uri, { origin: meta?.origin ?? "unknown" });
+				}),
 			getBlob: (uri) => Effect.succeed(blobs.get(uri) ?? null),
+			getBlobMeta: (uri) => Effect.succeed(blobMeta.get(uri) ?? null),
 			putResult: (result) =>
 				Effect.sync(() => void results.set(`${result.runId}/${result.sampleId}`, result)),
 			listResults: (filter) =>

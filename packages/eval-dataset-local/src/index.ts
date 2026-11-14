@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import {
+	BlobMeta,
 	DatasetStorePort,
 	PortError,
 	renderRunMarkdown,
@@ -26,11 +27,14 @@ import {
  * Side effects: fs mkdir/write/rename + SQLite file — all confined to
  * `rootDir` / the report file's directory. No network, no PHI path:
  * keep `origin="real_anonymized"` data out of this adapter (phase-2
- * gate is the Schema filter on Sample).
+ * gate is the Schema filter on Sample). `putBlob` meta lands in the
+ * `blob_meta` table BEFORE the bytes so every stored blob carries
+ * provenance for egress adapters (`unknown` when undeclared).
  */
 
 const decodeSample = Schema.decodeUnknownSync(Sample);
 const decodeResult = Schema.decodeUnknownSync(SampleResult);
+const decodeBlobMeta = Schema.decodeUnknownSync(BlobMeta);
 
 /** Hash the URI — opaque, fixed-length, traversal-proof filenames. */
 const blobPath = (root: string, uri: string): string =>
@@ -89,6 +93,10 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 							sample_id TEXT NOT NULL,
 							doc TEXT NOT NULL,
 							PRIMARY KEY (run_id, sample_id)
+						);
+						CREATE TABLE IF NOT EXISTS blob_meta (
+							uri TEXT PRIMARY KEY,
+							doc TEXT NOT NULL
 						)`,
 					),
 				catch: fail("store-local", "schema"),
@@ -110,6 +118,11 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 				`SELECT doc FROM samples
 				 WHERE (@origin IS NULL OR origin = @origin)
 				 AND (@dataset_version IS NULL OR dataset_version = @dataset_version)`,
+			);
+			const selectBlobMeta = db.prepare(`SELECT doc FROM blob_meta WHERE uri = ?`);
+			const upsertBlobMeta = db.prepare(
+				`INSERT INTO blob_meta (uri, doc) VALUES (@uri, @doc)
+				 ON CONFLICT(uri) DO UPDATE SET doc = @doc`,
 			);
 			const listRes = db.prepare(
 				`SELECT doc FROM results
@@ -154,12 +167,30 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 							).map((r) => decodeSample(JSON.parse(r.doc))),
 						catch: fail("store-local", "listSamples"),
 					}),
-				putBlob: (uri, bytes) =>
+				putBlob: (uri, bytes, meta) =>
 					Effect.try({
 						try: () => {
+							// Re-decode on write, same as putSample: a bogus
+							// origin fails here, not silently at read. Meta
+							// lands BEFORE the bytes so every stored blob
+							// has a provenance record — a failed write
+							// leaves a conservative orphan meta, never an
+							// unmarked blob.
+							const validated = decodeBlobMeta({ origin: meta?.origin ?? "unknown" });
+							upsertBlobMeta.run({ uri, doc: JSON.stringify(validated) });
 							writeAtomic(blobPath(rootDir, uri), bytes);
 						},
 						catch: fail("store-local", "putBlob"),
+					}),
+				getBlobMeta: (uri) =>
+					Effect.try({
+						try: () => {
+							const row = selectBlobMeta.get(uri) as { doc: string } | undefined;
+							// null = no provenance record (pre-tracking blob
+							// or URI never stored) — the documented bypass.
+							return row ? decodeBlobMeta(JSON.parse(row.doc)) : null;
+						},
+						catch: fail("store-local", "getBlobMeta"),
 					}),
 				getBlob: (uri) =>
 					Effect.try({

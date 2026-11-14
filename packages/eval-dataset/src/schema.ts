@@ -61,6 +61,17 @@ export const AudioRef = Schema.Struct({
 });
 export type AudioRef = typeof AudioRef.Type;
 
+/** Provenance stamped on a stored blob at write time (`putBlob` meta).
+ * `unknown` is the conservative default when a caller stores bytes
+ * without declaring an origin — enforcement adapters treat it as
+ * non-synthetic. `null` from `getBlobMeta` means NO record exists
+ * (the URI never went through the store) — a different, documented
+ * bypass: the bytes live somewhere the store cannot see. */
+export const BlobMeta = Schema.Struct({
+	origin: Schema.Literals(["synthetic", "real_anonymized", "unknown"]),
+});
+export type BlobMeta = typeof BlobMeta.Type;
+
 /** One pipeline-stage artifact: the produced text plus provenance and
  * a pointer to the auditable diff against the previous stage. */
 export const StageArtifact = Schema.Struct({

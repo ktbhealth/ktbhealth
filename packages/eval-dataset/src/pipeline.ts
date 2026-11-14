@@ -84,13 +84,20 @@ export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) 
 			});
 		}
 		const asr = yield* AsrPort;
-		// Provenance flows to the adapter so cloud ASR can refuse
-		// real-anonymized audio — voice is PHI, only synthetic audio
-		// may leave the perimeter (see AsrPort in ports.ts). The
-		// language hint is locale data (`profile.asrLanguage`).
+		const store = yield* DatasetStorePort;
+		// Provenance travels WITH the audio: the blob's stored origin
+		// is looked up and handed to the adapter next to the manifest's
+		// declared origin, so cloud ASR can refuse real-anonymized or
+		// unverified (`unknown`) audio even when the sample row says
+		// "synthetic" — voice is PHI, only verified-synthetic audio may
+		// leave the perimeter (see AsrPort in ports.ts). A failed
+		// lookup fails closed: unverified provenance never reaches a
+		// provider. The language hint is locale data (`profile.asrLanguage`).
+		const blobMeta = yield* store.getBlobMeta(sample.audio.uri);
 		return yield* asr.transcribe(sample.audio, {
 			language: profile.asrLanguage,
 			origin: sample.origin,
+			blobMeta,
 		});
 	});
 

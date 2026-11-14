@@ -237,6 +237,7 @@ describe("runBatch e2e — processSample over stub ports", () => {
 			listSamples: () => Effect.succeed([]),
 			putBlob: () => Effect.void,
 			getBlob: () => Effect.succeed(null),
+			getBlobMeta: () => Effect.succeed(null),
 			putResult: () => Effect.void,
 			listResults: () => Effect.succeed([]),
 		});
@@ -323,6 +324,7 @@ describe("runBatch e2e — processSample over stub ports", () => {
 			listSamples: () => Effect.succeed([]),
 			putBlob: () => Effect.void,
 			getBlob: () => Effect.succeed(null),
+			getBlobMeta: () => Effect.succeed(null),
 			putResult: () => Effect.fail(new PortError({ port: "store", message: "disk full" })),
 			listResults: () => Effect.succeed([]),
 		});

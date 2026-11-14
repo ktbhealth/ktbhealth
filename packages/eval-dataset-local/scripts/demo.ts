@@ -138,7 +138,7 @@ for (const [i, sample] of samples.entries()) {
 			Effect.provide(
 				Effect.gen(function* () {
 					const s = yield* DatasetStorePort;
-					yield* s.putBlob(uri, makeToneWav(300 + i * 100));
+					yield* s.putBlob(uri, makeToneWav(300 + i * 100), { origin: "synthetic" });
 				}),
 				store,
 			),

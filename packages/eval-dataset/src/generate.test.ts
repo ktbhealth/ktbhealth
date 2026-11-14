@@ -43,6 +43,7 @@ const makeLayer = (opts?: { failOnVoice?: string; failStore?: boolean }) => {
 				listSamples: () => Effect.succeed([]),
 				putBlob: () => Effect.void,
 				getBlob: () => Effect.succeed(null),
+				getBlobMeta: () => Effect.succeed(null),
 				putResult: () => Effect.void,
 				listResults: () => Effect.succeed([]),
 			}),

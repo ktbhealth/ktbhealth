@@ -153,7 +153,8 @@ describe("stub store + report ports", () => {
 			Effect.gen(function* () {
 				const s = yield* DatasetStorePort;
 				yield* s.putSample(sample);
-				yield* s.putBlob("u1", new Uint8Array([7]));
+				yield* s.putBlob("u1", new Uint8Array([7]), { origin: "synthetic" });
+				yield* s.putBlob("u2", new Uint8Array([8]));
 				yield* s.putResult({
 					runId: "r1",
 					sampleId: sample.id,
@@ -169,6 +170,9 @@ describe("stub store + report ports", () => {
 					none: yield* s.listSamples({ origin: "real_anonymized" }),
 					blob: yield* s.getBlob("u1"),
 					noBlob: yield* s.getBlob("zz"),
+					meta: yield* s.getBlobMeta("u1"),
+					metaDefault: yield* s.getBlobMeta("u2"),
+					noMeta: yield* s.getBlobMeta("zz"),
 					results: yield* s.listResults({ sampleId: sample.id }),
 					noResults: yield* s.listResults({ runId: "other" }),
 					all: yield* s.listSamples(),
@@ -181,6 +185,10 @@ describe("stub store + report ports", () => {
 		expect(r.none).toHaveLength(0);
 		expect(r.blob).toEqual(new Uint8Array([7]));
 		expect(r.noBlob).toBeNull();
+		expect(r.meta).toEqual({ origin: "synthetic" });
+		// No declared origin records "unknown" — never silently synthetic.
+		expect(r.metaDefault).toEqual({ origin: "unknown" });
+		expect(r.noMeta).toBeNull();
 		expect(r.results).toHaveLength(1);
 		expect(r.noResults).toHaveLength(0);
 		expect(r.all).toHaveLength(1);

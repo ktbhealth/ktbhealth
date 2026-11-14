@@ -13,7 +13,9 @@ makeLocalReportLayer(file); // ReportPort — appends run.jsonl; render returns 
 Store properties: WAL + `busy_timeout`, atomic blob writes (tmp +
 rename), URI-hashed blob filenames, `putSample` re-decodes through the
 Schema (the `real_anonymized` provenance gate applies on **write** as
-well as read). Requires an Effect `Scope` (closes the DB handle).
+well as read). `putBlob(uri, bytes, meta?)` also persists provenance
+in a `blob_meta` SQLite table (`getBlobMeta` reads it; omitted `meta`
+records `unknown`). Requires an Effect `Scope` (closes the DB handle).
 
 ## Scripts
 
