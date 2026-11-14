@@ -151,4 +151,65 @@ describe("generateDataset", () => {
 		);
 		expect(r.ok).toEqual([]);
 	});
+
+	it("stamps runId, sampleId and datasetVersion on report records", async () => {
+		const { layer, appended } = makeLayer();
+		const r = await Effect.runPromise(
+			Effect.provide(generateDataset(input({ runId: "gen-test-1" })), layer),
+		);
+		expect(r.ok).toHaveLength(4);
+		expect(appended).toHaveLength(4);
+		for (const rec of appended) {
+			expect(rec.runId).toBe("gen-test-1");
+			expect(rec.sampleId).toMatch(/^s-/);
+			expect(rec.datasetVersion).toBe("v-test");
+		}
+		expect(new Set(appended.map((a) => a.sampleId)).size).toBe(4);
+	});
+
+	it("surfaces a malformed template as a typed per-item failure", async () => {
+		const { layer, stored } = makeLayer();
+		const r = await Effect.runPromise(
+			Effect.provide(generateDataset(input({ template: "<% if ( %>" })), layer),
+		);
+		expect(r.ok).toHaveLength(0);
+		expect(r.failed).toHaveLength(4);
+		expect(stored).toHaveLength(0);
+		expect(r.outcomes[0]?.error).toBeInstanceOf(PortError);
+		expect(r.outcomes[0]?.error?.message).toBe("script render failed");
+	});
+
+	it("surfaces a throwing acoustic callback as a typed per-item failure", async () => {
+		const { layer, stored } = makeLayer();
+		const r = await Effect.runPromise(
+			Effect.provide(
+				generateDataset(
+					input({
+						acoustic: () => {
+							throw new Error("bad voice");
+						},
+					}),
+				),
+				layer,
+			),
+		);
+		expect(r.ok).toHaveLength(0);
+		expect(r.failed).toHaveLength(4);
+		expect(stored).toHaveLength(0);
+		expect(r.outcomes[0]?.error).toBeInstanceOf(PortError);
+		expect(r.outcomes[0]?.error?.message).toBe("acoustic profile failed");
+	});
+
+	it("template and voice feed the sample id", async () => {
+		const a = makeLayer();
+		const b = makeLayer();
+		await Effect.runPromise(Effect.provide(generateDataset(input()), a.layer));
+		await Effect.runPromise(
+			Effect.provide(
+				generateDataset(input({ template: `${TEMPLATE}\n<!-- variant -->` })),
+				b.layer,
+			),
+		);
+		expect(a.stored.map((s) => s.id)).not.toEqual(b.stored.map((s) => s.id));
+	});
 });
