@@ -73,6 +73,29 @@ describe("makeAcpLlm", () => {
 		expect(err.message).toBe("session dead");
 	});
 
+	it("rejects a mis-declared envelope before the transport is touched", async () => {
+		let called = 0;
+		const layer = makeAcpLlm({
+			transport: (r) => {
+				called++;
+				return Effect.succeed(respond("ok", r.id));
+			},
+		});
+		const err = await Effect.runPromise(
+			Effect.gen(function* () {
+				const llm = yield* LlmPort;
+				// generate() but envelope declares EditList — contract mismatch.
+				return yield* llm.generate(env({ outputSchema: "EditList" }));
+			}).pipe(Effect.provide(layer)),
+		).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(err.message).toContain("outputSchema=Text");
+		expect(called).toBe(0); // transport never reached
+	});
+
 	it("invalid payloads are typed PortErrors, never silent", async () => {
 		const r = await runGenerate(transport([], () => respond({ not: "text" }))).then(
 			() => null,
