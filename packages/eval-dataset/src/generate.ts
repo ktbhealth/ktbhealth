@@ -29,6 +29,10 @@ export const fnvHex = (s: string): string => {
 
 export interface GenerateInput {
 	readonly datasetVersion: string;
+	/** Per-invocation run id stamped on every appended RunRecord so
+	 * `report.render(runId)` isolates this generation run. Defaults
+	 * to `gen-<datasetVersion>-<timestamp>` when omitted. */
+	readonly runId?: string;
 	readonly personas: readonly Persona[];
 	/** `.eta` template source (adapter/test reads the file — pick the
 	 * locale-keyed one, e.g. `templates/pt-BR/consultation.eta`). */
@@ -46,6 +50,9 @@ export interface GenerateInput {
 
 export interface GeneratedSample {
 	readonly sample: Sample;
+	/** The template SOURCE this sample rendered from — the API only
+	 * accepts source (template names live at the adapter edge), so
+	 * the field echoes it for provenance rather than storing a name. */
 	readonly template: string;
 }
 
@@ -61,22 +68,45 @@ export const generateDataset = (
 		const store = yield* DatasetStorePort;
 		const report = yield* ReportPort;
 		const baseSeed = input.seed ?? 0;
+		const runId = input.runId ?? `gen-${input.datasetVersion}-${Date.now()}`;
 
 		return yield* runBatch({
 			items: input.personas,
 			options: input.batch,
 			step: (persona, index) =>
 				Effect.gen(function* () {
-					const render = renderScript({
-						template: input.template,
-						persona,
-						seed: baseSeed + index,
-						profile: input.profile,
+					// Malformed templates and throwing acoustic callbacks
+					// are expected data failures — typed PortError so
+					// runBatch isolates them per item instead of
+					// defecting the whole batch.
+					const render = yield* Effect.try({
+						try: () =>
+							renderScript({
+								template: input.template,
+								persona,
+								seed: baseSeed + index,
+								profile: input.profile,
+							}),
+						catch: (cause) =>
+							new PortError({
+								port: "generate",
+								message: "script render failed",
+								cause,
+							}),
 					});
-					const acoustic = input.acoustic(persona, index);
-					// datasetVersion is part of the id — regenerating under a
-					// new version must coexist, not overwrite the old manifest.
-					const id = `s-${fnvHex(`${input.datasetVersion}:${persona.region}:${persona.ageBand}:${persona.register}:${persona.specialty}:${baseSeed + index}`)}`;
+					const acoustic = yield* Effect.try({
+						try: () => input.acoustic(persona, index),
+						catch: (cause) =>
+							new PortError({
+								port: "generate",
+								message: "acoustic profile failed",
+								cause,
+							}),
+					});
+					// datasetVersion + template + voice are part of the id —
+					// regenerating under a new version/template/voice must
+					// coexist, not overwrite the old manifest.
+					const id = `s-${fnvHex(`${input.datasetVersion}:${input.template}:${acoustic.voiceId}:${persona.region}:${persona.ageBand}:${persona.register}:${persona.specialty}:${baseSeed + index}`)}`;
 
 					const { audio, record } = yield* tts.synthesize({
 						script: render.script,
@@ -98,7 +128,12 @@ export const generateDataset = (
 					};
 
 					yield* store.putSample(sample);
-					yield* report.append({ ...record, sampleId: id });
+					yield* report.append({
+						...record,
+						runId,
+						sampleId: id,
+						datasetVersion: input.datasetVersion,
+					});
 					return { sample, template: input.template } satisfies GeneratedSample;
 				}),
 		});

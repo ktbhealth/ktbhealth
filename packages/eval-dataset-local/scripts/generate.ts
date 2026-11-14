@@ -13,16 +13,19 @@
  */
 import * as path from "node:path";
 import * as fs from "node:fs";
+import * as os from "node:os";
 
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
+import { Schema } from "effect";
 
 import {
 	DEFAULT_MATRIX,
 	generateDataset,
 	ptBR,
 	sampleMatrix,
+	NoiseProfile,
 	type Persona,
 	type AcousticProfile,
 	type LocaleProfile,
@@ -36,10 +39,35 @@ const arg = (name: string, def: string): string => {
 	return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1]! : def;
 };
 
-const workdir = arg("workdir", "/tmp/eval-generate");
-const count = Number(arg("personas", "8"));
-const seed = Number(arg("seed", "100"));
-const step = Number(arg("step", "7"));
+const intArg = (name: string, def: number, min: number): number => {
+	const raw = arg(name, String(def));
+	const n = Number(raw);
+	if (!Number.isInteger(n) || n < min) {
+		throw new Error(`--${name} must be an integer >= ${min}, got: ${raw}`);
+	}
+	return n;
+};
+
+const workdir = arg("workdir", path.join(os.tmpdir(), "eval-generate"));
+// Same scratch-path guard as scripts/demo.ts — refuse anything that
+// is not clearly a scratch path so a bad argv cannot write into a
+// real directory. Must be under os.tmpdir() or <cwd>/tmp.
+const resolvedWorkdir = path.resolve(workdir);
+const scratchRoots = [
+	path.resolve(os.tmpdir()),
+	fs.realpathSync(os.tmpdir()),
+	path.resolve(process.cwd(), "tmp"),
+];
+const isScratch = scratchRoots.some(
+	(r) => resolvedWorkdir === r || resolvedWorkdir.startsWith(`${r}${path.sep}`),
+);
+if (!isScratch) {
+	throw new Error(`--workdir must live under ${scratchRoots.join(" or ")}, got: ${workdir}`);
+}
+
+const count = intArg("personas", 8, 1);
+const seed = intArg("seed", 100, 0);
+const step = intArg("step", 7, 1);
 const templateName = arg("template", "consultation");
 const locale = arg("locale", "pt-BR");
 // Locale → profile registry: the template dir and the script content
@@ -50,14 +78,32 @@ const profile = LOCALES[locale];
 if (!profile) {
 	throw new Error(`unknown --locale ${locale} (available: ${Object.keys(LOCALES).join(", ")})`);
 }
-const noise = arg("noise", "clean") as AcousticProfile["noise"];
+const noiseRaw = arg("noise", "clean");
 const ttsKind = arg("tts", "stub");
-const concurrency = Number(arg("concurrency", "2"));
+const concurrency = intArg("concurrency", 2, 1);
+
+if (!Schema.is(NoiseProfile)(noiseRaw)) {
+	throw new Error(`--noise must be one of ${NoiseProfile.literals.join("|")}, got: ${noiseRaw}`);
+}
+const noise: AcousticProfile["noise"] = noiseRaw;
+
+// --template is joined into a path — reject anything that could
+// traverse out of templates/ before touching the filesystem.
+if (
+	templateName === "" ||
+	templateName.includes("/") ||
+	templateName.includes("\\") ||
+	templateName.includes("..")
+) {
+	throw new Error(`--template must be a bare template name, got: ${templateName}`);
+}
 
 const template = fs.readFileSync(
 	new URL(`../../eval-dataset/templates/${locale}/${templateName}.eta`, import.meta.url),
 	"utf8",
 );
+
+const runId = `gen-${Date.now()}`;
 
 const personas = sampleMatrix(DEFAULT_MATRIX, step).slice(0, count);
 const voices = ["br_male_1", "br_female_1"];
@@ -95,9 +141,11 @@ const result = await Effect.runPromise(
 	Effect.scoped(
 		Effect.gen(function* () {
 			return yield* generateDataset({
+				runId,
 				datasetVersion: `gen-${new Date().toISOString().slice(0, 10)}`,
 				personas,
 				template,
+				profile,
 				acoustic,
 				seed,
 				batch: {
