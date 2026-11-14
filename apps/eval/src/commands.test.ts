@@ -88,12 +88,59 @@ const SUITE_ASR = SUITE.replace(
 	'stages: ["script_gen", "synthesize", "transcribe"]',
 ).replace('id: "fx"', 'id: "fx-asr"');
 
+/** Domain-parametrized suite (P-079): `domain` points at the
+ * paramsdom domain.ts fixture; `domainParams` overrides merge over
+ * it — dataset defaults, a cohort tag, and an entity-category
+ * subset the pipeline actually consumes. */
+const SUITE_PARAMS = SUITE.replace('id: "fx"', 'id: "fx-params"')
+	.replace('domain: "eval.consult"', 'domain: "eval.paramsdom"')
+	.replace('dataset: { id: "fx", version: "v1" }', 'dataset: { id: "fxp", version: "v1" }')
+	.replace(
+		'adapterProfile: "stub",',
+		`adapterProfile: "stub",
+	domainParams: { params: { dataset: { count: 1 }, cohort: "p1", entityCategories: ["medication"] } },`,
+	);
+
 beforeAll(() => {
 	evalsDir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-evals-"));
 	fs.writeFileSync(path.join(evalsDir, "fx.suite.ts"), SUITE);
 	fs.writeFileSync(path.join(evalsDir, "fx-nojudge.suite.ts"), SUITE_NOJUDGE);
 	fs.writeFileSync(path.join(evalsDir, "fx-badorder.suite.ts"), SUITE_BADORDER);
 	fs.writeFileSync(path.join(evalsDir, "fx-asr.suite.ts"), SUITE_ASR);
+	fs.writeFileSync(path.join(evalsDir, "fx-params.suite.ts"), SUITE_PARAMS);
+	// Domain definitions (P-079): eval.consult mirrors the consultation
+	// pack's vocabulary closely enough that fixture behavior is
+	// unchanged; eval.paramsdom exercises param overrides. templates
+	// resolves through a symlink to the real pack templates.
+	fs.writeFileSync(
+		path.join(evalsDir, "domain.ts"),
+		`export const domain = {
+			id: "eval.consult",
+			version: "1",
+			locale: { profile: "ptbr-v1", tag: "pt-BR" },
+			templates: { dir: "templates" },
+			personas: {
+				regions: ["southeast", "south", "northeast", "north", "central_west"],
+				ageBands: ["child", "adult", "elderly"],
+				registers: ["formal", "colloquial"],
+				specialties: ["general_practice", "pediatrics", "gynecology", "geriatrics", "cardiology", "psychiatry"],
+			},
+			params: { dataset: { seed: 100 }, voices: ["br_male_1", "br_female_1"] },
+		};`,
+	);
+	fs.mkdirSync(path.join(evalsDir, "paramsdom"));
+	fs.writeFileSync(
+		path.join(evalsDir, "paramsdom", "domain.ts"),
+		`export const domain = {
+			id: "eval.paramsdom",
+			version: "1",
+			params: { dataset: { noise: "clinic", count: 3 } },
+		};`,
+	);
+	fs.symlinkSync(
+		path.join(repoRoot(), "evals", "consultation", "templates"),
+		path.join(evalsDir, "templates"),
+	);
 	workdir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-data-"));
 });
 
@@ -166,6 +213,55 @@ describe("list", () => {
 			fs.rmSync(empty, { recursive: true, force: true });
 		}
 	});
+
+	test("list resolves domain definitions and reports domain errors (P-079)", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-listdom-"));
+		fs.writeFileSync(
+			path.join(dir, "domain.ts"),
+			`export const domain = { id: "eval.d", version: "3", params: { a: 1 } };`,
+		);
+		fs.mkdirSync(path.join(dir, "child", "src"), { recursive: true });
+		fs.writeFileSync(
+			path.join(dir, "child", "src", "domain.ts"),
+			`export const domain = { id: "eval.child", version: "1", extends: "eval.d" };`,
+		);
+		fs.writeFileSync(
+			path.join(dir, "ok.suite.ts"),
+			`export const suite = { id: "ok", domain: "eval.d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], domainParams: { params: { b: 2 } }, schemaVersion: 1 };`,
+		);
+		fs.writeFileSync(
+			path.join(dir, "kid.suite.ts"),
+			`export const suite = { id: "kid", domain: "eval.child", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], schemaVersion: 1 };`,
+		);
+		fs.mkdirSync(path.join(dir, "plain", "src"), { recursive: true });
+		fs.writeFileSync(
+			path.join(dir, "plain", "src", "domain.ts"),
+			`export const domain = { id: "eval.plain", version: "2" };`,
+		);
+		fs.writeFileSync(
+			path.join(dir, "plain.suite.ts"),
+			`export const suite = { id: "plain", domain: "eval.plain", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], schemaVersion: 1 };`,
+		);
+		fs.writeFileSync(
+			path.join(dir, "bad.suite.ts"),
+			`export const suite = { id: "bad", domain: "eval.d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], domainParams: { bogus: 1 }, schemaVersion: 1 };`,
+		);
+		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			expect(await exec(["list", "--dir", dir])).toBe(0);
+			const out = spy.mock.calls.map((c) => String(c[0])).join("\n");
+			expect(out).toContain("domain-def  eval.d v3");
+			expect(out).toContain("domain-def  eval.child v1 extends eval.d");
+			expect(out).toContain("domain-def  eval.plain v2");
+			expect(out).not.toContain("eval.plain v2 ·");
+			expect(out).toContain("! domain —");
+			expect(out).toContain("1 domain error(s)");
+			expect(await exec(["list", "--dir", dir, "--strict"])).toBe(1);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	});
 });
 
 describe("generate", () => {
@@ -182,6 +278,53 @@ describe("generate", () => {
 			expect(fs.existsSync(path.join(workdir, "reports", "eval.jsonl"))).toBe(true);
 		} finally {
 			vi.restoreAllMocks();
+		}
+	});
+
+	test("domainParams flow into generate + run (P-079)", async () => {
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// eval.paramsdom supplies noise=clinic; domainParams
+			// overrides count/cohort/entityCategories on top.
+			expect(await exec(["generate", "fx-params", "--n", "1", "--workdir", workdir])).toBe(0);
+			expect(await exec(["run", "fx-params", "--workdir", workdir, "--run-id", "run-params"])).toBe(
+				0,
+			);
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
+	test("domain fallbacks: no definition, missing templates dir, invalid domainParams", async () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-dom-"));
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-domwd-"));
+		const suiteFor = (id: string, domain: string, dataset: string, extra = "") =>
+			`export const suite = { id: "${id}", domain: "${domain}", dataset: { id: "${dataset}", version: "v1" }, stages: ["transcribe"], caps: { tts: "transcription.tts", asr: "transcription.asr", llm: "llm.eval", eval: "llm.eval", store: "storage.dataset", report: "storage.dataset", registry: "storage.dataset" }, metrics: [], gates: [], schemaVersion: 1, adapterProfile: "stub" ${extra} };`;
+		fs.writeFileSync(
+			path.join(dir, "domain.ts"),
+			`export const domain = { id: "eval.d", version: "1", templates: { dir: "nope" } };`,
+		);
+		// No domain.ts for "d" → full pre-P-079 fallback path.
+		fs.writeFileSync(path.join(dir, "plain.suite.ts"), suiteFor("plain", "d", "dp"));
+		// templates.dir resolves to a missing dir → honest read failure.
+		fs.writeFileSync(path.join(dir, "badtmpl.suite.ts"), suiteFor("badtmpl", "eval.d", "dt"));
+		// Invalid domainParams → usage error in both generate and run.
+		fs.writeFileSync(
+			path.join(dir, "badparams.suite.ts"),
+			suiteFor("badparams", "eval.d", "db", ", domainParams: { bogus: 1 }"),
+		);
+		const c = { ...ctx(), evalsDir: dir };
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			expect(await exec(["generate", "plain", "--n", "1", "--workdir", wd], c)).toBe(0);
+			expect(await exec(["generate", "badtmpl", "--n", "1", "--workdir", wd], c)).toBe(1);
+			expect(await exec(["generate", "badparams", "--n", "1", "--workdir", wd], c)).toBe(2);
+			expect(await exec(["run", "badparams", "--workdir", wd], c)).toBe(2);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(dir, { recursive: true, force: true });
+			fs.rmSync(wd, { recursive: true, force: true });
 		}
 	});
 
@@ -1454,9 +1597,13 @@ describe("market parity (P-076)", () => {
 			expect(await exec(["list", "--strict"])).toBe(0);
 			expect(log.mock.calls.flat().join("\n")).toContain("dataset registry check skipped");
 
-			// After generate, the pin resolves and strict passes.
+			// After generate, the pin resolves and strict passes —
+			// generate every suite in the dir (fx-params pins fxp@v1).
 			const c = { ...ctx(), fetchImpl: fetch };
 			expect(await exec(["generate", "fx", "--n", "1", "--seed", "1", "--workdir", wd], c)).toBe(0);
+			expect(
+				await exec(["generate", "fx-params", "--n", "1", "--seed", "1", "--workdir", wd], c),
+			).toBe(0);
 			log.mockClear();
 			expect(await exec(["list", "--workdir", wd, "--strict"])).toBe(0);
 			const out = log.mock.calls.flat().join("\n");

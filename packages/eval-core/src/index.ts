@@ -5,6 +5,7 @@ export * from "./report.ts";
 export * from "./calibrate.ts";
 export * from "./batch.ts";
 export * from "./suite.ts";
+export * from "./domain.ts";
 export * from "./dag.ts";
 export * from "./registry.ts";
 export * from "./kinds.ts";

@@ -46,6 +46,7 @@ import {
 
 import { modelLayer, storeReportLayers, type WireContext } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
+import { domainErrorMessage, domainForManifest, loadDomains } from "../domains.ts";
 import { CommandExit, UsageError } from "../errors.ts";
 import { inputFieldOf, resolveSuiteInputs } from "../inputs.ts";
 import { findSuite } from "../suites.ts";
@@ -55,7 +56,7 @@ import {
 	gitSha,
 	intFlag,
 	isTransientBatchError,
-	localeFlag,
+	localeSelection,
 	manifestHashOf,
 	outcomeMark,
 	resolveFor,
@@ -95,6 +96,21 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				const manifest = suite.manifest;
 				const profile = yield* selectProfile(cfg.profile, suite);
 				const { resolution } = resolveFor(suite, profile);
+				// Domain definition (P-079): resolves the manifest's
+				// `domain` id (extends chain + domainParams overrides).
+				// The merged `params` record is threaded into
+				// processSample as `domainParams` — the pack reads its
+				// own keys (e.g. entityCategories). Absent definition →
+				// pre-P-079 defaults; invalid domainParams is a manifest
+				// bug → usage error.
+				const domains = yield* Effect.tryPromise({
+					try: () => loadDomains(ctx.evalsDir),
+					catch: userError,
+				});
+				const effDomain = yield* Effect.try({
+					try: () => domainForManifest(domains, manifest),
+					catch: (e) => new UsageError({ message: domainErrorMessage(e) }),
+				});
 				yield* assertCapabilities(suite, resolution, ["asr", "llm", "eval"]);
 				// Contribution config validation (P-078): a manifest
 				// `config` that fails its contribution's declared
@@ -114,10 +130,10 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				const runId = optStr(cfg.runId) ?? `run-${manifest.id}-${Date.now()}`;
 				const startedAt = Date.now();
 				const datasetVersion = datasetVersionOf(manifest);
-				// Same --locale registry generate uses — the scrub
+				// Same --locale resolution generate uses — the scrub
 				// patterns and normalization must match the locale the
-				// dataset was generated under.
-				const locale = yield* localeFlag(cfg.locale);
+				// dataset was generated under (domain default, flag wins).
+				const localeSel = yield* localeSelection(effDomain, cfg.locale);
 
 				const wire: WireContext = {
 					workdir,
@@ -270,9 +286,12 @@ export const makeRunCommand = (ctx: CmdContext) =>
 								sample,
 								runId,
 								stages,
-								profile: locale,
+								profile: localeSel.profile,
 								recordsOut: collected,
 								...(priorAsrText !== undefined ? { priorAsrText } : {}),
+								...(effDomain?.definition.params !== undefined
+									? { domainParams: effDomain.definition.params }
+									: {}),
 							});
 							yield* recordAll(run.records);
 							persisted = collected.length;
@@ -358,6 +377,9 @@ export const makeRunCommand = (ctx: CmdContext) =>
 									: {}),
 								...(meanWerAsr !== undefined ? { meanWerAsr } : {}),
 								...(meanWerCorrected !== undefined ? { meanWerCorrected } : {}),
+								...(effDomain?.definition.params !== undefined
+									? { domainParams: effDomain.definition.params }
+									: {}),
 							},
 						};
 						const evals = yield* EvalStorePort;

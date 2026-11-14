@@ -1182,3 +1182,30 @@ describe("priorAsrText (P-077 cross-suite inputs)", () => {
 		expect(r.asr.text).toContain("[CPF]");
 	});
 });
+
+describe("domainParams (P-079)", () => {
+	it("entityCategories restricts the scored gold entities", async () => {
+		const r = await run(
+			processSample({ sample, entities, domainParams: { entityCategories: ["medication"] } }),
+		);
+		expect(r.asrMetrics.entityVerdicts.map((v) => v.category)).toEqual(["medication"]);
+		expect(r.correctedMetrics!.entityVerdicts.map((v) => v.category)).toEqual(["medication"]);
+	});
+
+	it("absent entityCategories scores every entity", async () => {
+		const r = await run(processSample({ sample, entities, domainParams: {} }));
+		expect(r.asrMetrics.entityVerdicts).toHaveLength(2);
+	});
+
+	it("a malformed entityCategories fails the sample honestly", async () => {
+		const err = await run(
+			processSample({
+				sample,
+				entities,
+				domainParams: { entityCategories: "medication" },
+			}).pipe(Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e))),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("entityCategories");
+	});
+});

@@ -33,6 +33,15 @@ import {
 
 import { modelLayer, storeReportLayers, type WireContext } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
+import {
+	domainErrorMessage,
+	domainForManifest,
+	jsonNumber,
+	jsonRecord,
+	jsonString,
+	jsonStringArray,
+	loadDomains,
+} from "../domains.ts";
 import { CommandExit, UsageError } from "../errors.ts";
 import { findSuite } from "../suites.ts";
 import {
@@ -41,7 +50,7 @@ import {
 	gitSha,
 	intFlag,
 	isTransientBatchError,
-	localeFlag,
+	localeSelection,
 	manifestHashOf,
 	outcomeMark,
 	resolveFor,
@@ -79,30 +88,59 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 				const manifest = suite.manifest;
 				const profile = yield* selectProfile(cfg.profile, suite);
 				const { resolution } = resolveFor(suite, profile);
+				// Domain definition (P-079): the manifest's `domain` id
+				// resolves to a discovered domain.ts (extends chain +
+				// domainParams overrides merged). Absent definition →
+				// pre-P-079 defaults below; invalid domainParams is a
+				// manifest bug → usage error.
+				const domains = yield* Effect.tryPromise({
+					try: () => loadDomains(ctx.evalsDir),
+					catch: userError,
+				});
+				const effDomain = yield* Effect.try({
+					try: () => domainForManifest(domains, manifest),
+					catch: (e) => new UsageError({ message: domainErrorMessage(e) }),
+				});
 				// Generation needs TTS + persistence; llm/asr/eval are
 				// run-time concerns and may legitimately be absent from a
 				// generate-only profile.
 				yield* assertCapabilities(suite, resolution, ["tts"]);
 
-				const count = yield* intFlag("n", Option.isSome(cfg.n) ? cfg.n : cfg.personas, 8, 1);
-				const step = yield* intFlag("step", cfg.step, 7, 1);
-				const seed = yield* intFlag("seed", cfg.seed, 100, 0);
+				// Domain params (P-079): `params.dataset` supplies the
+				// generator defaults flags fall back to; `params.voices`
+				// the voice rotation. Flags always win.
+				const domainParams = effDomain?.definition.params;
+				const dsParams = jsonRecord(domainParams?.dataset);
+				const dsNum = (k: string): number | undefined => jsonNumber(dsParams?.[k]);
+				const dsStr = (k: string): string | undefined => jsonString(dsParams?.[k]);
+
+				const count = yield* intFlag(
+					"n",
+					Option.isSome(cfg.n) ? cfg.n : cfg.personas,
+					dsNum("count") ?? 8,
+					1,
+				);
+				const step = yield* intFlag("step", cfg.step, dsNum("step") ?? 7, 1);
+				const seed = yield* intFlag("seed", cfg.seed, dsNum("seed") ?? 100, 0);
 				const concurrency = yield* intFlag("concurrency", cfg.concurrency, 2, 1);
 				const workdir = yield* workdirFlag(cfg.workdir);
 
-				// localeFlag validates the name; `locale` is the raw tag
-				// the template directory is keyed by ("pt-BR", not the
+				// localeSelection resolves --locale → domain locale.tag/
+				// profile → pt-BR; `tag` is the raw locale name the
+				// template directory is keyed by ("pt-BR", not the
 				// profile's normalization id "ptbr-v1").
-				const locale = optStr(cfg.locale) ?? "pt-BR";
-				const localeProfile = yield* localeFlag(cfg.locale);
-				const noiseRaw = optStr(cfg.noise) ?? "clean";
+				const localeSel = yield* localeSelection(effDomain, cfg.locale);
+				const locale = localeSel.tag;
+				const localeProfile = localeSel.profile;
+				const noiseRaw = optStr(cfg.noise) ?? dsStr("noise") ?? "clean";
 				if (!Schema.is(NoiseProfile)(noiseRaw)) {
 					return yield* new UsageError({
 						message: `--noise must be one of ${NoiseProfile.literals.join("|")}, got: ${noiseRaw}`,
 					});
 				}
 				const noise: AcousticProfile["noise"] = noiseRaw;
-				const templateName = optStr(cfg.template) ?? "consultation";
+				const templateName =
+					optStr(cfg.template) ?? effDomain?.definition.templates?.name ?? "consultation";
 				if (
 					templateName === "" ||
 					templateName.includes("/") ||
@@ -113,17 +151,20 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 						message: `--template must be a bare template name, got: ${templateName}`,
 					});
 				}
+				// templates.dir is pack-relative — resolve against each
+				// chain dir (leaf first) so an extending domain still
+				// finds templates declared by its parent pack. No
+				// templates section (or no domain definition) → the
+				// pre-P-079 consultation path.
+				const templateRel = effDomain?.definition.templates?.dir;
+				const templateCandidates =
+					templateRel !== undefined && effDomain !== undefined && effDomain.dirs.length > 0
+						? effDomain.dirs.map((d) => path.join(d, templateRel))
+						: [path.join(ctx.repoRoot, "evals", "consultation", "templates")];
+				const templateDir =
+					templateCandidates.find((d) => fs.existsSync(d)) ?? templateCandidates[0]!;
 				const template = yield* Effect.try({
-					try: () =>
-						fs.readFileSync(
-							path.join(
-								ctx.repoRoot,
-								"evals/consultation/templates",
-								locale,
-								`${templateName}.eta`,
-							),
-							"utf8",
-						),
+					try: () => fs.readFileSync(path.join(templateDir, locale, `${templateName}.eta`), "utf8"),
 					catch: userError,
 				});
 
@@ -131,7 +172,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 				const runId = optStr(cfg.runId) ?? `gen-${manifest.id}-${Date.now()}`;
 				const startedAt = Date.now();
 				const ttsKey = resolution.adapters.tts ?? "stub";
-				const voices = ["br_male_1", "br_female_1"];
+				const voices = jsonStringArray(domainParams?.voices) ?? ["br_male_1", "br_female_1"];
 				const acoustic = (_p: Persona, i: number): AcousticProfile => ({
 					ttsModel: ttsKey,
 					voiceId: voices[i % voices.length]!,
@@ -139,7 +180,11 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 					sampleRate: 16000,
 				});
 
-				const personas = sampleMatrix(DEFAULT_MATRIX, step).slice(0, count);
+				// Persona matrix from the domain definition (P-079) —
+				// domainParams.personas may have narrowed it; absent a
+				// definition, the pack's DEFAULT_MATRIX applies.
+				const matrix = effDomain?.definition.personas ?? DEFAULT_MATRIX;
+				const personas = sampleMatrix(matrix, step).slice(0, count);
 				const wire: WireContext = {
 					workdir,
 					profile,
@@ -165,6 +210,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 							profile: localeProfile,
 							acoustic,
 							seed,
+							...(domainParams !== undefined ? { domainParams } : {}),
 							batch: {
 								concurrency,
 								retry: Schedule.exponential("300 millis").pipe(Schedule.upTo({ times: 2 })),
@@ -198,6 +244,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 									noise,
 									tts: ttsKey,
 									datasetVersion,
+									...(domainParams !== undefined ? { domainParams } : {}),
 								},
 								provenance: { generatedBy: "eval generate", runId },
 								createdAt: Date.now(),
@@ -232,6 +279,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 								failed: r.failed.length,
 								latencyMs: r.latencyMs,
 								datasetVersion,
+								...(domainParams !== undefined ? { domainParams } : {}),
 							},
 						};
 						yield* evals.putExperiment(experiment).pipe(Effect.mapError(userError));

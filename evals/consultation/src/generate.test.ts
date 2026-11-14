@@ -244,3 +244,19 @@ describe("generateDataset", () => {
 		expect(new Set(stored.map((s) => s.id)).size).toBe(3);
 	});
 });
+
+describe("domainParams (P-079)", () => {
+	it("a cohort param separates sample ids; absent keeps the old derivation", async () => {
+		const a = makeLayer();
+		const b = makeLayer();
+		const c = makeLayer();
+		await Effect.runPromise(Effect.provide(generateDataset(input()), a.layer));
+		await Effect.runPromise(
+			Effect.provide(generateDataset(input({ domainParams: { cohort: "variant" } })), b.layer),
+		);
+		await Effect.runPromise(Effect.provide(generateDataset(input({ domainParams: {} })), c.layer));
+		expect(a.stored.map((s) => s.id)).not.toEqual(b.stored.map((s) => s.id));
+		// Empty/absent params derive the pre-P-079 ids.
+		expect(a.stored.map((s) => s.id)).toEqual(c.stored.map((s) => s.id));
+	});
+});

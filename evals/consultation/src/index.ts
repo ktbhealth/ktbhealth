@@ -25,6 +25,7 @@ import {
 // directly.
 export * from "./accept.ts";
 export * from "./config.ts";
+export * from "./domain.ts";
 export * from "./acp.ts";
 export * from "./anonymize.ts";
 export * from "./generate.ts";

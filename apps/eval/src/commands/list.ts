@@ -29,6 +29,12 @@ import { EvalStorePort } from "@ktb/eval-core";
 import { storeReportLayers } from "../adapters.ts";
 import { CommandExit } from "../errors.ts";
 import { buildRegistry } from "../contributions.ts";
+import {
+	domainErrorMessage,
+	domainForManifest,
+	loadDomains,
+	type EffectiveDomain,
+} from "../domains.ts";
 import { inputLabel } from "../inputs.ts";
 import { resolveSuite } from "../resolve.ts";
 import { loadSuites } from "../suites.ts";
@@ -58,6 +64,13 @@ export const makeListCommand = (ctx: CmdContext) =>
 					try: () => loadSuites(dir),
 					catch: userError,
 				});
+				// Domain definitions (P-079) — domain.ts files discovered
+				// alongside the manifests; each suite's `domain` id +
+				// `domainParams` resolve against them.
+				const domains = yield* Effect.tryPromise({
+					try: () => loadDomains(dir),
+					catch: userError,
+				});
 				if (suites.length === 0) {
 					yield* Console.log(`no suite manifests in ${dir}`);
 					return;
@@ -74,11 +87,27 @@ export const makeListCommand = (ctx: CmdContext) =>
 				let dagErrors = 0;
 				let inputMissing = 0;
 				let configErrorTotal = 0;
+				let domainErrors = 0;
 				for (const { file, manifest } of suites) {
 					const profile = manifest.adapterProfile ?? "stub";
 					const res = resolveSuite(registry, manifest, profile);
 					unresolvedTotal += res.unresolved.length;
 					configErrorTotal += res.configErrors.length;
+					// Domain resolution (P-079): extends chain +
+					// domainParams merged. A missing definition is a
+					// warning only — params-less domains are legal and
+					// commands fall back to defaults; a resolution
+					// failure (extends cycle/unknown parent, invalid
+					// domainParams) is a manifest bug and counts
+					// toward --strict.
+					let effDomain: EffectiveDomain | undefined;
+					let domainError: string | undefined;
+					try {
+						effDomain = domainForManifest(domains, manifest);
+					} catch (e) {
+						domainError = domainErrorMessage(e);
+						domainErrors++;
+					}
 					const adapters = Object.entries(res.adapters)
 						.map(([cap, key]) => `${cap}=${key}`)
 						.join(" ");
@@ -111,6 +140,25 @@ export const makeListCommand = (ctx: CmdContext) =>
 					// validator.
 					for (const e of res.configErrors) {
 						yield* Console.log(`  ! ${kindLabel(e.kind)} "${e.id}" — invalid config: ${e.error}`);
+					}
+					// Domain definition line (P-079): resolved version +
+					// extends chain, or the honest gap.
+					if (domainError !== undefined) {
+						yield* Console.log(`  ! domain — ${domainError}`);
+					} else if (effDomain !== undefined) {
+						const def = effDomain.definition;
+						const chain = def.extends !== undefined ? ` extends ${def.extends}` : "";
+						yield* Console.log(
+							`  domain-def  ${def.id} v${def.version}${chain}` +
+								(def.params !== undefined
+									? ` · ${Object.keys(def.params).length} param key(s)`
+									: ""),
+						);
+					} else {
+						yield* Console.log(
+							`  ! domain "${manifest.domain}" — no domain definition in ${dir} ` +
+								"(commands use built-in defaults)",
+						);
 					}
 					if (res.dagError !== undefined) {
 						dagErrors++;
@@ -165,6 +213,7 @@ export const makeListCommand = (ctx: CmdContext) =>
 						(dagErrors > 0 ? `, ${dagErrors} invalid stage graph(s)` : "") +
 						(datasetMissing > 0 ? `, ${datasetMissing} missing dataset(s)` : "") +
 						(inputMissing > 0 ? `, ${inputMissing} unresolvable input(s)` : "") +
+						(domainErrors > 0 ? `, ${domainErrors} domain error(s)` : "") +
 						` in ${dir}`,
 				);
 				if (!hasWorkdir && cfg.strict) {
@@ -178,7 +227,8 @@ export const makeListCommand = (ctx: CmdContext) =>
 						configErrorTotal > 0 ||
 						datasetMissing > 0 ||
 						dagErrors > 0 ||
-						inputMissing > 0)
+						inputMissing > 0 ||
+						domainErrors > 0)
 				) {
 					return yield* new CommandExit({ code: 1 });
 				}

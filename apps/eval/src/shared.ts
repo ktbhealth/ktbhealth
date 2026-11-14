@@ -19,6 +19,7 @@ import { PortError } from "@ktb/eval-core";
 import { ptBR, type LocaleProfile } from "@ktb/eval-consultation";
 
 import { buildRegistry } from "./contributions.ts";
+import type { EffectiveDomain } from "./domains.ts";
 import { UsageError } from "./errors.ts";
 import { knownProfiles, resolveSuite, type SuiteResolution } from "./resolve.ts";
 import type { LoadedSuite } from "./suites.ts";
@@ -75,6 +76,37 @@ export const localeFlag = Effect.fnUntraced(function* (
 		});
 	}
 	return profile;
+});
+
+/** The locale a suite resolves to (P-079): `--locale` wins outright;
+ * absent the flag, the domain definition's `locale.tag`/`profile`
+ * select it (profile id match first — it is the persisted
+ * normalization identity — then tag). `tag` is the template-dir key;
+ * `profile` the LocaleProfile object. */
+export interface LocaleSelection {
+	readonly tag: string;
+	readonly profile: LocaleProfile;
+}
+
+export const localeSelection = Effect.fnUntraced(function* (
+	domain: EffectiveDomain | undefined,
+	flag: Option.Option<string>,
+): Effect.fn.Return<LocaleSelection, UsageError> {
+	const flagName = Option.getOrUndefined(flag);
+	const tag = flagName ?? domain?.definition.locale?.tag ?? "pt-BR";
+	const entries = Object.entries(LOCALES).map(([t, profile]) => ({ tag: t, profile }));
+	const profile =
+		flagName !== undefined
+			? entries.find((e) => e.tag === flagName)?.profile
+			: ((domain?.definition.locale?.profile !== undefined
+					? entries.find((e) => e.profile.id === domain.definition.locale?.profile)?.profile
+					: undefined) ?? entries.find((e) => e.tag === tag)?.profile);
+	if (profile === undefined) {
+		return yield* new UsageError({
+			message: `unknown --locale "${tag}" (available: ${entries.map((e) => e.tag).join(", ")})`,
+		});
+	}
+	return { tag, profile };
 });
 
 /** runBatch retry predicate — deterministic domain failures (PHI

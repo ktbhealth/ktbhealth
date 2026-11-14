@@ -160,3 +160,67 @@ Stage `when.condition` ids resolve as `eval.condition` contributions
 — the builtins (`nonempty`/`always`/`never`) are declared alongside
 their eval-core evaluators, and domain packs contribute their own
 (e.g. `wer-above`).
+
+## Domain definitions (P-079)
+
+A domain pack may ship **`src/domain.ts`** exporting `domain` — a
+pure-data `DomainDefinition` (`defineDomain` from `@ktb/eval-core`).
+Like `defineSuite`, it validates and throws on malformed input;
+`validateDomain`/`validateDomainOverrides` are the nullable helpers
+for untrusted imports. The `domain.ts` basename is the convention —
+any other file is pack source and is never treated as a definition
+(same rule as `*.suite.ts`).
+
+The definition is **data, not behavior**. It declares:
+
+- `id` + `version`, optional `extends` (parent domain id);
+- `provides` — contribution refs the domain offers (stages, metrics,
+  gates, gatePresets, conditions, configs);
+- `locale` (`{profile, tag}`), `templates` (`{dir, name?}` —
+  pack-relative), `personas` (matrix dimensions), `phi`
+  (`{categories, policy?}`), and open `params` (JSON generator/
+  pipeline knobs such as dataset defaults).
+
+**The honest boundary:** everything executable stays code — stage
+implementations, metric math, gate evaluation, anonymization
+patterns, WER. The definition only names _which_ registered
+contributions compose the domain and _which data_ parametrizes
+them. `eval-core` never learns domain vocabulary; a domain without
+a `domain.ts` keeps working through built-in defaults.
+
+**Inheritance.** `extends` resolves child→parent over the discovered
+definitions (`apps/eval/src/domains.ts`): unknown ids, unknown
+parents, and cycles are resolution errors. Merge semantics:
+
+- contribution lists **union by id** — the child's entry wins on
+  collision;
+- named sections (locale/templates/personas/phi) — child wins per
+  section;
+- `params` **deep-merge** recursively — plain objects merge,
+  scalars/arrays replace; suite `domainParams` apply last.
+
+**Suite overrides.** A manifest may carry `domainParams` (a partial
+`DomainDefinition`-shaped JSON object, validated by
+`validateDomainOverrides` — unknown top-level sections are
+rejected). `apps/eval` merges domain params + suite overrides and
+threads the result as `domainParams` into `generateDataset`
+(dataset defaults: count/step/seed/noise) and `processSample`
+(`params.entityCategories` filters judged entity categories, etc.).
+Flags (`--n`, `--seed`, `--noise`, `--locale`, `--personas`,
+`--template`) still win over both. `eval list` prints the resolved
+definition (`domain-def <id> v<n> · k param key(s)`) and counts
+resolution errors under `--strict`; a _missing_ definition is only
+a `! domain` note, never a strict failure — legacy/fallback suites
+stay legal.
+
+Consultation's definition lives at
+`evals/consultation/src/domain.ts` (`eval.consultation`): pt-BR
+locale `ptbr-v1`, `templates/pt-BR`, the default persona matrix,
+PHI categories, and dataset defaults `{count: 8, step: 7, seed:
+100, noise: "clean"}`. `consult-asr.suite.ts` declares
+`domain: "eval.consultation"` and needs no `domainParams` — its
+behavior already equals the domain defaults; a specialization (e.g.
+a stricter cohort or an entity-category subset) adds a
+`domainParams` block without touching the pack. A new locale or a
+consultation specialization is a new `domain.ts` (optionally
+`extends: "eval.consultation"`) — no pipeline fork.

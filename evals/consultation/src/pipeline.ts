@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect";
+import type { JsonObject } from "effect/Schema";
 
 import { applyEdits, EditApplyError, type EditList } from "@ktb/eval-core";
 
@@ -464,10 +465,33 @@ export const processSample = (input: {
 	 * is returned as `SampleRun.records` on success — do not also
 	 * persist it twice. */
 	readonly recordsOut?: RunRecord[];
+	/** Merged domain params (P-079) — the pack reads domain-owned
+	 * keys here. Today: `entityCategories` (string[]) restricts the
+	 * gold entities the run scores to that category subset — a
+	 * present-but-malformed value fails the sample honestly rather
+	 * than silently scoring everything. Absent = all entities. */
+	readonly domainParams?: JsonObject;
 }) =>
 	Effect.gen(function* () {
 		const profile = input.profile ?? ptBR;
-		const entities = input.entities ?? input.sample.gold.entities ?? [];
+		// domainParams.entityCategories (P-079): an optional category
+		// subset restricting which gold entities the run scores. A
+		// present-but-malformed value is a manifest bug — fail the
+		// sample before any port call, never silently score all.
+		const categoryParam = input.domainParams?.entityCategories;
+		let categories: readonly string[] | undefined;
+		if (categoryParam !== undefined) {
+			if (!Array.isArray(categoryParam) || categoryParam.some((c) => typeof c !== "string")) {
+				return yield* new PortError({
+					port: "pipeline",
+					message: `sample ${input.sample.id}: invalid domainParams.entityCategories — expected an array of strings`,
+				});
+			}
+			categories = categoryParam as readonly string[];
+		}
+		const entities = (input.entities ?? input.sample.gold.entities ?? []).filter(
+			(e) => categories === undefined || categories.includes(e.category),
+		);
 		// Include datasetVersion — the same sample.id re-run under a new
 		// dataset version must not collide with the old run's records.
 		const runId = input.runId ?? `run-${input.sample.datasetVersion}-${input.sample.id}`;

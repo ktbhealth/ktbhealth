@@ -221,6 +221,13 @@ export const EvalSuiteManifest = Schema.Struct({
 	/** Cross-suite composition refs (P-077) — resolved by apps/eval
 	 * against the shared workdir store before the run. */
 	inputs: Schema.optionalKey(Schema.Array(SuiteInput)),
+	/** Domain-param overrides (P-079) — a partial domain definition
+	 * (`locale`/`templates`/`personas`/`phi`/`params` sections only;
+	 * see DomainOverrides in domain.ts). apps/eval validates the shape
+	 * and merges it over the resolved domain definition; the merged
+	 * `params` record is threaded into the domain pack's
+	 * generate/process call sites as `domainParams`. */
+	domainParams: Schema.optionalKey(Schema.JsonObject),
 });
 export type EvalSuiteManifest = typeof EvalSuiteManifest.Type;
 

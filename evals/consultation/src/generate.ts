@@ -9,6 +9,7 @@
  */
 
 import * as Effect from "effect/Effect";
+import type { JsonObject } from "effect/Schema";
 
 import { runBatch, type BatchOptions, type BatchResult } from "@ktb/eval-core";
 
@@ -56,6 +57,12 @@ export interface GenerateInput {
 	readonly acoustic: (persona: Persona, index: number) => AcousticProfile;
 	/** Base seed — sample i renders with seed + i for replayability. */
 	readonly seed?: number;
+	/** Merged domain params (P-079) — the pack reads domain-owned
+	 * keys here. Today: `cohort` (non-empty string) is folded into
+	 * the sample id so differently-parametrized generations of the
+	 * same persona/seed/template coexist instead of colliding.
+	 * Absent = pre-P-079 id derivation, unchanged. */
+	readonly domainParams?: JsonObject;
 	readonly batch?: BatchOptions<PortError>;
 }
 
@@ -118,8 +125,11 @@ export const generateDataset = (
 					// (personaKey covers optional gender/cues too) + seed
 					// are part of the id — regenerating under a new
 					// version/template/voice/persona must coexist, not
-					// overwrite the old manifest.
-					const id = `s-${fnvHex(`${input.datasetVersion}:${input.template}:${acoustic.voiceId}:${baseSeed + index}:${personaKey(persona)}`)}`;
+					// overwrite the old manifest. A `cohort` domain param
+					// (P-079) additionally separates param variants.
+					const cohort = input.domainParams?.cohort;
+					const cohortTag = typeof cohort === "string" && cohort !== "" ? `:${cohort}` : "";
+					const id = `s-${fnvHex(`${input.datasetVersion}:${input.template}:${acoustic.voiceId}:${baseSeed + index}:${personaKey(persona)}${cohortTag}`)}`;
 
 					const { audio, record } = yield* tts.synthesize({
 						script: render.script,
