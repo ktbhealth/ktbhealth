@@ -78,7 +78,7 @@ describe("makeAcpLlm", () => {
 		const layer = makeAcpLlm({
 			transport: (r) => {
 				called++;
-				return respond("ok", r.id);
+				return Effect.succeed(respond("ok", r.id));
 			},
 		});
 		const err = await Effect.runPromise(
