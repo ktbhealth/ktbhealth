@@ -13,6 +13,8 @@ import {
 	cleanupQuestions,
 	recordRun,
 	saveSample,
+	sampleForPersistence,
+	toSampleResult,
 } from "./pipeline.ts";
 import {
 	AsrPort,
@@ -71,11 +73,14 @@ const storedResults = new Map<string, unknown>();
 const live = Layer.mergeAll(
 	Layer.succeed(
 		AsrPort,
-		AsrPort.of({ transcribe: () => Effect.succeed({ asr: asrResult, record }) }),
+		// egress:false — the stub is local-only, so the PHI egress
+		// policy lets untrusted-origin samples through to it.
+		AsrPort.of({ egress: false, transcribe: () => Effect.succeed({ asr: asrResult, record }) }),
 	),
 	Layer.succeed(
 		LlmPort,
 		LlmPort.of({
+			egress: false,
 			generate: () => Effect.succeed({ text: "script", record }),
 			correct: (env) =>
 				Effect.succeed({
@@ -115,6 +120,7 @@ const live = Layer.mergeAll(
 			getSample: (id) => Effect.succeed(stored.get(id) ?? null),
 			listSamples: () => Effect.succeed([sample]),
 			putBlob: () => Effect.void,
+			putBlobMeta: () => Effect.void,
 			getBlob: () => Effect.succeed(null),
 			getBlobMeta: () => Effect.succeed(null),
 			putResult: (r) => Effect.sync(() => void storedResults.set(r.sampleId, r)),
@@ -145,6 +151,7 @@ const storeStub = Layer.succeed(
 		getSample: () => Effect.succeed(null),
 		listSamples: () => Effect.succeed([]),
 		putBlob: () => Effect.void,
+		putBlobMeta: () => Effect.void,
 		getBlob: () => Effect.succeed(null),
 		getBlobMeta: () => Effect.succeed(null),
 		putResult: () => Effect.void,
@@ -221,7 +228,10 @@ describe("transcribeSample", () => {
 		let seen: unknown;
 		const capture = Layer.succeed(
 			AsrPort,
+			// egress:false — local-only, so the PHI guard lets the
+			// real_anonymized blobMeta through to observe the opts.
 			AsrPort.of({
+				egress: false,
 				transcribe: (_audio, opts) =>
 					Effect.sync(() => {
 						seen = opts;
@@ -236,6 +246,7 @@ describe("transcribeSample", () => {
 				getSample: () => Effect.succeed(null),
 				listSamples: () => Effect.succeed([]),
 				putBlob: () => Effect.void,
+				putBlobMeta: () => Effect.void,
 				getBlob: () => Effect.succeed(null),
 				getBlobMeta: () => Effect.succeed({ origin: "real_anonymized" as const }),
 				putResult: () => Effect.void,
@@ -270,6 +281,7 @@ describe("transcribeSample", () => {
 							getSample: () => Effect.succeed(null),
 							listSamples: () => Effect.succeed([]),
 							putBlob: () => Effect.void,
+							putBlobMeta: () => Effect.void,
 							getBlob: () => Effect.succeed(null),
 							getBlobMeta: () =>
 								Effect.fail(new PortError({ port: "store", message: "store down" })),
@@ -403,6 +415,242 @@ describe("processSample", () => {
 		expect(dumped).toContain("[CPF]");
 		expect(dumped).not.toContain("123.456.789-00");
 	});
+
+	it("real_anonymized: scrubs ASR text before cleanup and judge state (H1)", async () => {
+		const phiAsr = {
+			text: "paciente cpf 123.456.789-00 nega febre",
+			language: "pt",
+			segments: [{ t0: 0, t1: 1, text: "cpf 123.456.789-00" }],
+		};
+		const llmInputs: string[] = [];
+		const judgeStates: unknown[] = [];
+		const phiPorts = Layer.mergeAll(
+			Layer.succeed(
+				AsrPort,
+				AsrPort.of({ egress: false, transcribe: () => Effect.succeed({ asr: phiAsr, record }) }),
+			),
+			Layer.succeed(
+				LlmPort,
+				LlmPort.of({
+					egress: false,
+					generate: () => Effect.succeed({ text: "x", record }),
+					correct: (env) =>
+						Effect.sync(() => {
+							llmInputs.push(env.input);
+							return { edits: { ops: [] }, record };
+						}),
+				}),
+			),
+			Layer.succeed(
+				EvalPort,
+				EvalPort.of({
+					egress: false,
+					judge: (input) =>
+						Effect.sync(() => {
+							judgeStates.push(input.state);
+							return {
+								answers: input.questions.map((q) => ({
+									id: q.id,
+									kind: q.kind,
+									value: q.kind === "noul" ? true : "justified_fix",
+									probability: 0.9,
+								})),
+								record,
+							};
+						}),
+				}),
+			),
+		);
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			script: "paciente nega febre",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const r = await Effect.runPromise(
+			Effect.provide(processSample({ sample: real, entities }), Layer.merge(live, phiPorts)),
+		);
+		// cleanup input, judge states and persisted text are all scrubbed
+		expect(llmInputs).toHaveLength(1);
+		expect(llmInputs[0]).toContain("[CPF]");
+		expect(llmInputs[0]).not.toContain("123.456.789-00");
+		const dumped = JSON.stringify(judgeStates);
+		expect(dumped).toContain("[CPF]");
+		expect(dumped).not.toContain("123.456.789-00");
+		expect(r.asr.text).toContain("[CPF]");
+		expect(r.asr.text).not.toContain("123.456.789-00");
+		expect(r.script).toBe("paciente nega febre");
+	});
+
+	it("unknown origin: script and ASR text are gated like real_anonymized", async () => {
+		const phiAsr = {
+			text: "meu cpf 123.456.789-00",
+			language: "pt",
+			segments: [],
+		};
+		const judgeStates: unknown[] = [];
+		const phiPorts = Layer.mergeAll(
+			Layer.succeed(
+				AsrPort,
+				AsrPort.of({ egress: false, transcribe: () => Effect.succeed({ asr: phiAsr, record }) }),
+			),
+			Layer.succeed(
+				EvalPort,
+				EvalPort.of({
+					egress: false,
+					judge: (input) =>
+						Effect.sync(() => {
+							judgeStates.push(input.state);
+							return {
+								answers: input.questions.map((q) => ({
+									id: q.id,
+									kind: q.kind,
+									value: q.kind === "noul" ? true : "justified_fix",
+									probability: 0.9,
+								})),
+								record,
+							};
+						}),
+				}),
+			),
+		);
+		const unknown: Sample = {
+			...sample,
+			origin: "unknown",
+			script: "cpf 123.456.789-00 do paciente",
+		};
+		const r = await Effect.runPromise(
+			Effect.provide(processSample({ sample: unknown, entities }), Layer.merge(live, phiPorts)),
+		);
+		expect(r.script).toContain("[CPF]");
+		expect(r.script).not.toContain("123.456.789-00");
+		expect(r.asr.text).toContain("[CPF]");
+		expect(JSON.stringify(judgeStates)).not.toContain("123.456.789-00");
+	});
+
+	it("real_anonymized: fails closed when ASR output has residual identifiers", async () => {
+		const badAsr = {
+			text: "registro interno 20240102030405",
+			language: "pt",
+			segments: [],
+		};
+		const badPorts = Layer.mergeAll(
+			Layer.succeed(
+				AsrPort,
+				AsrPort.of({ egress: false, transcribe: () => Effect.succeed({ asr: badAsr, record }) }),
+			),
+			Layer.succeed(
+				LlmPort,
+				LlmPort.of({
+					egress: false,
+					generate: () => Effect.succeed({ text: "x", record }),
+					correct: () => Effect.succeed({ edits: { ops: [] }, record }),
+				}),
+			),
+		);
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			script: "paciente nega febre",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const err = await Effect.runPromise(
+			Effect.provide(
+				processSample({ sample: real, entities }).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+				Layer.merge(live, badPorts),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("ASR output");
+	});
+
+	it("egress-capable ASR refuses real_anonymized before transcribing (M2)", async () => {
+		let called = 0;
+		const cloudAsr = Layer.succeed(
+			AsrPort,
+			AsrPort.of({
+				egress: true,
+				transcribe: () =>
+					Effect.sync(() => {
+						called++;
+						return { asr: asrResult, record };
+					}),
+			}),
+		);
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			script: "paciente nega febre",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const err = await Effect.runPromise(
+			Effect.provide(
+				processSample({ sample: real, entities }).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+				Layer.merge(live, cloudAsr),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("egress");
+		expect(called).toBe(0);
+	});
+
+	it("egress-capable ASR refuses when stored blob provenance is real_anonymized", async () => {
+		let called = 0;
+		const cloudAsr = Layer.succeed(
+			AsrPort,
+			AsrPort.of({
+				egress: true,
+				transcribe: () =>
+					Effect.sync(() => {
+						called++;
+						return { asr: asrResult, record };
+					}),
+			}),
+		);
+		const metaStore = Layer.succeed(
+			DatasetStorePort,
+			DatasetStorePort.of({
+				putSample: () => Effect.void,
+				getSample: () => Effect.succeed(null),
+				listSamples: () => Effect.succeed([]),
+				putBlob: () => Effect.void,
+				putBlobMeta: () => Effect.void,
+				getBlob: () => Effect.succeed(null),
+				getBlobMeta: () => Effect.succeed({ origin: "real_anonymized" as const }),
+				putResult: () => Effect.void,
+				listResults: () => Effect.succeed([]),
+			}),
+		);
+		const err = await Effect.runPromise(
+			Effect.provide(
+				transcribeSample(sample).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+				Layer.mergeAll(cloudAsr, metaStore),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(called).toBe(0);
+	});
 });
 
 describe("recordRun / saveSample", () => {
@@ -475,6 +723,65 @@ describe("toSampleResult / saveResult / recordAll", () => {
 		const s2: Sample = { ...sample, gold: { validatedBy: "generator", entities } };
 		const r = await run(processSample({ sample: s2 }));
 		expect(r.asrMetrics.entityVerdicts).toHaveLength(2);
+	});
+});
+
+describe("sampleForPersistence (H2)", () => {
+	it("returns the synthetic sample unchanged", async () => {
+		const r = await run(processSample({ sample, entities }));
+		expect(sampleForPersistence(sample, r)).toBe(sample);
+	});
+
+	it("persists the scrubbed script + recomputed hash for real_anonymized", async () => {
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			script: "cpf 123.456.789-00 do paciente",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const r = await run(processSample({ sample: real, entities }));
+		const persisted = sampleForPersistence(real, r);
+		expect(persisted.script).toContain("[CPF]");
+		expect(persisted.script).not.toContain("123.456.789-00");
+		expect(persisted.scriptHash).not.toBe(real.scriptHash);
+		// The stored row must still decode — scrubbed script is valid.
+		expect(persisted.scriptHash).toMatch(/^[0-9a-f]{8}$/);
+	});
+
+	it("toSampleResult persists only scrubbed text fields", async () => {
+		const phiAsr = {
+			text: "cpf 123.456.789-00 nega febre",
+			language: "pt",
+			segments: [],
+		};
+		const phiPorts = Layer.succeed(
+			AsrPort,
+			AsrPort.of({ egress: false, transcribe: () => Effect.succeed({ asr: phiAsr, record }) }),
+		);
+		const real: Sample = {
+			...sample,
+			origin: "real_anonymized",
+			script: "paciente nega febre",
+			provenance: {
+				sourcePartner: "clinic-x",
+				anonymizationMethod: "phi-scrub-v1",
+				consentRef: "consent-1",
+				lgpdBasis: "legitimate_interest",
+			},
+		};
+		const r = await Effect.runPromise(
+			Effect.provide(processSample({ sample: real, entities }), Layer.merge(live, phiPorts)),
+		);
+		const result = toSampleResult({ sample: real, runId: "run-phi", run: r });
+		expect(result.asrText).toContain("[CPF]");
+		expect(result.asrText).not.toContain("123.456.789-00");
+		const dumped = JSON.stringify(result.edits ?? []);
+		expect(dumped).not.toContain("123.456.789-00");
 	});
 });
 

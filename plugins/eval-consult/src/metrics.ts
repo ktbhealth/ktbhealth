@@ -51,6 +51,12 @@ export const normalize = (s: string, opts: NormalizeOpts = {}): string => {
 	if (o.lowercase) out = out.toLowerCase();
 	if (o.foldAccents) out = out.normalize("NFD").replace(/\p{M}/gu, "");
 	if (o.stripSpeakers) out = out.replace(profile.speakerLabelRe, " ");
+	// Anonymization tokens ("[CPF]", "[PHONE]"…) carry no clinical
+	// content — strip them WHOLE before punctuation splitting, or
+	// "[CPF]" would survive as the word "cpf" and pollute WER/entity
+	// checks (L12). Same bracket pattern gateTranscript excludes from
+	// its residual-PHI scan.
+	if (o.stripPunct) out = out.replace(/\[[^\]\s]*\]/g, " ");
 	// Decimal guard BEFORE punctuation strip: "2,5 mg" must not
 	// collapse to "25 mg" — that is a dosage error the metric would
 	// invent. Digit[.,]digit → " <decimalWord> ". ASR emits both

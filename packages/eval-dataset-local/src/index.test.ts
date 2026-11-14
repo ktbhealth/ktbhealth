@@ -133,6 +133,42 @@ describe("local store layer", () => {
 		expect(r.missing).toBeNull();
 	});
 
+	it("putBlobMeta records provenance without bytes (M1)", async () => {
+		const layer = makeLocalStoreLayer(root);
+		const run = <A>(e: Effect.Effect<A, unknown, DatasetStorePort>) =>
+			Effect.runPromise(Effect.provide(e, layer));
+		const r = await run(
+			Effect.gen(function* () {
+				const s = yield* DatasetStorePort;
+				yield* s.putBlobMeta("meta/tts.wav", { origin: "synthetic" });
+				yield* s.putBlobMeta("meta/undeclared.wav");
+				return {
+					meta: yield* s.getBlobMeta("meta/tts.wav"),
+					def: yield* s.getBlobMeta("meta/undeclared.wav"),
+					// Meta-only registration writes no blob bytes.
+					blob: yield* s.getBlob("meta/tts.wav"),
+				};
+			}),
+		);
+		expect(r.meta).toEqual({ origin: "synthetic" });
+		expect(r.def).toEqual({ origin: "unknown" });
+		expect(r.blob).toBeNull();
+	});
+
+	it("putBlobMeta rejects a bogus origin on write", async () => {
+		const layer = makeLocalStoreLayer(root);
+		const err = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putBlobMeta("meta/bad", { origin: "bogus" as never });
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				layer,
+			),
+		);
+		expect(String(err)).toContain("putBlobMeta");
+	});
+
 	it("putBlob rejects a bogus origin on write", async () => {
 		const layer = makeLocalStoreLayer(root);
 		const err = await Effect.runPromise(

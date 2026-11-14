@@ -32,10 +32,14 @@ export type { TaskEnvelope } from "@ktb/eval-core";
  */
 
 /** Synthesize a script into audio under an acoustic profile
- * (voice + degradation are decided by the caller via profile). */
+ * (voice + degradation are decided by the caller via profile).
+ * `egress` declares whether script text may leave the perimeter —
+ * hosted TTS endpoints set `true`; absent is treated as egress-capable
+ * by the PHI policy (fail closed). */
 export class TtsPort extends Context.Service<
 	TtsPort,
 	{
+		readonly egress?: boolean;
 		readonly synthesize: (input: {
 			readonly script: string;
 			readonly voiceId: string;
@@ -52,10 +56,17 @@ export class TtsPort extends Context.Service<
  * as non-synthetic and refuse unless explicitly opted in — voice is
  * PHI, only verified-synthetic audio may leave the perimeter.
  * `blobMeta: null` = looked up, no record; `undefined` = caller did
- * not check (the documented file:// bypass). */
+ * not check (the documented file:// bypass).
+ *
+ * `egress` is the PHI capability declaration enforced structurally by
+ * `guardAsrPort` (phi.ts): `true` = audio may leave the box, `false` =
+ * local-only, absent = treated as egress-capable (fail closed). Only
+ * verified-`synthetic` provenance may reach an egress-capable port —
+ * voice is PHI and cannot be scrubbed. */
 export class AsrPort extends Context.Service<
 	AsrPort,
 	{
+		readonly egress?: boolean;
 		readonly transcribe: (
 			audio: AudioRef,
 			opts?: {
@@ -67,10 +78,15 @@ export class AsrPort extends Context.Service<
 	}
 >()("@ktb/eval-dataset/AsrPort") {}
 
-/** Generative model port — ACP-delegated in live adapters. */
+/** Generative model port — ACP-delegated in live adapters.
+ * `egress` declares whether envelope input text may leave the
+ * perimeter (remote agent vs in-process); the pipeline only ever sends
+ * scrubbed text, so this is informational today — declared for the
+ * same structural policy as the other ports. */
 export class LlmPort extends Context.Service<
 	LlmPort,
 	{
+		readonly egress?: boolean;
 		readonly generate: (
 			envelope: TaskEnvelope,
 		) => Effect.Effect<{ text: string; record: RunRecord }, PortError>;
@@ -99,6 +115,16 @@ export class DatasetStorePort extends Context.Service<
 		readonly putBlob: (
 			uri: string,
 			bytes: Uint8Array,
+			meta?: { readonly origin: SampleOrigin },
+		) => Effect.Effect<void, PortError>;
+		/** Record blob provenance WITHOUT writing bytes — for audio
+		 * produced outside the store (TTS workDir files referenced by
+		 * `file://` AudioRefs, provider-hosted URLs). Same meta contract
+		 * as `putBlob`: omitted origin records `unknown`. This is what
+		 * makes `getBlobMeta` answer in the real generate→transcribe
+		 * flow (M1). */
+		readonly putBlobMeta: (
+			uri: string,
 			meta?: { readonly origin: SampleOrigin },
 		) => Effect.Effect<void, PortError>;
 		readonly getBlob: (uri: string) => Effect.Effect<Uint8Array | null, PortError>;

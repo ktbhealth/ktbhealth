@@ -18,6 +18,7 @@ export * from "./locales/pt-BR.ts";
 export * from "./metrics.ts";
 export * from "./negation.ts";
 export * from "./personas.ts";
+export * from "./phi.ts";
 export * from "./pipeline.ts";
 export * from "./ports.ts";
 export * from "./schema.ts";

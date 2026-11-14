@@ -135,6 +135,24 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 					),
 				),
 
+			// Meta-only registration — same contract as putBlob minus
+			// the bytes write, for blobs produced outside the store.
+			putBlobMeta: (uri, meta) =>
+				Effect.try({
+					try: () => decodeBlobMeta({ origin: meta?.origin ?? "unknown" }),
+					catch: (e) => fail(`invalid blob meta: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) =>
+						Effect.tryPromise({
+							try: () =>
+								bucket
+									.put(`blobmeta/${encodeURIComponent(uri)}.json`, JSON.stringify(validated))
+									.then(() => undefined),
+							catch: (e) => fail(e instanceof Error ? e.message : String(e)),
+						}),
+					),
+				),
+
 			getBlobMeta: (uri) =>
 				getJson(bucket, `blobmeta/${encodeURIComponent(uri)}.json`).pipe(
 					Effect.flatMap((body) =>

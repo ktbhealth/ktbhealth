@@ -14,11 +14,18 @@ import type * as Schedule from "effect/Schedule";
 
 import { EvalAnswer, EvalPort, fnvHex, PortError } from "@ktb/eval-dataset";
 
+import { isLoopbackUrl } from "./asr.ts";
+
 export interface JevEvalOptions {
 	readonly baseUrl: string;
 	readonly fetchImpl?: typeof fetch;
 	readonly timeoutMs?: number;
 	readonly retry?: Schedule.Schedule<unknown, PortError>;
+	/** PHI egress declaration — judge state is scrubbed upstream, but
+	 * the capability is declared honestly: default auto-derived from
+	 * baseUrl (loopback = local-only), override for remote-but-trusted
+	 * deployments. */
+	readonly egress?: boolean;
 }
 
 const Answers = Schema.Struct({ answers: Schema.Array(EvalAnswer) });
@@ -30,6 +37,7 @@ export const makeJevEval = (opts: JevEvalOptions): Layer.Layer<EvalPort> =>
 	Layer.succeed(
 		EvalPort,
 		EvalPort.of({
+			egress: opts.egress ?? !isLoopbackUrl(opts.baseUrl),
 			judge: (input) => {
 				const fetchImpl = opts.fetchImpl ?? fetch;
 				const timeoutMs = opts.timeoutMs ?? 30_000;

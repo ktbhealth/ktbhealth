@@ -141,6 +141,48 @@ describe("r2 store adapter", () => {
 		expect(out.missing).toBeNull();
 	});
 
+	it("putBlobMeta records provenance without bytes (M1)", async () => {
+		const out = await withStore(
+			Effect.gen(function* () {
+				const store = yield* DatasetStorePort;
+				yield* store.putBlobMeta("r2://a/tts.wav", { origin: "synthetic" });
+				yield* store.putBlobMeta("r2://a/none.wav");
+				return {
+					meta: yield* store.getBlobMeta("r2://a/tts.wav"),
+					def: yield* store.getBlobMeta("r2://a/none.wav"),
+					blob: yield* store.getBlob("r2://a/tts.wav"),
+				};
+			}),
+		);
+		expect(out.meta).toEqual({ origin: "synthetic" });
+		expect(out.def).toEqual({ origin: "unknown" });
+		expect(out.blob).toBeNull();
+	});
+
+	it("putBlobMeta rejects a bogus origin on write", async () => {
+		await expect(
+			withStore(
+				Effect.flatMap(DatasetStorePort, (s) => s.putBlobMeta("u", { origin: "bogus" as never })),
+			),
+		).rejects.toThrow(/invalid blob meta/);
+	});
+
+	it.each([
+		["Error", new Error("r2 down")],
+		["non-Error", "r2 down"],
+	])("putBlobMeta surfaces %s bucket write failures as PortError", async (_label, rejection) => {
+		const bucket = memBucket();
+		bucket.put = () => Promise.reject(rejection);
+		await expect(
+			withStore(
+				Effect.flatMap(DatasetStorePort, (s) =>
+					s.putBlobMeta("u", { origin: "synthetic" }),
+				),
+				bucket,
+			),
+		).rejects.toThrow(/r2 down/);
+	});
+
 	it("rejects a bogus blob origin on write", async () => {
 		await expect(
 			withStore(

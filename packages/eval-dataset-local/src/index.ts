@@ -182,6 +182,17 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 						},
 						catch: fail("store-local", "putBlob"),
 					}),
+				putBlobMeta: (uri, meta) =>
+					Effect.try({
+						try: () => {
+							// Same write-side decode as putBlob — meta-only
+							// registration for blobs produced outside the
+							// store (file:// TTS output).
+							const validated = decodeBlobMeta({ origin: meta?.origin ?? "unknown" });
+							upsertBlobMeta.run({ uri, doc: JSON.stringify(validated) });
+						},
+						catch: fail("store-local", "putBlobMeta"),
+					}),
 				getBlobMeta: (uri) =>
 					Effect.try({
 						try: () => {

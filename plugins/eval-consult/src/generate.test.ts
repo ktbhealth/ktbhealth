@@ -22,6 +22,7 @@ const TEMPLATE = "<%= it.slots.greeting %>\n<%= it.slots.chief_complaint %>";
 const makeLayer = (opts?: { failOnVoice?: string; failStore?: boolean }) => {
 	const stored: Sample[] = [];
 	const appended: RunRecord[] = [];
+	const blobMetaCalls: { uri: string; origin?: string }[] = [];
 	const layer = Layer.mergeAll(
 		Layer.succeed(
 			TtsPort,
@@ -42,6 +43,8 @@ const makeLayer = (opts?: { failOnVoice?: string; failStore?: boolean }) => {
 				getSample: () => Effect.succeed(null),
 				listSamples: () => Effect.succeed([]),
 				putBlob: () => Effect.void,
+				putBlobMeta: (uri, meta) =>
+					Effect.sync(() => void blobMetaCalls.push({ uri, origin: meta?.origin })),
 				getBlob: () => Effect.succeed(null),
 				getBlobMeta: () => Effect.succeed(null),
 				putResult: () => Effect.void,
@@ -56,7 +59,7 @@ const makeLayer = (opts?: { failOnVoice?: string; failStore?: boolean }) => {
 			}),
 		),
 	);
-	return { layer, stored, appended };
+	return { layer, stored, appended, blobMetaCalls };
 };
 
 const personas = expandPersonaMatrix(DEFAULT_MATRIX).slice(0, 4);
@@ -88,6 +91,17 @@ describe("generateDataset", () => {
 		expect(s.audio?.uri).toContain("stub://a-");
 		expect(s.gold.entities?.map((e) => e.category)).toContain("medication");
 		expect(s.scriptHash).toBe(fnvHex(s.script));
+	});
+
+	it("registers synthetic blob provenance for every produced audio (M1)", async () => {
+		const { layer, stored, blobMetaCalls } = makeLayer();
+		await Effect.runPromise(Effect.provide(generateDataset(input()), layer));
+		expect(blobMetaCalls).toHaveLength(4);
+		expect(blobMetaCalls.every((c) => c.origin === "synthetic")).toBe(true);
+		// Concurrency may interleave — compare as sets.
+		expect(new Set(blobMetaCalls.map((c) => c.uri))).toEqual(
+			new Set(stored.map((s) => s.audio!.uri)),
+		);
 	});
 
 	it("is deterministic — same seed → same ids and scripts", async () => {

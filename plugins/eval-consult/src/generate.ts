@@ -115,6 +115,14 @@ export const generateDataset = (
 						acoustic,
 					});
 
+					// Provenance travels WITH the audio (M1): TTS returns
+					// an AudioRef whose bytes live outside the store
+					// (file:// workDir, provider URL), so register the
+					// blob's origin metadata — getBlobMeta must answer
+					// "synthetic" here or egress adapters can never
+					// verify this audio and the PHI policy fails closed.
+					yield* store.putBlobMeta(audio.uri, { origin: "synthetic" });
+
 					const sample: Sample = {
 						id,
 						datasetVersion: input.datasetVersion,

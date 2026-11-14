@@ -163,3 +163,25 @@ describe("makeAcpLlm", () => {
 		expect(r.message).toContain("agent error -1");
 	});
 });
+
+describe("egress declaration", () => {
+	const flag = (egress?: boolean) =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const llm = yield* LlmPort;
+				return llm.egress;
+			}).pipe(
+				Effect.provide(
+					makeAcpLlm({
+						transport: () => Effect.succeed({}),
+						...(egress !== undefined ? { egress } : {}),
+					}),
+				),
+			),
+		);
+
+	it("defaults to egress (remote ACP agent) and honors the override", async () => {
+		expect(await flag()).toBe(true);
+		expect(await flag(false)).toBe(false);
+	});
+});

@@ -60,6 +60,26 @@ describe("Sample schema", () => {
 		expect(s.provenance?.sourcePartner).toBe("clinica-x");
 	});
 
+	it("decodes unknown origin without provenance (untrusted, not gated like real)", () => {
+		const s = decode({ ...base, origin: "unknown" });
+		expect(s.origin).toBe("unknown");
+	});
+
+	it("rejects empty-string provenance values", () => {
+		expect(() =>
+			decode({
+				...base,
+				origin: "real_anonymized",
+				provenance: {
+					sourcePartner: "",
+					anonymizationMethod: "redaction-v1",
+					consentRef: "c-123",
+					lgpdBasis: "consentimento",
+				},
+			}),
+		).toThrow();
+	});
+
 	it("status lifecycle literals decode", () => {
 		expect(decode({ ...base, status: "failed", error: "boom" }).status).toBe("failed");
 	});

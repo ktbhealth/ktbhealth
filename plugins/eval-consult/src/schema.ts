@@ -42,7 +42,11 @@ export type ClinicalCategory = typeof ClinicalCategory.Type;
 export const NoiseProfile = Schema.Literals(["clean", "clinic", "phone_bandpass", "far_mic"]);
 export type NoiseProfile = typeof NoiseProfile.Type;
 
-export const SampleOrigin = Schema.Literals(["synthetic", "real_anonymized"]);
+/** `unknown` matches BlobMeta's conservative default — a sample or
+ * blob whose provenance was never declared. Untrusted for egress:
+ * the PHI policy (phi.ts) scrubs its text and refuses its audio on
+ * egress-capable ports exactly like `real_anonymized`. */
+export const SampleOrigin = Schema.Literals(["synthetic", "real_anonymized", "unknown"]);
 export type SampleOrigin = typeof SampleOrigin.Type;
 
 /** Persona matrix cell — one axis value per dimension. Register encodes
@@ -95,12 +99,14 @@ export const SampleStages = Schema.Struct({
 });
 export type SampleStages = typeof SampleStages.Type;
 
-/** Phase-2 gate: real consults cannot enter the dataset without these. */
+/** Phase-2 gate: real consults cannot enter the dataset without these.
+ * String fields are NonEmptyString — an empty provenance value is not
+ * provenance (L14). */
 export const Provenance = Schema.Struct({
-	sourcePartner: Schema.optionalKey(Schema.String),
-	anonymizationMethod: Schema.optionalKey(Schema.String),
-	lgpdBasis: Schema.optionalKey(Schema.String),
-	consentRef: Schema.optionalKey(Schema.String),
+	sourcePartner: Schema.optionalKey(Schema.NonEmptyString),
+	anonymizationMethod: Schema.optionalKey(Schema.NonEmptyString),
+	lgpdBasis: Schema.optionalKey(Schema.NonEmptyString),
+	consentRef: Schema.optionalKey(Schema.NonEmptyString),
 });
 export type Provenance = typeof Provenance.Type;
 

@@ -29,6 +29,10 @@ export interface AcpLlmOptions {
 	/** Per-call timeout in ms. Default 60_000 — matches the local ASR
 	 * adapter; agent sessions can be slow. */
 	readonly timeoutMs?: number;
+	/** PHI egress declaration — ACP sessions are typically remote
+	 * agents, so default `true`. Set `false` for an in-process
+	 * transport. The pipeline only sends scrubbed text regardless. */
+	readonly egress?: boolean;
 }
 
 const call = (
@@ -96,6 +100,7 @@ export const makeAcpLlm = (opts: AcpLlmOptions): Layer.Layer<LlmPort> =>
 	Layer.succeed(
 		LlmPort,
 		LlmPort.of({
+			egress: opts.egress ?? true,
 			generate: (envelope) =>
 				call(opts, envelope, "script_gen").pipe(
 					Effect.flatMap(({ payload, record }) => {

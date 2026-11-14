@@ -51,6 +51,11 @@ describe("normalize", () => {
 });
 
 describe("wer / cer", () => {
+	it("strips anonymization tokens so [CPF] never becomes a word (L12)", () => {
+		expect(normalize("cpf [CPF] do paciente")).toBe("cpf do paciente");
+		expect(normalize("ligue [PHONE] ou [EMAIL]")).toBe("ligue ou");
+	});
+
 	it("0 for identical normalized text", () => {
 		expect(wer("Dor de cabeça!", "dor de cabeça")).toBe(0);
 		expect(cer("Dor de cabeça!", "dor de cabeça")).toBe(0);

@@ -137,3 +137,27 @@ describe("makeJevEval", () => {
 		expect(err).toBeInstanceOf(PortError);
 	});
 });
+
+describe("egress declaration", () => {
+	const flag = (baseUrl: string, egress?: boolean) =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const evalp = yield* EvalPort;
+				return evalp.egress;
+			}).pipe(
+				Effect.provide(
+					makeJevEval({
+						baseUrl,
+						fetchImpl: okFetch(),
+						...(egress !== undefined ? { egress } : {}),
+					}),
+				),
+			),
+		);
+
+	it("auto-derives from baseUrl and honors the override", async () => {
+		expect(await flag("http://localhost:9")).toBe(false);
+		expect(await flag("https://jev.remote.example.com")).toBe(true);
+		expect(await flag("https://jev.remote.example.com", false)).toBe(false);
+	});
+});

@@ -42,6 +42,11 @@ export interface TaskEnvelope {
 export class EvalPort extends Context.Service<
 	EvalPort,
 	{
+		/** Whether `state` may leave the perimeter (remote decision
+		 * service vs in-process). Informational for the domain PHI
+		 * policy — judge state is scrubbed upstream — declared so the
+		 * capability is explicit like the other ports. */
+		readonly egress?: boolean;
 		readonly judge: (input: {
 			readonly state: unknown;
 			readonly questions: readonly EvalQuestion[];

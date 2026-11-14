@@ -3,8 +3,10 @@ import * as Effect from "effect/Effect";
 import { applyEdits, EditApplyError, type EditList } from "@ktb/eval-core";
 
 import { gateTranscript } from "./anonymize.ts";
+import { fnvHex } from "./generate.ts";
 import type { LocaleProfile } from "./locale.ts";
 import { ptBR } from "./locales/pt-BR.ts";
+import { guardAsrPort, scrubAsrResult, untrustedOrigin } from "./phi.ts";
 import {
 	cer,
 	checkEntities,
@@ -84,7 +86,6 @@ export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) 
 				message: `sample ${sample.id} has no audio to transcribe`,
 			});
 		}
-		const asr = yield* AsrPort;
 		const store = yield* DatasetStorePort;
 		// Provenance travels WITH the audio: the blob's stored origin
 		// is looked up and handed to the adapter next to the manifest's
@@ -95,11 +96,34 @@ export const transcribeSample = (sample: Sample, profile: LocaleProfile = ptBR) 
 		// lookup fails closed: unverified provenance never reaches a
 		// provider. The language hint is locale data (`profile.asrLanguage`).
 		const blobMeta = yield* store.getBlobMeta(sample.audio.uri);
-		return yield* asr.transcribe(sample.audio, {
+		// Structural PHI policy (phi.ts): guardAsrPort refuses
+		// non-verified-synthetic audio BEFORE it reaches any
+		// egress-capable adapter — enforcement no longer depends on
+		// each adapter opting in (M2). Local-only ports (egress:
+		// false) are unaffected.
+		const asr = guardAsrPort(yield* AsrPort);
+		const { asr: rawAsr, record } = yield* asr.transcribe(sample.audio, {
 			language: profile.asrLanguage,
 			origin: sample.origin,
 			blobMeta,
 		});
+		// ASR text is patient speech — for untrusted origins it is
+		// PHI until scrubbed. Gate it HERE so every downstream consumer
+		// (cleanup input, judge state, metrics, SampleResult) sees only
+		// the de-identified form (H1/H2). Synthetic scripts skip the
+		// gate: scrubbing would corrupt the gold text metrics compare
+		// against.
+		if (!untrustedOrigin(sample.origin)) {
+			return { asr: rawAsr, record };
+		}
+		const scrubbed = scrubAsrResult(rawAsr, profile);
+		if (scrubbed === null) {
+			return yield* new PortError({
+				port: "pipeline",
+				message: `sample ${sample.id} failed the PHI gate: residual identifiers in ASR output`,
+			});
+		}
+		return { asr: scrubbed, record };
 	});
 
 // ---------- S4: LLM cleanup → reversible edits → corrected text ----------
@@ -198,6 +222,11 @@ const editVerdictsFromAnswers = (
 
 export interface SampleRun {
 	readonly sampleId: string;
+	/** The script text every stage actually saw — the GATED (scrubbed)
+	 * form for real_anonymized/unknown samples, the stored script for
+	 * synthetic. Persist via `sampleForPersistence`, never the raw
+	 * ingest script (H2). */
+	readonly script: string;
 	readonly asr: AsrResult;
 	readonly edits: EditList;
 	readonly corrected: string;
@@ -230,25 +259,30 @@ export const processSample = (input: {
 		// Include datasetVersion — the same sample.id re-run under a new
 		// dataset version must not collide with the old run's records.
 		const runId = input.runId ?? `run-${input.sample.datasetVersion}-${input.sample.id}`;
-		// PHI gate (M4): a real_anonymized script is re-scrubbed before
-		// ANY stage can egress it — judge state, cleanup input via ASR
-		// text, metrics. gateTranscript returns audit counts and never
-		// throws; null means residual identifiers survived scrubbing —
-		// fail closed before a single port call. Synthetic scripts are
-		// generator output and skip the gate (scrubbing would corrupt
-		// the gold text metrics compare against).
-		const gated =
-			input.sample.origin === "real_anonymized"
-				? gateTranscript(input.sample.script, profile)
-				: undefined;
-		if (input.sample.origin === "real_anonymized" && gated === null) {
+		// PHI gate (M4 + H2): untrusted samples (real_anonymized OR
+		// unknown provenance) have their script re-scrubbed before ANY
+		// stage can egress it — judge state, cleanup input via ASR
+		// text, metrics, persistence. gateTranscript returns audit
+		// counts and never throws; null means residual identifiers
+		// survived scrubbing — fail closed before a single port call.
+		// Synthetic scripts skip the gate (scrubbing would corrupt the
+		// gold text metrics compare against).
+		const gated = untrustedOrigin(input.sample.origin)
+			? gateTranscript(input.sample.script, profile)
+			: undefined;
+		if (untrustedOrigin(input.sample.origin) && gated === null) {
 			return yield* new PortError({
 				port: "pipeline",
 				message: `sample ${input.sample.id} failed the PHI gate: residual identifiers in script`,
 			});
 		}
 		// Downstream stages see the scrubbed text, not the stored
-		// script — ingest owns persisting the clean form.
+		// script. WER/CER compare THIS text against the scrubbed ASR
+		// output — [TOKEN] redactions are stripped by normalize
+		// (metrics.ts) so they never count as word errors; the
+		// clinical content around them still scores normally. That is
+		// the honest trade-off: real-sample metrics measure the
+		// de-identified transcript, not the raw consult.
 		const script = gated?.text ?? input.sample.script;
 		const tag = (r: RunRecord): RunRecord => ({
 			...r,
@@ -347,6 +381,7 @@ export const processSample = (input: {
 
 		return {
 			sampleId: input.sample.id,
+			script,
 			asr,
 			edits,
 			corrected,
@@ -358,7 +393,22 @@ export const processSample = (input: {
 		} satisfies SampleRun;
 	});
 
-/** Convert a SampleRun into its persisted SampleResult row. */
+/**
+ * The Sample row to persist after a run (H2). For untrusted origins
+ * the stored `script` MUST be the scrubbed text every stage saw —
+ * `run.script` — never the raw ingest script; `scriptHash` is
+ * recomputed so it stays consistent with the stored text. Synthetic
+ * samples are returned unchanged (run.script === sample.script).
+ */
+export const sampleForPersistence = (sample: Sample, run: SampleRun): Sample =>
+	run.script === sample.script
+		? sample
+		: { ...sample, script: run.script, scriptHash: fnvHex(run.script) };
+
+/** Convert a SampleRun into its persisted SampleResult row.
+ * asrText/correctedText/edits are already the scrubbed forms for
+ * untrusted origins — transcribeSample gated the ASR text before
+ * cleanup and judging, so edit ops can only span de-identified text. */
 export const toSampleResult = (input: {
 	readonly sample: Sample;
 	readonly runId: string;

@@ -96,6 +96,7 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const tts = Layer.succeed(
 		TtsPort,
 		TtsPort.of({
+			egress: false, // zero I/O — nothing leaves the process
 			synthesize: (input) =>
 				Effect.succeed({
 					audio: fixtures.audio ?? {
@@ -111,6 +112,7 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const asr = Layer.succeed(
 		AsrPort,
 		AsrPort.of({
+			egress: false,
 			transcribe: () =>
 				Effect.succeed({ asr: fixtures.asr ?? CANNED_ASR, record: record("asr", "stub-asr") }),
 		}),
@@ -119,6 +121,7 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const llm = Layer.succeed(
 		LlmPort,
 		LlmPort.of({
+			egress: false,
 			generate: (envelope) =>
 				Effect.succeed({
 					text: fixtures.script ?? CANNED_SCRIPT,
@@ -135,6 +138,7 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const evalPort = Layer.succeed(
 		EvalPort,
 		EvalPort.of({
+			egress: false,
 			judge: (input) =>
 				Effect.succeed({
 					answers: fixtures.answers ?? input.questions.map(answerOf),
@@ -161,6 +165,10 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 					blobs.set(uri, bytes);
 					// Same default as the real adapters: no declared
 					// origin records "unknown", never silently synthetic.
+					blobMeta.set(uri, { origin: meta?.origin ?? "unknown" });
+				}),
+			putBlobMeta: (uri, meta) =>
+				Effect.sync(() => {
 					blobMeta.set(uri, { origin: meta?.origin ?? "unknown" });
 				}),
 			getBlob: (uri) => Effect.succeed(blobs.get(uri) ?? null),

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { AsrPort, PortError } from "@ktb/eval-dataset";
 
-import { makeLocalAsr } from "./asr.ts";
+import { isLoopbackUrl, makeLocalAsr } from "./asr.ts";
 
 const asrBody = {
 	text: "o paciente nega febre",
@@ -266,5 +266,46 @@ describe("makeLocalAsr", () => {
 		);
 		expect(JSON.parse(body).language).toBe("en");
 		expect(JSON.parse(body).audio_path).toBe("stub://a");
+	});
+});
+
+describe("egress declaration", () => {
+	const flag = (opts: Partial<Parameters<typeof makeLocalAsr>[0]> = {}) =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const asr = yield* AsrPort;
+				return asr.egress;
+			}).pipe(
+				Effect.provide(
+					makeLocalAsr({ baseUrl: "http://localhost:1", fetchImpl: okFetch(), ...opts }),
+				),
+			),
+		);
+
+	it("loopback baseUrl declares local-only (egress false)", async () => {
+		expect(await flag()).toBe(false);
+	});
+
+	it("remote baseUrl declares egress", async () => {
+		expect(await flag({ baseUrl: "https://asr.gpu.internal" })).toBe(true);
+	});
+
+	it("explicit egress option wins over the auto-detection", async () => {
+		expect(await flag({ baseUrl: "https://asr.gpu.internal", egress: false })).toBe(false);
+		expect(await flag({ egress: true })).toBe(true);
+	});
+
+	it("isLoopbackUrl matches loopback hosts only", () => {
+		expect(isLoopbackUrl("http://localhost:8000")).toBe(true);
+		expect(isLoopbackUrl("localhost:8000")).toBe(true);
+		expect(isLoopbackUrl("https://127.0.0.2:9/api")).toBe(true);
+		expect(isLoopbackUrl("http://[::1]:8080")).toBe(true);
+		expect(isLoopbackUrl("/run/whisper.sock")).toBe(true);
+		expect(isLoopbackUrl("https://asr.gpu.internal")).toBe(false);
+		// A lookalike host must NOT pass as loopback.
+		expect(isLoopbackUrl("https://localhost.evil.example.com")).toBe(false);
+		expect(isLoopbackUrl("https://127.evil.example.com")).toBe(false);
+		// Unparseable/empty input is not loopback.
+		expect(isLoopbackUrl("")).toBe(false);
 	});
 });

@@ -32,7 +32,31 @@ export interface LocalAsrOptions {
 	 * payloads are permanent and fail immediately. Default: none —
 	 * timeouts on CPU inference are not cheap to repeat. */
 	readonly retry?: Schedule.Schedule<unknown, PortError>;
+	/** PHI egress declaration consumed by the domain policy
+	 * (guardAsrPort in @ktb/eval-consult): `true` = audio may leave
+	 * the perimeter, `false` = local-only. Default: auto-derived —
+	 * loopback baseUrls are local-only, anything else egresses. Set
+	 * explicitly when the service is remote-but-trusted. */
+	readonly egress?: boolean;
 }
+
+/** Loopback-ish baseUrls — the whisper service reads server-local
+ * paths, so anything reachable at these addresses is inside the
+ * perimeter. Exported for the sibling HTTP adapters (eval.ts). */
+export const isLoopbackUrl = (baseUrl: string): boolean => {
+	// A bare path is a local socket/file endpoint.
+	if (baseUrl.startsWith("/")) return true;
+	// Extract the host — scheme optional, port/path excluded — so
+	// "localhost.evil.com" is NOT mistaken for loopback.
+	const host = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(\[[^\]]*\]|[^/:?#]+)/i.exec(baseUrl)?.[1] ?? "";
+	return (
+		host === "localhost" ||
+		// Strict IPv4 loopback — "127.evil.com" must not pass.
+		/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+		host === "0.0.0.0" ||
+		host === "[::1]"
+	);
+};
 
 const decodeResult = Schema.decodeUnknownSync(AsrResult);
 
@@ -81,6 +105,7 @@ export const makeLocalAsr = (opts: LocalAsrOptions): Layer.Layer<AsrPort> => {
 	return Layer.succeed(
 		AsrPort,
 		AsrPort.of({
+			egress: opts.egress ?? !isLoopbackUrl(baseUrl),
 			transcribe: (audio, callOpts) => {
 				const fetchImpl = opts.fetchImpl ?? fetch;
 				const timeoutMs = opts.timeoutMs ?? 60_000;

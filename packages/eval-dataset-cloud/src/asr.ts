@@ -89,6 +89,11 @@ export const makeWorkersAiAsr = (opts: WorkersAiAsrOptions): Layer.Layer<AsrPort
 	Layer.succeed(
 		AsrPort,
 		AsrPort.of({
+			// Ships raw audio bytes to a third-party API — always
+			// egress-capable; the domain PHI policy (guardAsrPort)
+			// refuses non-verified-synthetic provenance before this
+			// adapter's own checks even run.
+			egress: true,
 			transcribe: (audio, callOpts) =>
 				Effect.gen(function* () {
 					const started = Date.now();

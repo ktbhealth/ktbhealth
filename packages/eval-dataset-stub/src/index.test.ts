@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
 import {
+	AsrPort,
 	DatasetStorePort,
 	EvalPort,
 	LlmPort,
@@ -192,6 +193,47 @@ describe("stub store + report ports", () => {
 		expect(r.results).toHaveLength(1);
 		expect(r.noResults).toHaveLength(0);
 		expect(r.all).toHaveLength(1);
+	});
+
+	it("putBlobMeta records provenance without bytes (M1)", async () => {
+		const { layer } = makeStubLayer();
+		const r = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putBlobMeta("file:///tmp/a.wav", { origin: "synthetic" });
+					yield* s.putBlobMeta("file:///tmp/b.wav");
+					return {
+						meta: yield* s.getBlobMeta("file:///tmp/a.wav"),
+						def: yield* s.getBlobMeta("file:///tmp/b.wav"),
+						// Meta-only: no blob bytes were written.
+						blob: yield* s.getBlob("file:///tmp/a.wav"),
+					};
+				}),
+				layer,
+			),
+		);
+		expect(r.meta).toEqual({ origin: "synthetic" });
+		expect(r.def).toEqual({ origin: "unknown" });
+		expect(r.blob).toBeNull();
+	});
+
+	it("declares egress:false on every port — zero I/O", async () => {
+		const { layer } = makeStubLayer();
+		const flags = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					return {
+						tts: (yield* TtsPort).egress,
+						asr: (yield* AsrPort).egress,
+						llm: (yield* LlmPort).egress,
+						eval: (yield* EvalPort).egress,
+					};
+				}),
+				layer,
+			),
+		);
+		expect(flags).toEqual({ tts: false, asr: false, llm: false, eval: false });
 	});
 
 	it("render filters by runId", async () => {

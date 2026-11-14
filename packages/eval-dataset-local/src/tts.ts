@@ -230,6 +230,9 @@ export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort, PortEr
 					}),
 				);
 
-			return TtsPort.of({ synthesize });
+			// edge-tts is a HOSTED endpoint — script text leaves the
+			// box, so this port declares egress. The PHI policy ensures
+			// only scrubbed scripts reach it for untrusted samples.
+			return TtsPort.of({ egress: true, synthesize });
 		}),
 	);
