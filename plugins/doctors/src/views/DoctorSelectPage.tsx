@@ -31,8 +31,8 @@ export function DoctorSelectPage({
 	api,
 	onDone,
 }: {
-	/** Never empty — the route sends accounts with no doctor profile
-	 * home. */
+	/** Never empty — the route sends accounts with no doctor profile to
+	 * the patient portal. */
 	profiles: readonly DoctorProfileItem[];
 	/** The profile currently in effect, if any. */
 	activeDoctorId: number | null;

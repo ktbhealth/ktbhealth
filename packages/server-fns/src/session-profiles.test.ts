@@ -9,15 +9,24 @@ vi.mock("@tanstack/react-start/server", () => ({
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { Auth, DoctorProfiles, type DoctorProfile } from "@ktb/auth";
+import {
+	Auth,
+	DoctorProfiles,
+	PatientProfiles,
+	type DoctorProfile,
+	type PatientProfile,
+} from "@ktb/auth";
 
 import {
 	ensureDoctorUser,
 	getDoctorAccess,
 	getDoctorContext,
 	getDoctorUser,
+	getPatientContext,
+	getSessionAccount,
 	resetServerRuntime,
 	setDoctorSelection,
+	setPatientSelection,
 	setServerRuntime,
 } from "./index.ts";
 
@@ -37,11 +46,15 @@ const asDoctor = {
 	actorId: "sec",
 	doctor: { name: "Dra", email: "doc@ktb.test" },
 };
+const me: PatientProfile = { patientId: 1, name: "Ana", relation: "self" };
+const kid: PatientProfile = { patientId: 2, name: "Leo", relation: "guardian" };
 
 /** Directory lookups performed, by user id — proves when no lookup happens. */
 let lookups: string[] = [];
 /** Invite claims performed, by user id. */
 let claims: string[] = [];
+/** Patient link syncs performed, by user id. */
+let syncs: string[] = [];
 
 const AuthStub = (user: typeof sec | null) =>
 	Layer.succeed(
@@ -53,22 +66,37 @@ const AuthStub = (user: typeof sec | null) =>
 		}),
 	);
 
-const DirectoriesStub = Layer.succeed(DoctorProfiles, {
-	listFor: (userId) =>
-		Effect.sync(() => {
-			lookups.push(userId);
-			return userId === "sec" ? [delegated] : [];
-		}),
-	claimInvites: (userId) =>
-		Effect.sync(() => {
-			claims.push(userId);
-			return 0;
-		}),
-});
+const DirectoriesStub = Layer.mergeAll(
+	Layer.succeed(DoctorProfiles, {
+		listFor: (userId) =>
+			Effect.sync(() => {
+				lookups.push(userId);
+				return userId === "sec" ? [delegated] : [];
+			}),
+		claimInvites: (userId) =>
+			Effect.sync(() => {
+				claims.push(userId);
+				return 0;
+			}),
+	}),
+	Layer.succeed(PatientProfiles, {
+		listFor: (userId) =>
+			Effect.sync(() => {
+				lookups.push(userId);
+				return userId === "sec" ? [me, kid] : [];
+			}),
+		syncLinks: (userId) =>
+			Effect.sync(() => {
+				syncs.push(userId);
+				return 0;
+			}),
+	}),
+);
 
 const boot = (layer: Layer.Layer<never>) => {
 	lookups = [];
 	claims = [];
+	syncs = [];
 	const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
 		Effect.runPromise(Effect.provide(effect as Effect.Effect<A, E, never>, layer));
 	setServerRuntime({
@@ -138,6 +166,30 @@ describe("getDoctorAccess", () => {
 	});
 });
 
+describe("getSessionAccount", () => {
+	it("is null for anonymous requests", async () => {
+		signedIn(null);
+		expect(await getSessionAccount(new Headers())).toBeNull();
+	});
+
+	it("marks an account with no doctor profile as patient-only", async () => {
+		const nobody = { id: "nobody", email: "nobody@ktb.test", name: "Nobody" };
+		signedIn(nobody);
+		expect(await getSessionAccount(new Headers())).toEqual({ ...nobody, patientOnly: true });
+	});
+
+	it("keeps the doctor side for own and delegated profiles, without claiming invites", async () => {
+		signedIn();
+		expect(await getSessionAccount(new Headers())).toEqual({ ...sec, patientOnly: false });
+		expect(claims).toEqual([]);
+	});
+
+	it("is never patient-only when no directory is deployed", async () => {
+		boot(AuthStub(sec) as Layer.Layer<never>);
+		expect(await getSessionAccount(new Headers())).toEqual({ ...sec, patientOnly: false });
+	});
+});
+
 describe("getDoctorContext", () => {
 	it("is null for anonymous requests", async () => {
 		signedIn(null);
@@ -185,5 +237,58 @@ describe("setDoctorSelection", () => {
 	it("clears the selection", async () => {
 		await setDoctorSelection(null);
 		expect(cookies.delete).toHaveBeenCalledWith("ktb_doctor", { path: "/" });
+	});
+});
+
+describe("setPatientSelection", () => {
+	it("stores and clears the portal profile selector", async () => {
+		await setPatientSelection(4);
+		expect(cookies.set).toHaveBeenCalledWith(
+			"ktb_patient",
+			"4",
+			expect.objectContaining({ httpOnly: true, path: "/" }),
+		);
+		await setPatientSelection(null);
+		expect(cookies.delete).toHaveBeenCalledWith("ktb_patient", { path: "/" });
+	});
+});
+
+describe("getPatientContext", () => {
+	it("is null for anonymous requests", async () => {
+		signedIn(null);
+		expect(await getPatientContext(new Headers())).toBeNull();
+	});
+
+	it("opens the selected profile among the user's own", async () => {
+		signedIn();
+		expect(await getPatientContext(cookie("ktb_patient=2"))).toEqual({
+			user: sec,
+			profiles: [me, kid],
+			active: kid,
+		});
+	});
+
+	it("syncs links first on entry points only", async () => {
+		signedIn();
+		await getPatientContext(new Headers());
+		expect(syncs).toEqual([]);
+		await getPatientContext(new Headers(), { syncLinks: true });
+		expect(syncs).toEqual(["sec"]);
+	});
+
+	it("selects nothing for a record the user holds no access to", async () => {
+		signedIn();
+		const context = await getPatientContext(cookie("ktb_patient=99"));
+		expect(context?.active).toBeNull();
+		expect(context?.profiles).toEqual([me, kid]);
+	});
+
+	it("has no profiles when no directory is deployed", async () => {
+		boot(AuthStub(sec) as Layer.Layer<never>);
+		expect(await getPatientContext(cookie("ktb_patient=1"), { syncLinks: true })).toEqual({
+			user: sec,
+			profiles: [],
+			active: null,
+		});
 	});
 });

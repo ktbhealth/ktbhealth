@@ -173,6 +173,9 @@ export interface ChromeUser {
 	readonly id: string;
 	readonly email: string;
 	readonly name?: string | null;
+	/** True for an account with no doctor side (a patient account) — chrome
+	 * hides doctor-only entries for it. Absent means a regular account. */
+	readonly patientOnly?: boolean;
 }
 
 /** Everything the host injects into a chrome `component` contribution —
@@ -180,7 +183,7 @@ export interface ChromeUser {
  * the shell resolves locale, user, labels and sign-out and hands them
  * down. `labels` carries the host-localized strings plugins need
  * (documented keys: `signIn`, `signOut`, `newConsultation`, `langMenu`,
- * `switchDoctor`, `secretaries`);
+ * `switchDoctor`, `secretaries`, `patientPortal`, `myConsultations`);
  * plugins fall back to their own English literal per key. `signOut`
  * performs the host's sign-out flow (plugins may not import auth
  * adapters). */

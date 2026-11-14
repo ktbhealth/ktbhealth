@@ -5,9 +5,13 @@ import {
 	DOCTOR_PROFILE_COOKIE,
 	DoctorDelegations,
 	DoctorProfiles,
+	PATIENT_PROFILE_COOKIE,
+	PatientProfiles,
 	profileIdFromHeaders,
 	resolveDoctorProfile,
+	resolvePatientProfile,
 	type DoctorProfile,
+	type PatientProfile,
 } from "./profiles.ts";
 
 const cookie = (value: string) => new Headers({ cookie: value });
@@ -16,13 +20,17 @@ describe("profile ports", () => {
 	it("declare stable service keys", () => {
 		expect(DoctorProfiles.key).toBe("@ktb/auth/DoctorProfiles");
 		expect(DoctorDelegations.key).toBe("@ktb/auth/DoctorDelegations");
+		expect(PatientProfiles.key).toBe("@ktb/auth/PatientProfiles");
 	});
 });
 
 describe("profileIdFromHeaders", () => {
 	it("reads the selected id among other cookies", () => {
-		const headers = cookie(`ktb-locale=pt-BR; ${DOCTOR_PROFILE_COOKIE}=12; other=7`);
+		const headers = cookie(
+			`ktb-locale=pt-BR; ${DOCTOR_PROFILE_COOKIE}=12; ${PATIENT_PROFILE_COOKIE}=7`,
+		);
 		expect(profileIdFromHeaders(headers, DOCTOR_PROFILE_COOKIE)).toBe(12);
+		expect(profileIdFromHeaders(headers, PATIENT_PROFILE_COOKIE)).toBe(7);
 	});
 
 	it("is null without the cookie", () => {
@@ -65,6 +73,26 @@ describe("actingAs", () => {
 			actorId: "sec",
 			doctor: { name: "Dra", email: "doc@ktb.test" },
 		});
+	});
+});
+
+describe("resolvePatientProfile", () => {
+	const me: PatientProfile = { patientId: 1, name: "Ana", relation: "self" };
+	const kid: PatientProfile = { patientId: 2, name: "Leo", relation: "guardian" };
+
+	it("opens the selected profile when the user holds it", () => {
+		expect(resolvePatientProfile([me, kid], 2)).toBe(kid);
+	});
+
+	it("falls back to the only profile", () => {
+		expect(resolvePatientProfile([me], null)).toBe(me);
+		expect(resolvePatientProfile([me], 99)).toBe(me);
+	});
+
+	it("is null when a choice is needed or nothing is linked", () => {
+		expect(resolvePatientProfile([me, kid], null)).toBeNull();
+		expect(resolvePatientProfile([me, kid], 99)).toBeNull();
+		expect(resolvePatientProfile([], 1)).toBeNull();
 	});
 });
 

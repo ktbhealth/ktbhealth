@@ -9,8 +9,9 @@ type SessionState = {
 };
 type SendResult = { data: object | null; error: { message?: string } | null };
 
-const state: { session: SessionState } = {
+const state: { session: SessionState; account: { patientOnly: boolean } | null } = {
 	session: { data: null, isPending: false },
+	account: null,
 };
 const sendVerificationEmail = vi.fn<(arg?: unknown) => Promise<SendResult>>(async () => ({
 	data: {},
@@ -32,6 +33,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 		...actual,
 		Link: ({ to, children, className }: { to: string; children?: unknown; className?: string }) =>
 			React.createElement("a", { href: to, className }, children as never),
+		// The root session, as the root route's loader returns it.
+		useLoaderData: () => ({ user: state.account }),
 	};
 });
 
@@ -56,6 +59,7 @@ describe("verify-email page", () => {
 
 	beforeEach(() => {
 		state.session = { data: null, isPending: false };
+		state.account = null;
 		sendVerificationEmail.mockClear();
 		sendVerificationEmail.mockResolvedValue({ data: {}, error: null });
 	});
@@ -146,5 +150,19 @@ describe("verify-email page", () => {
 		expect(screen.getByText("Your address dra@x.com is confirmed.")).toBeTruthy();
 		expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/");
 		expect(screen.queryByRole("button")).toBeNull();
+	});
+
+	it("sends a verified doctor home and a verified patient account to the portal", () => {
+		state.session = {
+			data: { user: { email: "ana@x.com", emailVerified: true } },
+			isPending: false,
+		};
+		state.account = { patientOnly: false };
+		render(createElement(Page));
+		expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/");
+		cleanup();
+		state.account = { patientOnly: true };
+		render(createElement(Page));
+		expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/portal");
 	});
 });

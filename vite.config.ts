@@ -307,8 +307,8 @@ export default defineConfig({
 				// - plugins/auth's login view uses the better-auth client
 				//   SDK (moved from the host's login.tsx in P-062), which is
 				//   inherently impl-bound — same exception the host route
-				//   files had. __root.tsx / platform.tsx keep theirs, as does
-				//   verify-email.tsx (still a host route).
+				//   files had. __root.tsx / platform.tsx keep theirs, as do
+				//   portal-login.tsx / verify-email.tsx (still host routes).
 				//   The secretaries plugin's login view is the same case —
 				//   the staff sign-in screen the invite email points to.
 				// - *.test.* may mock impl packages.
@@ -317,6 +317,7 @@ export default defineConfig({
 					"apps/web/src/lib/registry.ts",
 					"apps/web/src/lib/node-cloudflare-workers.ts",
 					"apps/web/src/plugins.ts",
+					"apps/web/src/routes/portal-login.tsx",
 					"apps/web/src/routes/verify-email.tsx",
 					"apps/web/src/routes/__root.tsx",
 					"apps/web/src/routes/platform.tsx",

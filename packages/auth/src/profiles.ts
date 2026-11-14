@@ -57,6 +57,28 @@ export class DoctorDelegations extends Context.Service<
 	}
 >()("@ktb/auth/DoctorDelegations") {}
 
+/** A patient record the user may open in the portal: their own ("self")
+ * or one they are responsible for ("guardian"). */
+export interface PatientProfile {
+	readonly patientId: number;
+	readonly name: string;
+	readonly relation: "self" | "guardian";
+}
+
+/** Patient-profile directory port. Impl lives in the patient-access plugin. */
+export class PatientProfiles extends Context.Service<
+	PatientProfiles,
+	{
+		/** Every patient record `userId` holds active access to. */
+		listFor(userId: string): Effect.Effect<readonly PatientProfile[]>;
+		/**
+		 * Bring the user's links up to date: claim invites addressed to
+		 * their *verified* email. Returns how many links were activated.
+		 */
+		syncLinks(userId: string): Effect.Effect<number>;
+	}
+>()("@ktb/auth/PatientProfiles") {}
+
 /**
  * The user a request acts as on the doctor side. `id` is the acting
  * doctor's `user.id` (data scope); `actorId` is the signed-in user —
@@ -70,9 +92,10 @@ export interface ActingUser extends SessionUser {
 	readonly doctor: { readonly name: string | null; readonly email: string };
 }
 
-/** Cookie carrying the chosen doctor profile id. It is a selector only:
- * every request re-validates the link it points at. */
+/** Cookies carrying the chosen profile id, one per portal. They are
+ * selectors only: every request re-validates the link they point at. */
 export const DOCTOR_PROFILE_COOKIE = "ktb_doctor";
+export const PATIENT_PROFILE_COOKIE = "ktb_patient";
 
 /** The profile id selected through `cookieName`, or null when the cookie
  * is absent or not a positive integer. */
@@ -111,3 +134,14 @@ export const resolveDoctorProfile = (
 	profiles.find((p) => p.doctorId === selectedId) ??
 	profiles.find((p) => p.role === "owner") ??
 	(profiles.length === 1 ? profiles[0]! : null);
+
+/**
+ * The patient profile a portal request opens: the selected one when the
+ * user holds it, otherwise the only one they have. Null when there is
+ * nothing to open or a choice is still needed.
+ */
+export const resolvePatientProfile = (
+	profiles: readonly PatientProfile[],
+	selectedId: number | null,
+): PatientProfile | null =>
+	profiles.find((p) => p.patientId === selectedId) ?? (profiles.length === 1 ? profiles[0]! : null);

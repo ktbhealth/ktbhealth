@@ -15,7 +15,7 @@ import { PlatformAdmin } from "@ktb/platform";
 import { PluginStates } from "@ktb/platform/plugin-states";
 import type { Page, PanelPage } from "@ktb/kernel";
 import { Schema } from "effect";
-import { ensureDoctorUser, getDoctorUser, getSessionUser } from "#/lib/auth.ts";
+import { ensureDoctorUser, getDoctorUser, getSessionAccount, getSessionUser } from "#/lib/auth.ts";
 import * as Effect from "effect/Effect";
 
 // Services enforce authorization and fail `Forbidden`; handlers translate
@@ -25,7 +25,10 @@ import * as Effect from "effect/Effect";
 
 export const getSessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
-export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
+/** Root-layout session: the user plus whether the account is
+ * patient-only (no doctor profile to act as), which narrows the
+ * navigation to the patient portal. */
+export const sessionFn = createServerFn({ method: "GET" }).handler(() => getSessionAccount());
 
 /**
  * True when this deployment can send email (an Email driver other than

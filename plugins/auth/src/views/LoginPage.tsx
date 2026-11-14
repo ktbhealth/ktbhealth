@@ -80,10 +80,12 @@ export function LoginPage({
 			window.location.assign(emailEnabled ? "/verify-email" : "/");
 			return;
 		}
-		// Straight in when there is exactly one doctor to act as; otherwise
-		// the chooser decides.
+		// Straight in when there is exactly one doctor to act as, the
+		// chooser when there are several. An account with no doctor profile
+		// is a patient account: it only has the patient portal.
 		const context = await doctorContextFn();
-		window.location.assign(context?.profiles.length === 1 ? "/" : "/doctors/select");
+		const profiles = context?.profiles.length;
+		window.location.assign(profiles === 0 ? "/portal" : profiles === 1 ? "/" : "/doctors/select");
 	};
 
 	return (
@@ -162,6 +164,12 @@ export function LoginPage({
 						className="mt-4 block text-center text-sm text-muted-foreground transition hover:text-foreground"
 					>
 						{t.verifyLink}
+					</Link>
+					<Link
+						to="/portal/login"
+						className="mt-2 block text-center text-sm text-muted-foreground transition hover:text-foreground"
+					>
+						{t.patientLink}
 					</Link>
 					<Link
 						to="/secretaries/login"

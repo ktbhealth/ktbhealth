@@ -76,11 +76,11 @@ describe("/doctors/select", () => {
 		expect((caught as Response & { options: { to: string } }).options.to).toBe("/login");
 	});
 
-	it("sends an account with no doctor profile home", async () => {
+	it("sends an account with no doctor profile to the patient portal", async () => {
 		mocks.doctorContextFn.mockResolvedValue({ profiles: [], activeDoctorId: null });
 		const caught = await options.loader().catch((e: unknown) => e);
 		expect(isRedirect(caught)).toBe(true);
-		expect((caught as Response & { options: { to: string } }).options.to).toBe("/");
+		expect((caught as Response & { options: { to: string } }).options.to).toBe("/portal");
 	});
 
 	it("wires the view to the server fns and reloads home when done", async () => {
