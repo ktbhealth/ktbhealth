@@ -8,6 +8,7 @@ import { Command } from "effect/cli";
 import { ChildProcessSpawner } from "effect/process";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
+import { EvalStorePort } from "@ktb/eval-core";
 import { storeReportLayers } from "./adapters.ts";
 import { repoRoot, type CmdContext } from "./context.ts";
 import { exitCodeOf, run } from "./cli.ts";
@@ -1072,6 +1073,609 @@ describe("cli.run dispatch", () => {
 			// A bogus profile is a usage error — deterministic, unlike a
 			// bare `bench` which would probe the real python env.
 			expect(await exec(["bench", "--profile", "bogus"])).toBe(2);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("market parity (P-076)", () => {
+	/** EvalStorePort helpers over a workdir's local store. */
+	const withEvalStore = <A>(wd: string, e: Effect.Effect<A, unknown, EvalStorePort>) =>
+		Effect.runPromise(Effect.provide(e, storeReportLayers(wd).evalStore));
+
+	test("generate registers a DatasetManifest + Experiment; regen idempotent, drift conflicts", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-gen-"));
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			const c = { ...ctx(), fetchImpl: fetch };
+			expect(
+				await exec(
+					["generate", "fx", "--n", "2", "--seed", "11", "--run-id", "gen-reg", "--workdir", wd],
+					c,
+				),
+			).toBe(0);
+
+			const ds = await withEvalStore<{
+				sampleCount: number;
+				contentHash: string;
+				generator: Record<string, unknown>;
+			} | null>(
+				wd,
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.getDatasetManifest("fx", "v1");
+				}),
+			);
+			expect(ds?.sampleCount).toBe(2);
+			expect(ds?.contentHash).toMatch(/^[0-9a-f]{64}$/);
+			expect(ds?.generator).toMatchObject({ suiteId: "fx", seed: 11 });
+
+			const exp = await withEvalStore<Record<string, unknown> | null>(
+				wd,
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.getExperiment("gen-reg");
+				}),
+			);
+			expect(exp).toMatchObject({
+				kind: "generate",
+				suiteId: "fx",
+				dataset: { id: "fx", version: "v1" },
+			});
+			expect(exp?.manifestHash).toMatch(/^[0-9a-f]{64}$/);
+			expect(exp?.gitSha).toMatch(/^[0-9a-f]{40}$/);
+			expect(exp?.summary).toMatchObject({ samples: 2, failed: 0 });
+
+			// Byte-identical regen → same contentHash → idempotent pass.
+			expect(
+				await exec(
+					["generate", "fx", "--n", "2", "--seed", "11", "--run-id", "gen-reg2", "--workdir", wd],
+					c,
+				),
+			).toBe(0);
+			// Different seed → different cohort → registry conflict.
+			const err = vi.spyOn(console, "error").mockImplementation(() => {});
+			expect(
+				await exec(
+					["generate", "fx", "--n", "2", "--seed", "22", "--run-id", "gen-reg3", "--workdir", wd],
+					c,
+				),
+			).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain("already registered");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("run records an experiment; gate --run-id attaches verdicts; report --compare diffs", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-run-"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const c = { ...ctx(), fetchImpl: fetch };
+			expect(await exec(["generate", "fx", "--n", "1", "--seed", "3", "--workdir", wd], c)).toBe(0);
+			expect(await exec(["run", "fx", "--workdir", wd, "--run-id", "run-a"], c)).toBe(0);
+			expect(await exec(["run", "fx", "--workdir", wd, "--run-id", "run-b"], c)).toBe(0);
+
+			// Gate attaches per-gate verdicts onto run-a's experiment.
+			expect(await exec(["gate", "fx", "--workdir", wd, "--run-id", "run-a"])).toBe(0);
+			const expA = await withEvalStore<Record<string, unknown> | null>(
+				wd,
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.getExperiment("run-a");
+				}),
+			);
+			expect(expA).toMatchObject({ kind: "run", suiteId: "fx" });
+			const summaryA = (expA as { summary: Record<string, unknown> }).summary;
+			expect(summaryA.meanWerAsr).toBeTypeOf("number");
+			expect((expA as { gates: unknown[] }).gates).toHaveLength(2);
+
+			// report --compare renders the markdown diff.
+			log.mockClear();
+			expect(
+				await exec(["report", "fx", "--workdir", wd, "--compare", "run-a", "--compare", "run-b"]),
+			).toBe(0);
+			const cmp = log.mock.calls.flat().join("\n");
+			expect(cmp).toContain("# experiment compare");
+			expect(cmp).toContain("`run-a`");
+			expect(cmp).toContain("`run-b`");
+			expect(cmp).toContain("summary.meanWerAsr");
+
+			// Missing experiment → command error; >2 ids → usage error.
+			expect(
+				await exec([
+					"report",
+					"fx",
+					"--workdir",
+					wd,
+					"--compare",
+					"run-a",
+					"--compare",
+					"ghost-exp",
+				]),
+			).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain('experiment "ghost-exp"');
+			// Missing FIRST id names the same error.
+			expect(
+				await exec([
+					"report",
+					"fx",
+					"--workdir",
+					wd,
+					"--compare",
+					"ghost-exp",
+					"--compare",
+					"run-a",
+				]),
+			).toBe(1);
+			expect(err.mock.calls.flat().join(" ")).toContain('experiment "ghost-exp"');
+			expect(
+				await exec([
+					"report",
+					"fx",
+					"--workdir",
+					wd,
+					"--compare",
+					"a",
+					"--compare",
+					"b",
+					"--compare",
+					"c",
+				]),
+			).toBe(2);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("a run where every sample fails still records an honest experiment", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-fail-"));
+		vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// One sample with NO audio → every stage fails; the batch
+			// reports failure but the experiment must still persist
+			// with ok:0 and no mean-WER fields.
+			const { store } = storeReportLayers(wd);
+			const { DatasetStorePort } = await import("@ktb/eval-consultation");
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putSample({
+						id: "no-audio-1",
+						datasetVersion: "fx-v1",
+						origin: "synthetic",
+						script: "Doctor: oi?",
+						scriptHash: "h",
+						persona: { region: "r", ageBand: "a", register: "f", specialty: "s" },
+						gold: { validatedBy: "generator" },
+					});
+				}).pipe(Effect.provide(store)),
+			);
+			expect(await exec(["run", "fx", "--workdir", wd, "--run-id", "run-fail"])).toBe(1);
+			const exp = await withEvalStore<Record<string, unknown> | null>(
+				wd,
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.getExperiment("run-fail");
+				}),
+			);
+			expect(exp?.kind).toBe("run");
+			expect(exp?.summary).toMatchObject({ ok: 0, failed: 1, samples: 1 });
+			expect((exp?.summary as Record<string, unknown>).meanWerAsr).toBeUndefined();
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("gate --format json emits machine-readable verdicts; empty store serializes honestly", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-gate-"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			const c = { ...ctx(), fetchImpl: fetch };
+			expect(await exec(["generate", "fx", "--n", "1", "--seed", "5", "--workdir", wd], c)).toBe(0);
+			expect(await exec(["run", "fx", "--workdir", wd, "--run-id", "run-j"], c)).toBe(0);
+
+			log.mockClear();
+			expect(
+				await exec(["gate", "fx", "--workdir", wd, "--run-id", "run-j", "--format", "json"]),
+			).toBe(0);
+			const line = log.mock.calls.map((c2) => String(c2[0])).find((l) => l.startsWith("{"));
+			expect(line).toBeDefined();
+			const parsed = JSON.parse(line!) as {
+				suite: string;
+				datasetVersion: string;
+				runId: string | null;
+				results: number;
+				gates: { id: string; green: boolean; accepted: number; total: number }[];
+				allGreen: boolean;
+			};
+			expect(parsed.suite).toBe("fx");
+			expect(parsed.datasetVersion).toBe("fx-v1");
+			expect(parsed.runId).toBe("run-j");
+			expect(parsed.results).toBe(1);
+			expect(parsed.gates.length).toBe(2);
+			expect(typeof parsed.allGreen).toBe("boolean");
+
+			// Non-empty store WITHOUT --run-id → runId serializes null.
+			log.mockClear();
+			expect(await exec(["gate", "fx", "--workdir", wd, "--format", "json"])).toBe(0);
+			const noRun = JSON.parse(
+				log.mock.calls.map((c2) => String(c2[0])).find((l) => l.startsWith("{"))!,
+			) as { runId: string | null; results: number };
+			expect(noRun.runId).toBeNull();
+			expect(noRun.results).toBe(1);
+
+			// Empty store → honest empty JSON, still exit 0.
+			const wd2 = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-gate2-"));
+			log.mockClear();
+			expect(await exec(["gate", "fx", "--workdir", wd2, "--format", "json"])).toBe(0);
+			const empty = JSON.parse(
+				log.mock.calls.map((c2) => String(c2[0])).find((l) => l.startsWith("{"))!,
+			) as { results: number; gates: unknown[]; allGreen: boolean };
+			expect(empty.results).toBe(0);
+			expect(empty.gates).toEqual([]);
+			expect(empty.allGreen).toBe(false);
+			fs.rmSync(wd2, { recursive: true, force: true });
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("gate --format rejects unknown values; --run-id without an experiment prints a note", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-gatenote-"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		const err = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			// Seed a result whose runId has NO experiment — the gate
+			// must still evaluate and only note the missing tracking.
+			const { store } = storeReportLayers(wd);
+			const { DatasetStorePort } = await import("@ktb/eval-consultation");
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putResult({
+						runId: "manual-run",
+						sampleId: "m1",
+						datasetVersion: "fx-v1",
+						asrText: "t",
+						editVerdicts: [],
+						confSegments: [],
+						createdAt: 1,
+					});
+				}).pipe(Effect.provide(store)),
+			);
+			expect(await exec(["gate", "fx", "--workdir", wd, "--format", "yaml"])).toBe(2);
+			expect(err.mock.calls.flat().join(" ")).toContain("--format");
+			log.mockClear();
+			expect(await exec(["gate", "fx", "--workdir", wd, "--run-id", "manual-run"])).toBe(0);
+			expect(log.mock.calls.flat().join("\n")).toContain('no experiment "manual-run"');
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("list --workdir validates dataset pins; strict without --workdir skips honestly", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-list-"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// No manifest yet → every suite's pin is missing.
+			expect(await exec(["list", "--workdir", wd])).toBe(0);
+			expect(log.mock.calls.flat().join("\n")).toContain('! dataset "fx@v1"');
+			expect(await exec(["list", "--workdir", wd, "--strict"])).toBe(1);
+
+			// Strict WITHOUT --workdir: registry check skipped, note printed.
+			log.mockClear();
+			expect(await exec(["list", "--strict"])).toBe(0);
+			expect(log.mock.calls.flat().join("\n")).toContain("dataset registry check skipped");
+
+			// After generate, the pin resolves and strict passes.
+			const c = { ...ctx(), fetchImpl: fetch };
+			expect(await exec(["generate", "fx", "--n", "1", "--seed", "1", "--workdir", wd], c)).toBe(0);
+			log.mockClear();
+			expect(await exec(["list", "--workdir", wd, "--strict"])).toBe(0);
+			const out = log.mock.calls.flat().join("\n");
+			expect(out).toContain("registered");
+			expect(out).not.toContain("! dataset");
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("calibrate scores judge-vs-gold, persists JSONL + store report", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-cal-"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			const { store } = storeReportLayers(wd);
+			const { DatasetStorePort } = await import("@ktb/eval-consultation");
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putSample({
+						id: "cal-s1",
+						datasetVersion: "fx-v1",
+						origin: "synthetic",
+						script: "Doctor: toma dipirona. Patient: sem febre.",
+						scriptHash: "h1",
+						persona: { region: "r", ageBand: "a", register: "f", specialty: "s" },
+						gold: {
+							validatedBy: "generator",
+							entities: [
+								{ category: "medication", value: "dipirona" },
+								{ category: "dosage", value: "5 mg" },
+								{ category: "negation", value: "sem febre" },
+							],
+						},
+					});
+					yield* s.putSample({
+						id: "cal-s2",
+						datasetVersion: "fx-v1",
+						origin: "synthetic",
+						script: "x",
+						scriptHash: "h2",
+						persona: { region: "r", ageBand: "a", register: "f", specialty: "s" },
+						gold: {
+							validatedBy: "generator",
+							entities: [
+								{ category: "medication", value: "dipirona" },
+								{ category: "dosage", value: "5 mg" },
+								{ category: "negation", value: "sem febre" },
+							],
+						},
+					});
+					yield* s.putSample({
+						id: "cal-s3",
+						datasetVersion: "fx-v1",
+						origin: "synthetic",
+						script: "x",
+						scriptHash: "h3",
+						persona: { region: "r", ageBand: "a", register: "f", specialty: "s" },
+						gold: { validatedBy: "generator" },
+					});
+					// Stage 1 (asr): mixed judge/floor verdicts — agreement,
+					// unjudged floor rows, unverifiable statuses, a floor
+					// miss, and scored + unscored confidences.
+					yield* s.putResult({
+						runId: "cal-run",
+						sampleId: "cal-s1",
+						datasetVersion: "fx-v1",
+						asrText: "paciente toma dipirona sem febre",
+						asrMetrics: {
+							wer: 0.1,
+							cer: 0.1,
+							criticalErrors: 0,
+							entityVerdicts: [
+								{
+									category: "medication",
+									entity: "dipirona",
+									status: "correct",
+									source: "judge",
+									probability: 0.9,
+								},
+								{
+									category: "medication",
+									entity: "dipirona",
+									status: "correct",
+									source: "text_floor",
+								},
+								{ category: "dosage", entity: "5 mg", status: "dropped", source: "judge" },
+								{ category: "dosage", entity: "5 mg", status: "dropped", source: "text_floor" },
+								{
+									category: "negation",
+									entity: "sem febre",
+									status: "correct",
+									source: "judge",
+									probability: 0.5,
+								},
+								{ category: "medication", entity: "dipirona", status: "invented", source: "judge" },
+								{
+									category: "medication",
+									entity: "paracetamol",
+									status: "correct",
+									source: "judge",
+									probability: 0.7,
+								},
+							],
+						},
+						editVerdicts: [],
+						confSegments: [],
+						createdAt: 1,
+					});
+					// Stage 2 (corrected): judge disagrees with the floor.
+					yield* s.putResult({
+						runId: "cal-run",
+						sampleId: "cal-s2",
+						datasetVersion: "fx-v1",
+						asrText: "paciente toma dipirona sem febre",
+						asrMetrics: {
+							wer: 0.1,
+							cer: 0.1,
+							criticalErrors: 0,
+							entityVerdicts: [],
+						},
+						correctedText: "paciente toma dipirona",
+						correctedMetrics: {
+							wer: 0.2,
+							cer: 0.2,
+							criticalErrors: 0,
+							entityVerdicts: [
+								{
+									category: "medication",
+									entity: "dipirona",
+									status: "dropped",
+									source: "judge",
+									probability: 0.4,
+								},
+							],
+						},
+						editVerdicts: [],
+						confSegments: [],
+						createdAt: 2,
+					});
+					// No metrics at all → stage skipped; correctedText
+					// without correctedMetrics → stage excluded.
+					yield* s.putResult({
+						runId: "cal-run",
+						sampleId: "cal-s3",
+						datasetVersion: "fx-v1",
+						asrText: "x",
+						correctedText: "y",
+						editVerdicts: [],
+						confSegments: [],
+						createdAt: 3,
+					});
+					// Result whose sample was never persisted → missing.
+					yield* s.putResult({
+						runId: "cal-run",
+						sampleId: "ghost-sample",
+						datasetVersion: "fx-v1",
+						asrText: "x",
+						editVerdicts: [],
+						confSegments: [],
+						createdAt: 4,
+					});
+				}).pipe(Effect.provide(store)),
+			);
+
+			// Judge identities from the run-record JSONL: judge-stage
+			// records for THIS run only, engine required, model optional,
+			// torn lines tolerated.
+			fs.mkdirSync(path.join(wd, "reports"), { recursive: true });
+			fs.writeFileSync(
+				path.join(wd, "reports", "eval.jsonl"),
+				[
+					JSON.stringify({ stage: "judge", runId: "cal-run", engine: "stub-eval", model: "m1" }),
+					JSON.stringify({ stage: "judge", runId: "cal-run", engine: "stub-eval", model: "m1" }),
+					JSON.stringify({ stage: "asr", runId: "cal-run", engine: "asr-x" }),
+					JSON.stringify({ stage: "judge", runId: "other-run", engine: "jev" }),
+					JSON.stringify({ stage: "judge", runId: "cal-run" }),
+					JSON.stringify({ stage: "judge", runId: "cal-run", engine: "jev2" }),
+					"not-json{",
+					"",
+				].join("\n"),
+			);
+
+			expect(await exec(["calibrate", "fx", "--workdir", wd, "--run-id", "cal-run"])).toBe(0);
+			const out = log.mock.calls.flat().join("\n");
+			expect(out).toContain("# judge calibration — fx");
+			expect(out).toContain("run cal-run");
+			expect(out).toContain("stub-eval/m1");
+			expect(out).toContain("jev2");
+			expect(out).not.toContain("asr-x");
+			expect(out).toContain("coverage: 3 scored");
+			expect(out).toContain("1 result(s) without sample");
+
+			// JSONL record + EvalStorePort persistence.
+			const jsonl = fs
+				.readFileSync(path.join(wd, "reports", "calibrations.jsonl"), "utf8")
+				.trim()
+				.split("\n");
+			expect(jsonl).toHaveLength(1);
+			const stored = JSON.parse(jsonl[0]!) as {
+				suiteId: string;
+				runId?: string;
+				questions: number;
+				agreements: number;
+				judges: { engine: string }[];
+			};
+			expect(stored.suiteId).toBe("fx");
+			expect(stored.runId).toBe("cal-run");
+			expect(stored.questions).toBe(3);
+			expect(stored.agreements).toBe(2);
+			expect(stored.judges.map((j) => j.engine)).toEqual(["stub-eval", "jev2"]);
+
+			const listed = await withEvalStore<readonly { id: string }[]>(
+				wd,
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					return yield* s.listCalibrationReports({ suiteId: "fx" });
+				}),
+			);
+			expect(listed).toHaveLength(1);
+			expect(listed[0]?.id).toMatch(/^cal-fx-/);
+		} finally {
+			vi.restoreAllMocks();
+			fs.rmSync(wd, { recursive: true, force: true });
+		}
+	});
+
+	test("calibrate: empty store, zero scored questions, and no --run-id scope", async () => {
+		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-p076-cal2-"));
+		const log = vi.spyOn(console, "log").mockImplementation(() => {});
+		try {
+			// Empty store → clean no-op (with and without --run-id).
+			expect(await exec(["calibrate", "fx", "--workdir", wd])).toBe(0);
+			expect(log.mock.calls.flat().join("\n")).toContain("nothing to calibrate");
+			log.mockClear();
+			expect(await exec(["calibrate", "fx", "--workdir", wd, "--run-id", "ghost"])).toBe(0);
+			expect(log.mock.calls.flat().join("\n")).toContain("(run ghost)");
+
+			// Results exist but every verdict is text_floor → n=0 path.
+			const { store } = storeReportLayers(wd);
+			const { DatasetStorePort } = await import("@ktb/eval-consultation");
+			await Effect.runPromise(
+				Effect.gen(function* () {
+					const s = yield* DatasetStorePort;
+					yield* s.putSample({
+						id: "cal-s2",
+						datasetVersion: "fx-v1",
+						origin: "synthetic",
+						script: "x",
+						scriptHash: "h",
+						persona: { region: "r", ageBand: "a", register: "f", specialty: "s" },
+						gold: {
+							validatedBy: "generator",
+							entities: [{ category: "medication", value: "dipirona" }],
+						},
+					});
+					yield* s.putResult({
+						runId: "cal-run2",
+						sampleId: "cal-s2",
+						datasetVersion: "fx-v1",
+						asrText: "sem dipirona",
+						asrMetrics: {
+							wer: 0,
+							cer: 0,
+							criticalErrors: 0,
+							entityVerdicts: [
+								{
+									category: "medication",
+									entity: "dipirona",
+									status: "dropped",
+									source: "text_floor",
+								},
+							],
+						},
+						editVerdicts: [],
+						confSegments: [],
+						createdAt: 1,
+					});
+				}).pipe(Effect.provide(store)),
+			);
+
+			// No --run-id: all runs scoped by datasetVersion; report has
+			// no runId field; judges list empty (no eval.jsonl).
+			log.mockClear();
+			expect(await exec(["calibrate", "fx", "--workdir", wd])).toBe(0);
+			const out = log.mock.calls.flat().join("\n");
+			expect(out).toContain("coverage: 0 scored");
+			expect(out).toContain("judges: none recorded");
+			const jsonl = fs
+				.readFileSync(path.join(wd, "reports", "calibrations.jsonl"), "utf8")
+				.trim()
+				.split("\n");
+			expect(jsonl).toHaveLength(1);
+			const stored = JSON.parse(jsonl[0]!) as { runId?: string; questions: number };
+			expect(stored.runId).toBeUndefined();
+			expect(stored.questions).toBe(0);
 		} finally {
 			vi.restoreAllMocks();
 			fs.rmSync(wd, { recursive: true, force: true });

@@ -4,7 +4,11 @@ import { Schema } from "effect";
 
 import {
 	BlobMeta,
+	CalibrationReport,
+	DatasetManifest,
 	EvalPort,
+	EvalStorePort,
+	Experiment,
 	PortError,
 	ReportPort,
 	renderRunMarkdown,
@@ -88,6 +92,9 @@ const record = (stage: string, taskId: string): RunRecord => ({
 const decodeSample = Schema.decodeUnknownSync(Sample);
 const decodeResult = Schema.decodeUnknownSync(SampleResult);
 const decodeBlobMeta = Schema.decodeUnknownSync(BlobMeta);
+const decodeExperiment = Schema.decodeUnknownSync(Experiment);
+const decodeDatasetManifest = Schema.decodeUnknownSync(DatasetManifest);
+const decodeCalibration = Schema.decodeUnknownSync(CalibrationReport);
 
 const decode = <A>(schema: (u: unknown) => A, value: unknown, op: string) =>
 	Effect.try({
@@ -123,6 +130,9 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 	const blobMeta = new Map<string, BlobMeta>();
 	const results = new Map<string, SampleResult>();
 	const records: RunRecord[] = [];
+	const experiments = new Map<string, Experiment>();
+	const datasets = new Map<string, DatasetManifest>();
+	const calibrations = new Map<string, CalibrationReport>();
 
 	const tts = Layer.succeed(
 		TtsPort,
@@ -232,6 +242,62 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
+	const evalStore = Layer.succeed(
+		EvalStorePort,
+		EvalStorePort.of({
+			putExperiment: (experiment) =>
+				decode(decodeExperiment, experiment, "putExperiment").pipe(
+					Effect.flatMap((validated) =>
+						Effect.sync(() => void experiments.set(validated.id, validated)),
+					),
+				),
+			getExperiment: (id) => Effect.succeed(experiments.get(id) ?? null),
+			listExperiments: (filter) =>
+				Effect.succeed(
+					[...experiments.values()].filter(
+						(e) => filter?.suiteId === undefined || e.suiteId === filter.suiteId,
+					),
+				),
+			putDatasetManifest: (manifest) =>
+				decode(decodeDatasetManifest, manifest, "putDatasetManifest").pipe(
+					Effect.flatMap((validated) =>
+						Effect.suspend(() => {
+							const key = `${validated.id}@${validated.version}`;
+							const prior = datasets.get(key);
+							// Registry semantics, same as the real adapters:
+							// same id+version with different content is a
+							// conflict, identical is idempotent.
+							if (prior !== undefined && prior.contentHash !== validated.contentHash) {
+								return Effect.fail(
+									new PortError({
+										port: "eval-store-stub",
+										message: `dataset ${key} already registered with different content`,
+									}),
+								);
+							}
+							return Effect.sync(() => void datasets.set(key, validated));
+						}),
+					),
+				),
+			getDatasetManifest: (id, version) => Effect.succeed(datasets.get(`${id}@${version}`) ?? null),
+			listDatasetManifests: () => Effect.succeed([...datasets.values()]),
+			putCalibrationReport: (report) =>
+				decode(decodeCalibration, report, "putCalibrationReport").pipe(
+					Effect.flatMap((validated) =>
+						Effect.sync(() => void calibrations.set(validated.id, validated)),
+					),
+				),
+			listCalibrationReports: (filter) =>
+				Effect.succeed(
+					[...calibrations.values()].filter(
+						(c) =>
+							(filter?.suiteId === undefined || c.suiteId === filter.suiteId) &&
+							(filter?.runId === undefined || c.runId === filter.runId),
+					),
+				),
+		}),
+	);
+
 	const report = Layer.succeed(
 		ReportPort,
 		ReportPort.of({
@@ -242,7 +308,14 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 		}),
 	);
 
-	return { layer: Layer.mergeAll(tts, asr, llm, evalPort, store, report), records, results };
+	return {
+		layer: Layer.mergeAll(tts, asr, llm, evalPort, store, evalStore, report),
+		records,
+		results,
+		experiments,
+		datasets,
+		calibrations,
+	};
 };
 
 /** Default shared layer — canned everything. Stateless outputs, but

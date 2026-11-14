@@ -90,6 +90,10 @@ export const makeJevEval = (opts: JevEvalOptions): Layer.Layer<EvalPort> =>
 							taskId: `judge:${qhash}`,
 							stage: "judge",
 							engine: "jev",
+							// Endpoint hash — the service exposes no model/
+							// version field, so the URL fingerprint is the
+							// honest drift signal (P-076).
+							engineVersion: fnvHex(opts.baseUrl),
 							inputHash: `q${qhash}`,
 							startedAt: started,
 							latencyMs: Date.now() - started,

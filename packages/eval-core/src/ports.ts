@@ -2,7 +2,14 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 
-import type { EvalAnswer, EvalQuestion, RunRecord } from "./schema.ts";
+import type {
+	CalibrationReport,
+	DatasetManifest,
+	EvalAnswer,
+	EvalQuestion,
+	Experiment,
+	RunRecord,
+} from "./schema.ts";
 
 /**
  * Eval-core ports — the GENERIC hexagonal boundary every suite shares:
@@ -63,3 +70,43 @@ export class ReportPort extends Context.Service<
 		readonly render: (runId: string) => Effect.Effect<string, PortError>;
 	}
 >()("@ktb/eval-core/ReportPort") {}
+
+/** Framework-level artifact store (P-076) — the market-parity half of
+ * persistence, sibling to the domain packs' DatasetStorePort:
+ *
+ *   - experiments: one Experiment per `eval run`/`eval generate`
+ *   - dataset manifests: the registry `eval generate` writes and
+ *     `eval list --strict` validates suite dataset pins against
+ *   - calibration reports: `eval calibrate` judge-vs-gold output
+ *
+ * These records are cross-suite (a dataset manifest is shared
+ * registry state, not one suite's rows), which is why they live on
+ * their own port rather than the domain store. All three collections
+ * are keyed by content id and upsert on rewrite — EXCEPT
+ * putDatasetManifest, which enforces registry semantics: re-registering
+ * the same id+version with a DIFFERENT contentHash is a PortError
+ * (regenerate under a new version instead of silently drifting the
+ * pin); the same contentHash is an idempotent no-op. */
+export class EvalStorePort extends Context.Service<
+	EvalStorePort,
+	{
+		readonly putExperiment: (experiment: Experiment) => Effect.Effect<void, PortError>;
+		readonly getExperiment: (id: string) => Effect.Effect<Experiment | null, PortError>;
+		readonly listExperiments: (filter?: {
+			readonly suiteId?: string;
+		}) => Effect.Effect<readonly Experiment[], PortError>;
+
+		readonly putDatasetManifest: (manifest: DatasetManifest) => Effect.Effect<void, PortError>;
+		readonly getDatasetManifest: (
+			id: string,
+			version: string,
+		) => Effect.Effect<DatasetManifest | null, PortError>;
+		readonly listDatasetManifests: () => Effect.Effect<readonly DatasetManifest[], PortError>;
+
+		readonly putCalibrationReport: (report: CalibrationReport) => Effect.Effect<void, PortError>;
+		readonly listCalibrationReports: (filter?: {
+			readonly suiteId?: string;
+			runId?: string;
+		}) => Effect.Effect<readonly CalibrationReport[], PortError>;
+	}
+>()("@ktb/eval-core/EvalStorePort") {}

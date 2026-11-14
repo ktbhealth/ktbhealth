@@ -52,6 +52,23 @@ describe("makeAcpLlm", () => {
 		expect(reqs[0]?.params.sessionId).toBe("sess-9");
 	});
 
+	it("records engineVersion when the caller supplies one (P-076)", async () => {
+		const r = await Effect.runPromise(
+			Effect.gen(function* () {
+				const llm = yield* LlmPort;
+				return yield* llm.generate(env());
+			}).pipe(
+				Effect.provide(
+					makeAcpLlm({
+						transport: transport([], (r) => respond("ok", r.id)),
+						engineVersion: "ep-abc123",
+					}),
+				),
+			),
+		);
+		expect(r.record.engineVersion).toBe("ep-abc123");
+	});
+
 	it("correct: decodes EditList payloads", async () => {
 		const edits = { ops: [{ at: 0, remove: "a", insert: "b", kind: "fix" }] };
 		const reqs: AcpRequest[] = [];

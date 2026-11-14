@@ -21,6 +21,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import { Argument, Command, Flag } from "effect/cli";
 
+import { EvalStorePort, type DatasetManifest, type Experiment } from "@ktb/eval-core";
 import {
 	DEFAULT_MATRIX,
 	generateDataset,
@@ -37,12 +38,15 @@ import { findSuite } from "../suites.ts";
 import {
 	assertCapabilities,
 	datasetVersionOf,
+	gitSha,
 	intFlag,
 	isTransientBatchError,
 	localeFlag,
+	manifestHashOf,
 	outcomeMark,
 	resolveFor,
 	selectProfile,
+	sha256Hex,
 	userError,
 	workdirFlag,
 } from "../shared.ts";
@@ -125,6 +129,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 
 				const datasetVersion = datasetVersionOf(manifest);
 				const runId = optStr(cfg.runId) ?? `gen-${manifest.id}-${Date.now()}`;
+				const startedAt = Date.now();
 				const ttsKey = resolution.adapters.tts ?? "stub";
 				const voices = ["br_male_1", "br_female_1"];
 				const acoustic = (_p: Persona, i: number): AcousticProfile => ({
@@ -141,17 +146,18 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 					env: ctx.env,
 					...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
 				};
-				const { store, report } = storeReportLayers(workdir);
+				const { store, report, evalStore } = storeReportLayers(workdir);
 				// modelLayer throws on undeclared/unimplemented adapters —
 				// lift it into the error channel (exit 1, message shown).
 				const layer = yield* Effect.try({
-					try: () => Layer.mergeAll(modelLayer(wire, resolution.adapters, "tts"), store, report),
+					try: () =>
+						Layer.mergeAll(modelLayer(wire, resolution.adapters, "tts"), store, report, evalStore),
 					catch: userError,
 				});
 
 				const result = yield* Effect.scoped(
 					Effect.gen(function* () {
-						return yield* generateDataset({
+						const r = yield* generateDataset({
 							runId,
 							datasetVersion,
 							personas,
@@ -166,6 +172,70 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 								timeoutMs: 120_000,
 							},
 						});
+
+						// Market-parity artifacts (P-076): the generated
+						// cohort registers a DatasetManifest (id+version
+						// pinned by contentHash — a same-version regen with
+						// different content is rejected by the store) and
+						// every invocation records an Experiment. Written
+						// even on partial failure: the manifest only
+						// counts PERSISTED samples, the experiment records
+						// the honest ok/failed split.
+						const evals = yield* EvalStorePort;
+						const persisted = r.ok.map((g) => g.sample);
+						if (persisted.length > 0) {
+							const datasetDoc: DatasetManifest = {
+								id: manifest.dataset.id,
+								version: manifest.dataset.version,
+								domain: manifest.domain,
+								generator: {
+									suiteId: manifest.id,
+									count,
+									step,
+									seed,
+									locale,
+									template: templateName,
+									noise,
+									tts: ttsKey,
+									datasetVersion,
+								},
+								provenance: { generatedBy: "eval generate", runId },
+								createdAt: Date.now(),
+								sampleCount: persisted.length,
+								// Content pin: sorted id+scriptHash pairs — any
+								// change to the cohort (persona, seed, template)
+								// changes the hash.
+								contentHash: sha256Hex(
+									persisted
+										.map((s) => `${s.id}:${s.scriptHash}`)
+										.sort()
+										.join("\n"),
+								),
+							};
+							yield* evals.putDatasetManifest(datasetDoc).pipe(Effect.mapError(userError));
+						}
+						const sha = gitSha(ctx.repoRoot);
+						const experiment: Experiment = {
+							id: runId,
+							kind: "generate",
+							suiteId: manifest.id,
+							manifestHash: manifestHashOf(manifest),
+							...(sha !== undefined
+								? { gitSha: sha }
+								: /* v8 ignore next -- gitSha is only undefined outside a git checkout or without git; tests always run inside the repo */ {}),
+							profile,
+							dataset: { id: manifest.dataset.id, version: manifest.dataset.version },
+							startedAt,
+							finishedAt: Date.now(),
+							summary: {
+								samples: persisted.length,
+								failed: r.failed.length,
+								latencyMs: r.latencyMs,
+								datasetVersion,
+							},
+						};
+						yield* evals.putExperiment(experiment).pipe(Effect.mapError(userError));
+						return r;
 					}).pipe(Effect.provide(layer)),
 				);
 

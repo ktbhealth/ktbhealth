@@ -1,9 +1,10 @@
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
+import { EvalStorePort } from "@ktb/eval-core";
 import { DatasetStorePort, type Sample, type SampleResult } from "@ktb/eval-consultation";
 
-import { type BucketLike, makeR2Store } from "./r2.ts";
+import { type BucketLike, makeR2EvalStore, makeR2Store } from "./r2.ts";
 
 /** In-memory R2 fake — honours prefix + cursor pagination. */
 const memBucket = (pageSize = 100): BucketLike => {
@@ -376,5 +377,204 @@ describe("r2 store adapter", () => {
 		await expect(run(Effect.flatMap(DatasetStorePort, (s) => s.listResults()))).rejects.toThrow(
 			/r2 down/,
 		);
+	});
+});
+
+const evalExperiment = {
+	id: "run-1",
+	kind: "run" as const,
+	suiteId: "s1",
+	manifestHash: "h",
+	profile: "stub",
+	dataset: { id: "d", version: "v1" },
+	startedAt: 1,
+	summary: { ok: 2 },
+};
+
+const evalDatasetManifest = {
+	id: "d",
+	version: "v1",
+	domain: "dom",
+	generator: { seed: 7 },
+	createdAt: 1,
+	sampleCount: 2,
+	contentHash: "hash-a",
+};
+
+const evalCalibration = {
+	id: "cal-1",
+	suiteId: "s1",
+	dataset: { id: "d", version: "v1" },
+	runId: "run-1",
+	createdAt: 1,
+	samples: 1,
+	questions: 4,
+	agreements: 3,
+	agreementRate: 0.75,
+	lowerBound: 0.3,
+	kinds: [],
+	buckets: [],
+	judges: [],
+};
+
+const withEvalStore = <A>(e: Effect.Effect<A, unknown, EvalStorePort>, bucket: BucketLike) =>
+	Effect.runPromise(e.pipe(Effect.provide(makeR2EvalStore(bucket))));
+
+describe("r2 eval store (P-076)", () => {
+	it("experiments round-trip + suiteId filter", async () => {
+		const bucket = memBucket();
+		const out = await withEvalStore(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				yield* s.putExperiment(evalExperiment);
+				yield* s.putExperiment({ ...evalExperiment, id: "run-2", suiteId: "s2" });
+				return {
+					one: yield* s.getExperiment("run-1"),
+					miss: yield* s.getExperiment("nope"),
+					all: yield* s.listExperiments(),
+					filtered: yield* s.listExperiments({ suiteId: "s2" }),
+					empty: yield* s.listExperiments({ suiteId: "ghost" }),
+				};
+			}),
+			bucket,
+		);
+		expect(out.one?.id).toBe("run-1");
+		expect(out.miss).toBeNull();
+		expect(out.all).toHaveLength(2);
+		expect(out.filtered.map((e) => e.id)).toEqual(["run-2"]);
+		expect(out.empty).toEqual([]);
+	});
+
+	it("dataset manifests: insert, idempotent, conflict, filters", async () => {
+		const bucket = memBucket();
+		const out = await withEvalStore(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				yield* s.putDatasetManifest(evalDatasetManifest);
+				yield* s.putDatasetManifest({ ...evalDatasetManifest, createdAt: 2 });
+				const conflict = yield* Effect.flip(
+					s.putDatasetManifest({ ...evalDatasetManifest, contentHash: "hash-b" }),
+				);
+				return {
+					got: yield* s.getDatasetManifest("d", "v1"),
+					miss: yield* s.getDatasetManifest("d", "vX"),
+					list: yield* s.listDatasetManifests(),
+					conflict,
+				};
+			}),
+			bucket,
+		);
+		expect(out.got?.contentHash).toBe("hash-a");
+		expect(out.got?.createdAt).toBe(1); // idempotent — original kept
+		expect(out.miss).toBeNull();
+		expect(out.list).toHaveLength(1);
+		expect(String(out.conflict)).toContain("already registered");
+	});
+
+	it("calibration reports round-trip + filters", async () => {
+		const bucket = memBucket();
+		const out = await withEvalStore(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				yield* s.putCalibrationReport(evalCalibration);
+				yield* s.putCalibrationReport({
+					...evalCalibration,
+					id: "cal-2",
+					suiteId: "s2",
+					runId: "run-2",
+				});
+				return {
+					all: yield* s.listCalibrationReports(),
+					byRun: yield* s.listCalibrationReports({ runId: "run-1" }),
+					none: yield* s.listCalibrationReports({ suiteId: "ghost" }),
+				};
+			}),
+			bucket,
+		);
+		expect(out.all).toHaveLength(2);
+		expect(out.byRun.map((c) => c.id)).toEqual(["cal-1"]);
+		expect(out.none).toEqual([]);
+	});
+
+	it("write-side decode rejects malformed artifacts", async () => {
+		const bucket = memBucket();
+		const run = <A, E>(e: Effect.Effect<A, E, EvalStorePort>) => withEvalStore(e, bucket);
+		const expErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.putExperiment({ id: "bad" } as never));
+			}),
+		);
+		expect(String(expErr)).toContain("invalid experiment");
+		const dsErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.putDatasetManifest({ id: "x" } as never));
+			}),
+		);
+		expect(String(dsErr)).toContain("invalid dataset manifest");
+		const calErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.putCalibrationReport({ id: "bad" } as never));
+			}),
+		);
+		expect(String(calErr)).toContain("invalid calibration report");
+	});
+
+	it("corrupt rows fail loudly on read/list", async () => {
+		const bucket = memBucket();
+		// Valid JSON, wrong shape — decode catches, not JSON.parse.
+		await bucket.put("experiments/bad.json", JSON.stringify({ id: 1 }));
+		await bucket.put("datasets/d2/v1.json", JSON.stringify({ id: "d2" }));
+		await bucket.put("calibrations/badcal.json", JSON.stringify({ id: 7 }));
+		// Corrupt PRIOR manifest at a key putDatasetManifest will read.
+		await bucket.put("datasets/d/v9.json", JSON.stringify({ bogus: true }));
+
+		const run = <A, E>(e: Effect.Effect<A, E, EvalStorePort>) => withEvalStore(e, bucket);
+		const getExpErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.getExperiment("bad"));
+			}),
+		);
+		expect(String(getExpErr)).toContain("corrupt experiment");
+		const listExpErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.listExperiments());
+			}),
+		);
+		expect(String(listExpErr)).toContain("corrupt experiment in store");
+
+		const getDsErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.getDatasetManifest("d2", "v1"));
+			}),
+		);
+		expect(String(getDsErr)).toContain("corrupt dataset manifest");
+		const listDsErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.listDatasetManifests());
+			}),
+		);
+		expect(String(listDsErr)).toContain("corrupt dataset manifest in store");
+		const priorErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.putDatasetManifest({ ...evalDatasetManifest, version: "v9" }));
+			}),
+		);
+		expect(String(priorErr)).toContain("corrupt dataset manifest");
+
+		const listCalErr = await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				return yield* Effect.flip(s.listCalibrationReports());
+			}),
+		);
+		expect(String(listCalErr)).toContain("corrupt calibration report in store");
 	});
 });

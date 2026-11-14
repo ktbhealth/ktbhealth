@@ -53,7 +53,15 @@ export interface SuiteResolution {
  *                     adapter stay unresolved and commands say so.
  */
 const ADAPTER_PROFILES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-	stub: { tts: "stub", asr: "stub", llm: "stub", eval: "stub", store: "stub", report: "stub" },
+	stub: {
+		tts: "stub",
+		asr: "stub",
+		llm: "stub",
+		eval: "stub",
+		store: "stub",
+		report: "stub",
+		registry: "stub",
+	},
 	local: {
 		tts: "edge-tts",
 		asr: "faster-whisper",
@@ -61,6 +69,7 @@ const ADAPTER_PROFILES: Readonly<Record<string, Readonly<Record<string, string>>
 		eval: "jev",
 		store: "sqlite-fs",
 		report: "jsonl",
+		registry: "sqlite-fs",
 	},
 	"local-systemone": {
 		tts: "edge-tts",
@@ -69,8 +78,9 @@ const ADAPTER_PROFILES: Readonly<Record<string, Readonly<Record<string, string>>
 		eval: "systemone",
 		store: "sqlite-fs",
 		report: "jsonl",
+		registry: "sqlite-fs",
 	},
-	cloud: { asr: "workers-ai", store: "r2", report: "jsonl" },
+	cloud: { asr: "workers-ai", store: "r2", report: "jsonl", registry: "r2" },
 };
 
 export const knownProfiles = (): readonly string[] => Object.keys(ADAPTER_PROFILES);

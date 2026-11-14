@@ -7,3 +7,4 @@ export * from "./batch.ts";
 export * from "./suite.ts";
 export * from "./registry.ts";
 export * from "./kinds.ts";
+export * from "./experiment.ts";

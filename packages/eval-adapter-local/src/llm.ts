@@ -39,6 +39,10 @@ export interface AcpLlmOptions {
 	 * agents, so default `true`. Set `false` for an in-process
 	 * transport. The pipeline only sends scrubbed text regardless. */
 	readonly egress?: boolean;
+	/** Engine-version signal recorded on every RunRecord (P-076) —
+	 * the composition root passes an opaque endpoint hash (e.g.
+	 * fnvHex(EVAL_ACP_URL)) since the transport hides the endpoint. */
+	readonly engineVersion?: string;
 }
 
 const call = (
@@ -88,6 +92,7 @@ const call = (
 				stage,
 				engine: "acp",
 				model: envelope.modelHint,
+				...(opts.engineVersion !== undefined ? { engineVersion: opts.engineVersion } : {}),
 				// Content hash of the actual task input — dedupes reruns of
 				// identical work without pretending taskId+seed is the
 				// payload.

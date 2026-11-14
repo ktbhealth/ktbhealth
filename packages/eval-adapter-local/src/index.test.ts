@@ -5,10 +5,10 @@ import * as path from "node:path";
 import * as Effect from "effect/Effect";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { PortError, ReportPort, type RunRecord } from "@ktb/eval-core";
+import { EvalStorePort, PortError, ReportPort, type RunRecord } from "@ktb/eval-core";
 import { DatasetStorePort, type Sample } from "@ktb/eval-consultation";
 
-import { makeLocalReportLayer, makeLocalStoreLayer } from "./index.ts";
+import { makeLocalEvalStoreLayer, makeLocalReportLayer, makeLocalStoreLayer } from "./index.ts";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "eval-local-"));
 const reportPath = path.join(root, "reports", "run.jsonl");
@@ -379,4 +379,137 @@ it("getSample returns null for unknown ids", async () => {
 			),
 		),
 	);
+});
+
+describe("local eval store (P-076)", () => {
+	const evalRoot = fs.mkdtempSync(path.join(os.tmpdir(), "eval-store-"));
+	const run = <A>(e: Effect.Effect<A, unknown, EvalStorePort>) =>
+		Effect.runPromise(Effect.provide(e, makeLocalEvalStoreLayer(evalRoot)));
+
+	const experiment = {
+		id: "run-1",
+		kind: "run" as const,
+		suiteId: "s1",
+		manifestHash: "h",
+		profile: "stub",
+		dataset: { id: "d", version: "v1" },
+		startedAt: 1,
+		summary: { ok: 2 },
+	};
+	const datasetManifest = {
+		id: "d",
+		version: "v1",
+		domain: "dom",
+		generator: { seed: 7 },
+		createdAt: 1,
+		sampleCount: 2,
+		contentHash: "hash-a",
+	};
+	const calibration = {
+		id: "cal-1",
+		suiteId: "s1",
+		dataset: { id: "d", version: "v1" },
+		runId: "run-1",
+		createdAt: 1,
+		samples: 1,
+		questions: 4,
+		agreements: 3,
+		agreementRate: 0.75,
+		lowerBound: 0.3,
+		kinds: [],
+		buckets: [],
+		judges: [],
+	};
+
+	it("experiments round-trip + suiteId filter", async () => {
+		await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				yield* s.putExperiment(experiment);
+				yield* s.putExperiment({ ...experiment, id: "run-2", suiteId: "s2" });
+				expect((yield* s.getExperiment("run-1"))?.id).toBe("run-1");
+				expect(yield* s.getExperiment("nope")).toBeNull();
+				expect((yield* s.listExperiments()).length).toBe(2);
+				expect((yield* s.listExperiments({ suiteId: "s2" })).map((e) => e.id)).toEqual(["run-2"]);
+				expect(yield* s.listExperiments({ suiteId: "ghost" })).toEqual([]);
+			}),
+		);
+	});
+
+	it("dataset manifests: insert, idempotent same-hash, conflict on diff hash", async () => {
+		await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				yield* s.putDatasetManifest(datasetManifest);
+				// Same contentHash → idempotent no-op (original doc kept).
+				yield* s.putDatasetManifest({ ...datasetManifest, createdAt: 2 });
+				const got = yield* s.getDatasetManifest("d", "v1");
+				expect(got?.contentHash).toBe("hash-a");
+				expect(got?.createdAt).toBe(1);
+				expect(yield* s.getDatasetManifest("d", "vX")).toBeNull();
+				expect((yield* s.listDatasetManifests()).length).toBe(1);
+				const err = yield* Effect.flip(
+					s.putDatasetManifest({ ...datasetManifest, contentHash: "hash-b" }),
+				);
+				expect(String(err)).toContain("already registered");
+			}),
+		);
+	});
+
+	it("calibration reports round-trip + filters", async () => {
+		await run(
+			Effect.gen(function* () {
+				const s = yield* EvalStorePort;
+				yield* s.putCalibrationReport(calibration);
+				yield* s.putCalibrationReport({
+					...calibration,
+					id: "cal-2",
+					suiteId: "s2",
+					runId: "run-2",
+				});
+				expect((yield* s.listCalibrationReports()).length).toBe(2);
+				expect(
+					(yield* s.listCalibrationReports({ suiteId: "s1", runId: "run-1" })).map((c) => c.id),
+				).toEqual(["cal-1"]);
+				expect((yield* s.listCalibrationReports({ runId: "run-1" })).map((c) => c.id)).toEqual([
+					"cal-1",
+				]);
+				expect(yield* s.listCalibrationReports({ suiteId: "ghost" })).toEqual([]);
+				expect(yield* s.listCalibrationReports({ runId: "ghost" })).toEqual([]);
+			}),
+		);
+	});
+
+	it("write-side schema decode rejects malformed artifacts", async () => {
+		const err = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					yield* s.putExperiment({ id: "bad" } as never);
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				makeLocalEvalStoreLayer(evalRoot),
+			),
+		);
+		expect(String(err)).toContain("putExperiment");
+		const err2 = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					yield* s.putDatasetManifest({ id: "x" } as never);
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				makeLocalEvalStoreLayer(evalRoot),
+			),
+		);
+		expect(String(err2)).toContain("putDatasetManifest");
+		const err3 = await Effect.runPromise(
+			Effect.provide(
+				Effect.gen(function* () {
+					const s = yield* EvalStorePort;
+					yield* s.putCalibrationReport({ id: "bad" } as never);
+				}).pipe(Effect.catchTag("PortError", (e) => Effect.succeed(e))),
+				makeLocalEvalStoreLayer(evalRoot),
+			),
+		);
+		expect(String(err3)).toContain("putCalibrationReport");
+	});
 });

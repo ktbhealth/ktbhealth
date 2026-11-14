@@ -285,6 +285,11 @@ export const makeSystemOneEval = (opts: SystemOneEvalOptions): Layer.Layer<EvalP
 							stage: "judge",
 							engine: "systemone",
 							model,
+							// Endpoint hash alongside the model name —
+							// self-hosted servers have no version
+							// endpoint, so URL fingerprint + model is the
+							// drift signal (P-076).
+							engineVersion: fnvHex(opts.baseUrl),
 							inputHash: `q${qhash}`,
 							startedAt: started,
 							latencyMs: Date.now() - started,

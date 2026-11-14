@@ -23,6 +23,7 @@ import * as Effect from "effect/Effect";
 import { Console, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
+import { EvalStorePort, type ExperimentGate } from "@ktb/eval-core";
 import {
 	DatasetStorePort,
 	decideAutoAccept,
@@ -104,6 +105,7 @@ export const makeGateCommand = (ctx: CmdContext) =>
 			maxHarmfulEdits: Flag.optional(Flag.Finite("max-harmful-edits")),
 			maxUnjudgedEdits: Flag.optional(Flag.Finite("max-unjudged-edits")),
 			z: Flag.optional(Flag.Finite("z")),
+			format: Flag.optional(Flag.String("format")),
 		},
 		(cfg) =>
 			Effect.gen(function* () {
@@ -114,6 +116,12 @@ export const makeGateCommand = (ctx: CmdContext) =>
 				const manifest = suite.manifest;
 				const workdir = yield* workdirFlag(cfg.workdir);
 				const runId = optStr(cfg.runId);
+				const format = optStr(cfg.format) ?? "text";
+				if (format !== "text" && format !== "json") {
+					return yield* new UsageError({
+						message: `--format must be "text" or "json", got: ${format}`,
+					});
+				}
 
 				// Decode + override every declared gate BEFORE touching
 				// the store: a malformed gate or out-of-range flag is a
@@ -151,7 +159,7 @@ export const makeGateCommand = (ctx: CmdContext) =>
 					gates.push({ gate, policy });
 				}
 
-				const { store } = storeReportLayers(workdir);
+				const { store, evalStore } = storeReportLayers(workdir);
 				const all = yield* Effect.scoped(
 					Effect.gen(function* () {
 						const s = yield* DatasetStorePort;
@@ -166,11 +174,24 @@ export const makeGateCommand = (ctx: CmdContext) =>
 				const datasetVersion = datasetVersionOf(manifest);
 				const results = all.filter((r) => r.datasetVersion === datasetVersion);
 				if (results.length === 0) {
-					yield* Console.log(
-						`no results for dataset "${datasetVersion}" under ${workdir}` +
-							(runId !== undefined ? ` (run ${runId})` : "") +
-							(all.length > 0 ? ` — ${all.length} result(s) belong to other datasets` : ""),
-					);
+					if (format === "json") {
+						yield* Console.log(
+							JSON.stringify({
+								suite: manifest.id,
+								datasetVersion,
+								runId: runId ?? null,
+								results: 0,
+								gates: [],
+								allGreen: false,
+							}),
+						);
+					} else {
+						yield* Console.log(
+							`no results for dataset "${datasetVersion}" under ${workdir}` +
+								(runId !== undefined ? ` (run ${runId})` : "") +
+								(all.length > 0 ? ` — ${all.length} result(s) belong to other datasets` : ""),
+						);
+					}
 					if (cfg.enforce) {
 						yield* Console.log("gate: no evidence to gate — RED under --enforce");
 						return yield* new CommandExit({ code: 1 });
@@ -178,26 +199,84 @@ export const makeGateCommand = (ctx: CmdContext) =>
 					return;
 				}
 
-				let anyRed = false;
-				for (const [gi, { gate, policy }] of gates.entries()) {
-					const gateResult = gateRun(results, policy);
-					anyRed ||= !gateResult.green;
+				// Evaluate every declared gate up front — the text, JSON,
+				// and experiment-record paths all consume the same
+				// verdicts (P-076: gate outcomes feed experiment compare).
+				const evaluated = gates.map(({ gate, policy }) => ({
+					gate,
+					policy,
+					result: gateRun(results, policy),
+				}));
+				const anyRed = evaluated.some((e) => !e.result.green);
+
+				if (format === "json") {
+					// CI-parseable verdict (P-076 §5): same gate semantics
+					// as text mode, machine-readable. Empty scoped result
+					// sets serialize honestly (results: 0, gates: []) —
+					// the enforce exit code still carries the verdict.
 					yield* Console.log(
-						`gate ${gate.id} (${gi + 1}/${manifest.gates.length}): ` +
-							`${gateResult.accepted}/${results.length} accepted — ${gateResult.green ? "GREEN" : "RED"}`,
+						JSON.stringify({
+							suite: manifest.id,
+							datasetVersion,
+							runId: runId ?? null,
+							results: results.length,
+							gates: evaluated.map((e) => ({
+								id: e.gate.id,
+								green: e.result.green,
+								accepted: e.result.accepted,
+								total: results.length,
+								rejected: e.result.rejected.map((r) => ({
+									id: r.id,
+									reasons: [...r.reasons],
+								})),
+							})),
+							allGreen: !anyRed,
+						}),
 					);
-					for (const r of gateResult.rejected) {
-						yield* Console.log(`  REJECT ${r.id}: ${r.reasons.join("; ")}`);
-					}
-					// Per-sample verdict detail for the first gate only —
-					// later gates get the aggregate (keeps output readable).
-					if (gi === 0) {
-						for (const result of results) {
-							const d = decideAutoAccept(result, policy);
-							const mark = d.accept ? "accept" : `REJECT — ${d.reasons.join("; ")}`;
-							yield* Console.log(`  ${result.sampleId}: ${mark}`);
+				} else {
+					for (const [gi, e] of evaluated.entries()) {
+						const { gate, policy, result: gateResult } = e;
+						yield* Console.log(
+							`gate ${gate.id} (${gi + 1}/${gates.length}): ` +
+								`${gateResult.accepted}/${results.length} accepted — ${gateResult.green ? "GREEN" : "RED"}`,
+						);
+						for (const r of gateResult.rejected) {
+							yield* Console.log(`  REJECT ${r.id}: ${r.reasons.join("; ")}`);
+						}
+						// Per-sample verdict detail for the first gate only —
+						// later gates get the aggregate (keeps output readable).
+						if (gi === 0) {
+							for (const result of results) {
+								const d = decideAutoAccept(result, policy);
+								const mark = d.accept ? "accept" : `REJECT — ${d.reasons.join("; ")}`;
+								yield* Console.log(`  ${result.sampleId}: ${mark}`);
+							}
 						}
 					}
+				}
+
+				// Record per-gate verdicts onto the run's Experiment when
+				// one exists (P-076) — `eval report --compare` diffs them.
+				// Only attributable with an explicit --run-id; results
+				// seeded outside `eval run` simply have no experiment.
+				if (runId !== undefined) {
+					const gateRows: ExperimentGate[] = evaluated.map((e) => ({
+						id: e.gate.id,
+						green: e.result.green,
+						accepted: e.result.accepted,
+						total: results.length,
+					}));
+					yield* Effect.scoped(
+						Effect.gen(function* () {
+							const s = yield* EvalStorePort;
+							const exp = yield* s.getExperiment(runId);
+							if (exp === null) {
+								yield* Console.log(`note: no experiment "${runId}" — gate verdicts not tracked`);
+								return;
+							}
+							yield* s.putExperiment({ ...exp, gates: gateRows }).pipe(Effect.mapError(userError));
+						}).pipe(Effect.provide(evalStore)),
+					);
 				}
 
 				if (cfg.enforce && anyRed) {

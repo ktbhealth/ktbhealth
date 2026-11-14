@@ -21,7 +21,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import { Argument, Command, Flag } from "effect/cli";
 
-import { runBatch } from "@ktb/eval-core";
+import { EvalStorePort, runBatch, type Experiment } from "@ktb/eval-core";
 import {
 	DatasetStorePort,
 	GENERATION_STAGES,
@@ -44,9 +44,11 @@ import { findSuite } from "../suites.ts";
 import {
 	assertCapabilities,
 	datasetVersionOf,
+	gitSha,
 	intFlag,
 	isTransientBatchError,
 	localeFlag,
+	manifestHashOf,
 	outcomeMark,
 	resolveFor,
 	selectProfile,
@@ -91,6 +93,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 				const concurrency = yield* intFlag("concurrency", cfg.concurrency, 2, 1);
 				const limit = yield* intFlag("limit", cfg.limit, 0, 1);
 				const runId = optStr(cfg.runId) ?? `run-${manifest.id}-${Date.now()}`;
+				const startedAt = Date.now();
 				const datasetVersion = datasetVersionOf(manifest);
 				// Same --locale registry generate uses — the scrub
 				// patterns and normalization must match the locale the
@@ -133,7 +136,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 					env: ctx.env,
 					...(ctx.fetchImpl !== undefined ? { fetchImpl: ctx.fetchImpl } : {}),
 				};
-				const { store, report } = storeReportLayers(workdir);
+				const { store, report, evalStore } = storeReportLayers(workdir);
 
 				// Read the cohort first — an empty dataset is a hard
 				// "generate first" error, not a vacuous green run.
@@ -161,6 +164,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 							modelLayer(wire, resolution.adapters, "eval"),
 							store,
 							report,
+							evalStore,
 						),
 					catch: userError,
 				});
@@ -210,7 +214,7 @@ export const makeRunCommand = (ctx: CmdContext) =>
 
 				const result = yield* Effect.scoped(
 					Effect.gen(function* () {
-						return yield* runBatch({
+						const r = yield* runBatch({
 							items: cohort,
 							options: {
 								concurrency,
@@ -220,6 +224,45 @@ export const makeRunCommand = (ctx: CmdContext) =>
 							},
 							step,
 						});
+
+						// Experiment tracking (P-076): every completed run
+						// records its identity + summary metrics — mean
+						// WER per stage, ok/failed counts, latency — so
+						// `eval report --compare` can diff runs.
+						const okValues = r.ok;
+						const mean = (f: (v: RunValue) => number | undefined): number | undefined => {
+							const xs = okValues.map(f).filter((x): x is number => x !== undefined);
+							return xs.length === 0 ? undefined : xs.reduce((acc, x) => acc + x, 0) / xs.length;
+						};
+						const meanWerAsr = mean((v) => v.werAsr);
+						const meanWerCorrected = mean((v) => v.werCorrected);
+						const sha = gitSha(ctx.repoRoot);
+						const experiment: Experiment = {
+							id: runId,
+							kind: "run",
+							suiteId: manifest.id,
+							manifestHash: manifestHashOf(manifest),
+							...(sha !== undefined
+								? { gitSha: sha }
+								: /* v8 ignore next -- gitSha is only undefined outside a git checkout or without git; tests always run inside the repo */ {}),
+							profile,
+							dataset: { id: manifest.dataset.id, version: manifest.dataset.version },
+							startedAt,
+							finishedAt: Date.now(),
+							summary: {
+								samples: cohort.length,
+								ok: okValues.length,
+								failed: r.failed.length,
+								latencyMs: r.latencyMs,
+								datasetVersion,
+								stages: stages.join(","),
+								...(meanWerAsr !== undefined ? { meanWerAsr } : {}),
+								...(meanWerCorrected !== undefined ? { meanWerCorrected } : {}),
+							},
+						};
+						const evals = yield* EvalStorePort;
+						yield* evals.putExperiment(experiment).pipe(Effect.mapError(userError));
+						return r;
 					}).pipe(Effect.provide(layer)),
 				);
 

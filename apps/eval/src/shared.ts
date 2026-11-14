@@ -4,6 +4,8 @@
  * (ported from the retired eval-adapter-local scripts).
  */
 
+import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -26,6 +28,34 @@ import type { LoadedSuite } from "./suites.ts";
  * suite declares its cohort. */
 export const datasetVersionOf = (manifest: EvalSuiteManifest): string =>
 	`${manifest.dataset.id}-${manifest.dataset.version}`;
+
+/** sha256 hex — experiment manifestHash / dataset contentHash. */
+export const sha256Hex = (s: string): string => createHash("sha256").update(s).digest("hex");
+
+/** Reproducibility fingerprint of a suite manifest — the decoded
+ * struct's JSON is canonical enough for hashing (Schema decode fixes
+ * field order; gate params objects keep author order, which is fine:
+ * a reordered-but-equal params object hashing differently is a
+ * conservative false-negative, never a missed change). */
+export const manifestHashOf = (manifest: EvalSuiteManifest): string =>
+	sha256Hex(JSON.stringify(manifest));
+
+/** Best-effort HEAD sha for Experiment.gitSha — `undefined` outside a
+ * git checkout or when git is absent (experiments still record; the
+ * fingerprint just loses one pin). */
+export const gitSha = (root: string): string | undefined => {
+	try {
+		const out = execSync("git rev-parse HEAD", {
+			cwd: root,
+			stdio: ["ignore", "pipe", "ignore"],
+			timeout: 5_000,
+		});
+		const sha = out.toString().trim();
+		return sha === "" ? undefined : sha;
+	} catch {
+		return undefined;
+	}
+};
 
 /** locale name → LocaleProfile — the single registry `generate` and
  * `run` both resolve `--locale` through (scripts/templates are

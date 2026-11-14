@@ -37,6 +37,7 @@ export const suite = defineSuite({
 		eval: "llm.eval",
 		store: "storage.dataset",
 		report: "storage.dataset",
+		registry: "storage.dataset",
 	},
 	metrics: ["wer", "cer", "entity-verdicts", "confidence-calibration", "risk-score"],
 	gates: [

@@ -24,12 +24,13 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { EvalPort, PortError, type RunRecord } from "@ktb/eval-core";
-import { AsrPort, LlmPort, TtsPort, type TaskEnvelope } from "@ktb/eval-consultation";
+import { AsrPort, fnvHex, LlmPort, TtsPort, type TaskEnvelope } from "@ktb/eval-consultation";
 import { makeWorkersAiAsr } from "@ktb/eval-adapter-cloud";
 import {
 	makeAcpLlm,
 	makeJevEval,
 	makeLocalAsr,
+	makeLocalEvalStoreLayer,
 	makeLocalReportLayer,
 	makeLocalStoreLayer,
 	makeLocalTts,
@@ -258,10 +259,15 @@ const llmLayer = (ctx: WireContext, key: string) => {
 	switch (key) {
 		case "stub":
 			return stubLlmLayer;
-		case "acp":
+		case "acp": {
+			const acpUrl = env(ctx, "EVAL_ACP_URL");
 			return makeAcpLlm({
-				transport: makeHttpAcpTransport(env(ctx, "EVAL_ACP_URL"), ctx.fetchImpl ?? fetch),
+				transport: makeHttpAcpTransport(acpUrl, ctx.fetchImpl ?? fetch),
+				// Endpoint hash as the engine-version signal — the ACP
+				// service exposes no version endpoint (P-076).
+				engineVersion: fnvHex(acpUrl),
 			});
+		}
 		default:
 			return unknownAdapter("llm", key);
 	}
@@ -312,10 +318,14 @@ export const capabilityLayer = (ctx: WireContext, capability: string, adapterKey
 
 /** The persistent dataset pair — sqlite manifest + blobs under
  * `<workdir>`, JSONL run records + markdown under
- * `<workdir>/reports/eval.jsonl`. */
+ * `<workdir>/reports/eval.jsonl` — plus the EvalStorePort artifact
+ * store (experiments, dataset manifests, calibration reports) on the
+ * same sqlite file. Always local, like store/report: the CLI's
+ * dataset lives on disk so commands compose across processes. */
 export const storeReportLayers = (workdir: string) => ({
 	store: makeLocalStoreLayer(workdir),
 	report: makeLocalReportLayer(path.join(workdir, "reports", "eval.jsonl")),
+	evalStore: makeLocalEvalStoreLayer(workdir),
 });
 
 /** One capability's layer from the resolved adapter map. Throws

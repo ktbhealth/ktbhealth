@@ -20,7 +20,14 @@ import { Schema } from "effect";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { BlobMeta, PortError } from "@ktb/eval-core";
+import {
+	BlobMeta,
+	CalibrationReport,
+	DatasetManifest,
+	EvalStorePort,
+	Experiment,
+	PortError,
+} from "@ktb/eval-core";
 import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consultation";
 
 /** Minimal R2 surface — structurally compatible with R2Bucket. */
@@ -38,6 +45,9 @@ const fail = (message: string) => new PortError({ port: "store", message });
 const decodeSample = Schema.decodeUnknownSync(Sample);
 const decodeResult = Schema.decodeUnknownSync(SampleResult);
 const decodeBlobMeta = Schema.decodeUnknownSync(BlobMeta);
+const decodeExperiment = Schema.decodeUnknownSync(Experiment);
+const decodeDatasetManifest = Schema.decodeUnknownSync(DatasetManifest);
+const decodeCalibration = Schema.decodeUnknownSync(CalibrationReport);
 
 const getJson = (bucket: BucketLike, key: string) =>
 	Effect.tryPromise({
@@ -224,6 +234,153 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 											(filter?.runId === undefined || r.runId === filter.runId),
 									),
 							catch: (e) => fail(`corrupt result in store: ${String(e).slice(0, 200)}`),
+						}),
+					),
+				),
+		}),
+	);
+
+/** EvalStorePort over the same bucket — the framework-level
+ * artifact collections (P-076):
+ *
+ *   experiments/<id>.json
+ *   datasets/<id>/<version>.json      (registry — contentHash-pinned)
+ *   calibrations/<id>.json
+ *
+ * Same contract as makeR2Store: write-side schema decode, listing is
+ * the source of truth, O(N) GETs per list call — fine at eval scale.
+ * putDatasetManifest enforces registry uniqueness: same id+version
+ * with a different contentHash is a PortError, identical is a no-op. */
+export const makeR2EvalStore = (bucket: BucketLike): Layer.Layer<EvalStorePort> =>
+	Layer.succeed(
+		EvalStorePort,
+		EvalStorePort.of({
+			putExperiment: (experiment) =>
+				Effect.try({
+					try: () => decodeExperiment(experiment),
+					catch: (e) => fail(`invalid experiment: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) =>
+						putJson(bucket, `experiments/${encodeURIComponent(validated.id)}.json`, validated),
+					),
+				),
+
+			getExperiment: (id) =>
+				getJson(bucket, `experiments/${encodeURIComponent(id)}.json`).pipe(
+					Effect.flatMap((body) =>
+						body === null
+							? Effect.succeed(null)
+							: Effect.try({
+									try: () => decodeExperiment(body),
+									catch: (e) => fail(`corrupt experiment ${id}: ${String(e).slice(0, 200)}`),
+								}),
+					),
+				),
+
+			listExperiments: (filter) =>
+				listKeys(bucket, "experiments/").pipe(
+					Effect.flatMap((keys) =>
+						Effect.forEach(keys, (k) => getJson(bucket, k), { concurrency: 8 }),
+					),
+					Effect.flatMap((bodies) =>
+						Effect.try({
+							try: () =>
+								bodies
+									.filter((b): b is NonNullable<typeof b> => b !== null)
+									.map((b) => decodeExperiment(b))
+									.filter((e) => filter?.suiteId === undefined || e.suiteId === filter.suiteId),
+							catch: (e) => fail(`corrupt experiment in store: ${String(e).slice(0, 200)}`),
+						}),
+					),
+				),
+
+			putDatasetManifest: (manifest) =>
+				Effect.try({
+					try: () => decodeDatasetManifest(manifest),
+					catch: (e) => fail(`invalid dataset manifest: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) =>
+						Effect.gen(function* () {
+							const key = `datasets/${encodeURIComponent(validated.id)}/${encodeURIComponent(validated.version)}.json`;
+							const existing = yield* getJson(bucket, key);
+							if (existing !== null) {
+								const prior = yield* Effect.try({
+									try: () => decodeDatasetManifest(existing),
+									catch: (e) => fail(`corrupt dataset manifest ${key}: ${String(e).slice(0, 200)}`),
+								});
+								if (prior.contentHash !== validated.contentHash) {
+									return yield* fail(
+										`dataset ${validated.id}@${validated.version} already registered ` +
+											`with contentHash ${prior.contentHash} — refusing to overwrite ` +
+											`with ${validated.contentHash}; bump the suite's dataset version`,
+									);
+								}
+								return; // identical re-registration — idempotent
+							}
+							yield* putJson(bucket, key, validated);
+						}),
+					),
+				),
+
+			getDatasetManifest: (id, version) =>
+				getJson(
+					bucket,
+					`datasets/${encodeURIComponent(id)}/${encodeURIComponent(version)}.json`,
+				).pipe(
+					Effect.flatMap((body) =>
+						body === null
+							? Effect.succeed(null)
+							: Effect.try({
+									try: () => decodeDatasetManifest(body),
+									catch: (e) =>
+										fail(`corrupt dataset manifest ${id}@${version}: ${String(e).slice(0, 200)}`),
+								}),
+					),
+				),
+
+			listDatasetManifests: () =>
+				listKeys(bucket, "datasets/").pipe(
+					Effect.flatMap((keys) =>
+						Effect.forEach(keys, (k) => getJson(bucket, k), { concurrency: 8 }),
+					),
+					Effect.flatMap((bodies) =>
+						Effect.try({
+							try: () =>
+								bodies
+									.filter((b): b is NonNullable<typeof b> => b !== null)
+									.map((b) => decodeDatasetManifest(b)),
+							catch: (e) => fail(`corrupt dataset manifest in store: ${String(e).slice(0, 200)}`),
+						}),
+					),
+				),
+
+			putCalibrationReport: (report) =>
+				Effect.try({
+					try: () => decodeCalibration(report),
+					catch: (e) => fail(`invalid calibration report: ${String(e).slice(0, 200)}`),
+				}).pipe(
+					Effect.flatMap((validated) =>
+						putJson(bucket, `calibrations/${encodeURIComponent(validated.id)}.json`, validated),
+					),
+				),
+
+			listCalibrationReports: (filter) =>
+				listKeys(bucket, "calibrations/").pipe(
+					Effect.flatMap((keys) =>
+						Effect.forEach(keys, (k) => getJson(bucket, k), { concurrency: 8 }),
+					),
+					Effect.flatMap((bodies) =>
+						Effect.try({
+							try: () =>
+								bodies
+									.filter((b): b is NonNullable<typeof b> => b !== null)
+									.map((b) => decodeCalibration(b))
+									.filter(
+										(c) =>
+											(filter?.suiteId === undefined || c.suiteId === filter.suiteId) &&
+											(filter?.runId === undefined || c.runId === filter.runId),
+									),
+							catch: (e) => fail(`corrupt calibration report in store: ${String(e).slice(0, 200)}`),
 						}),
 					),
 				),

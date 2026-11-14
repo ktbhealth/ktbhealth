@@ -16,11 +16,14 @@
  * domain failures as CliError.UserError (exit 1), and silent
  * non-zero verdicts as CommandExit.
  *
- *   eval list [--dir d] [--strict]
+ *   eval list [--dir d] [--strict] [--workdir d]
  *   eval generate <suite> [--profile p] [--n N] [--workdir d] …
  *   eval run <suite> [--profile p] [--workdir d] [--run-id id] …
- *   eval gate <suite> [--workdir d] [--run-id id] [--enforce] …
+ *   eval gate <suite> [--workdir d] [--run-id id] [--enforce]
+ *     [--format text|json] …
  *   eval report <suite> [--workdir d] [--run-id id]
+ *     [--compare <expA> --compare <expB>]
+ *   eval calibrate <suite> [--workdir d] [--run-id id]
  *   eval bench [--profile p] [--audio-dir d] [--models a,b,c] …
  *
  * Exit codes: 0 ok/report, 1 command failed or gate red under
@@ -39,6 +42,7 @@ import { Command, CliError } from "effect/cli";
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 
 import { makeBenchCommand } from "./commands/bench.ts";
+import { makeCalibrateCommand } from "./commands/calibrate.ts";
 import { makeGateCommand } from "./commands/gate.ts";
 import { makeGenerateCommand } from "./commands/generate.ts";
 import { makeListCommand } from "./commands/list.ts";
@@ -91,6 +95,7 @@ export const makeEvalCommand = (ctx: CmdContext) =>
 			makeRunCommand(ctx),
 			makeGateCommand(ctx),
 			makeReportCommand(ctx),
+			makeCalibrateCommand(ctx),
 			makeBenchCommand(ctx),
 			Command.make("help", {}, () =>
 				Effect.fail(new CliError.ShowHelp({ commandPath: ["eval"], errors: [] })),

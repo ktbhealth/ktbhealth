@@ -7,7 +7,17 @@ import { Schema } from "effect";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { BlobMeta, PortError, ReportPort, renderRunMarkdown, type RunRecord } from "@ktb/eval-core";
+import {
+	BlobMeta,
+	CalibrationReport,
+	DatasetManifest,
+	EvalStorePort,
+	Experiment,
+	PortError,
+	ReportPort,
+	renderRunMarkdown,
+	type RunRecord,
+} from "@ktb/eval-core";
 import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consultation";
 
 /**
@@ -27,6 +37,9 @@ import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consultation";
 const decodeSample = Schema.decodeUnknownSync(Sample);
 const decodeResult = Schema.decodeUnknownSync(SampleResult);
 const decodeBlobMeta = Schema.decodeUnknownSync(BlobMeta);
+const decodeExperiment = Schema.decodeUnknownSync(Experiment);
+const decodeDatasetManifest = Schema.decodeUnknownSync(DatasetManifest);
+const decodeCalibration = Schema.decodeUnknownSync(CalibrationReport);
 
 /** Hash the URI — opaque, fixed-length, traversal-proof filenames. */
 const blobPath = (root: string, uri: string): string =>
@@ -231,6 +244,159 @@ export const makeLocalStoreLayer = (rootDir: string) =>
 								}) as { doc: string }[]
 							).map((r) => decodeResult(JSON.parse(r.doc))),
 						catch: fail("store-local", "listResults"),
+					}),
+			});
+		}),
+	);
+
+/** EvalStorePort over the SAME sqlite file as the dataset store —
+ * separate connection + tables (experiments, dataset_manifests,
+ * calibration_reports). Same doc-JSON pattern: schema decode on
+ * write AND read, so a corrupt row fails loudly instead of silently
+ * poisoning listings. WAL + busy_timeout tolerate the second
+ * connection. */
+export const makeLocalEvalStoreLayer = (rootDir: string) =>
+	Layer.effect(
+		EvalStorePort,
+		Effect.gen(function* () {
+			fs.mkdirSync(rootDir, { recursive: true });
+			const db = yield* Effect.acquireRelease(
+				Effect.try({
+					try: () => {
+						const d = new Database(path.join(rootDir, "manifest.sqlite"));
+						d.pragma("journal_mode = WAL");
+						d.pragma("busy_timeout = 5000");
+						return d;
+					},
+					catch: fail("eval-store-local", "open"),
+				}),
+				(db) => Effect.sync(() => db.close()),
+			);
+			yield* Effect.try({
+				try: () =>
+					db.exec(
+						`CREATE TABLE IF NOT EXISTS experiments (
+							id TEXT PRIMARY KEY,
+							doc TEXT NOT NULL
+						);
+						CREATE TABLE IF NOT EXISTS dataset_manifests (
+							id TEXT NOT NULL,
+							version TEXT NOT NULL,
+							doc TEXT NOT NULL,
+							PRIMARY KEY (id, version)
+						);
+						CREATE TABLE IF NOT EXISTS calibration_reports (
+							id TEXT PRIMARY KEY,
+							doc TEXT NOT NULL
+						)`,
+					),
+				catch: fail("eval-store-local", "schema"),
+			});
+			const upsertExp = db.prepare(
+				`INSERT INTO experiments (id, doc) VALUES (@id, @doc)
+				 ON CONFLICT(id) DO UPDATE SET doc = @doc`,
+			);
+			const selectExp = db.prepare(`SELECT doc FROM experiments WHERE id = ?`);
+			const listExp = db.prepare(`SELECT doc FROM experiments`);
+			const upsertDs = db.prepare(
+				`INSERT INTO dataset_manifests (id, version, doc)
+				 VALUES (@id, @version, @doc)
+				 ON CONFLICT(id, version) DO UPDATE SET doc = @doc`,
+			);
+			const selectDs = db.prepare(`SELECT doc FROM dataset_manifests WHERE id = ? AND version = ?`);
+			const listDs = db.prepare(`SELECT doc FROM dataset_manifests`);
+			const upsertCal = db.prepare(
+				`INSERT INTO calibration_reports (id, doc) VALUES (@id, @doc)
+				 ON CONFLICT(id) DO UPDATE SET doc = @doc`,
+			);
+			const listCal = db.prepare(`SELECT doc FROM calibration_reports`);
+
+			return EvalStorePort.of({
+				putExperiment: (experiment) =>
+					Effect.try({
+						try: () => {
+							const validated = decodeExperiment(experiment);
+							upsertExp.run({ id: validated.id, doc: JSON.stringify(validated) });
+						},
+						catch: fail("eval-store-local", "putExperiment"),
+					}),
+				getExperiment: (id) =>
+					Effect.try({
+						try: () => {
+							const row = selectExp.get(id) as { doc: string } | undefined;
+							return row ? decodeExperiment(JSON.parse(row.doc)) : null;
+						},
+						catch: fail("eval-store-local", "getExperiment"),
+					}),
+				listExperiments: (filter) =>
+					Effect.try({
+						try: () =>
+							(listExp.all() as { doc: string }[])
+								.map((r) => decodeExperiment(JSON.parse(r.doc)))
+								.filter((e) => filter?.suiteId === undefined || e.suiteId === filter.suiteId),
+						catch: fail("eval-store-local", "listExperiments"),
+					}),
+				putDatasetManifest: (manifest) =>
+					Effect.try({
+						try: () => {
+							const validated = decodeDatasetManifest(manifest);
+							const existing = selectDs.get(validated.id, validated.version) as
+								| { doc: string }
+								| undefined;
+							if (existing !== undefined) {
+								const prior = decodeDatasetManifest(JSON.parse(existing.doc));
+								if (prior.contentHash !== validated.contentHash) {
+									throw new Error(
+										`dataset ${validated.id}@${validated.version} already registered ` +
+											`with contentHash ${prior.contentHash} — refusing to overwrite ` +
+											`with ${validated.contentHash}; bump the suite's dataset version`,
+									);
+								}
+								return; // identical re-registration — idempotent
+							}
+							upsertDs.run({
+								id: validated.id,
+								version: validated.version,
+								doc: JSON.stringify(validated),
+							});
+						},
+						catch: fail("eval-store-local", "putDatasetManifest"),
+					}),
+				getDatasetManifest: (id, version) =>
+					Effect.try({
+						try: () => {
+							const row = selectDs.get(id, version) as { doc: string } | undefined;
+							return row ? decodeDatasetManifest(JSON.parse(row.doc)) : null;
+						},
+						catch: fail("eval-store-local", "getDatasetManifest"),
+					}),
+				listDatasetManifests: () =>
+					Effect.try({
+						try: () =>
+							(listDs.all() as { doc: string }[]).map((r) =>
+								decodeDatasetManifest(JSON.parse(r.doc)),
+							),
+						catch: fail("eval-store-local", "listDatasetManifests"),
+					}),
+				putCalibrationReport: (report) =>
+					Effect.try({
+						try: () => {
+							const validated = decodeCalibration(report);
+							upsertCal.run({ id: validated.id, doc: JSON.stringify(validated) });
+						},
+						catch: fail("eval-store-local", "putCalibrationReport"),
+					}),
+				listCalibrationReports: (filter) =>
+					Effect.try({
+						try: () =>
+							(listCal.all() as { doc: string }[])
+								.map((r) => decodeCalibration(JSON.parse(r.doc)))
+								.filter(
+									(c) =>
+										(filter?.suiteId === undefined || c.suiteId === filter.suiteId) &&
+										(filter?.runId === undefined || c.runId === filter.runId),
+								),
+						catch: fail("eval-store-local", "listCalibrationReports"),
 					}),
 			});
 		}),

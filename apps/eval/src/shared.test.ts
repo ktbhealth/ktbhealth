@@ -4,7 +4,11 @@ import * as path from "node:path";
 
 import * as Effect from "effect/Effect";
 import { Option } from "effect";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+
+import { execSync } from "node:child_process";
+
+vi.mock("node:child_process", () => ({ execSync: vi.fn<typeof execSync>() }));
 
 import { PortError } from "@ktb/eval-core";
 
@@ -13,11 +17,14 @@ import { UsageError } from "./errors.ts";
 import {
 	assertCapabilities,
 	datasetVersionOf,
+	gitSha,
 	intFlag,
 	isTransientBatchError,
 	localeFlag,
+	manifestHashOf,
 	resolveFor,
 	selectProfile,
+	sha256Hex,
 	workdirFlag,
 } from "./shared.ts";
 import type { LoadedSuite } from "./suites.ts";
@@ -40,6 +47,33 @@ const suite = (over: Record<string, unknown> = {}): LoadedSuite => ({
 
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 const runErr = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(Effect.flip(effect));
+
+describe("sha256Hex/manifestHashOf/gitSha (P-076)", () => {
+	test("sha256Hex matches the known vector", () => {
+		expect(sha256Hex("abc")).toBe(
+			"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+		);
+	});
+
+	test("manifestHashOf is stable and content-sensitive", () => {
+		const a = manifestHashOf(suite().manifest);
+		expect(a).toMatch(/^[0-9a-f]{64}$/);
+		expect(manifestHashOf(suite().manifest)).toBe(a);
+		expect(manifestHashOf(suite({ id: "other" }).manifest)).not.toBe(a);
+	});
+
+	test("gitSha trims stdout, and degrades to undefined", () => {
+		const mock = vi.mocked(execSync);
+		mock.mockReturnValue(Buffer.from("deadbeef\n") as never);
+		expect(gitSha("/anywhere")).toBe("deadbeef");
+		mock.mockReturnValue(Buffer.from("") as never);
+		expect(gitSha("/anywhere")).toBeUndefined();
+		mock.mockImplementation(() => {
+			throw new Error("not a git repo");
+		});
+		expect(gitSha("/anywhere")).toBeUndefined();
+	});
+});
 
 describe("datasetVersionOf", () => {
 	test("joins dataset id and version", () => {

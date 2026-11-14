@@ -1,5 +1,5 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import { ReportPort, type Contribution } from "@ktb/eval-core";
+import { EvalStorePort, ReportPort, type Contribution } from "@ktb/eval-core";
 import { DatasetStorePort } from "@ktb/eval-consultation/ports";
 
 /**
@@ -54,6 +54,22 @@ export const storageDatasetContributions: readonly Contribution[] = [
 			adapters: {
 				stub: "@ktb/eval-adapter-stub",
 				jsonl: "@ktb/eval-adapter-local",
+			},
+		},
+	},
+	{
+		// Framework-level artifact store (P-076): experiments, dataset
+		// manifests, calibration reports — cross-suite registry state,
+		// same adapter packages as `store`.
+		kind: "eval.capability",
+		id: "registry",
+		version: "1",
+		meta: {
+			port: EvalStorePort.key,
+			adapters: {
+				stub: "@ktb/eval-adapter-stub",
+				"sqlite-fs": "@ktb/eval-adapter-local",
+				r2: "@ktb/eval-adapter-cloud",
 			},
 		},
 	},
