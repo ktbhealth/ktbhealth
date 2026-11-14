@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ContributionRegistry } from "@ktb/eval-core";
-import { TtsPort } from "@ktb/eval-consult/ports";
+import { TtsPort } from "@ktb/eval-consultation/ports";
 
 import { plugins } from "./index.ts";
 import { ttsContributions } from "./index.ts";

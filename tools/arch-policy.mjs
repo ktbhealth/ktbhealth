@@ -46,14 +46,21 @@ const PORT_PACKAGE_NAMES = [
 
 const pkgGlob = (names) => `packages/{${names.join(",")}}/src/**/*.{ts,tsx}`;
 
-/** Files held to the strict boundary: ports, domain packages, plugins. */
-export const PORT_GLOBS = [pkgGlob(PORT_PACKAGE_NAMES), "plugins/**/*.{ts,tsx}"];
+/** Files held to the strict boundary: ports, domain packages, plugins,
+ * and eval domain packs (evals/<domain>/ — plain packages since P-075,
+ * held to the same boundary they had under plugins/). */
+export const PORT_GLOBS = [
+	pkgGlob(PORT_PACKAGE_NAMES),
+	"plugins/**/*.{ts,tsx}",
+	"evals/**/*.{ts,tsx}",
+];
 
 /** Test files inside the strict boundary — relaxed by the test override
  * in vite.config.ts (Node APIs and impl mocks are fine in tests). */
 export const PORT_TEST_GLOBS = [
 	`packages/{${PORT_PACKAGE_NAMES.join(",")}}/src/**/*.test.{ts,tsx}`,
 	"plugins/**/*.test.{ts,tsx}",
+	"evals/**/*.test.{ts,tsx}",
 ];
 
 /** Import specifiers that tie code to a runtime or cloud platform. */

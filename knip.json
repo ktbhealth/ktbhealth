@@ -27,6 +27,12 @@
 			// Ambient globals via /// <reference types> in src/env.d.ts.
 			"ignoreDependencies": ["@cloudflare/workers-types"]
 		},
+		"evals/*": {
+			// Suite manifests are loaded by file path at runtime
+			// (apps/eval/src/suites.ts scans evals/ recursively) — never
+			// statically imported, so knip would flag them as unused.
+			"entry": ["*.suite.ts"]
+		},
 		"packages/eval-adapter-local": {
 			// Runnable benchmark harness — `bun scripts/bench/wer.ts`
 			// (see scripts/bench/BENCHMARK.md), not imported anywhere.

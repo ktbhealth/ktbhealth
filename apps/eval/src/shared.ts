@@ -14,7 +14,7 @@ import { CliError } from "effect/cli";
 
 import type { BatchOutcome, EvalSuiteManifest } from "@ktb/eval-core";
 import { PortError } from "@ktb/eval-core";
-import { ptBR, type LocaleProfile } from "@ktb/eval-consult";
+import { ptBR, type LocaleProfile } from "@ktb/eval-consultation";
 
 import { buildRegistry } from "./contributions.ts";
 import { UsageError } from "./errors.ts";

@@ -2,7 +2,14 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
-		projects: ["apps/web", "apps/eval", "packages/*", "plugins/*", "infra/*"],
+		projects: [
+			"apps/web",
+			"apps/eval",
+			"evals/*/vitest.config.ts",
+			"packages/*",
+			"plugins/*",
+			"infra/*",
+		],
 		coverage: {
 			provider: "v8",
 			enabled: true,
@@ -10,6 +17,7 @@ export default defineConfig({
 			include: [
 				"apps/web/src/**",
 				"apps/eval/src/**",
+				"evals/*/src/**",
 				"packages/*/src/**",
 				"plugins/*/src/**",
 				"infra/*/src/**",

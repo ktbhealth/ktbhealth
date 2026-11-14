@@ -24,7 +24,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { EvalPort, PortError, type RunRecord } from "@ktb/eval-core";
-import { AsrPort, LlmPort, TtsPort, type TaskEnvelope } from "@ktb/eval-consult";
+import { AsrPort, LlmPort, TtsPort, type TaskEnvelope } from "@ktb/eval-consultation";
 import { makeWorkersAiAsr } from "@ktb/eval-adapter-cloud";
 import {
 	makeAcpLlm,

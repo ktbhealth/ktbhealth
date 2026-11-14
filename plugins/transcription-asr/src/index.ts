@@ -1,6 +1,6 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import type { Contribution } from "@ktb/eval-core";
-import { AsrPort } from "@ktb/eval-consult/ports";
+import { AsrPort } from "@ktb/eval-consultation/ports";
 
 /**
  * transcription.asr — ASR capability plugin (P-074 phase 3, P-070).
@@ -21,9 +21,10 @@ import { AsrPort } from "@ktb/eval-consult/ports";
 
 /**
  * Declared contributions. ASR is the PHI-sensitive port: every adapter
- * declares `egress` on the port shape and `guardAsrPort` (eval.consult
- * phi.ts) enforces provenance before any egress-capable adapter runs —
- * that policy is domain code and stays in eval.consult.
+ * declares `egress` on the port shape and `guardAsrPort` (the
+ * consultation domain pack's phi.ts, evals/consultation) enforces
+ * provenance before any egress-capable adapter runs — that policy is
+ * domain code and stays in the domain pack.
  */
 export const asrContributions: readonly Contribution[] = [
 	{

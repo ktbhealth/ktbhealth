@@ -8,10 +8,13 @@
  * dynamic import of .ts are legal here (type stripping on both Bun
  * and Node ≥ 23.6).
  *
- * Convention: ONLY `*.suite.ts` files are manifests. Any other `.ts`
- * in evals/ is a shared helper module (schemas, fixtures, builders)
- * and is never imported by the loader — keeping helpers out of the
- * manifest glob is what lets `eval list` stay a pure manifest scan.
+ * Convention (P-075): ONLY `*.suite.ts` files are manifests, discovered
+ * RECURSIVELY under evals/ so a manifest stays colocated with its
+ * domain pack (`evals/<domain>/<name>.suite.ts`). Any other `.ts`
+ * file is a shared helper module (schemas, fixtures, builders) or
+ * domain-pack source and is never imported by the loader — keeping
+ * helpers out of the manifest glob is what lets `eval list` stay a
+ * pure manifest scan. `node_modules` and dot-directories are skipped.
  */
 
 import * as fs from "node:fs";
@@ -28,17 +31,28 @@ export interface LoadedSuite {
 /** The export name every suite module must provide. */
 const SUITE_EXPORT = "suite";
 
-/** Sorted `*.suite.ts` manifest files in `dir` (non-recursive).
- * Plain `.ts` helpers are ignored by convention — see module header. */
+/** Sorted `*.suite.ts` manifest files under `dir`, recursively —
+ * domain packs colocate their suites (`evals/<domain>/<name>.suite.ts`,
+ * P-075). `node_modules` and dot-directories are skipped; plain `.ts`
+ * helpers are ignored by convention — see module header. */
 export const listSuiteFiles = (dir: string): readonly string[] => {
 	if (!fs.existsSync(dir)) {
 		throw new Error(`suite directory not found: ${dir}`);
 	}
-	return fs
-		.readdirSync(dir, { withFileTypes: true })
-		.filter((d) => d.isFile() && d.name.endsWith(".suite.ts"))
-		.map((d) => path.join(dir, d.name))
-		.sort();
+	const out: string[] = [];
+	const walk = (d: string): void => {
+		for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+			if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+			const full = path.join(d, entry.name);
+			if (entry.isDirectory()) {
+				walk(full);
+			} else if (entry.isFile() && entry.name.endsWith(".suite.ts")) {
+				out.push(full);
+			}
+		}
+	};
+	walk(dir);
+	return out.sort();
 };
 
 /** Import one suite module and validate its `suite` export. Any

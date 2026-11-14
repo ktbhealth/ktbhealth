@@ -1,6 +1,6 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { ReportPort, type Contribution } from "@ktb/eval-core";
-import { DatasetStorePort } from "@ktb/eval-consult/ports";
+import { DatasetStorePort } from "@ktb/eval-consultation/ports";
 
 /**
  * storage.dataset — dataset persistence + reporting capability plugin

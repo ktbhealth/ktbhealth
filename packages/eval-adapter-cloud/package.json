@@ -6,7 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-consultation": "workspace:*",
 		"@ktb/eval-core": "workspace:*",
 		"effect": "4.1.2"
 	}

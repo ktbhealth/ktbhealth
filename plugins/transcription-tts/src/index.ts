@@ -1,6 +1,6 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import type { Contribution } from "@ktb/eval-core";
-import { TtsPort } from "@ktb/eval-consult/ports";
+import { TtsPort } from "@ktb/eval-consultation/ports";
 
 /**
  * transcription.tts — TTS capability plugin (P-074 phase 3, P-070).

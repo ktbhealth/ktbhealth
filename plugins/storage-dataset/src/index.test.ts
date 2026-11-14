@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ContributionRegistry, ReportPort } from "@ktb/eval-core";
-import { DatasetStorePort } from "@ktb/eval-consult/ports";
+import { DatasetStorePort } from "@ktb/eval-consultation/ports";
 
 import { plugins, storageDatasetContributions } from "./index.ts";
 

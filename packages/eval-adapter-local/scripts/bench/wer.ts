@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { wer } from "@ktb/eval-consult";
+import { wer } from "@ktb/eval-consultation";
 
 interface BenchResult {
 	readonly model: string;

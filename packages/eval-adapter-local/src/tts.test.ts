@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import { describe, expect, it, vi } from "vitest";
 
 import { PortError } from "@ktb/eval-core";
-import { TtsPort } from "@ktb/eval-consult";
+import { TtsPort } from "@ktb/eval-consultation";
 
 import {
 	defaultRun,

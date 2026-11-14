@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { BlobMeta, PortError, ReportPort, renderRunMarkdown, type RunRecord } from "@ktb/eval-core";
-import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consult";
+import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consultation";
 
 /**
  * Local adapters — filesystem + SQLite, no network. Blobs land under

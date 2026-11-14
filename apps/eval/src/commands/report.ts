@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import { Console, Option } from "effect";
 import { Argument, Command, Flag } from "effect/cli";
 
-import { DatasetStorePort, ReportPort } from "@ktb/eval-consult";
+import { DatasetStorePort, ReportPort } from "@ktb/eval-consultation";
 
 import { storeReportLayers } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";

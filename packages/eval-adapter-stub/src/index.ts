@@ -21,7 +21,7 @@ import {
 	TtsPort,
 	type AsrResult,
 	type AudioRef,
-} from "@ktb/eval-consult";
+} from "@ktb/eval-consultation";
 
 /**
  * Deterministic stub adapters — zero I/O, zero cost. The fast CI path

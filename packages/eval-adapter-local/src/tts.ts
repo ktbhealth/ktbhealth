@@ -31,7 +31,7 @@ import * as Schedule from "effect/Schedule";
 import * as Semaphore from "effect/Semaphore";
 
 import { PortError } from "@ktb/eval-core";
-import { TtsPort, type AcousticProfile, type NoiseProfile } from "@ktb/eval-consult";
+import { TtsPort, type AcousticProfile, type NoiseProfile } from "@ktb/eval-consultation";
 
 export type CliRunner = (cmd: readonly string[]) => Effect.Effect<void, PortError>;
 

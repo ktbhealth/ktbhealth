@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 
-import { DatasetStorePort, type Sample, type SampleResult } from "@ktb/eval-consult";
+import { DatasetStorePort, type Sample, type SampleResult } from "@ktb/eval-consultation";
 
 import { type BucketLike, makeR2Store } from "./r2.ts";
 

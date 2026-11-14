@@ -36,6 +36,7 @@ check(
 	PORT_GLOBS.some((g) => g.includes("packages/{")),
 );
 check("PORT_GLOBS covers plugins", PORT_GLOBS.includes("plugins/**/*.{ts,tsx}"));
+check("PORT_GLOBS covers eval domain packs", PORT_GLOBS.includes("evals/**/*.{ts,tsx}"));
 check(
 	"PORT_TEST_GLOBS relaxes test files only",
 	PORT_TEST_GLOBS.every((g) => g.includes(".test.")),

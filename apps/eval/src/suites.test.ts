@@ -35,6 +35,23 @@ beforeAll(() => {
 	// `suite` field must be ignored by the loader (evals/ convention).
 	write("helpers.ts", `export const suite = { nope: true };`);
 	write("notes.txt", "not a suite");
+	// P-075: manifests colocate with their domain pack — the loader
+	// scans subdirectories recursively.
+	fs.mkdirSync(path.join(dir, "pack"));
+	fs.writeFileSync(
+		path.join(dir, "pack", "nested.suite.ts"),
+		`export const suite = { id: "nested", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], schemaVersion: 1 };`,
+	);
+	fs.writeFileSync(path.join(dir, "pack", "helper.ts"), `export const x = 1;`);
+	fs.mkdirSync(path.join(dir, "pack", "node_modules"));
+	fs.writeFileSync(
+		path.join(dir, "pack", "node_modules", "ignored.suite.ts"),
+		`export const suite = 1;`,
+	);
+	fs.mkdirSync(path.join(dir, "pack", ".hidden"));
+	fs.writeFileSync(path.join(dir, "pack", ".hidden", "hidden.suite.ts"), `export const suite = 1;`);
+	// A symlink is neither dir nor file — skipped silently.
+	fs.symlinkSync(path.join(dir, "valid.suite.ts"), path.join(dir, "pack", "link.suite.ts"));
 });
 
 afterAll(() => {
@@ -42,9 +59,17 @@ afterAll(() => {
 });
 
 describe("listSuiteFiles", () => {
-	test("returns sorted *.suite.ts files, skipping helpers/tests/dts/non-ts", () => {
-		const files = listSuiteFiles(dir).map((f) => path.basename(f));
-		expect(files).toEqual(["invalid.suite.ts", "noexport.suite.ts", "valid.suite.ts"]);
+	test("returns sorted *.suite.ts files recursively, skipping helpers/node_modules/dot-dirs", () => {
+		const files = listSuiteFiles(dir);
+		expect(files.map((f) => path.basename(f))).toEqual([
+			"invalid.suite.ts",
+			"noexport.suite.ts",
+			"nested.suite.ts",
+			"valid.suite.ts",
+		]);
+		expect(files.find((f) => f.endsWith("nested.suite.ts"))).toContain(
+			`${path.sep}pack${path.sep}`,
+		);
 	});
 
 	test("missing dir is an error", () => {
@@ -63,6 +88,11 @@ describe("loadSuiteFile", () => {
 		await expect(loadSuiteFile(path.join(dir, "invalid.suite.ts"))).rejects.toThrow(
 			/valid EvalSuiteManifest/,
 		);
+	});
+
+	test("loads a manifest colocated in a domain subdirectory", async () => {
+		const s = await loadSuiteFile(path.join(dir, "pack", "nested.suite.ts"));
+		expect(s.manifest.id).toBe("nested");
 	});
 
 	test("missing suite export is an error", async () => {
@@ -116,9 +146,10 @@ describe("loadSuites / findSuite", () => {
 });
 
 describe("repo manifests", () => {
-	test("the real evals/consult-asr.suite.ts loads through the same path", async () => {
+	test("the real evals/consultation/consult-asr.suite.ts loads through the same path", async () => {
 		// exercises the defineSuite'd manifest end-to-end (dynamic import
-		// of a workspace .ts under the repo root).
+		// of a workspace .ts under the repo root) — colocated inside its
+		// domain pack since P-075.
 		const repoEvals = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../evals");
 		const suites = await loadSuites(repoEvals);
 		expect(suites.map((s) => s.manifest.id)).toContain("consult-asr");

@@ -30,7 +30,7 @@ import * as Layer from "effect/Layer";
 import type * as Schedule from "effect/Schedule";
 
 import { PortError, type BlobMeta } from "@ktb/eval-core";
-import { AsrPort, AsrResult } from "@ktb/eval-consult";
+import { AsrPort, AsrResult } from "@ktb/eval-consultation";
 
 const WorkersAiResult = Schema.Struct({
 	// Optional so a success=false payload still decodes — the provider's

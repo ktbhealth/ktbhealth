@@ -1,6 +1,6 @@
 # @ktb/eval-adapter-stub
 
-Deterministic, zero-I/O adapters for every `@ktb/eval-consult`/`@ktb/eval-core` ports.
+Deterministic, zero-I/O adapters for every `@ktb/eval-consultation`/`@ktb/eval-core` ports.
 Used by unit tests and the default CI path — the expensive suite
 (real TTS/ASR/Jev) stays opt-in.
 

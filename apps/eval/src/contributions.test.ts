@@ -36,13 +36,14 @@ describe("buildRegistry", () => {
 });
 
 describe("evalPlugins", () => {
-	test("discovers the five eval plugin manifests in topo order", () => {
+	test("discovers the four capability plugin manifests in topo order", () => {
+		// Domain packs are not plugins (P-075) — eval.consult dissolved
+		// into evals/consultation and contributes via consultContributions.
 		expect(evalPlugins.map((p) => p.id)).toEqual([
 			"transcription.tts",
 			"transcription.asr",
 			"llm.eval",
 			"storage.dataset",
-			"eval.consult",
 		]);
 	});
 });

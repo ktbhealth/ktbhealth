@@ -1,6 +1,6 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
 import { EvalPort, type Contribution } from "@ktb/eval-core";
-import { LlmPort } from "@ktb/eval-consult/ports";
+import { LlmPort } from "@ktb/eval-consultation/ports";
 
 /**
  * llm.eval — generative + decision capability plugin (P-074 phase 3,
@@ -18,8 +18,8 @@ import { LlmPort } from "@ktb/eval-consult/ports";
  * mechanism.
  *
  * The ACP wire contract (acp.ts) and TaskEnvelope codec are DOMAIN
- * code and stay in eval.consult — this plugin only declares which
- * adapters speak it.
+ * code and stay in the consultation domain pack (evals/consultation)
+ * — this plugin only declares which adapters speak it.
  *
  * Adapter keys → packages: "stub" → @ktb/eval-adapter-stub,
  * "acp" → @ktb/eval-adapter-local `makeAcpLlm`,

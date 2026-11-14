@@ -3,7 +3,7 @@ import * as Schedule from "effect/Schedule";
 import { describe, expect, it } from "vitest";
 
 import { PortError } from "@ktb/eval-core";
-import { AsrPort } from "@ktb/eval-consult";
+import { AsrPort } from "@ktb/eval-consultation";
 
 import { isLoopbackUrl, makeLocalAsr } from "./asr.ts";
 

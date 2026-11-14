@@ -1,5 +1,5 @@
 {
-	"name": "@ktb/eval-consult",
+	"name": "@ktb/eval-consultation",
 	"private": true,
 	"type": "module",
 	"exports": {
@@ -9,7 +9,6 @@
 	},
 	"dependencies": {
 		"@ktb/eval-core": "workspace:*",
-		"@ktb/kernel": "workspace:*",
 		"effect": "4.1.2",
 		"eta": "^4.6.0"
 	}

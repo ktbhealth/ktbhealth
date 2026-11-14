@@ -13,7 +13,7 @@ import * as Layer from "effect/Layer";
 import type * as Schedule from "effect/Schedule";
 
 import { EvalAnswer, EvalPort, PortError } from "@ktb/eval-core";
-import { fnvHex } from "@ktb/eval-consult";
+import { fnvHex } from "@ktb/eval-consultation";
 
 import { isLoopbackUrl } from "./asr.ts";
 

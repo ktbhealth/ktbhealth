@@ -25,7 +25,7 @@ import {
 	LlmPort,
 	type AcpRequest,
 	type EditList,
-} from "@ktb/eval-consult";
+} from "@ktb/eval-consultation";
 
 export type AcpTransport = (request: AcpRequest) => Effect.Effect<unknown, PortError>;
 

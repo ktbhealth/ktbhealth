@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ContributionRegistry, EvalPort } from "@ktb/eval-core";
-import { LlmPort } from "@ktb/eval-consult/ports";
+import { LlmPort } from "@ktb/eval-consultation/ports";
 
 import { llmEvalContributions, plugins } from "./index.ts";
 

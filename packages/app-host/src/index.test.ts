@@ -41,30 +41,22 @@ describe("createApp", () => {
 		expect(plugins.length).toBeGreaterThan(0);
 	});
 
-	it("discovers eval packs with their generic contributions (P-070)", () => {
-		// Eval packs joined the registry when the negative globs were
-		// removed: they carry eval.* entries on the `contributions`
-		// channel — data the host never collects (consumers opt in per
-		// kind), so discovery stays side-effect free for them.
+	it("discovers eval capability packs with their generic contributions (P-070)", () => {
+		// Eval capability packs joined the registry when the negative
+		// globs were removed: they carry eval.* entries on the
+		// `contributions` channel — data the host never collects
+		// (consumers opt in per kind), so discovery stays side-effect
+		// free for them. Domain packs are NOT plugins (P-075):
+		// eval.consult dissolved into evals/consultation and no longer
+		// appears here.
 		const byId = new Map(plugins.map((p) => [p.id, p]));
-		for (const id of [
-			"eval.consult",
-			"llm.eval",
-			"storage.dataset",
-			"transcription.asr",
-			"transcription.tts",
-		]) {
+		for (const id of ["llm.eval", "storage.dataset", "transcription.asr", "transcription.tts"]) {
 			expect(byId.has(id), id).toBe(true);
 		}
+		expect(byId.has("eval.consult")).toBe(false);
 		expect(byId.get("transcription.tts")?.contributions?.length).toBeGreaterThan(0);
 		// And they contribute nothing the host's surfaces consume.
-		for (const id of [
-			"eval.consult",
-			"llm.eval",
-			"storage.dataset",
-			"transcription.asr",
-			"transcription.tts",
-		]) {
+		for (const id of ["llm.eval", "storage.dataset", "transcription.asr", "transcription.tts"]) {
 			const p = byId.get(id);
 			expect(p?.tables).toBeUndefined();
 			expect(p?.services).toBeUndefined();

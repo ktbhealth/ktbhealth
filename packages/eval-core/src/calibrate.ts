@@ -34,8 +34,8 @@ export interface CalibrationVerdict {
 }
 
 /** Pooled precision floor over judged segments — `confidence` is NOT
- * consulted here (this is not confidence calibration; see accept.ts
- * in the domain pack for how the gate combines this verdict with the
+ * read here (this is not confidence calibration; see the domain
+ * pack's gate for how this verdict combines with the
  * per-band veto). */
 export const calibrate = (
 	segments: readonly ConfSegment[],

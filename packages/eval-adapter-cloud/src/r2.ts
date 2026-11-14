@@ -21,7 +21,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import { BlobMeta, PortError } from "@ktb/eval-core";
-import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consult";
+import { DatasetStorePort, Sample, SampleResult } from "@ktb/eval-consultation";
 
 /** Minimal R2 surface — structurally compatible with R2Bucket. */
 export interface BucketLike {

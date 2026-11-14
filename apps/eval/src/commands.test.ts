@@ -324,7 +324,7 @@ describe("run/gate/report round-trip", () => {
 	test("gate/report ignore results stamped with another datasetVersion", async () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-otherds-"));
 		const { store } = storeReportLayers(wd);
-		const { DatasetStorePort } = await import("@ktb/eval-consult");
+		const { DatasetStorePort } = await import("@ktb/eval-consultation");
 		await Effect.runPromise(
 			Effect.gen(function* () {
 				const s = yield* DatasetStorePort;
@@ -377,7 +377,7 @@ describe("run/gate/report round-trip", () => {
 	test("gate is GREEN (and enforce passes) when every result passes", async () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-green-"));
 		const { store } = storeReportLayers(wd);
-		const { DatasetStorePort } = await import("@ktb/eval-consult");
+		const { DatasetStorePort } = await import("@ktb/eval-consultation");
 		await Effect.runPromise(
 			Effect.gen(function* () {
 				const s = yield* DatasetStorePort;
@@ -454,7 +454,7 @@ describe("run/gate/report round-trip", () => {
 	test("report renders the latest runId and handles metric-less rows", async () => {
 		const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-report-"));
 		const { store } = storeReportLayers(wd);
-		const { DatasetStorePort } = await import("@ktb/eval-consult");
+		const { DatasetStorePort } = await import("@ktb/eval-consultation");
 		const put = (runId: string, sampleId: string, createdAt: number) =>
 			Effect.runPromise(
 				Effect.gen(function* () {
@@ -495,7 +495,7 @@ describe("run/gate/report round-trip", () => {
 			// A sample with no audio fails its step but not the batch.
 			const wd = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-badsample-"));
 			await exec(["generate", "fx", "--n", "1", "--workdir", wd]);
-			const { DatasetStorePort: DSP } = await import("@ktb/eval-consult");
+			const { DatasetStorePort: DSP } = await import("@ktb/eval-consultation");
 			const { store } = storeReportLayers(wd);
 			await Effect.runPromise(
 				Effect.gen(function* () {
@@ -605,7 +605,7 @@ describe("stage dispatch", () => {
 				0,
 			);
 			const { store } = storeReportLayers(workdir);
-			const { DatasetStorePort } = await import("@ktb/eval-consult");
+			const { DatasetStorePort } = await import("@ktb/eval-consultation");
 			const results = await Effect.runPromise(
 				Effect.gen(function* () {
 					const s = yield* DatasetStorePort;
@@ -634,7 +634,7 @@ describe("stage dispatch", () => {
 			const out = spy.mock.calls.flat().join("\n");
 			expect(out).toContain("no corrected stage");
 			const { store } = storeReportLayers(workdir);
-			const { DatasetStorePort } = await import("@ktb/eval-consult");
+			const { DatasetStorePort } = await import("@ktb/eval-consultation");
 			const results = await Effect.runPromise(
 				Effect.gen(function* () {
 					const s = yield* DatasetStorePort;

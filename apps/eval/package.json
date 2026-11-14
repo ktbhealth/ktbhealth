@@ -12,7 +12,7 @@
 		"@ktb/eval-adapter-cloud": "workspace:*",
 		"@ktb/eval-adapter-local": "workspace:*",
 		"@ktb/eval-adapter-stub": "workspace:*",
-		"@ktb/eval-consult": "workspace:*",
+		"@ktb/eval-consultation": "workspace:*",
 		"@ktb/eval-core": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/llm-eval": "workspace:*",

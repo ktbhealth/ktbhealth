@@ -21,7 +21,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 
 import { PortError } from "@ktb/eval-core";
-import { AsrPort, AsrResult } from "@ktb/eval-consult";
+import { AsrPort, AsrResult } from "@ktb/eval-consultation";
 
 export interface LocalAsrOptions {
 	readonly baseUrl: string;
@@ -34,7 +34,7 @@ export interface LocalAsrOptions {
 	 * timeouts on CPU inference are not cheap to repeat. */
 	readonly retry?: Schedule.Schedule<unknown, PortError>;
 	/** PHI egress declaration consumed by the domain policy
-	 * (guardAsrPort in @ktb/eval-consult): `true` = audio may leave
+	 * (guardAsrPort in @ktb/eval-consultation): `true` = audio may leave
 	 * the perimeter, `false` = local-only. Default: auto-derived —
 	 * loopback baseUrls are local-only, anything else egresses. Set
 	 * explicitly when the service is remote-but-trusted. */

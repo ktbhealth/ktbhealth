@@ -28,7 +28,7 @@ import {
 	sampleMatrix,
 	type AcousticProfile,
 	type Persona,
-} from "@ktb/eval-consult";
+} from "@ktb/eval-consultation";
 
 import { modelLayer, storeReportLayers, type WireContext } from "../adapters.ts";
 import type { CmdContext } from "../context.ts";
@@ -114,7 +114,7 @@ export const makeGenerateCommand = (ctx: CmdContext) =>
 						fs.readFileSync(
 							path.join(
 								ctx.repoRoot,
-								"plugins/eval-consult/templates",
+								"evals/consultation/templates",
 								locale,
 								`${templateName}.eta`,
 							),
