@@ -29,6 +29,7 @@ GF_SECURITY_ADMIN_USER=admin
 GF_SECURITY_ADMIN_PASSWORD=__GF_ADMIN_PASSWORD__
 GF_SERVER_ROOT_URL=https://ktb-grafana.luisfuturist.com
 NTFY_URL=__NTFY_URL__
+NTFY_AUTH_TOKEN=__NTFY_AUTH_TOKEN__
 NTFY_PUBLIC_URL=https://ktb-ntfy.luisfuturist.com
 PROMETHEUS_EXTRA_ARGS=--storage.tsdb.retention.time=7d
 ENVEOF
