@@ -2,9 +2,12 @@
  * llm.ts — LlmPort over an ACP session (T-104).
  *
  * The adapter serializes `TaskEnvelope`s to the frozen wire format and
- * validates every response against the envelope's declared
+ * validates every response against the envelope's DECLARED
  * `outputSchema` via the validator registry — a misbehaving agent
- * produces typed PortErrors, never silent garbage.
+ * produces typed PortErrors, never silent garbage. `generate()` trusts
+ * the declared contract (any registered string-producing schema works)
+ * and only requires the validated payload to be a string; `correct()`
+ * pins `EditList` because the port must return a typed edit list.
  *
  * `transport` is the ONLY edge: inject the JSON-RPC send (stdio,
  * socket, in-process Devin ACP session). Session id is fixed per
@@ -15,7 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import type { AcpRequest, RunRecord, TaskEnvelope } from "@ktb/eval-dataset";
-import { decodeTaskResult, encodeTask, LlmPort, PortError } from "@ktb/eval-dataset";
+import { decodeTaskResult, encodeTask, fnvHex, LlmPort, PortError } from "@ktb/eval-dataset";
 import type { EditList } from "@ktb/eval-dataset";
 
 export type AcpTransport = (request: AcpRequest) => Effect.Effect<unknown, PortError>;
@@ -23,19 +26,22 @@ export type AcpTransport = (request: AcpRequest) => Effect.Effect<unknown, PortE
 export interface AcpLlmOptions {
 	readonly transport: AcpTransport;
 	readonly sessionId?: string;
+	/** Per-call timeout in ms. Default 60_000 — matches the local ASR
+	 * adapter; agent sessions can be slow. */
+	readonly timeoutMs?: number;
 }
 
 const call = (
 	opts: AcpLlmOptions,
 	envelope: TaskEnvelope,
 	stage: string,
-	expectedSchema: string,
+	expectedSchema?: string,
 ): Effect.Effect<{ payload: unknown; record: RunRecord }, PortError> => {
 	const started = Date.now();
-	// The port method binds the contract: generate() speaks Text,
-	// correct() speaks EditList. A mis-declared envelope fails typed at
-	// the boundary instead of producing a payload cast into a lie.
-	if (envelope.outputSchema !== expectedSchema) {
+	// Methods with a typed return pin the contract up front: correct()
+	// speaks EditList. generate() is schema-agnostic — the envelope's
+	// declared outputSchema selects the validator dynamically.
+	if (expectedSchema !== undefined && envelope.outputSchema !== expectedSchema) {
 		return Effect.fail(
 			new PortError({
 				port: "llm",
@@ -43,7 +49,20 @@ const call = (
 			}),
 		);
 	}
-	return opts.transport(encodeTask(envelope, opts.sessionId)).pipe(
+	const timeoutMs = opts.timeoutMs ?? 60_000;
+	const guarded = opts.transport(encodeTask(envelope, opts.sessionId)).pipe(
+		Effect.timeout(`${timeoutMs} millis`),
+		Effect.mapError((e) =>
+			e instanceof PortError
+				? e
+				: new PortError({
+						port: "llm",
+						message: `timeout after ${timeoutMs}ms`,
+						cause: e,
+					}),
+		),
+	);
+	return guarded.pipe(
 		Effect.flatMap((response) =>
 			Effect.try({
 				try: () => decodeTaskResult({ response, envelope }),
@@ -59,7 +78,12 @@ const call = (
 				stage,
 				engine: "acp",
 				model: envelope.modelHint,
-				inputHash: `${envelope.taskId}:${envelope.seed ?? 0}`,
+				// Content hash of the actual task input — dedupes reruns of
+				// identical work without pretending taskId+seed is the
+				// payload.
+				inputHash: fnvHex(
+					`${envelope.taskId}:${envelope.outputSchema}:${envelope.input}:${envelope.seed ?? 0}`,
+				),
 				seed: envelope.seed,
 				startedAt: started,
 				latencyMs: Date.now() - started,
@@ -73,11 +97,24 @@ export const makeAcpLlm = (opts: AcpLlmOptions): Layer.Layer<LlmPort> =>
 		LlmPort,
 		LlmPort.of({
 			generate: (envelope) =>
-				call(opts, envelope, "generate", "Text").pipe(
-					Effect.map(({ payload, record }) => ({ text: payload as string, record })),
+				call(opts, envelope, "script_gen").pipe(
+					Effect.flatMap(({ payload, record }) => {
+						// The port returns text: whatever schema the envelope
+						// declared validated the payload, but it must still
+						// be a string — never cast an object into a lie.
+						if (typeof payload !== "string") {
+							return Effect.fail(
+								new PortError({
+									port: "llm",
+									message: `generate requires a string payload, ${envelope.outputSchema} produced ${typeof payload}`,
+								}),
+							);
+						}
+						return Effect.succeed({ text: payload, record });
+					}),
 				),
 			correct: (envelope) =>
-				call(opts, envelope, "correct", "EditList").pipe(
+				call(opts, envelope, "cleanup", "EditList").pipe(
 					Effect.map(({ payload, record }) => ({ edits: payload as EditList, record })),
 				),
 		}),
