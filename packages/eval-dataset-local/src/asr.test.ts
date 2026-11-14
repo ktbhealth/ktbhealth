@@ -21,11 +21,15 @@ const okFetch = (body: unknown = asrBody, status = 200) =>
 			}),
 		)) as typeof fetch;
 
-const run = (fetchImpl: typeof fetch, opts: Partial<Parameters<typeof makeLocalAsr>[0]> = {}) =>
+const run = (
+	fetchImpl: typeof fetch,
+	opts: Partial<Parameters<typeof makeLocalAsr>[0]> = {},
+	uri = "file:///tmp/x.wav",
+) =>
 	Effect.runPromise(
 		Effect.gen(function* () {
 			const asr = yield* AsrPort;
-			return yield* asr.transcribe({ uri: "file:///tmp/x.wav" });
+			return yield* asr.transcribe({ uri });
 		}).pipe(Effect.provide(makeLocalAsr({ baseUrl: "http://localhost:8765", fetchImpl, ...opts }))),
 	);
 
@@ -75,6 +79,125 @@ describe("makeLocalAsr", () => {
 		);
 		expect(err).toBeInstanceOf(PortError);
 		expect(err.message).toContain("timeout");
+	});
+
+	it("does not retry permanent 4xx failures", async () => {
+		let calls = 0;
+		const bad = (async () => {
+			calls++;
+			return new Response("audio not found", { status: 400 });
+		}) as typeof fetch;
+		const err = await run(bad, { retry: Schedule.recurs(3) }).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(calls).toBe(1);
+	});
+
+	it("retries 5xx failures on the caller's schedule", async () => {
+		let calls = 0;
+		const flaky = (async () => {
+			calls++;
+			if (calls < 3) return new Response("boom", { status: 500 });
+			return new Response(JSON.stringify(asrBody));
+		}) as typeof fetch;
+		const r = await run(flaky, { retry: Schedule.recurs(3) });
+		expect(r.asr.text).toContain("nega febre");
+		expect(calls).toBe(3);
+	});
+
+	it("does not retry malformed response bodies", async () => {
+		let calls = 0;
+		const bad = (async () => {
+			calls++;
+			return new Response(JSON.stringify({ not: "a transcript" }));
+		}) as typeof fetch;
+		const err = await run(bad, { retry: Schedule.recurs(3) }).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err.message).toContain("malformed");
+		expect(calls).toBe(1);
+	});
+
+	it("does not retry invalid JSON bodies", async () => {
+		let calls = 0;
+		const bad = (async () => {
+			calls++;
+			return new Response("<<<not json>>>", {
+				headers: { "Content-Type": "application/json" },
+			});
+		}) as typeof fetch;
+		const err = await run(bad, { retry: Schedule.recurs(3) }).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(calls).toBe(1);
+	});
+
+	it("retries timeouts on the caller's schedule", async () => {
+		let calls = 0;
+		const slowOnce = (async () => {
+			calls++;
+			if (calls === 1) return new Promise<Response>(() => {});
+			return new Response(JSON.stringify(asrBody));
+		}) as typeof fetch;
+		const r = await run(slowOnce, { timeoutMs: 30, retry: Schedule.recurs(1) });
+		expect(r.asr.text).toContain("nega febre");
+		expect(calls).toBe(2);
+	});
+
+	it("truncates long error bodies in the PortError message", async () => {
+		const big = "x".repeat(2000);
+		const err = await run(okFetch({ error: big }, 500)).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(err.message).toContain("500");
+		expect(err.message.length).toBeLessThan(400);
+	});
+
+	it("tolerates a trailing slash on baseUrl", async () => {
+		let url = "";
+		const spy = (async (u: unknown) => {
+			url = String(u);
+			return new Response(JSON.stringify(asrBody));
+		}) as typeof fetch;
+		await run(spy, { baseUrl: "http://localhost:8765/" });
+		expect(url).toBe("http://localhost:8765/transcribe");
+	});
+
+	it("percent-decodes file:// paths", async () => {
+		let body = "";
+		const spy = (async (_u: unknown, init: RequestInit) => {
+			body = String(init.body);
+			return new Response(JSON.stringify(asrBody));
+		}) as typeof fetch;
+		await run(spy, {}, "file:///tmp/my%20file.wav");
+		expect(JSON.parse(body).audio_path).toBe("/tmp/my file.wav");
+	});
+
+	it("falls back to the raw path on malformed percent escapes", async () => {
+		let body = "";
+		const spy = (async (_u: unknown, init: RequestInit) => {
+			body = String(init.body);
+			return new Response(JSON.stringify(asrBody));
+		}) as typeof fetch;
+		await run(spy, {}, "file:///tmp/%E0%A4%A");
+		expect(JSON.parse(body).audio_path).toBe("/tmp/%E0%A4%A");
+	});
+
+	it("passes an AbortSignal so timeouts abort the request", async () => {
+		let signal: AbortSignal | null | undefined;
+		const spy = (async (_u: unknown, init: RequestInit) => {
+			signal = init.signal;
+			return new Response(JSON.stringify(asrBody));
+		}) as typeof fetch;
+		await run(spy, { timeoutMs: 5_000 });
+		expect(signal).toBeInstanceOf(AbortSignal);
 	});
 
 	it("retries transient failures on the caller's schedule", async () => {
