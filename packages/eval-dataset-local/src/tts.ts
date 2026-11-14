@@ -14,6 +14,9 @@
  * synthesis retries on a Schedule (default: exponential ∩ 3 recurs)
  * and runs under a Semaphore cap (default 2) to avoid rate limiting.
  * ffmpeg degradation is a single invocation per profile.
+ *
+ * WARNING: script text is sent to a hosted edge-tts endpoint —
+ * synthetic scripts only, never real consult/PHI text (LGPD).
  */
 
 import { execFile } from "node:child_process";
@@ -49,23 +52,52 @@ const DEFAULT_VOICES: Record<string, string> = {
 	br_female_1: "pt-BR-FranciscaNeural",
 };
 
-/** Real CLI executor: `execFile` argv-style — no shell, so no quoting
- * injection. Exit != 0 → typed PortError carrying stderr. */
-export const defaultRun: CliRunner = (cmd) =>
-	Effect.callback<void, PortError>((resume) => {
-		execFile(cmd[0]!, [...cmd.slice(1)], (err, _stdout, stderr) => {
-			resume(
-				err === null
-					? Effect.void
-					: Effect.fail(
-							new PortError({
-								port: "tts",
-								message: `${cmd[0]} failed: ${String(stderr || err.message).slice(0, 300)}`,
-							}),
-						),
-			);
-		});
+/** Per-command exec timeouts — edge-tts is a network hop (120s),
+ * ffmpeg is local (60s); unknown binaries get the ffmpeg budget. */
+const RUN_TIMEOUT_MS: Record<string, number> = {
+	"edge-tts": 120_000,
+	ffmpeg: 60_000,
+};
+
+const runTimeoutMs = (cmd: readonly string[]): number => RUN_TIMEOUT_MS[cmd[0]!] ?? 60_000;
+
+const fsError = (op: string) => (cause: unknown) =>
+	new PortError({
+		port: "tts",
+		message: `${op}: ${cause instanceof Error ? cause.message : /* v8 ignore next -- fs throws Errors */ String(cause)}`,
+		cause,
 	});
+
+/** Real CLI executor: `execFile` argv-style — no shell, so no quoting
+ * injection. Exit != 0, timeout kill, or missing binary → typed
+ * PortError carrying stderr; interruption kills the child process. */
+export const makeDefaultRun =
+	(timeoutMs?: number): CliRunner =>
+	(cmd) =>
+		Effect.callback<void, PortError>((resume) => {
+			const child = execFile(
+				cmd[0]!,
+				[...cmd.slice(1)],
+				{ timeout: timeoutMs ?? runTimeoutMs(cmd) },
+				(err, _stdout, stderr) => {
+					resume(
+						err === null
+							? Effect.void
+							: Effect.fail(
+									new PortError({
+										port: "tts",
+										message: `${cmd[0]} failed: ${String(stderr || err.message).slice(0, 300)}`,
+									}),
+								),
+					);
+				},
+			);
+			return Effect.sync(() => {
+				child.kill();
+			});
+		});
+
+export const defaultRun: CliRunner = makeDefaultRun();
 
 /** ffmpeg args for one degradation pass, per NoiseProfile. Clean and
  * bandpass filter through `-af`; noise variants add a lavfi noise
@@ -115,7 +147,7 @@ export const ffmpegDegradeArgs = (
 	];
 };
 
-export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort> =>
+export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort, PortError> =>
 	Layer.effect(
 		TtsPort,
 		Effect.gen(function* () {
@@ -124,7 +156,10 @@ export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort> =>
 			const voices = { ...DEFAULT_VOICES, ...opts.voiceMap };
 			const retry =
 				opts.retry ?? Schedule.exponential("200 millis").pipe(Schedule.upTo({ times: 3 }));
-			fs.mkdirSync(path.join(opts.workDir, "audio"), { recursive: true });
+			yield* Effect.try({
+				try: () => fs.mkdirSync(path.join(opts.workDir, "audio"), { recursive: true }),
+				catch: fsError("mkdir audio"),
+			});
 
 			const synthesize = (input: {
 				readonly script: string;
@@ -142,7 +177,8 @@ export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort> =>
 						}
 						const key = crypto
 							.createHash("sha256")
-							.update(`${input.script}${input.voiceId}${input.acoustic.noise}`)
+							.update(input.script)
+							.update(JSON.stringify({ voiceId: input.voiceId, acoustic: input.acoustic }))
 							.digest("hex")
 							.slice(0, 24);
 						const tmp = path.join(opts.workDir, "audio", `${key}.mp3`);
@@ -170,9 +206,13 @@ export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort> =>
 							),
 						);
 
+						const size = yield* Effect.try({
+							try: () => fs.statSync(out).size,
+							catch: fsError(`stat ${out}`),
+						});
 						const audio = {
 							uri: `file://${out}`,
-							size: fs.statSync(out).size,
+							size,
 							contentType: "audio/wav",
 						};
 						return {
