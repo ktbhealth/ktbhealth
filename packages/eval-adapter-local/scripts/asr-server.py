@@ -7,6 +7,9 @@ FastAPI/uvicorn so RAM stays low on dev machines.
 
     ASR_MODEL=base ASR_PORT=8765 python scripts/asr-server.py
 
+Deps: faster-whisper + av==13.* (av>=15 breaks faster_whisper's
+`av.open(..., metadata_errors=...)` call — pin it).
+
 POST /transcribe  {"audio_path": "/abs/file.wav", "language": "pt"}
   → 200 {"text": str, "language": str,
          "segments": [{"t0": f, "t1": f, "text": str, "confidence": f}]}
