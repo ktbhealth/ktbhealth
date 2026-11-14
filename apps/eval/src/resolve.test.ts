@@ -26,10 +26,10 @@ describe("resolveSuite", () => {
 		expect(res.unresolved).toEqual([]);
 		expect(res.adapters).toEqual({});
 		expect(res.resolved.map((r) => `${r.kind}:${r.id}`)).toEqual([
-			"stage:transcribe",
-			"metric:wer",
-			"gate:auto-accept",
-			"capability:asr",
+			"eval.stage:transcribe",
+			"eval.metric:wer",
+			"eval.gate:auto-accept",
+			"eval.capability:asr",
 		]);
 	});
 
@@ -57,7 +57,12 @@ describe("resolveSuite", () => {
 			"stub",
 		);
 		const ids = res.unresolved.map((u) => `${u.kind}:${u.id}`);
-		expect(ids).toEqual(["stage:bogus-stage", "metric:nope", "gate:nope-gate", "capability:ghost"]);
+		expect(ids).toEqual([
+			"eval.stage:bogus-stage",
+			"eval.metric:nope",
+			"eval.gate:nope-gate",
+			"eval.capability:ghost",
+		]);
 		expect(res.unresolved[0]!.reason).toBe("no registered contribution");
 		// Resolved caps still get their adapter.
 		expect(res.adapters.asr).toBe("stub");
@@ -67,7 +72,7 @@ describe("resolveSuite", () => {
 		const res = resolveSuite(registry, manifest(), "nope");
 		expect(res.adapters).toEqual({});
 		expect(res.unresolved).toContainEqual({
-			kind: "capability",
+			kind: "eval.capability",
 			id: "asr",
 			reason: 'profile "nope" selects no adapter',
 		});
@@ -77,7 +82,7 @@ describe("resolveSuite", () => {
 		// Fresh registry: capability "tts" is in the stub profile map
 		// but declares NO adapters — the key lookup hits "not declared".
 		const reg = new ContributionRegistry();
-		reg.register({ kind: "capability", id: "tts", version: "1", meta: { adapters: {} } });
+		reg.register({ kind: "eval.capability", id: "tts", version: "1", meta: { adapters: {} } });
 		const res = resolveSuite(
 			reg,
 			defineSuite({
@@ -93,7 +98,7 @@ describe("resolveSuite", () => {
 			"stub",
 		);
 		expect(res.unresolved).toContainEqual({
-			kind: "capability",
+			kind: "eval.capability",
 			id: "tts",
 			reason: 'profile "stub" adapter "stub" not declared',
 		});
@@ -102,13 +107,13 @@ describe("resolveSuite", () => {
 	test("malformed meta.adapters shapes all resolve to 'not declared'", () => {
 		const reg = new ContributionRegistry();
 		// No meta at all.
-		reg.register({ kind: "capability", id: "tts", version: "1" });
+		reg.register({ kind: "eval.capability", id: "tts", version: "1" });
 		// meta without adapters.
-		reg.register({ kind: "capability", id: "asr", version: "1", meta: {} });
+		reg.register({ kind: "eval.capability", id: "asr", version: "1", meta: {} });
 		// adapters: null.
-		reg.register({ kind: "capability", id: "llm", version: "1", meta: { adapters: null } });
+		reg.register({ kind: "eval.capability", id: "llm", version: "1", meta: { adapters: null } });
 		// adapters: non-object.
-		reg.register({ kind: "capability", id: "eval", version: "1", meta: { adapters: "x" } });
+		reg.register({ kind: "eval.capability", id: "eval", version: "1", meta: { adapters: "x" } });
 		const res = resolveSuite(
 			reg,
 			defineSuite({

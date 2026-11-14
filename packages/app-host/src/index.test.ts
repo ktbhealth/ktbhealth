@@ -41,11 +41,12 @@ describe("createApp", () => {
 		expect(plugins.length).toBeGreaterThan(0);
 	});
 
-	it("excludes eval-only packs from production discovery", () => {
-		// P-074 eval packs live under plugins/ for the registry boundary
-		// but are consumed only by apps/eval — they must not ship in the
-		// product registry (see the negative globs in index.ts/client.ts).
-		const ids = plugins.map((p) => p.id);
+	it("discovers eval packs with their generic contributions (P-070)", () => {
+		// Eval packs joined the registry when the negative globs were
+		// removed: they carry eval.* entries on the `contributions`
+		// channel — data the host never collects (consumers opt in per
+		// kind), so discovery stays side-effect free for them.
+		const byId = new Map(plugins.map((p) => [p.id, p]));
 		for (const id of [
 			"eval.consult",
 			"llm.eval",
@@ -53,7 +54,25 @@ describe("createApp", () => {
 			"transcription.asr",
 			"transcription.tts",
 		]) {
-			expect(ids).not.toContain(id);
+			expect(byId.has(id), id).toBe(true);
+		}
+		expect(byId.get("transcription.tts")?.contributions?.length).toBeGreaterThan(0);
+		// And they contribute nothing the host's surfaces consume.
+		for (const id of [
+			"eval.consult",
+			"llm.eval",
+			"storage.dataset",
+			"transcription.asr",
+			"transcription.tts",
+		]) {
+			const p = byId.get(id);
+			expect(p?.tables).toBeUndefined();
+			expect(p?.services).toBeUndefined();
+			expect(p?.routes).toBeUndefined();
+			expect(p?.chrome).toBeUndefined();
+			expect(p?.panel).toBeUndefined();
+			expect(p?.pages).toBeUndefined();
+			expect(p?.landing).toBeUndefined();
 		}
 	});
 

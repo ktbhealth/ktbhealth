@@ -1,16 +1,16 @@
 import { definePlugin, type Plugin } from "@ktb/kernel";
-import type { Contribution } from "@ktb/eval-core";
-import { ReportPort } from "@ktb/eval-core";
+import { ReportPort, type Contribution } from "@ktb/eval-core";
 import { DatasetStorePort } from "@ktb/eval-consult/ports";
 
 /**
  * storage.dataset — dataset persistence + reporting capability plugin
- * (P-074 phase 3).
+ * (P-074 phase 3, P-070).
  *
  * DATA-ONLY registrar, same contract as transcription.tts: declares
- * the eval-core contributions and adapter keys for the two storage
- * ports — DatasetStorePort (samples, blobs with provenance meta,
- * results) and ReportPort (run-record sink + markdown render). Adapter
+ * the eval-core contributions (on the manifest's `contributions`
+ * channel) and adapter keys for the two storage ports —
+ * DatasetStorePort (samples, blobs with provenance meta, results) and
+ * ReportPort (run-record sink + markdown render). Adapter
  * implementations stay in the exempt-edge packages
  * (@ktb/eval-adapter-stub/-local/-cloud): the SQLite/filesystem store
  * needs node:fs/better-sqlite3, which plugins/* may not import
@@ -24,19 +24,6 @@ import { DatasetStorePort } from "@ktb/eval-consult/ports";
  * `makeLocalStoreLayer`, "r2" → @ktb/eval-adapter-cloud `makeR2Store`,
  * "jsonl" → @ktb/eval-adapter-local `makeLocalReportLayer`.
  */
-export const storageDatasetPlugin = definePlugin({
-	id: "storage.dataset",
-});
-
-export const plugins: readonly Plugin[] = [storageDatasetPlugin];
-
-// Compile-time dep registry: ids declared here are referenceable in
-// requiredDeps/optionalDeps of any plugin that imports this module.
-declare module "@ktb/kernel" {
-	interface PluginRegistry {
-		"storage.dataset": true;
-	}
-}
 
 /**
  * Declared contributions. `store` covers DatasetStorePort (sample
@@ -46,7 +33,7 @@ declare module "@ktb/kernel" {
  */
 export const storageDatasetContributions: readonly Contribution[] = [
 	{
-		kind: "capability",
+		kind: "eval.capability",
 		id: "store",
 		version: "1",
 		meta: {
@@ -59,7 +46,7 @@ export const storageDatasetContributions: readonly Contribution[] = [
 		},
 	},
 	{
-		kind: "capability",
+		kind: "eval.capability",
 		id: "report",
 		version: "1",
 		meta: {
@@ -71,3 +58,18 @@ export const storageDatasetContributions: readonly Contribution[] = [
 		},
 	},
 ];
+
+export const storageDatasetPlugin = definePlugin({
+	id: "storage.dataset",
+	contributions: storageDatasetContributions,
+});
+
+export const plugins: readonly Plugin[] = [storageDatasetPlugin];
+
+// Compile-time dep registry: ids declared here are referenceable in
+// requiredDeps/optionalDeps of any plugin that imports this module.
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		"storage.dataset": true;
+	}
+}

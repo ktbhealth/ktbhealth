@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type * as JsonSchema from "effect/JsonSchema";
+import type { JsonObject } from "effect/Schema";
 import type * as Schema from "effect/Schema";
 
 /**
@@ -41,6 +42,23 @@ export interface PluginMeta {
 	readonly config?: PluginConfigSchema;
 }
 
+/**
+ * One entry in a plugin's generic `contributions` array (P-070) — the
+ * kind-agnostic channel for contribution kinds that have no dedicated
+ * typed field on the Plugin union (domain kinds like `"eval.stage"`,
+ * or kinds introduced after this contract froze). `kind` is the
+ * registered kind id — see `ContributionKindDescriptor` in ./kinds.ts;
+ * `meta` is JSON-only metadata, the same serializability contract as
+ * `PluginConfigSchema`. Entries are data: what a kind MEANS is defined
+ * by the kind's consumers, never by the kernel.
+ */
+export interface PluginContribution {
+	readonly kind: string;
+	readonly id: string;
+	readonly version?: string;
+	readonly meta?: JsonObject;
+}
+
 export interface PluginBase {
 	readonly id: string;
 	/** Display/config metadata consumed by the platform plugin manager. */
@@ -70,6 +88,13 @@ export interface PluginBase {
 	 * client mirror declares it too so the manager UI can render the
 	 * locked state (parity is asserted by apps/web plugins.test.ts). */
 	readonly system?: boolean;
+	/** Generic contribution entries for kinds without a dedicated typed
+	 * field (P-070). Each entry names a registered kind id; consumers
+	 * opt in by collecting only the kinds they know (see
+	 * `collectKindContributions` in ./kinds.ts). May accompany a typed
+	 * contribution field — the generic channel is not bound by the
+	 * one-dedicated-field rule. */
+	readonly contributions?: readonly PluginContribution[];
 }
 
 type ContributionField =

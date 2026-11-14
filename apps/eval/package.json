@@ -8,11 +8,13 @@
 	},
 	"dependencies": {
 		"@effect/platform-node": "4.1.2",
+		"@ktb/driver-framework": "workspace:*",
 		"@ktb/eval-adapter-cloud": "workspace:*",
 		"@ktb/eval-adapter-local": "workspace:*",
 		"@ktb/eval-adapter-stub": "workspace:*",
 		"@ktb/eval-consult": "workspace:*",
 		"@ktb/eval-core": "workspace:*",
+		"@ktb/kernel": "workspace:*",
 		"@ktb/llm-eval": "workspace:*",
 		"@ktb/storage-dataset": "workspace:*",
 		"@ktb/transcription-asr": "workspace:*",

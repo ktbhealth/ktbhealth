@@ -72,24 +72,11 @@ import {
  */
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins({
-		// Eval-only packs (P-074): consumed solely by apps/eval's
-		// composition root — they declare eval contributions, never
-		// product UI/routes/services/tables. Keeping them out of the
-		// production registry stops the eval domain graph (and its
-		// adapter-key metadata) from shipping in the app bundle. New
-		// eval plugin dirs must be added here AND in client.ts — the
-		// client/server parity test in apps/web enforces the mirror.
-		...import.meta.glob(
-			[
-				"../../../plugins/*/src/index.ts",
-				"!../../../plugins/eval-consult/src/index.ts",
-				"!../../../plugins/llm-eval/src/index.ts",
-				"!../../../plugins/storage-dataset/src/index.ts",
-				"!../../../plugins/transcription-asr/src/index.ts",
-				"!../../../plugins/transcription-tts/src/index.ts",
-			],
-			{ eager: true },
-		),
+		// Every plugins/* entry joins the registry, eval packs included
+		// (P-070): eval.* contributions ride the generic `contributions`
+		// channel — data-only metadata this host never collects (its
+		// consumers opt in per kind; see @ktb/kernel kinds.ts).
+		...import.meta.glob("../../../plugins/*/src/index.ts", { eager: true }),
 		"@ktb/platform": { plugins: platformPlugins },
 	}),
 );

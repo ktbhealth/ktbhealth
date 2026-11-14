@@ -11,7 +11,22 @@
  */
 import type { Plugin } from "./contributions.ts";
 
-export type { PluginConfigSchema, PluginId, PluginMeta, PluginRegistry } from "./core.ts";
+export type {
+	PluginConfigSchema,
+	PluginContribution,
+	PluginId,
+	PluginMeta,
+	PluginRegistry,
+} from "./core.ts";
+export {
+	collectContributions,
+	collectKindContributions,
+	FIELD_CONTRIBUTION_KINDS,
+	GENERIC_CONTRIBUTION_SLOT,
+	pluginContributionKinds,
+	type CollectedContribution,
+	type ContributionKindDescriptor,
+} from "./kinds.ts";
 export type {
 	ChromeContent,
 	ChromeContribution,

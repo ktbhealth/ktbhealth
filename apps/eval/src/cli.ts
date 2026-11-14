@@ -4,9 +4,9 @@
  *
  * Composition root for the eval platform: discovers suite manifests
  * under evals/, resolves their contribution refs through the
- * ContributionRegistry built from the capability plugins' declared
- * contributions, and wires Effect Layers per adapter profile
- * (stub | local | cloud).
+ * ContributionRegistry collected from the eval plugins' manifest
+ * `contributions` (P-070), and wires Effect Layers per adapter
+ * profile (stub | local | cloud).
  *
  * CLI surface: `effect/cli` — the command framework that ships inside
  * effect@4 (the v4 successor of the standalone @effect/cli package,
