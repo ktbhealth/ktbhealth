@@ -83,6 +83,15 @@ describe("makeJevEval", () => {
 		expect(err.message).toContain("timeout");
 	});
 
+	it("maps non-Error fetch failures to PortError", async () => {
+		const throwing = (() => Promise.reject("net down")) as unknown as typeof fetch;
+		const err = await run(throwing).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err.message).toContain("net down");
+	});
+
 	it("retries on the caller schedule", async () => {
 		let calls = 0;
 		const flaky = (async () => {
@@ -93,5 +102,20 @@ describe("makeJevEval", () => {
 		const r = await run(flaky, { retry: Schedule.recurs(1) });
 		expect(r.answers).toHaveLength(2);
 		expect(calls).toBe(2);
+	});
+
+	it("defaults to the global fetch + timeout when options are absent", async () => {
+		// No fetchImpl: real fetch against localhost:9 refuses fast —
+		// covers `?? fetch` and `?? 30_000` without a wait.
+		const err = await Effect.runPromise(
+			Effect.gen(function* () {
+				const evalp = yield* EvalPort;
+				return yield* evalp.judge({ state: { text: "x" }, questions });
+			}).pipe(Effect.provide(makeJevEval({ baseUrl: "http://localhost:9" }))),
+		).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
 	});
 });
