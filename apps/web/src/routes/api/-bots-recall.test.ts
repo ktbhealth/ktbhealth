@@ -14,6 +14,7 @@ vi.mock("@tanstack/react-start/server", () => ({
 env.RECALL_API_KEY = "recall-key";
 
 const { auth } = await import("#/lib/platform.ts");
+const { signUpDoctor } = await import("#/test/doctor.ts");
 const { Route: BotsRoute } = await import("@ktb/consultations/api-route-bots");
 
 const handlersOf = (r: unknown) =>
@@ -29,9 +30,7 @@ const post = (url: string, body: unknown) =>
 
 describe("bots route with recall provider", () => {
 	beforeAll(async () => {
-		await auth.api.signUpEmail({
-			body: { email: "recall@x.com", password: "senha-forte-123", name: "Dra Recall" },
-		});
+		await signUpDoctor({ email: "recall@x.com", password: "senha-forte-123", name: "Dra Recall" });
 		const res = await auth.handler(
 			new Request("http://localhost:3000/api/auth/sign-in/email", {
 				method: "POST",

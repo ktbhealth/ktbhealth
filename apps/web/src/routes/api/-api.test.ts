@@ -45,6 +45,7 @@ vi.mock("@ktb/consultations", async (importOriginal) => {
 });
 
 import { auth, db } from "#/lib/platform.ts";
+import { signUpDoctor } from "#/test/doctor.ts";
 import { consultations } from "@ktb/db/schema";
 import { eq } from "drizzle-orm";
 import { Route as AuthRoute } from "@ktb/auth-plugin/api-route";
@@ -66,9 +67,7 @@ let cookie = "";
 let userId = "";
 
 async function signIn() {
-	await auth.api.signUpEmail({
-		body: { email: "api@x.com", password: "senha-forte-123", name: "Dra API" },
-	});
+	await signUpDoctor({ email: "api@x.com", password: "senha-forte-123", name: "Dra API" });
 	const res = await auth.handler(
 		new Request("http://localhost:3000/api/auth/sign-in/email", {
 			method: "POST",

@@ -91,7 +91,7 @@ export const run = <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> =>
  * inherited into background work.
  */
 export const runAs = <A, E>(
-	user: { readonly id: string; readonly email?: string },
+	user: { readonly id: string; readonly email?: string; readonly actorId?: string },
 	effect: Effect.Effect<A, E, unknown>,
 	tenantSelector?: TenantSelector | null,
 ): Promise<A> => {

@@ -15,7 +15,7 @@ import { PlatformAdmin } from "@ktb/platform";
 import { PluginStates } from "@ktb/platform/plugin-states";
 import type { Page, PanelPage } from "@ktb/kernel";
 import { Schema } from "effect";
-import { ensureSessionUser, getSessionUser } from "#/lib/auth.ts";
+import { ensureDoctorUser, getDoctorUser, getSessionUser } from "#/lib/auth.ts";
 import * as Effect from "effect/Effect";
 
 // Services enforce authorization and fail `Forbidden`; handlers translate
@@ -242,7 +242,7 @@ export {
  * otherwise).
  */
 export const listMyNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
+	const user = await getDoctorUser();
 	if (!user) return [];
 	return runAs(
 		user,
@@ -257,7 +257,7 @@ export const listMyNotificationsFn = createServerFn({ method: "GET" }).handler(a
 /** Exact unread count for the /platform dashboard card — the list fn
  * above is capped at 50 rows, so it can't be derived client-side. */
 export const countMyUnreadNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
-	const user = await getSessionUser();
+	const user = await getDoctorUser();
 	if (!user) return 0;
 	return runAs(
 		user,
@@ -276,7 +276,7 @@ const decodeNotificationIds = Schema.decodeUnknownSync(Schema.Array(Schema.Numbe
 export const markMyNotificationsReadFn = createServerFn({ method: "POST" })
 	.validator((input: unknown) => decodeNotificationIds(input))
 	.handler(async ({ data: ids }) => {
-		const user = await ensureSessionUser();
+		const user = await ensureDoctorUser();
 		return runAs(
 			user,
 			Effect.gen(function* () {
@@ -290,7 +290,7 @@ export const markMyNotificationsReadFn = createServerFn({ method: "POST" })
 	});
 
 export const markAllMyNotificationsReadFn = createServerFn({ method: "POST" }).handler(async () => {
-	const user = await ensureSessionUser();
+	const user = await ensureDoctorUser();
 	return runAs(
 		user,
 		Effect.gen(function* () {

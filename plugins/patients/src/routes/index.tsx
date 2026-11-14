@@ -4,11 +4,11 @@ import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { PatientsPage } from "../views/index.ts";
 import { localeFn, listPatientsFn } from "../fns.ts";
-import { requireSession } from "../guard.ts";
+import { requireDoctor } from "../guard.ts";
 import { patientDeleteApi } from "../apis.ts";
 
 export const Route = createPluginFileRoute("patients.routes")("/patients/")({
-	beforeLoad: () => requireSession(),
+	beforeLoad: () => requireDoctor(),
 	loader: async () => {
 		const [patients, locale] = await Promise.all([listPatientsFn(), localeFn()]);
 		return { patients, locale };

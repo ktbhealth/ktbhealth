@@ -78,6 +78,20 @@
       "when": 1794443983943,
       "tag": "0010_purple_wraith",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794687166115,
+      "tag": "0011_doctors",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1794687166953,
+      "tag": "0012_backfill_doctors",
+      "breakpoints": true
     }
   ]
 }

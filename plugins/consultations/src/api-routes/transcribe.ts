@@ -1,4 +1,4 @@
-import { createPluginApiRoute, getSessionUser, getServerRuntime } from "@ktb/server-fns";
+import { createPluginApiRoute, getDoctorUser, getServerRuntime } from "@ktb/server-fns";
 
 /**
  * POST /api/transcribe — server-side transcription of an uploaded
@@ -38,7 +38,7 @@ export const Route = createPluginApiRoute("consultations.routes")("/api/transcri
 	server: {
 		handlers: {
 			POST: async ({ request }) => {
-				const user = await getSessionUser();
+				const user = await getDoctorUser();
 				if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 				const form = await request.formData();
 				const file = form.get("audio");

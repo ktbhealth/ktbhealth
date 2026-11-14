@@ -538,9 +538,16 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	 * (or pass `null`) for the resolver's default path; when no resolver
 	 * is configured the tenant stays `null` (personal scope), preserving
 	 * the pre-tenancy behavior.
+	 *
+	 * `user.actorId` marks delegated access (a secretary acting as the
+	 * doctor `user.id`): authz and data scope bind to `user.id`, the
+	 * actor is carried on `Principal.actorId`, and the tenant resolves
+	 * for the actor — memberships belong to the person signed in. The
+	 * caller is trusted to have validated the delegation, exactly as it
+	 * is trusted for `user.id` (see `getDoctorUser` in @ktb/server-fns).
 	 */
 	const runAs = <A, E>(
-		user: { readonly id: string; readonly email?: string },
+		user: { readonly id: string; readonly email?: string; readonly actorId?: string },
 		effect: Effect.Effect<A, E, unknown>,
 		tenantSelector?: TenantSelector | null,
 		telemetry?: TelemetryContextValue,
@@ -548,11 +555,16 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		runtime.runPromise(
 			Effect.gen(function* () {
 				const resolver = yield* TenantResolver;
-				const tenant = yield* resolver.resolve(tenantSelector ?? null, user.id);
+				const actorId = user.actorId ?? user.id;
+				const tenant = yield* resolver.resolve(tenantSelector ?? null, actorId);
 				return yield* instrument(
 					"runAs",
 					effect.pipe(
-						Effect.provideService(Principal, { userId: user.id, email: user.email }),
+						Effect.provideService(Principal, {
+							userId: user.id,
+							email: user.email,
+							...(actorId === user.id ? {} : { actorId }),
+						}),
 						Effect.provideService(Tenant, tenant),
 						Effect.provide(AuthzLive(user.id)),
 					),

@@ -28,3 +28,14 @@ export interface AuthShape {
 
 /** Auth port: request → session. Impl lives in @ktb/auth-better. */
 export class Auth extends Context.Service<Auth, AuthShape>()("@ktb/auth/Auth") {}
+
+export {
+	actingAs,
+	DOCTOR_PROFILE_COOKIE,
+	DoctorDelegations,
+	DoctorProfiles,
+	profileIdFromHeaders,
+	resolveDoctorProfile,
+	type ActingUser,
+	type DoctorProfile,
+} from "./profiles.ts";

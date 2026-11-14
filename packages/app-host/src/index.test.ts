@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommandBus, QueryBus } from "@effect-server-utils/cqrs";
 import { Auth } from "@ktb/auth";
+import { Principal } from "@ktb/authz";
 import { makeD1 } from "@ktb/db/testing";
 import { PluginStates } from "@ktb/platform/plugin-states";
 import {
@@ -276,6 +277,33 @@ describe("createApp", () => {
 				corrected: "Texto corrigido.",
 				engine: expect.stringContaining("workers-ai"),
 			});
+		});
+	});
+});
+
+describe("runAs principal", () => {
+	const principal = (user: Parameters<typeof app.runAs>[0]) =>
+		app.runAs(
+			user,
+			Effect.flatMap(Principal, (p) => Effect.succeed(p)),
+		);
+
+	it("binds the user as their own actor by default", async () => {
+		expect(await principal({ id: "u1", email: "u1@x.com" })).toEqual({
+			userId: "u1",
+			email: "u1@x.com",
+		});
+		expect(await principal({ id: "u1", email: "u1@x.com", actorId: "u1" })).toEqual({
+			userId: "u1",
+			email: "u1@x.com",
+		});
+	});
+
+	it("scopes to the doctor and records the actor under delegation", async () => {
+		expect(await principal({ id: "doc", email: "sec@x.com", actorId: "sec" })).toEqual({
+			userId: "doc",
+			email: "sec@x.com",
+			actorId: "sec",
 		});
 	});
 });
