@@ -269,6 +269,13 @@
         "eta": "^4.6.0",
       },
     },
+    "packages/eval-dataset-cloud": {
+      "name": "@ktb/eval-dataset-cloud",
+      "dependencies": {
+        "@ktb/eval-dataset": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
     "packages/eval-dataset-local": {
       "name": "@ktb/eval-dataset-local",
       "dependencies": {
@@ -1237,6 +1244,8 @@
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
 
     "@ktb/eval-dataset": ["@ktb/eval-dataset@workspace:packages/eval-dataset"],
+
+    "@ktb/eval-dataset-cloud": ["@ktb/eval-dataset-cloud@workspace:packages/eval-dataset-cloud"],
 
     "@ktb/eval-dataset-local": ["@ktb/eval-dataset-local@workspace:packages/eval-dataset-local"],
 
