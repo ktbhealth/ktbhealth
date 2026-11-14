@@ -5,6 +5,9 @@
 	"exports": {
 		".": "./src/index.ts"
 	},
+	"scripts": {
+		"eval:generate": "bun scripts/generate.ts"
+	},
 	"dependencies": {
 		"@ktb/eval-dataset": "workspace:*",
 		"better-sqlite3": "^13.0.3",

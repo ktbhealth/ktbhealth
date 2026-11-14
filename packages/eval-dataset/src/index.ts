@@ -6,4 +6,5 @@ export * from "./pipeline.ts";
 export * from "./personas.ts";
 export * from "./batch.ts";
 export * from "./scriptgen.ts";
+export * from "./generate.ts";
 export * from "./report.ts";
