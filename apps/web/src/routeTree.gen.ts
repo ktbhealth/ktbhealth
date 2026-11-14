@@ -31,6 +31,8 @@ import { Route as PatientsIndexRouteImport } from './../../../plugins/patients/s
 import { Route as PatientsNewRouteImport } from './../../../plugins/patients/src/routes/new'
 import { Route as IndexRouteImport } from './routes/platform/index'
 import { Route as SplatRouteImport } from './routes/platform/$'
+import { Route as SecretariesIndexRouteImport } from './../../../plugins/secretaries/src/routes/index'
+import { Route as SecretariesLoginRouteImport } from './../../../plugins/secretaries/src/routes/login'
 import { Route as ApiAuthDotsplatRouteImport } from './../../../plugins/auth/src/api-routes/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './../../../plugins/consultations/src/api-routes/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
@@ -151,6 +153,16 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => platformRoute,
 } as any)
+const SecretariesIndexRoute = SecretariesIndexRouteImport.update({
+  id: '/secretaries/',
+  path: '/secretaries/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SecretariesLoginRoute = SecretariesLoginRouteImport.update({
+  id: '/secretaries/login',
+  path: '/secretaries/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthDotsplatRoute = ApiAuthDotsplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -215,9 +227,11 @@ export interface FileRoutesByFullPath {
   '/doctors/select': typeof DoctorsSelectRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
+  '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
+  '/secretaries/': typeof SecretariesIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
@@ -246,9 +260,11 @@ export interface FileRoutesByTo {
   '/doctors/select': typeof DoctorsSelectRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
+  '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations': typeof ConsultationsIndexRoute
   '/patients': typeof PatientsIndexRoute
   '/platform': typeof IndexRoute
+  '/secretaries': typeof SecretariesIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
@@ -279,9 +295,11 @@ export interface FileRoutesById {
   '/doctors/select': typeof DoctorsSelectRoute
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
+  '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
+  '/secretaries/': typeof SecretariesIndexRoute
   '/api/auth/$': typeof ApiAuthDotsplatRoute
   '/api/bots/webhook': typeof ApiBotsDotwebhookRoute
   '/api/cdn/$': typeof ApiCdnSplatRoute
@@ -313,9 +331,11 @@ export interface FileRouteTypes {
     | '/doctors/select'
     | '/patients/new'
     | '/platform/$'
+    | '/secretaries/login'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
+    | '/secretaries/'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
@@ -344,9 +364,11 @@ export interface FileRouteTypes {
     | '/doctors/select'
     | '/patients/new'
     | '/platform/$'
+    | '/secretaries/login'
     | '/consultations'
     | '/patients'
     | '/platform'
+    | '/secretaries'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
@@ -376,9 +398,11 @@ export interface FileRouteTypes {
     | '/doctors/select'
     | '/patients/new'
     | '/platform/$'
+    | '/secretaries/login'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
+    | '/secretaries/'
     | '/api/auth/$'
     | '/api/bots/webhook'
     | '/api/cdn/$'
@@ -408,8 +432,10 @@ export interface RootRouteChildren {
   ConsultationsNewRoute: typeof ConsultationsNewRoute
   DoctorsSelectRoute: typeof DoctorsSelectRoute
   PatientsNewRoute: typeof PatientsNewRoute
+  SecretariesLoginRoute: typeof SecretariesLoginRoute
   ConsultationsIndexRoute: typeof ConsultationsIndexRoute
   PatientsIndexRoute: typeof PatientsIndexRoute
+  SecretariesIndexRoute: typeof SecretariesIndexRoute
   ApiAuthDotsplatRoute: typeof ApiAuthDotsplatRoute
   ApiCdnSplatRoute: typeof ApiCdnSplatRoute
   PatientsIdEditRoute: typeof PatientsIdEditRoute
@@ -575,6 +601,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof platformRoute
     }
+    '/secretaries/': {
+      id: '/secretaries/'
+      path: '/secretaries'
+      fullPath: '/secretaries/'
+      preLoaderRoute: typeof SecretariesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/secretaries/login': {
+      id: '/secretaries/login'
+      path: '/secretaries/login'
+      fullPath: '/secretaries/login'
+      preLoaderRoute: typeof SecretariesLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -679,8 +719,10 @@ const rootRouteChildren: RootRouteChildren = {
   ConsultationsNewRoute: ConsultationsNewRoute,
   DoctorsSelectRoute: DoctorsSelectRoute,
   PatientsNewRoute: PatientsNewRoute,
+  SecretariesLoginRoute: SecretariesLoginRoute,
   ConsultationsIndexRoute: ConsultationsIndexRoute,
   PatientsIndexRoute: PatientsIndexRoute,
+  SecretariesIndexRoute: SecretariesIndexRoute,
   ApiAuthDotsplatRoute: ApiAuthDotsplatRoute,
   ApiCdnSplatRoute: ApiCdnSplatRoute,
   PatientsIdEditRoute: PatientsIdEditRoute,

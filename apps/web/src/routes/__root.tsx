@@ -149,6 +149,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			signOut: m.nav_sign_out(),
 			newConsultation: m.nav_new_consultation(),
 			langMenu: m.lang_menu_label(),
+			switchDoctor: m.nav_switch_doctor(),
+			secretaries: m.nav_secretaries(),
 		},
 		signOut: async () => {
 			await authClient.signOut();

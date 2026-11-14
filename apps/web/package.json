@@ -50,6 +50,7 @@
 		"@ktb/platform": "workspace:*",
 		"@ktb/platform-header": "workspace:*",
 		"@ktb/platform-sidebar": "workspace:*",
+		"@ktb/secretaries": "workspace:*",
 		"@ktb/server-fns": "workspace:*",
 		"@ktb/tenant": "workspace:*",
 		"@ktbhealth/ui": "github:ktbhealth/ui#v0.2.2@react",

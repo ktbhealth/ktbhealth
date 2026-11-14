@@ -3,6 +3,8 @@
 	"meta_description": "A KTB Health é uma plataforma de documentação médica: um scribe ambiente transforma a conversa da consulta em um rascunho de anamnese estruturada para revisão do médico.",
 	"nav_sign_in": "Entrar",
 	"nav_sign_out": "Sair",
+	"nav_switch_doctor": "Trocar de médico",
+	"nav_secretaries": "Secretárias",
 	"nav_new_consultation": "+ Nova consulta",
 	"nav_consultations": "Consultas",
 	"nav_patients": "Pacientes",

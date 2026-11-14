@@ -6,6 +6,7 @@
 //   admin@ktb.test     doctor (own profile) — platform admin when listed
 //                      in PLATFORM_ADMIN_EMAILS (apps/web/.env.local)
 //   user@ktb.test      doctor (own profile) — never platform admin
+//   secretary@ktb.test secretary acting for user@ktb.test
 //
 // Idempotent — existing emails are skipped, missing links are filled in.
 //
@@ -19,11 +20,13 @@ import { makeDb } from "@ktb/db";
 import { user } from "@ktb/db/schema";
 import { makeAuth } from "@ktb/auth-better";
 import { ensureDoctorProfile } from "@ktb/doctors";
+import { inviteSecretary } from "@ktb/secretaries";
 
 const PASSWORD = process.env.SEED_PASSWORD ?? "dev-password-123";
 const USERS = [
 	{ email: "admin@ktb.test", name: "Admin" },
 	{ email: "user@ktb.test", name: "User" },
+	{ email: "secretary@ktb.test", name: "Secretary" },
 ] as const;
 type SeedEmail = (typeof USERS)[number]["email"];
 
@@ -59,7 +62,14 @@ try {
 	}
 
 	await ensureDoctorProfile(db, ids["admin@ktb.test"], "Admin");
-	await ensureDoctorProfile(db, ids["user@ktb.test"], "User");
+	const doctorId = ids["user@ktb.test"];
+	const doctor = await ensureDoctorProfile(db, doctorId, "User");
+
+	await inviteSecretary(db, {
+		doctorId: doctor.id,
+		email: "secretary@ktb.test",
+		invitedBy: doctorId,
+	});
 
 	console.log(`[seed] password for all: ${PASSWORD}`);
 } finally {
