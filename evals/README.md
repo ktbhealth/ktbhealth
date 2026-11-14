@@ -1,8 +1,11 @@
 # evals — suite manifests
 
 Pure-data suite manifests (`defineSuite` from `@ktb/eval-core`), one
-`.ts` file per suite, discovered by `apps/eval` (`eval list`,
-`eval generate|run|gate|report <suite>`).
+`*.suite.ts` file per suite, discovered by `apps/eval` (`eval list`,
+`eval generate|run|gate|report <suite>`). The `*.suite.ts` suffix is
+the manifest convention: any other `.ts` file in this directory is a
+shared helper module (fixtures, builders, schemas) and is never
+treated as a suite — `eval list` only scans `*.suite.ts`.
 
 ## Composability status
 

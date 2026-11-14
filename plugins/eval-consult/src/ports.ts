@@ -137,6 +137,14 @@ export class DatasetStorePort extends Context.Service<
 			uri: string,
 			meta?: { readonly origin: SampleOrigin },
 		) => Effect.Effect<void, PortError>;
+		/** Bytes for a blob written via `putBlob` — `null` when the URI
+		 * has no stored object. ASYMMETRY, intentional: `putBlobMeta`
+		 * registers provenance WITHOUT bytes (file:// TTS output lives
+		 * outside the store), so `getBlob` returns null for those URIs
+		 * even though the audio exists on disk. Callers that need bytes
+		 * for non-store URIs resolve the AudioRef themselves — the
+		 * cloud ASR adapter takes an injected `readAudio` for exactly
+		 * this reason. */
 		readonly getBlob: (uri: string) => Effect.Effect<Uint8Array | null, PortError>;
 		/** Recorded provenance for a stored blob — `null` when the URI
 		 * has no store record (never written, or written before

@@ -6,6 +6,11 @@
  * `validateManifest` so a hand-edited or stale file fails loudly
  * instead of composing garbage. Apps are the exempt edge — fs and
  * dynamic import of .ts are legal here (Bun runtime).
+ *
+ * Convention: ONLY `*.suite.ts` files are manifests. Any other `.ts`
+ * in evals/ is a shared helper module (schemas, fixtures, builders)
+ * and is never imported by the loader — keeping helpers out of the
+ * manifest glob is what lets `eval list` stay a pure manifest scan.
  */
 
 import * as fs from "node:fs";
@@ -22,17 +27,15 @@ export interface LoadedSuite {
 /** The export name every suite module must provide. */
 const SUITE_EXPORT = "suite";
 
-const isSuiteFile = (name: string): boolean =>
-	name.endsWith(".ts") && !name.endsWith(".test.ts") && !name.endsWith(".d.ts");
-
-/** Sorted `*.ts` suite files in `dir` (non-recursive). */
+/** Sorted `*.suite.ts` manifest files in `dir` (non-recursive).
+ * Plain `.ts` helpers are ignored by convention — see module header. */
 export const listSuiteFiles = (dir: string): readonly string[] => {
 	if (!fs.existsSync(dir)) {
 		throw new Error(`suite directory not found: ${dir}`);
 	}
 	return fs
 		.readdirSync(dir, { withFileTypes: true })
-		.filter((d) => d.isFile() && isSuiteFile(d.name))
+		.filter((d) => d.isFile() && d.name.endsWith(".suite.ts"))
 		.map((d) => path.join(dir, d.name))
 		.sort();
 };

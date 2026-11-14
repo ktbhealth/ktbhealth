@@ -27,6 +27,7 @@ import {
 	saveResult,
 	saveSample,
 	toSampleResult,
+	type RunRecord,
 	type Sample,
 } from "@ktb/eval-consult";
 
@@ -128,15 +129,42 @@ export const makeRunCommand = (ctx: CmdContext) =>
 
 				const step = (sample: Sample) =>
 					Effect.gen(function* () {
-						const run = yield* processSample({ sample, runId, profile: locale });
-						yield* recordAll(run.records);
-						yield* saveResult(toSampleResult({ sample, runId, run }));
-						yield* saveSample(sampleForPersistence(sample, run));
-						return {
-							sampleId: sample.id,
-							werAsr: run.asrMetrics.wer,
-							werCorrected: run.correctedMetrics.wer,
-						} satisfies RunValue;
+						// Partial-audit collector: processSample pushes every
+						// stage record here AS PRODUCED, so a mid-pipeline
+						// failure still leaves its ASR/cleanup/judge records
+						// on the report. `persisted` marks what recordAll
+						// already wrote — the exit path appends only the
+						// unwritten tail. A retried attempt collects from
+						// scratch, so earlier attempts' records stay as
+						// their own honest audit entries.
+						const collected: RunRecord[] = [];
+						let persisted = 0;
+						const attempt = Effect.gen(function* () {
+							const run = yield* processSample({
+								sample,
+								runId,
+								profile: locale,
+								recordsOut: collected,
+							});
+							yield* recordAll(run.records);
+							persisted = collected.length;
+							yield* saveResult(toSampleResult({ sample, runId, run }));
+							yield* saveSample(sampleForPersistence(sample, run));
+							return {
+								sampleId: sample.id,
+								werAsr: run.asrMetrics.wer,
+								werCorrected: run.correctedMetrics.wer,
+							} satisfies RunValue;
+						});
+						return yield* attempt.pipe(
+							Effect.onExit(() =>
+								// Best-effort: the audit append must never mask
+								// the original failure — ignore swallows even a
+								// broken report sink. On success `persisted` ===
+								// collected.length, so this is a no-op.
+								Effect.ignore(recordAll(collected.slice(persisted))),
+							),
+						);
 					});
 
 				const result = yield* Effect.scoped(

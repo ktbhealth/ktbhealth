@@ -141,6 +141,44 @@ describe("makeLocalTts", () => {
 		expect(calls.filter((c) => c.includes("edge-tts"))).toHaveLength(4);
 	});
 
+	it("removes the edge-tts temp when synthesis fails outright", async () => {
+		// edge-tts wrote a partial .mp3 then failed — the temp must not
+		// litter the workdir (previously only ffmpeg's ensuring ran).
+		const run: CliRunner = (cmd) =>
+			Effect.gen(function* () {
+				if (cmd[0] === "edge-tts") {
+					fs.writeFileSync(cmd[cmd.length - 1]!, "partial-mp3");
+					return yield* Effect.fail(new PortError({ port: "tts", message: "edge-tts gone" }));
+				}
+			});
+		const workDir = dir();
+		const err = await synth({ run, workDir, retry: Schedule.recurs(0) }).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(fs.readdirSync(path.join(workDir, "audio"))).toHaveLength(0);
+	});
+
+	it("removes a partial wav when ffmpeg fails", async () => {
+		const run: CliRunner = (cmd) =>
+			Effect.gen(function* () {
+				if (cmd[0] === "edge-tts") {
+					fs.writeFileSync(cmd[cmd.length - 1]!, "mp3");
+					return;
+				}
+				fs.writeFileSync(cmd[cmd.length - 1]!, "partial-wav");
+				return yield* Effect.fail(new PortError({ port: "tts", message: "ffmpeg died" }));
+			});
+		const workDir = dir();
+		const err = await synth({ run, workDir }).then(
+			() => null,
+			(e) => e,
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(fs.readdirSync(path.join(workDir, "audio"))).toHaveLength(0);
+	});
+
 	it("honors a caller-supplied retry policy — recurs(0) means no retries", async () => {
 		const calls: string[] = [];
 		const err = await synth({ run: fakeRun(calls, 9), retry: Schedule.recurs(0) }).then(

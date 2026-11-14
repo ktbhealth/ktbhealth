@@ -100,7 +100,15 @@ const decode = <A>(schema: (u: unknown) => A, value: unknown, op: string) =>
 			}),
 	});
 
-const answerOf = (q: { id: string; kind: string; options?: readonly string[] }): EvalAnswer => ({
+/** Deterministic canned answer for one question — the single
+ * implementation shared by this package's judge AND the CLI's stub
+ * eval layer (apps/eval adapters.ts), so both produce identical
+ * verdict shapes. */
+export const stubAnswerOf = (q: {
+	id: string;
+	kind: string;
+	options?: readonly string[];
+}): EvalAnswer => ({
 	id: q.id,
 	kind: q.kind as EvalAnswer["kind"],
 	value: q.kind === "noul" ? true : q.kind === "choice" ? (q.options?.[0] ?? "") : 0,
@@ -164,7 +172,7 @@ export const makeStubLayer = (fixtures: StubFixtures = {}) => {
 			egress: false,
 			judge: (input) =>
 				Effect.succeed({
-					answers: fixtures.answers ?? input.questions.map(answerOf),
+					answers: fixtures.answers ?? input.questions.map(stubAnswerOf),
 					record: record("eval", "stub-judge"),
 				}),
 		}),

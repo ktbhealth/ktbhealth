@@ -50,6 +50,10 @@ export const transcribeSample = (
 	 * instead of paying a second store read. `undefined` = not yet
 	 * resolved (fetch it here). */
 	provenance?: { readonly blobMeta: BlobMeta | null },
+	/** Invoked with the ASR RunRecord the moment `transcribe` returns —
+	 * BEFORE the PHI scrub gate — so a gate refusal still leaves the
+	 * completed call's audit record behind. */
+	onRecord?: (record: RunRecord) => void,
 ) =>
 	Effect.gen(function* () {
 		if (!sample.audio) {
@@ -81,6 +85,7 @@ export const transcribeSample = (
 			origin: sample.origin,
 			blobMeta,
 		});
+		onRecord?.(record);
 		// ASR text is patient speech — for untrusted origins it is
 		// PHI until scrubbed. Gate it HERE so every downstream consumer
 		// (cleanup input, judge state, metrics, SampleResult) sees only
@@ -106,7 +111,14 @@ export const transcribeSample = (
 
 // ---------- S4: LLM cleanup → reversible edits → corrected text ----------
 
-export const cleanupTranscript = (input: { readonly taskId: string; readonly raw: string }) =>
+export const cleanupTranscript = (input: {
+	readonly taskId: string;
+	readonly raw: string;
+	/** Invoked with the corrector's RunRecord the moment `correct`
+	 * returns — BEFORE edit application — so a corrupt-edit-list
+	 * failure still leaves the completed call's audit record. */
+	readonly onRecord?: (record: RunRecord) => void;
+}) =>
 	Effect.gen(function* () {
 		const llm = yield* LlmPort;
 		const { edits, record } = yield* llm.correct({
@@ -115,6 +127,7 @@ export const cleanupTranscript = (input: { readonly taskId: string; readonly raw
 			input: input.raw,
 			outputSchema: "EditList",
 		});
+		input.onRecord?.(record);
 		// Corrupt edit lists are an expected adapter failure (LLMs emit
 		// garbage offsets) — typed failure, never a silent fiber defect.
 		const corrected = yield* Effect.try({
@@ -230,6 +243,14 @@ export const processSample = (input: {
 	 * Default pt-BR; `profile.id` is persisted as the metrics'
 	 * normalization label. */
 	readonly profile?: LocaleProfile;
+	/** Optional caller-owned collector — every tagged RunRecord is
+	 * pushed here AS PRODUCED, so a mid-pipeline failure still exposes
+	 * the partial audit trail (the run command appends whatever
+	 * exists before marking the sample failed). Absent = records
+	 * surface only on success via `SampleRun.records`. The same array
+	 * is returned as `SampleRun.records` on success — do not also
+	 * persist it twice. */
+	readonly recordsOut?: RunRecord[];
 }) =>
 	Effect.gen(function* () {
 		const profile = input.profile ?? ptBR;
@@ -286,20 +307,21 @@ export const processSample = (input: {
 			sampleId: input.sample.id,
 			datasetVersion: input.sample.datasetVersion,
 		});
-		const records: RunRecord[] = [];
+		const records: RunRecord[] = input.recordsOut ?? [];
 
-		const { asr, record: asrRecord } = yield* transcribeSample(input.sample, profile, provenance);
-		records.push(tag(asrRecord));
+		// Stage records are collected THROUGH the helpers' onRecord
+		// hooks — fired the moment each port call returns, before any
+		// subsequent fallible step (PHI scrub gate, edit application)
+		// — so even those mid-stage refusals leave their audit record.
+		const { asr } = yield* transcribeSample(input.sample, profile, provenance, (r) =>
+			records.push(tag(r)),
+		);
 
-		const {
-			edits,
-			corrected,
-			record: cleanRecord,
-		} = yield* cleanupTranscript({
+		const { edits, corrected } = yield* cleanupTranscript({
 			taskId: `${runId}-cleanup`,
 			raw: asr.text,
+			onRecord: (r) => records.push(tag(r)),
 		});
-		records.push(tag(cleanRecord));
 
 		const ev = yield* EvalPort;
 		const asrQs = entityQuestions(entities, "asr");

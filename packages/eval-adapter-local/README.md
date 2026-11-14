@@ -17,6 +17,15 @@ well as read). `putBlob(uri, bytes, meta?)` also persists provenance
 in a `blob_meta` SQLite table (`getBlobMeta` reads it; omitted `meta`
 records `unknown`). Requires an Effect `Scope` (closes the DB handle).
 
+**Blob asymmetry (intentional):** TTS audio is written to
+`<workdir>/tts/audio/*.wav` and referenced by `file://` AudioRefs —
+the bytes never enter the blob store, only their provenance does
+(`putBlobMeta`). `getBlob(file://…)` therefore returns `null` for the
+dataset's own audio; consumers that need those bytes read the path
+directly (the cloud ASR adapter's injected `readAudio` does exactly
+that, confined to the run workdir). `getBlob`/`putBlob` serve blobs
+that ARE stored — ingest pipelines, not generated audio.
+
 ## Eval judge adapters
 
 - `makeJevEval` — hosted Jev decision service (`EVAL_JEV_URL`).

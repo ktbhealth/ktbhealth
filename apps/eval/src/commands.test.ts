@@ -68,7 +68,7 @@ const exec = (args: readonly string[], c: CmdContext = ctx()) => run(args, c, Cl
 
 beforeAll(() => {
 	evalsDir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-evals-"));
-	fs.writeFileSync(path.join(evalsDir, "fx.ts"), SUITE);
+	fs.writeFileSync(path.join(evalsDir, "fx.suite.ts"), SUITE);
 	workdir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-data-"));
 });
 
@@ -93,7 +93,7 @@ describe("list", () => {
 	test("--strict exits 1 on unresolved refs", async () => {
 		const badDir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-bad-"));
 		fs.writeFileSync(
-			path.join(badDir, "bad.ts"),
+			path.join(badDir, "bad.suite.ts"),
 			`export const suite = { id: "bad", domain: "d", dataset: { id: "d", version: "1" }, stages: ["ghost"], caps: {}, metrics: [], gates: [], schemaVersion: 1 };`,
 		);
 		try {
@@ -200,7 +200,7 @@ describe("generate", () => {
 	test("unresolvable tts capability fails before any work", async () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-notts-"));
 		fs.writeFileSync(
-			path.join(dir, "notts.ts"),
+			path.join(dir, "notts.suite.ts"),
 			`export const suite = { id: "notts", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [], schemaVersion: 1 };`,
 		);
 		const err = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -394,7 +394,7 @@ describe("run/gate/report round-trip", () => {
 	test("gate with an unregistered gate id is an error", async () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-mgate-"));
 		fs.writeFileSync(
-			path.join(dir, "mgate.ts"),
+			path.join(dir, "mgate.suite.ts"),
 			`export const suite = { id: "mgate", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [{ id: "mystery-gate" }], schemaVersion: 1 };`,
 		);
 		const err = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -412,7 +412,7 @@ describe("run/gate/report round-trip", () => {
 	test("gate with undecodable params is a usage error (exit 2)", async () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), "eval-cmd-bgate-"));
 		fs.writeFileSync(
-			path.join(dir, "bgate.ts"),
+			path.join(dir, "bgate.suite.ts"),
 			`export const suite = { id: "bgate", domain: "d", dataset: { id: "d", version: "1" }, stages: [], caps: {}, metrics: [], gates: [{ id: "auto-accept", params: { stage: "bogus" } }], schemaVersion: 1 };`,
 		);
 		vi.spyOn(console, "error").mockImplementation(() => {});

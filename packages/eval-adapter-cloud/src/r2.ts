@@ -1,11 +1,19 @@
 /**
  * r2.ts — DatasetStorePort over an R2-style object store (M4).
  *
- * Layout: samples/{id}.json, blobs/{uri}, results/{sampleId}.json.
+ * Layout: samples/{id}.json, blobs/{uri}, results/{runId}/{sampleId}.json.
  * The bucket is a narrow injected interface (R2Bucket-compatible:
  * get/put/list) so the adapter runs against a real binding, the REST
  * API, or an in-memory fake with zero changes. Listing is the source
  * of truth — no sidecar index to drift.
+ *
+ * Scale note: listSamples/listResults list every key under the prefix
+ * and GET each object (concurrency 8), filtering client-side — O(N)
+ * reads per call. That is deliberate at eval-dataset scale (hundreds
+ * of rows per run); results keys are already partitioned by runId, so
+ * a `runId` filter narrows the prefix. If a deployment outgrows this,
+ * push sample filters into the key layout or add a sidecar index —
+ * the port shape has no pagination today.
  */
 
 import { Schema } from "effect";
@@ -195,7 +203,12 @@ export const makeR2Store = (bucket: BucketLike): Layer.Layer<DatasetStorePort> =
 				),
 
 			listResults: (filter) =>
-				listKeys(bucket, "results/").pipe(
+				// runId is a key path segment — narrowing the prefix skips
+				// every other run's objects (still O(N) within the run).
+				listKeys(
+					bucket,
+					filter?.runId !== undefined ? `results/${encodeURIComponent(filter.runId)}/` : "results/",
+				).pipe(
 					Effect.flatMap((keys) =>
 						Effect.forEach(keys, (k) => getJson(bucket, k), { concurrency: 8 }),
 					),

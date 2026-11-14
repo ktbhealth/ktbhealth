@@ -757,6 +757,72 @@ describe("failure modes", () => {
 		expect(String((err as PortError).message)).toContain("corrupt edit list");
 	});
 
+	it("recordsOut exposes partial stage records when judging fails mid-pipeline", async () => {
+		// Judge succeeds for the ASR-stage questions, fails on the
+		// corrected-stage call — the sample dies mid-pipeline but its
+		// ASR/cleanup/judge-asr records must already be collected.
+		const failOnCorrected = Layer.succeed(
+			EvalPort,
+			EvalPort.of({
+				judge: (input) =>
+					input.questions.some((q) => q.id.startsWith("entity:corrected"))
+						? Effect.fail(new PortError({ port: "eval", message: "judge down" }))
+						: Effect.succeed({
+								answers: input.questions.map((q) => ({
+									id: q.id,
+									kind: q.kind,
+									value: q.kind === "noul" ? true : "justified_fix",
+									probability: 0.9,
+								})),
+								record,
+							}),
+			}),
+		);
+		const collected: RunRecord[] = [];
+		const err = await Effect.runPromise(
+			Effect.provide(
+				processSample({ sample, entities, recordsOut: collected }).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+				Layer.merge(live, failOnCorrected),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		// transcribe + cleanup + the successful ASR judge call — the
+		// corrected-stage judge record never existed.
+		expect(collected).toHaveLength(3);
+		expect(collected.every((r) => r.sampleId === "s1" && r.datasetVersion === "v1")).toBe(true);
+	});
+
+	it("recordsOut keeps the LLM record when edit application fails", async () => {
+		// correct() succeeds (record produced) but the edit list is
+		// corrupt — the sample fails mid-cleanup yet both the ASR and
+		// the corrector's records are already collected.
+		const badLlm = Layer.succeed(
+			LlmPort,
+			LlmPort.of({
+				generate: () => Effect.succeed({ text: "x", record }),
+				correct: () =>
+					Effect.succeed({
+						edits: { ops: [{ at: 5, remove: "nope", insert: "x", kind: "fix" }] },
+						record,
+					}),
+			}),
+		);
+		const collected: RunRecord[] = [];
+		const err = await Effect.runPromise(
+			Effect.provide(
+				processSample({ sample, entities, recordsOut: collected }).pipe(
+					Effect.catchTag("PortError", (e: PortError) => Effect.succeed(e)),
+				),
+				Layer.merge(live, badLlm),
+			),
+		);
+		expect(err).toBeInstanceOf(PortError);
+		expect(String((err as PortError).message)).toContain("corrupt edit list");
+		expect(collected).toHaveLength(2);
+	});
+
 	it("missing judge answer → unjudged, never silently benign", async () => {
 		const emptyJudge = Layer.succeed(
 			EvalPort,

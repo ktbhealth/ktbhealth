@@ -23,7 +23,7 @@ import * as path from "node:path";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import { EvalPort, PortError, type EvalAnswer, type RunRecord } from "@ktb/eval-core";
+import { EvalPort, PortError, type RunRecord } from "@ktb/eval-core";
 import { AsrPort, LlmPort, TtsPort, type TaskEnvelope } from "@ktb/eval-consult";
 import { makeWorkersAiAsr } from "@ktb/eval-adapter-cloud";
 import {
@@ -36,7 +36,7 @@ import {
 	makeSystemOneEval,
 	type AcpTransport,
 } from "@ktb/eval-adapter-local";
-import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT } from "@ktb/eval-adapter-stub";
+import { CANNED_ASR, CANNED_EDITS, CANNED_SCRIPT, stubAnswerOf } from "@ktb/eval-adapter-stub";
 
 // ---------- stub port layers (deterministic, zero I/O) ----------
 
@@ -82,17 +82,6 @@ export const stubAsrLayer = Layer.succeed(
  * type-level safety net, not a reachable path */
 const causeMessage = (cause: unknown): string =>
 	cause instanceof Error ? cause.message : String(cause);
-
-const stubAnswerOf = (q: {
-	id: string;
-	kind: string;
-	options?: readonly string[];
-}): EvalAnswer => ({
-	id: q.id,
-	kind: q.kind as EvalAnswer["kind"],
-	value: q.kind === "noul" ? true : q.kind === "choice" ? (q.options?.[0] ?? "") : 0,
-	probability: 0.95,
-});
 
 export const stubLlmLayer = Layer.succeed(
 	LlmPort,

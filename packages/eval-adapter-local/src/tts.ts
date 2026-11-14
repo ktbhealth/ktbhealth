@@ -25,6 +25,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as Semaphore from "effect/Semaphore";
@@ -67,6 +68,15 @@ const fsError = (op: string) => (cause: unknown) =>
 		message: `${op}: ${cause instanceof Error ? cause.message : /* v8 ignore next -- fs throws Errors */ String(cause)}`,
 		cause,
 	});
+
+/** Best-effort temp removal — a missing file is not an error. */
+const removeFile = (p: string): void => {
+	try {
+		fs.unlinkSync(p);
+	} catch {
+		/* temp already gone */
+	}
+};
 
 /** Real CLI executor: `execFile` argv-style — no shell, so no quoting
  * injection. Exit != 0, timeout kill, or missing binary → typed
@@ -184,6 +194,9 @@ export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort, PortEr
 						const tmp = path.join(opts.workDir, "audio", `${key}.mp3`);
 						const out = path.join(opts.workDir, "audio", `${key}.wav`);
 
+						// edge-tts may leave a partial .mp3 when it fails —
+						// drop it on ANY non-success exit (typed failure,
+						// defect, interruption), not just when ffmpeg runs.
 						yield* run([
 							"edge-tts",
 							"--voice",
@@ -192,16 +205,21 @@ export const makeLocalTts = (opts: LocalTtsOptions): Layer.Layer<TtsPort, PortEr
 							input.script,
 							"--write-media",
 							tmp,
-						]).pipe(Effect.retry({ schedule: retry as Schedule.Schedule<unknown, PortError> }));
+						]).pipe(
+							Effect.retry({ schedule: retry as Schedule.Schedule<unknown, PortError> }),
+							Effect.onExit((exit) =>
+								Exit.isSuccess(exit) ? Effect.void : Effect.sync(() => removeFile(tmp)),
+							),
+						);
 
 						yield* run(["ffmpeg", ...ffmpegDegradeArgs(tmp, out, input.acoustic)]).pipe(
-							Effect.ensuring(
+							Effect.onExit((exit) =>
 								Effect.sync(() => {
-									try {
-										fs.unlinkSync(tmp);
-									} catch {
-										/* temp already gone */
-									}
+									removeFile(tmp);
+									// A failed ffmpeg can leave a partial `out` —
+									// the AudioRef is only returned on success, so
+									// the orphan is safe (and litter-free) to drop.
+									if (Exit.isFailure(exit)) removeFile(out);
 								}),
 							),
 						);
