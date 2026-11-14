@@ -20,7 +20,12 @@ const sample: Sample = {
 	origin: "synthetic",
 	script: "script text",
 	scriptHash: "h",
-	persona: { region: "se", ageBand: "adulto", register: "formal", specialty: "clinico" },
+	persona: {
+		region: "southeast",
+		ageBand: "adult",
+		register: "formal",
+		specialty: "general_practice",
+	},
 	audio: { uri: "stub://audio/1" },
 	gold: { validatedBy: "generator" },
 };

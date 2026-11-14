@@ -5,15 +5,15 @@ import { DEFAULT_MATRIX, expandPersonaMatrix, sampleMatrix } from "./personas.ts
 describe("expandPersonaMatrix", () => {
 	it("cartesian product in stable order", () => {
 		const cells = expandPersonaMatrix({
-			regions: ["se", "ne"],
-			ageBands: ["adulto"],
+			regions: ["southeast", "northeast"],
+			ageBands: ["adult"],
 			registers: ["formal", "colloquial"],
-			specialties: ["clinico"],
+			specialties: ["general_practice"],
 		});
 		expect(cells).toHaveLength(4);
-		expect(cells[0]).toMatchObject({ region: "se", register: "formal" });
-		expect(cells[1]).toMatchObject({ region: "se", register: "colloquial" });
-		expect(cells[2]?.region).toBe("ne");
+		expect(cells[0]).toMatchObject({ region: "southeast", register: "formal" });
+		expect(cells[1]).toMatchObject({ region: "southeast", register: "colloquial" });
+		expect(cells[2]?.region).toBe("northeast");
 	});
 
 	it("default matrix covers the diversity axes", () => {

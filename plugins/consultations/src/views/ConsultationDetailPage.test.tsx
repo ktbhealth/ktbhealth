@@ -9,7 +9,7 @@ vi.mock("@tanstack/react-router", async () => {
 		Link: (props: Record<string, unknown>) =>
 			React.createElement(
 				"a",
-				{ href: String(props.to ?? "#"), ...props },
+				{ href: typeof props.to === "string" ? props.to : "#", ...props },
 				props.children as never,
 			),
 	};

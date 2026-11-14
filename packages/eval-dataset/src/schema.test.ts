@@ -11,7 +11,12 @@ const base = {
 	origin: "synthetic" as const,
 	script: "x",
 	scriptHash: "h",
-	persona: { region: "se", ageBand: "adulto", register: "formal", specialty: "clinico" },
+	persona: {
+		region: "southeast",
+		ageBand: "adult",
+		register: "formal",
+		specialty: "general_practice",
+	},
 	gold: { validatedBy: "generator" },
 };
 

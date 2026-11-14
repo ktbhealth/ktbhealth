@@ -99,8 +99,10 @@ const initialFormValues = (fields: readonly ConfigFormField[], config: unknown) 
 const enumOptions = (field: ConfigFormField): readonly string[] => field.options ?? [];
 
 /* v8 ignore next -- enum values are initialized to a string and only assigned strings */
-const enumValue = (values: Record<string, unknown>, key: string): string =>
-	String(values[key] ?? "");
+const enumValue = (values: Record<string, unknown>, key: string): string => {
+	const v = values[key];
+	return typeof v === "string" || typeof v === "number" ? String(v) : "";
+};
 
 /**
  * /platform/plugins console view (P-058): every discovered plugin with
@@ -401,7 +403,11 @@ function ConfigForm({
 					) : (
 						<Input
 							type={field.type === "number" ? "number" : "text"}
-							value={String(values[field.key] ?? "")}
+							value={
+								typeof values[field.key] === "string" || typeof values[field.key] === "number"
+									? String(values[field.key])
+									: ""
+							}
 							onChange={(e) => {
 								const raw = e.target.value;
 								if (field.type !== "number") {

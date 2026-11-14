@@ -244,7 +244,10 @@ describe("whisper-worker", () => {
 		});
 		await Promise.all([p1, p2]);
 		const texts = posted.filter((m) => m.type === "text");
-		expect(texts.map((m) => m.id).sort()).toEqual(["t7", "t8"]);
+		expect(texts.map((m) => m.id).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+			"t7",
+			"t8",
+		]);
 	});
 
 	it("isModelCached detects cached model files", async () => {

@@ -66,7 +66,7 @@ vi.mock("@tanstack/react-router", async () => {
 		Link: (props: Record<string, unknown>) =>
 			React.createElement(
 				"a",
-				{ href: String(props.to ?? "#"), ...props },
+				{ href: typeof props.to === "string" ? props.to : "#", ...props },
 				props.children as never,
 			),
 	};
@@ -176,7 +176,7 @@ describe("NewConsultationPage", () => {
 		await user.type(screen.getByLabelText("New patient age"), "40");
 		await user.click(screen.getByText("+ patient"));
 		await waitFor(() =>
-			expect(api.createPatient).toHaveBeenCalledWith({
+			expect(api["createPatient"]).toHaveBeenCalledWith({
 				data: { name: "Ana", birthDate: String(new Date().getFullYear() - 40) },
 			}),
 		);
@@ -197,7 +197,7 @@ describe("NewConsultationPage", () => {
 		expect(screen.getByText("Enter the patient's age.").getAttribute("role")).toBe("alert");
 		await user.type(screen.getByLabelText("New patient age"), "4.5");
 		await user.click(screen.getByText("+ patient"));
-		expect(api.createPatient).not.toHaveBeenCalled();
+		expect(api["createPatient"]).not.toHaveBeenCalled();
 	});
 
 	it("preselects the patient passed by the record page", () => {
@@ -215,7 +215,7 @@ describe("NewConsultationPage", () => {
 		const api = makeApi();
 		renderPage(api);
 		await user.click(screen.getByText("+ patient"));
-		expect(api.createPatient).not.toHaveBeenCalled();
+		expect(api["createPatient"]).not.toHaveBeenCalled();
 	});
 
 	it("shows the server's validation error for quick registration", async () => {
@@ -426,7 +426,7 @@ describe("NewConsultationPage", () => {
 		await vi.advanceTimersByTimeAsync(1600);
 		await vi.advanceTimersByTimeAsync(1600);
 		vi.useRealTimers();
-		expect(api.getLiveConsultation).toHaveBeenCalled();
+		expect(api["getLiveConsultation"]).toHaveBeenCalled();
 	});
 
 	it("sendBot guards empty url and handles failure", async () => {
@@ -464,7 +464,7 @@ describe("NewConsultationPage", () => {
 		const api = makeApi();
 		renderPage(api);
 		await generateAnamnesis(user);
-		expect(api.extractAnamnesis).toHaveBeenCalled();
+		expect(api["extractAnamnesis"]).toHaveBeenCalled();
 		expect(screen.getByText("engine: heuristic")).toBeTruthy();
 	});
 
@@ -474,7 +474,7 @@ describe("NewConsultationPage", () => {
 		renderPage(api);
 		await choosePatient(user, "João");
 		await generateAnamnesis(user);
-		expect(api.extractAnamnesis).toHaveBeenCalledWith({
+		expect(api["extractAnamnesis"]).toHaveBeenCalledWith({
 			data: { transcript: "paciente relata dor", patientId: 2 },
 		});
 	});
@@ -562,8 +562,8 @@ describe("NewConsultationPage", () => {
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("Anamnesis saved successfully");
-		expect(api.saveConsultation).toHaveBeenCalled();
-		expect(api.recordConsent).toHaveBeenCalledWith({ data: 42 });
+		expect(api["saveConsultation"]).toHaveBeenCalled();
+		expect(api["recordConsent"]).toHaveBeenCalledWith({ data: 42 });
 		// dialog actions
 		expect(screen.getByText("Download PDF")).toBeTruthy();
 		expect(screen.getByText("View consultation")).toBeTruthy();
@@ -571,7 +571,7 @@ describe("NewConsultationPage", () => {
 		// now shows update label
 		await user.click(screen.getByText("Update consultation"));
 		await screen.findByText("Consultation updated");
-		expect(api.attachAnamnesis).toHaveBeenCalled();
+		expect(api["attachAnamnesis"]).toHaveBeenCalled();
 	});
 
 	it("save without consent skips recordConsent", async () => {
@@ -581,7 +581,7 @@ describe("NewConsultationPage", () => {
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("Anamnesis saved successfully");
-		expect(api.recordConsent).not.toHaveBeenCalled();
+		expect(api["recordConsent"]).not.toHaveBeenCalled();
 	});
 
 	it("save error paths: attach fails, save fails, exception", async () => {
@@ -621,8 +621,8 @@ describe("NewConsultationPage", () => {
 		await screen.findByText("high confidence");
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("Consultation updated");
-		expect(api.attachAnamnesis).toHaveBeenCalled();
-		expect(api.saveConsultation).not.toHaveBeenCalled();
+		expect(api["attachAnamnesis"]).toHaveBeenCalled();
+		expect(api["saveConsultation"]).not.toHaveBeenCalled();
 	});
 
 	it("updated save dialog shows consent note", async () => {
@@ -788,7 +788,7 @@ describe("NewConsultationPage", () => {
 		await user.click(screen.getByText("Send bot"));
 		await screen.findByText(/consultation #4/);
 		await vi.advanceTimersByTimeAsync(3200);
-		expect(api.getLiveConsultation).toHaveBeenCalled();
+		expect(api["getLiveConsultation"]).toHaveBeenCalled();
 		vi.useRealTimers();
 	});
 
@@ -897,7 +897,7 @@ describe("NewConsultationPage", () => {
 		await screen.findByText("high confidence");
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText(/session expired/);
-		expect(api.attachAnamnesis).toHaveBeenCalledWith(
+		expect(api["attachAnamnesis"]).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({ engine: "unknown" }),
 			}),
@@ -914,7 +914,7 @@ describe("NewConsultationPage", () => {
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText(/could not save/);
-		expect(api.saveConsultation).toHaveBeenCalledWith(
+		expect(api["saveConsultation"]).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({ engine: "unknown" }),
 			}),
@@ -930,7 +930,7 @@ describe("NewConsultationPage", () => {
 		await generateAnamnesis(user);
 		await user.click(screen.getByText("Save consultation"));
 		await screen.findByText("Anamnesis saved successfully");
-		expect(api.saveConsultation).toHaveBeenCalledWith(
+		expect(api["saveConsultation"]).toHaveBeenCalledWith(
 			expect.objectContaining({ data: expect.objectContaining({ patientId: undefined }) }),
 		);
 	});
@@ -948,7 +948,7 @@ describe("NewConsultationPage", () => {
 		await user.click(screen.getByText("Record"));
 		fireEvent.change(screen.getByLabelText("Consultation text"), { target: { value: "   " } });
 		fireEvent.click(screen.getByText("Generate anamnesis →"));
-		expect(api.extractAnamnesis).not.toHaveBeenCalled();
+		expect(api["extractAnamnesis"]).not.toHaveBeenCalled();
 	});
 
 	it("save dialog names the selected patient", async () => {
@@ -1066,7 +1066,7 @@ describe("NewConsultationPage", () => {
 			await user.click(screen.getByText(/Stop dictation/));
 			await user.click(screen.getByText("Generate anamnesis →"));
 			await screen.findByText("high confidence");
-			expect(api.extractAnamnesis).toHaveBeenCalledWith({
+			expect(api["extractAnamnesis"]).toHaveBeenCalledWith({
 				data: { transcript: "narrei a consulta toda", patientId: undefined },
 			});
 		});
