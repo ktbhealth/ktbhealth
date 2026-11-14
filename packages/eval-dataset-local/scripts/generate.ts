@@ -21,9 +21,11 @@ import * as Schedule from "effect/Schedule";
 import {
 	DEFAULT_MATRIX,
 	generateDataset,
+	ptBR,
 	sampleMatrix,
 	type Persona,
 	type AcousticProfile,
+	type LocaleProfile,
 } from "@ktb/eval-dataset";
 import { TtsPort } from "@ktb/eval-dataset";
 
@@ -40,6 +42,14 @@ const seed = Number(arg("seed", "100"));
 const step = Number(arg("step", "7"));
 const templateName = arg("template", "consultation");
 const locale = arg("locale", "pt-BR");
+// Locale → profile registry: the template dir and the script content
+// MUST come from the same locale — without this, --locale xx would
+// render xx templates with pt-BR slot tables and gold entities.
+const LOCALES: Record<string, LocaleProfile> = { "pt-BR": ptBR };
+const profile = LOCALES[locale];
+if (!profile) {
+	throw new Error(`unknown --locale ${locale} (available: ${Object.keys(LOCALES).join(", ")})`);
+}
 const noise = arg("noise", "clean") as AcousticProfile["noise"];
 const ttsKind = arg("tts", "stub");
 const concurrency = Number(arg("concurrency", "2"));
