@@ -16,13 +16,14 @@ export type PatientAccessRelation = (typeof PATIENT_ACCESS_RELATIONS)[number];
 
 /**
  * invited — doctor invite awaiting a matching verified email;
- * pending — CPF match awaiting approval by the doctor;
+ * pending — awaiting approval by the doctor;
  * active — grants portal access; revoked — access removed.
  */
 export const PATIENT_ACCESS_STATUSES = ["invited", "pending", "active", "revoked"] as const;
 export type PatientAccessStatus = (typeof PATIENT_ACCESS_STATUSES)[number];
 
-/** How the link was created: doctor invite or CPF match. */
+/** How the link was created: doctor invite, or a CPF match on links
+ * written before account CPFs were dropped (historical rows only). */
 export const PATIENT_ACCESS_SOURCES = ["invite", "cpf"] as const;
 export type PatientAccessSource = (typeof PATIENT_ACCESS_SOURCES)[number];
 

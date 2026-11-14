@@ -22,5 +22,12 @@ declare module "@tanstack/react-router" {
 			preLoaderRoute: AnyRoute;
 			parentRoute: AnyRoute;
 		};
+		"/secretaries/login": {
+			id: "/secretaries/login";
+			path: "/secretaries/login";
+			fullPath: "/secretaries/login";
+			preLoaderRoute: AnyRoute;
+			parentRoute: AnyRoute;
+		};
 	}
 }

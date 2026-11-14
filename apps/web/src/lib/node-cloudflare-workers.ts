@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 
 import { makeSqliteDatabase } from "@ktb/db-sqlite";
+import { connect as nodeSocketConnect } from "@ktb/email-smtp/node-connect";
 
 import { resolveAi, type AiEnv } from "./ai.ts";
 import { loadDevVars } from "./dev-vars.ts";
@@ -66,6 +67,9 @@ const ENV_KEYS = [
 	"AUDIO_TRANSCRIBE_MODEL",
 	"AI_STUB",
 	"AI_BASE_URL",
+	"SMTP_URL",
+	"EMAIL_FROM",
+	"EMAIL_STUB",
 ] as const;
 
 const env: Record<string, unknown> = {};
@@ -117,5 +121,10 @@ env.AUDIO_QUEUE = makeLocalQueue({
 // their honest "not configured" paths instead of a throwing stub.
 const aiStandIn = resolveAi(env as AiEnv);
 if (aiStandIn !== undefined) env.AI = aiStandIn;
+
+// Socket transport for the SMTP email driver (node:net stand-in for
+// workerd's cloudflare:sockets connect — see @ktb/email-smtp). Bound
+// unconditionally; the driver only reads it when SMTP_URL is set.
+env.SMTP_CONNECT = nodeSocketConnect;
 
 export { env };

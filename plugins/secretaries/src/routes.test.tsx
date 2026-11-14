@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 	inviteSecretaryFn: vi.fn(async (_arg: { data: { email: string } }) => ({ ok: true })),
 	revokeSecretaryFn: vi.fn(async (_arg: { data: number }) => ({ ok: true })),
 	localeFn: vi.fn(async () => "pt-BR"),
+	emailEnabledFn: vi.fn(async () => true),
+	doctorContextFn: vi.fn(),
 	invalidate: vi.fn(),
 	loaderData: { current: undefined as unknown },
 	props: { current: undefined as Record<string, unknown> | undefined },
@@ -20,11 +22,19 @@ vi.mock("./fns.ts", () => ({
 	inviteSecretaryFn: mocks.inviteSecretaryFn,
 	revokeSecretaryFn: mocks.revokeSecretaryFn,
 	localeFn: mocks.localeFn,
+	emailEnabledFn: mocks.emailEnabledFn,
+}));
+vi.mock("@ktb/doctors/fns", () => ({
+	doctorContextFn: () => mocks.doctorContextFn(),
 }));
 vi.mock("./views/index.ts", () => ({
 	SecretariesPage: (props: Record<string, unknown>) => {
 		mocks.props.current = props;
 		return createElement("div", { "data-testid": "secretaries" });
+	},
+	SecretaryLoginPage: (props: Record<string, unknown>) => {
+		mocks.props.current = props;
+		return createElement("div", { "data-testid": "secretary-login" });
 	},
 }));
 // Server fns become plain async calls; with no runtime registered the
@@ -58,6 +68,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 import { isRedirect } from "@tanstack/react-router";
 
 import { Route } from "./routes/index.tsx";
+import { Route as LoginRoute } from "./routes/login.tsx";
 
 const options = (
 	Route as unknown as {
@@ -112,5 +123,51 @@ describe("/secretaries", () => {
 		expect(mocks.revokeSecretaryFn).toHaveBeenCalledWith({ data: 5 });
 		props.onChanged();
 		expect(mocks.invalidate).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("/secretaries/login", () => {
+	const loginOptions = (
+		LoginRoute as unknown as {
+			options: {
+				loader: () => Promise<unknown>;
+				head: (arg: { loaderData?: { locale: string } }) => { meta: { title: string }[] };
+				component: () => ReactElement;
+			};
+		}
+	).options;
+
+	it("loads the locale and whether email can be sent", async () => {
+		await expect(loginOptions.loader()).resolves.toEqual({
+			locale: "pt-BR",
+			emailEnabled: true,
+		});
+	});
+
+	it("titles the document in the loaded locale", () => {
+		expect(loginOptions.head({ loaderData: { locale: "pt-BR" } }).meta[0]!.title).toBe(
+			"Secretária | KTB Health",
+		);
+		expect(loginOptions.head({}).meta[0]!.title).toBe("Secretary sign-in | KTB Health");
+	});
+
+	it("wires the view with loader data and the doctor-context api", async () => {
+		mocks.loaderData.current = { locale: "en", emailEnabled: true };
+		mocks.doctorContextFn.mockResolvedValue({ profiles: [{ doctorId: 1 }] });
+		render(createElement(loginOptions.component));
+		const props = mocks.props.current as {
+			locale: string;
+			emailEnabled: boolean;
+			api: { context(): Promise<unknown> };
+		};
+		expect(props).toMatchObject({ locale: "en", emailEnabled: true });
+		await expect(props.api.context()).resolves.toEqual({ profiles: [{ doctorId: 1 }] });
+		expect(mocks.doctorContextFn).toHaveBeenCalledTimes(1);
+	});
+
+	it("falls back to defaults without loader data", () => {
+		mocks.loaderData.current = undefined;
+		render(createElement(loginOptions.component));
+		expect(mocks.props.current).toMatchObject({ locale: "en", emailEnabled: false });
 	});
 });

@@ -31,6 +31,7 @@ import { Route as SplatRouteImport } from './routes/platform/$'
 import { Route as PortalIndexRouteImport } from './../../../plugins/patient-portal/src/routes/index'
 import { Route as portalLoginRouteImport } from './routes/portal-login'
 import { Route as SecretariesIndexRouteImport } from './../../../plugins/secretaries/src/routes/index'
+import { Route as SecretariesLoginRouteImport } from './../../../plugins/secretaries/src/routes/login'
 import { Route as ApiAuthDotsplatRouteImport } from './../../../plugins/auth/src/api-routes/auth.$'
 import { Route as ApiBotsDotwebhookRouteImport } from './../../../plugins/consultations/src/api-routes/bots.webhook'
 import { Route as ApiCdnSplatRouteImport } from './routes/api/cdn/$'
@@ -152,6 +153,11 @@ const SecretariesIndexRoute = SecretariesIndexRouteImport.update({
   path: '/secretaries/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SecretariesLoginRoute = SecretariesLoginRouteImport.update({
+  id: '/secretaries/login',
+  path: '/secretaries/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthDotsplatRoute = ApiAuthDotsplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/portal/login': typeof portalLoginRoute
+  '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
@@ -252,6 +259,7 @@ export interface FileRoutesByTo {
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/portal/login': typeof portalLoginRoute
+  '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations': typeof ConsultationsIndexRoute
   '/patients': typeof PatientsIndexRoute
   '/platform': typeof IndexRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/patients/new': typeof PatientsNewRoute
   '/platform/$': typeof SplatRoute
   '/portal/login': typeof portalLoginRoute
+  '/secretaries/login': typeof SecretariesLoginRoute
   '/consultations/': typeof ConsultationsIndexRoute
   '/patients/': typeof PatientsIndexRoute
   '/platform/': typeof IndexRoute
@@ -321,6 +330,7 @@ export interface FileRouteTypes {
     | '/patients/new'
     | '/platform/$'
     | '/portal/login'
+    | '/secretaries/login'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
     | '/patients/new'
     | '/platform/$'
     | '/portal/login'
+    | '/secretaries/login'
     | '/consultations'
     | '/patients'
     | '/platform'
@@ -386,6 +397,7 @@ export interface FileRouteTypes {
     | '/patients/new'
     | '/platform/$'
     | '/portal/login'
+    | '/secretaries/login'
     | '/consultations/'
     | '/patients/'
     | '/platform/'
@@ -419,6 +431,7 @@ export interface RootRouteChildren {
   PatientAccessPatientIdRoute: typeof PatientAccessPatientIdRoute
   PatientsNewRoute: typeof PatientsNewRoute
   portalLoginRoute: typeof portalLoginRoute
+  SecretariesLoginRoute: typeof SecretariesLoginRoute
   ConsultationsIndexRoute: typeof ConsultationsIndexRoute
   PatientsIndexRoute: typeof PatientsIndexRoute
   PortalIndexRoute: typeof PortalIndexRoute
@@ -589,6 +602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SecretariesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/secretaries/login': {
+      id: '/secretaries/login'
+      path: '/secretaries/login'
+      fullPath: '/secretaries/login'
+      preLoaderRoute: typeof SecretariesLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -698,6 +718,7 @@ const rootRouteChildren: RootRouteChildren = {
   PatientAccessPatientIdRoute: PatientAccessPatientIdRoute,
   PatientsNewRoute: PatientsNewRoute,
   portalLoginRoute: portalLoginRoute,
+  SecretariesLoginRoute: SecretariesLoginRoute,
   ConsultationsIndexRoute: ConsultationsIndexRoute,
   PatientsIndexRoute: PatientsIndexRoute,
   PortalIndexRoute: PortalIndexRoute,

@@ -28,8 +28,8 @@ vi.mock("@ktb/server-fns", () => mocks);
 
 import { Forbidden } from "@ktb/authz";
 
-import { CpfRejected, PatientPortal } from "./index.ts";
-import { localeFn, portalConsultationFn, portalFn, selectPatientFn, setCpfFn } from "./fns.ts";
+import { PatientPortal } from "./index.ts";
+import { localeFn, portalConsultationFn, portalFn, selectPatientFn } from "./fns.ts";
 
 const user = { id: "ana", email: "ana@ktb.test", name: "Ana" };
 const me = { patientId: 1, name: "Ana", relation: "self" };
@@ -49,9 +49,7 @@ const portal = {
 	profile: vi.fn(),
 	consultations: vi.fn(),
 	consultation: vi.fn(),
-	hasCpf: vi.fn(),
 	awaitingInvites: vi.fn<() => Effect.Effect<number, Forbidden>>(),
-	setCpf: vi.fn(),
 };
 const denied = Effect.fail(new Forbidden({ path: "portal.read" }));
 
@@ -65,9 +63,7 @@ beforeEach(() => {
 	portal.profile.mockReturnValue(Effect.succeed(profile));
 	portal.consultations.mockReturnValue(Effect.succeed(listed));
 	portal.consultation.mockReturnValue(Effect.succeed(consultation));
-	portal.hasCpf.mockReturnValue(Effect.succeed(true));
 	portal.awaitingInvites.mockReturnValue(Effect.succeed(0));
-	portal.setCpf.mockReturnValue(Effect.void);
 });
 
 describe("localeFn", () => {
@@ -88,7 +84,6 @@ describe("portalFn", () => {
 		mocks.getPatientContext.mockResolvedValue({ user, profiles: [me, kid], active: me });
 		await expect(portalFn()).resolves.toEqual({
 			user: { name: "Ana", email: "ana@ktb.test" },
-			hasCpf: true,
 			awaitingInvites: 0,
 			profiles: [me, kid],
 			profile,
@@ -108,10 +103,8 @@ describe("portalFn", () => {
 
 	it("opens nothing while a profile choice is pending", async () => {
 		mocks.getPatientContext.mockResolvedValue({ user, profiles: [me, kid], active: null });
-		portal.hasCpf.mockReturnValue(Effect.succeed(false));
 		await expect(portalFn()).resolves.toEqual({
 			user: { name: "Ana", email: "ana@ktb.test" },
-			hasCpf: false,
 			awaitingInvites: 0,
 			profiles: [me, kid],
 			profile: null,
@@ -126,7 +119,6 @@ describe("portalFn", () => {
 		portal.profile.mockReturnValue(denied);
 		await expect(portalFn()).resolves.toEqual({
 			user: { name: "Ana", email: "ana@ktb.test" },
-			hasCpf: true,
 			awaitingInvites: 0,
 			profiles: [],
 			profile: null,
@@ -176,36 +168,5 @@ describe("selectPatientFn", () => {
 		mocks.getPatientContext.mockResolvedValue(null);
 		await expect(selectPatientFn({ data: 1 })).resolves.toEqual({ ok: false });
 		expect(mocks.setPatientSelection).not.toHaveBeenCalled();
-	});
-});
-
-describe("setCpfFn", () => {
-	it("stores the session user's CPF", async () => {
-		mocks.getSessionUser.mockResolvedValue(user);
-		await expect(setCpfFn({ data: "529.982.247-25" })).resolves.toEqual({ ok: true });
-		expect(portal.setCpf).toHaveBeenCalledWith("529.982.247-25");
-	});
-
-	it("reports why a CPF was refused", async () => {
-		mocks.getSessionUser.mockResolvedValue(user);
-		portal.setCpf.mockReturnValue(Effect.fail(new CpfRejected({ code: "cpf_taken" })));
-		await expect(setCpfFn({ data: "529.982.247-25" })).resolves.toEqual({
-			ok: false,
-			error: "cpf_taken",
-		});
-	});
-
-	it("fails for anonymous callers and anyone acting for a doctor", async () => {
-		mocks.getSessionUser.mockResolvedValue(null);
-		await expect(setCpfFn({ data: "529.982.247-25" })).resolves.toEqual({
-			ok: false,
-			error: "failed",
-		});
-		mocks.getSessionUser.mockResolvedValue(user);
-		portal.setCpf.mockReturnValue(Effect.fail(new Forbidden({ path: "portal.update" })));
-		await expect(setCpfFn({ data: "529.982.247-25" })).resolves.toEqual({
-			ok: false,
-			error: "failed",
-		});
 	});
 });

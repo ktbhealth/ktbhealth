@@ -10,7 +10,6 @@ import { makeD1 } from "@ktb/db/testing";
 
 import {
 	countAwaitingInvites,
-	cpfDigits,
 	getPortalConsultation,
 	getPortalProfile,
 	listPortalConsultations,
@@ -54,10 +53,10 @@ const json = (a: Anamnesis) => JSON.stringify(a).replaceAll("'", "''");
 // is not JSON at all, 14 was saved with no chief complaint, 20 is
 // Leo's, 30 Rui's and 40 Ivo's.
 const DDL = `
-CREATE TABLE user (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL DEFAULT 0, cpf TEXT, updated_at INTEGER);
-INSERT INTO user (id, name, email, email_verified, cpf) VALUES
-  ('ana', 'Ana', 'ana@ktb.test', 0, NULL),
-  ('eva', 'Eva', 'eva@ktb.test', 1, '52998224725');
+CREATE TABLE user (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, email_verified INTEGER NOT NULL DEFAULT 0, updated_at INTEGER);
+INSERT INTO user (id, name, email, email_verified) VALUES
+  ('ana', 'Ana', 'ana@ktb.test', 0),
+  ('eva', 'Eva', 'eva@ktb.test', 1);
 CREATE TABLE doctors (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, display_name TEXT NOT NULL);
 INSERT INTO doctors (user_id, display_name) VALUES ('doc', 'Dra. Bia');
 CREATE TABLE patients (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_id TEXT NOT NULL, name TEXT NOT NULL);
@@ -216,12 +215,6 @@ describe("countAwaitingInvites", () => {
 	});
 });
 
-describe("cpfDigits", () => {
-	it("strips the mask", () => {
-		expect(cpfDigits("529.982.247-25")).toBe("52998224725");
-	});
-});
-
 describe("PatientPortalLive", () => {
 	let runtime: ManagedRuntime.ManagedRuntime<PatientPortal, never>;
 	const d1 = makeD1(DDL);
@@ -289,29 +282,11 @@ describe("PatientPortalLive", () => {
 				await as(who, (p) => p.profile(1)),
 				await as(who, (p) => p.consultations(1)),
 				await as(who, (p) => p.consultation(10)),
-				await as(who, (p) => p.hasCpf()),
 				await as(who, (p) => p.awaitingInvites()),
-				await as(who, (p) => p.setCpf("529.982.247-25")),
 			]) {
 				expect(result).toMatchObject({ _tag: "Failure", failure: { _tag: "Forbidden" } });
 			}
 		}
-	});
-
-	it("stores a valid, unused CPF and reports it afterwards", async () => {
-		expect(await as(ana, (p) => p.hasCpf())).toMatchObject({ success: false });
-		expect(await as(ana, (p) => p.setCpf("123"))).toMatchObject({
-			_tag: "Failure",
-			failure: { _tag: "CpfRejected", code: "invalid_cpf" },
-		});
-		expect(await as(ana, (p) => p.setCpf("529.982.247-25"))).toMatchObject({
-			_tag: "Failure",
-			failure: { _tag: "CpfRejected", code: "cpf_taken" },
-		});
-		expect(await as(ana, (p) => p.setCpf("111.444.777-35"))).toMatchObject({ _tag: "Success" });
-		expect(await as(ana, (p) => p.hasCpf())).toMatchObject({ success: true });
-		// Saving the same CPF again is not a conflict with oneself.
-		expect(await as(ana, (p) => p.setCpf("11144477735"))).toMatchObject({ _tag: "Success" });
 	});
 });
 

@@ -43,6 +43,11 @@ export interface EmailDriverEnv {
 	readonly EMAIL?: unknown;
 	/** Sender address, e.g. "noreply@example.com". */
 	readonly EMAIL_FROM?: string;
+	/** SMTP server URL — selects the SMTP driver when set with EMAIL_FROM. */
+	readonly SMTP_URL?: string;
+	/** Socket transport for the SMTP driver — injected by the deploy
+	 * target (cloudflare:sockets connect in workerd, node:net in dev:node). */
+	readonly SMTP_CONNECT?: unknown;
 }
 
 /** True when a provider binding and its sender address are both bound. */
@@ -51,11 +56,12 @@ export const hasEmailProvider = (env: EmailDriverEnv): boolean =>
 
 /**
  * Disabled email driver: Email resolves to null. Last in the email driver
- * list — eligible only when neither EMAIL_STUB nor a provider is bound.
+ * list — eligible only when no email mechanism (stub, SMTP, provider
+ * binding) is configured.
  */
 export const nullEmailDriver: Driver<EmailDriverEnv> = {
 	id: "email-none",
 	port: Email.key,
 	provides: () => Layer.succeed(Email, null),
-	when: (env) => !env.EMAIL_STUB && !hasEmailProvider(env),
+	when: (env) => !env.EMAIL_STUB && !env.SMTP_URL && !hasEmailProvider(env),
 };

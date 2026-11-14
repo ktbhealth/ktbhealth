@@ -45,8 +45,6 @@
 	"portal_login_desc_in": "Sign in to see your consultations.",
 	"portal_login_desc_up": "Create an account to see the consultations your doctors recorded for you.",
 	"portal_login_name": "Full name",
-	"portal_login_cpf": "CPF",
-	"portal_login_error_cpf": "Enter a valid CPF.",
 	"portal_login_doctor_link": "I am a doctor",
 	"verify_meta_title": "Verify email | KTB Health",
 	"verify_heading": "Verify your email",
@@ -195,6 +193,5 @@
 	"never_4": "Never replaces clinical judgment",
 	"never_quote_a": "The doctor reviews, edits and approves.",
 	"never_quote_b": "Nothing enters the record without a signature.",
-	"panel_nav_plugins": "Plugins",
-	"panel_group_system": "System"
+	"panel_nav_plugins": "Plugins"
 }

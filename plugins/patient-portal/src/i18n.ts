@@ -7,8 +7,6 @@
  */
 import type { AnamnesisSectionKey } from "@ktb/anamnesis/types";
 
-import type { CpfErrorCode } from "./index.ts";
-
 /** Locales with a catalog; the host asserts it covers every app locale. */
 export const PORTAL_LOCALES = ["en", "pt-BR", "es"] as const;
 export type PortalLocale = (typeof PORTAL_LOCALES)[number];
@@ -44,12 +42,7 @@ export interface PortalMessages {
 	readonly verifyEmailTitle: string;
 	readonly verifyEmailDescription: string;
 	readonly verifyEmailAction: string;
-	readonly cpfTitle: string;
-	readonly cpfDescription: string;
-	readonly cpfLabel: string;
-	readonly cpfSubmit: string;
-	readonly pending: string;
-	readonly errors: Record<CpfErrorCode | "failed", string>;
+	readonly errors: Record<"failed", string>;
 }
 
 const en: PortalMessages = {
@@ -82,20 +75,12 @@ const en: PortalMessages = {
 		conduta: "Management plan",
 	},
 	emptyTitle: "No records linked yet",
-	emptyDescription:
-		"When a doctor registers you with this CPF or invites this email, your consultations appear here. Some links wait for the doctor's approval.",
+	emptyDescription: "When a doctor invites this email, your consultations appear here.",
 	verifyEmailTitle: "Confirm your email",
 	verifyEmailDescription:
 		"A doctor invited this address — the consultations shared with you unlock once your email is confirmed.",
 	verifyEmailAction: "Resend verification link",
-	cpfTitle: "Tell us your CPF",
-	cpfDescription: "We use your CPF to find the consultations your doctors recorded for you.",
-	cpfLabel: "CPF",
-	cpfSubmit: "Save CPF",
-	pending: "Please wait…",
 	errors: {
-		invalid_cpf: "Enter a valid CPF.",
-		cpf_taken: "This CPF is already used by another account.",
 		failed: "Something went wrong. Please try again.",
 	},
 };
@@ -131,21 +116,12 @@ const ptBR: PortalMessages = {
 		conduta: "Conduta",
 	},
 	emptyTitle: "Nenhuma ficha vinculada ainda",
-	emptyDescription:
-		"Quando um médico cadastrar você com este CPF ou convidar este e-mail, suas consultas aparecem aqui. Alguns vínculos aguardam a aprovação do médico.",
+	emptyDescription: "Quando um médico convidar este e-mail, suas consultas aparecem aqui.",
 	verifyEmailTitle: "Confirme seu e-mail",
 	verifyEmailDescription:
 		"Um médico convidou este endereço — as consultas compartilhadas com você são liberadas assim que o e-mail for confirmado.",
 	verifyEmailAction: "Reenviar link de verificação",
-	cpfTitle: "Informe seu CPF",
-	cpfDescription:
-		"Usamos seu CPF para encontrar as consultas que seus médicos registraram para você.",
-	cpfLabel: "CPF",
-	cpfSubmit: "Salvar CPF",
-	pending: "Aguarde…",
 	errors: {
-		invalid_cpf: "Informe um CPF válido.",
-		cpf_taken: "Este CPF já está em uso por outra conta.",
 		failed: "Algo deu errado. Tente novamente.",
 	},
 };
@@ -181,20 +157,12 @@ const es: PortalMessages = {
 		conduta: "Plan de manejo",
 	},
 	emptyTitle: "Aún no hay fichas vinculadas",
-	emptyDescription:
-		"Cuando un médico te registre con este CPF o invite este correo, tus consultas aparecerán aquí. Algunos vínculos esperan la aprobación del médico.",
+	emptyDescription: "Cuando un médico invite este correo, tus consultas aparecerán aquí.",
 	verifyEmailTitle: "Confirma tu correo",
 	verifyEmailDescription:
 		"Un médico invitó esta dirección — las consultas compartidas contigo se desbloquean cuando confirmes el correo.",
 	verifyEmailAction: "Reenviar enlace de verificación",
-	cpfTitle: "Indica tu CPF",
-	cpfDescription: "Usamos tu CPF para encontrar las consultas que tus médicos registraron para ti.",
-	cpfLabel: "CPF",
-	cpfSubmit: "Guardar CPF",
-	pending: "Espera…",
 	errors: {
-		invalid_cpf: "Ingresa un CPF válido.",
-		cpf_taken: "Este CPF ya está en uso por otra cuenta.",
 		failed: "Algo salió mal. Inténtalo de nuevo.",
 	},
 };

@@ -39,10 +39,6 @@ export const makeAuth = (db: AuthDb, opts: AuthOptions = {}) =>
 				await opts.sendVerificationEmail?.({ email: user.email, name: user.name ?? null, url });
 			},
 		},
-		// Mirrors the `cpf` column in @ktb/db/schema, used for the CPF
-		// match against patient records. Never accepted from client input:
-		// the patient portal sets it through a validating server fn.
-		user: { additionalFields: { cpf: { type: "string", required: false, input: false } } },
 		secret: opts.secret,
 		baseURL: opts.baseURL,
 	});

@@ -11,7 +11,7 @@ import {
 	setPatientSelection,
 } from "@ktb/server-fns";
 
-import { PatientPortal, type CpfErrorCode, type PortalConsultation } from "./index.ts";
+import { PatientPortal, type PortalConsultation } from "./index.ts";
 
 // Patient-portal plugin server functions — the patient side. Every call
 // runs as the *session* user: the portal shows what the person signed
@@ -19,7 +19,6 @@ import { PatientPortal, type CpfErrorCode, type PortalConsultation } from "./ind
 // read-only here: the portal lists and opens consultations, nothing more.
 
 const decodeNumber = Schema.decodeUnknownSync(Schema.Number);
-const decodeString = Schema.decodeUnknownSync(Schema.String);
 
 /** Active UI locale for the current request — route loaders attach it
  * to their data so plugin views never import the host's i18n runtime. */
@@ -27,8 +26,8 @@ export const localeFn = createServerFn({ method: "GET" }).handler(() => getLocal
 
 /**
  * Everything the portal home shows; null for anonymous visitors. An
- * entry point: invites are claimed and records matched by CPF first, so
- * a new link shows up as soon as the patient opens the portal.
+ * entry point: invites are claimed first, so a new link shows up as
+ * soon as the patient opens the portal.
  */
 export const portalFn = createServerFn({ method: "GET" }).handler(async () => {
 	const context = await getPatientContext(undefined, { syncLinks: true });
@@ -40,7 +39,6 @@ export const portalFn = createServerFn({ method: "GET" }).handler(async () => {
 			const portal = yield* PatientPortal;
 			return {
 				user: { name: user.name, email: user.email },
-				hasCpf: yield* portal.hasCpf(),
 				awaitingInvites: yield* portal.awaitingInvites(),
 				profiles,
 				profile: active === null ? null : yield* portal.profile(active.patientId),
@@ -51,7 +49,6 @@ export const portalFn = createServerFn({ method: "GET" }).handler(async () => {
 			Effect.catchTag("Forbidden", () =>
 				Effect.succeed({
 					user: { name: user.name, email: user.email },
-					hasCpf: true,
 					awaitingInvites: 0,
 					profiles: [],
 					profile: null,
@@ -95,32 +92,4 @@ export const selectPatientFn = createServerFn({ method: "POST" })
 		if (!context?.profiles.some((p) => p.patientId === patientId)) return { ok: false };
 		await setPatientSelection(patientId);
 		return { ok: true };
-	});
-
-export type SetCpfResult =
-	| { readonly ok: true }
-	| { readonly ok: false; readonly error: CpfErrorCode | "failed" };
-
-/** Store the session user's CPF (validated server-side). The next
- * portal load matches it against patient records. */
-export const setCpfFn = createServerFn({ method: "POST" })
-	.validator((cpf: string) => decodeString(cpf))
-	.handler(async ({ data: cpf }): Promise<SetCpfResult> => {
-		const user = await getSessionUser();
-		if (!user) return { ok: false, error: "failed" };
-		return runAs(
-			user,
-			Effect.gen(function* () {
-				const portal = yield* PatientPortal;
-				yield* portal.setCpf(cpf);
-				return { ok: true as const };
-			}).pipe(
-				Effect.catchTag("CpfRejected", (e) =>
-					Effect.succeed({ ok: false as const, error: e.code }),
-				),
-				Effect.catchTag("Forbidden", () =>
-					Effect.succeed({ ok: false as const, error: "failed" as const }),
-				),
-			),
-		);
 	});

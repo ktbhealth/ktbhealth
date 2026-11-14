@@ -246,8 +246,8 @@ export interface PatientContext {
  * the user — re-checked on every request; a cookie pointing at a record
  * the user holds no active access to selects nothing.
  *
- * `syncLinks` first claims invites and matches records by CPF — pass it
- * on entry points (the portal home), not on every request.
+ * `syncLinks` first claims invites — pass it on entry points (the
+ * portal home), not on every request.
  */
 export async function getPatientContext(
 	headers?: Headers,

@@ -45,8 +45,6 @@
 	"portal_login_desc_in": "Entre para ver suas consultas.",
 	"portal_login_desc_up": "Crie uma conta para ver as consultas que seus médicos registraram para você.",
 	"portal_login_name": "Nome completo",
-	"portal_login_cpf": "CPF",
-	"portal_login_error_cpf": "Informe um CPF válido.",
 	"portal_login_doctor_link": "Sou médico",
 	"verify_meta_title": "Verificar e-mail | KTB Health",
 	"verify_heading": "Verifique seu e-mail",
@@ -195,6 +193,5 @@
 	"never_4": "Nunca substitui o julgamento clínico",
 	"never_quote_a": "O médico revisa, edita e aprova.",
 	"never_quote_b": "Nada entra no prontuário sem assinatura.",
-	"panel_nav_plugins": "Plugins",
-	"panel_group_system": "Sistema"
+	"panel_nav_plugins": "Plugins"
 }

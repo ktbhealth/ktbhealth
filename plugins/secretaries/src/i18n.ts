@@ -29,6 +29,31 @@ export interface SecretaryMessages {
 		readonly subject: (doctor: string) => string;
 		readonly body: (doctor: string, url: string) => string;
 	};
+	/** /secretaries/login — the staff sign-in screen. Unlike the doctor
+	 * screen, sign-up here never creates a doctor profile. */
+	readonly login: {
+		readonly metaTitle: string;
+		readonly headingIn: string;
+		readonly headingUp: string;
+		readonly descIn: string;
+		readonly descUp: string;
+		readonly tabIn: string;
+		readonly tabUp: string;
+		readonly email: string;
+		readonly name: string;
+		readonly password: string;
+		readonly confirmPassword: string;
+		readonly submitIn: string;
+		readonly submitUp: string;
+		readonly pending: string;
+		readonly errorFallback: string;
+		readonly errorPasswordMismatch: string;
+		readonly verifyLink: string;
+		readonly doctorLink: string;
+		/** Shown after sign-in when the account holds no delegation —
+		 * the invite is still pending or was sent to another email. */
+		readonly noDelegation: string;
+	};
 }
 
 const en: SecretaryMessages = {
@@ -59,6 +84,28 @@ const en: SecretaryMessages = {
 				"",
 				"If you were not expecting this invitation, you can ignore this message.",
 			].join("\n"),
+	},
+	login: {
+		metaTitle: "Secretary sign-in | KTB Health",
+		headingIn: "Secretary sign-in",
+		headingUp: "Create secretary account",
+		descIn: "Sign in with the email the doctor invited.",
+		descUp: "Create an account with the email the doctor invited.",
+		tabIn: "Sign in",
+		tabUp: "Create account",
+		email: "Email",
+		name: "Name",
+		password: "Password",
+		confirmPassword: "Confirm password",
+		submitIn: "Sign in",
+		submitUp: "Create account",
+		pending: "Please wait…",
+		errorFallback: "Could not sign in. Please try again.",
+		errorPasswordMismatch: "Passwords do not match.",
+		verifyLink: "Didn't get the verification email?",
+		doctorLink: "I am a doctor",
+		noDelegation:
+			"No delegation found for this account — ask the doctor to invite this email address.",
 	},
 };
 
@@ -91,6 +138,28 @@ const ptBR: SecretaryMessages = {
 				"Se você não esperava este convite, pode ignorar esta mensagem.",
 			].join("\n"),
 	},
+	login: {
+		metaTitle: "Secretária | KTB Health",
+		headingIn: "Entrar — secretária",
+		headingUp: "Criar conta de secretária",
+		descIn: "Entre com o e-mail que o médico convidou.",
+		descUp: "Crie uma conta com o e-mail que o médico convidou.",
+		tabIn: "Entrar",
+		tabUp: "Criar conta",
+		email: "E-mail",
+		name: "Nome",
+		password: "Senha",
+		confirmPassword: "Confirmar senha",
+		submitIn: "Entrar",
+		submitUp: "Criar conta",
+		pending: "Aguarde…",
+		errorFallback: "Não foi possível entrar. Tente novamente.",
+		errorPasswordMismatch: "As senhas não coincidem.",
+		verifyLink: "Não recebeu o e-mail de verificação?",
+		doctorLink: "Sou médico",
+		noDelegation:
+			"Nenhuma delegação encontrada para esta conta — peça ao médico para convidar este e-mail.",
+	},
 };
 
 const es: SecretaryMessages = {
@@ -121,6 +190,28 @@ const es: SecretaryMessages = {
 				"",
 				"Si no esperabas esta invitación, puedes ignorar este mensaje.",
 			].join("\n"),
+	},
+	login: {
+		metaTitle: "Secretaria | KTB Health",
+		headingIn: "Iniciar sesión — secretaria",
+		headingUp: "Crear cuenta de secretaria",
+		descIn: "Inicia sesión con el correo que el médico invitó.",
+		descUp: "Crea una cuenta con el correo que el médico invitó.",
+		tabIn: "Iniciar sesión",
+		tabUp: "Crear cuenta",
+		email: "Correo electrónico",
+		name: "Nombre",
+		password: "Contraseña",
+		confirmPassword: "Confirmar contraseña",
+		submitIn: "Iniciar sesión",
+		submitUp: "Crear cuenta",
+		pending: "Espere…",
+		errorFallback: "No se pudo iniciar sesión. Inténtelo de nuevo.",
+		errorPasswordMismatch: "Las contraseñas no coinciden.",
+		verifyLink: "¿No recibiste el correo de verificación?",
+		doctorLink: "Soy médico",
+		noDelegation:
+			"No se encontró ninguna delegación para esta cuenta — pide al médico que invite este correo.",
 	},
 };
 

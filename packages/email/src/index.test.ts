@@ -32,6 +32,7 @@ describe("nullEmailDriver", () => {
 		expect(nullEmailDriver.when?.({})).toBe(true);
 		expect(nullEmailDriver.when?.({ EMAIL: {} })).toBe(true);
 		expect(nullEmailDriver.when?.({ EMAIL_STUB: "1" })).toBe(false);
+		expect(nullEmailDriver.when?.({ SMTP_URL: "smtp://localhost:1025" })).toBe(false);
 		expect(nullEmailDriver.when?.({ EMAIL: {}, EMAIL_FROM: "noreply@ktb.test" })).toBe(false);
 	});
 

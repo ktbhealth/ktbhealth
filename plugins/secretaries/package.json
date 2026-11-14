@@ -11,8 +11,10 @@
 	},
 	"dependencies": {
 		"@ktb/auth": "workspace:*",
+		"@ktb/auth-better": "workspace:*",
 		"@ktb/authz": "workspace:*",
 		"@ktb/db": "workspace:*",
+		"@ktb/doctors": "workspace:*",
 		"@ktb/email": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/server-fns": "workspace:*",

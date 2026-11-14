@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
+import { and, asc, eq, ne, or } from "drizzle-orm";
 import { physical } from "@tanstack/virtual-file-routes";
 
 import { PatientProfiles, type PatientProfile } from "@ktb/auth";
@@ -51,7 +51,7 @@ export async function listPatientProfiles(db: DbClient, userId: string): Promise
 
 const accountOf = async (db: DbClient, userId: string) => {
 	const [account] = await db
-		.select({ email: user.email, emailVerified: user.emailVerified, cpf: user.cpf })
+		.select({ email: user.email, emailVerified: user.emailVerified })
 		.from(user)
 		.where(eq(user.id, userId));
 	return account;
@@ -61,8 +61,9 @@ const accountOf = async (db: DbClient, userId: string) => {
  * Activate every pending invite addressed to the user's email — only
  * when that email is verified, so nobody claims a patient record by
  * signing up with someone else's address. An invite for a record the
- * user already has a link to (e.g. a pending CPF match) upgrades that
- * link instead of duplicating it. Returns how many were claimed.
+ * user already has a link to (e.g. one still awaiting approval)
+ * upgrades that link instead of duplicating it. Returns how many were
+ * claimed.
  */
 export async function claimPatientInvites(db: DbClient, userId: string): Promise<number> {
 	const account = await accountOf(db, userId);
@@ -102,53 +103,6 @@ export async function claimPatientInvites(db: DbClient, userId: string): Promise
 	return invites.length;
 }
 
-/**
- * Link the user to every patient record carrying their CPF that they
- * have no link to yet. A CPF is not a secret, so the match alone never
- * opens a record: the link is "active" only when the record's email
- * equals the user's *verified* email; otherwise it is "pending" until
- * the doctor approves it. Existing links — revoked ones included — are
- * left untouched. Returns how many links were created.
- */
-export async function matchPatientsByCpf(db: DbClient, userId: string): Promise<number> {
-	const account = await accountOf(db, userId);
-	if (!account?.cpf) return 0;
-	const candidates = await db
-		.select({ id: patients.id, email: patients.email })
-		.from(patients)
-		.where(eq(patients.cpf, account.cpf));
-	if (candidates.length === 0) return 0;
-	const linked = await db
-		.select({ patientId: patientAccess.patientId })
-		.from(patientAccess)
-		.where(
-			and(
-				eq(patientAccess.userId, userId),
-				inArray(
-					patientAccess.patientId,
-					candidates.map((c) => c.id),
-				),
-			),
-		);
-	const linkedIds = new Set(linked.map((l) => l.patientId));
-	const fresh = candidates.filter((c) => !linkedIds.has(c.id));
-	const email = normalizeEmail(account.email);
-	for (const candidate of fresh) {
-		const proven =
-			account.emailVerified &&
-			candidate.email !== null &&
-			normalizeEmail(candidate.email) === email;
-		await db.insert(patientAccess).values({
-			patientId: candidate.id,
-			userId,
-			relation: "self",
-			status: proven ? "active" : "pending",
-			source: "cpf",
-		});
-	}
-	return fresh.length;
-}
-
 /** `PatientProfiles` directory backed by `patient_access` + `patients`. */
 export const PatientProfilesLive = Layer.effect(
 	PatientProfiles,
@@ -159,9 +113,7 @@ export const PatientProfilesLive = Layer.effect(
 				return yield* Effect.promise(() => listPatientProfiles(db, userId));
 			}),
 			syncLinks: Effect.fn("PatientProfiles.syncLinks")(function* (userId: string) {
-				const claimed = yield* Effect.promise(() => claimPatientInvites(db, userId));
-				const matched = yield* Effect.promise(() => matchPatientsByCpf(db, userId));
-				return claimed + matched;
+				return yield* Effect.promise(() => claimPatientInvites(db, userId));
 			}),
 		});
 	}),
@@ -300,7 +252,7 @@ export class PatientLinks extends Context.Service<
 			readonly email: string;
 			readonly relation: string;
 		}) => Effect.Effect<PatientAccess, Forbidden | PatientInviteRejected>;
-		/** Approve a pending CPF match; false when there is none to approve. */
+		/** Approve a link still awaiting it; false when there is none. */
 		readonly approve: (id: number) => Effect.Effect<boolean, Forbidden>;
 		readonly revoke: (id: number) => Effect.Effect<boolean, Forbidden>;
 	}

@@ -1,8 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@ktb/auth-better/client";
-import { setCpfFn } from "@ktb/patient-portal/fns";
-import { isValidCpf } from "@ktb/patients/record";
 import { Alert, AlertDescription } from "@ktbhealth/ui/components/alert";
 import { Button } from "@ktbhealth/ui/components/button";
 import {
@@ -28,12 +26,11 @@ export const Route = createFileRoute("/portal/login")({
 
 // Patient sign-in. Same accounts as the doctor page — what differs is
 // where it leads (the portal) and what a sign-up creates: a patient
-// account carries a CPF to match records by, and no doctor profile.
+// account has no doctor profile.
 function PortalSignInPage() {
 	const { emailEnabled } = Route.useLoaderData();
 	const [mode, setMode] = useState<"in" | "up">("in");
 	const [name, setName] = useState("");
-	const [cpf, setCpf] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
@@ -46,10 +43,6 @@ function PortalSignInPage() {
 		if (!email.trim() || !password || pending) return;
 		if (mode === "up" && confirmPassword !== password) {
 			setError(m.login_error_password_mismatch());
-			return;
-		}
-		if (mode === "up" && !isValidCpf(cpf)) {
-			setError(m.portal_login_error_cpf());
 			return;
 		}
 		setPending(true);
@@ -73,10 +66,6 @@ function PortalSignInPage() {
 		}
 		// Signed in: stay pending until the browser navigates away.
 		if (mode === "up") {
-			// The CPF is stored through a validating server fn, never the
-			// sign-up payload. A refusal (e.g. already in use) is not fatal:
-			// the portal asks for it again.
-			await setCpfFn({ data: cpf });
 			window.location.assign(emailEnabled ? "/verify-email" : "/portal");
 			return;
 		}
@@ -111,29 +100,16 @@ function PortalSignInPage() {
 					</Tabs>
 					<form onSubmit={submit} className="flex flex-col gap-4">
 						{mode === "up" ? (
-							<>
-								<div className="flex flex-col gap-1.5">
-									<Label htmlFor="name">{m.portal_login_name()}</Label>
-									<Input
-										id="name"
-										autoComplete="name"
-										required
-										value={name}
-										onChange={(e) => setName(e.target.value)}
-									/>
-								</div>
-								<div className="flex flex-col gap-1.5">
-									<Label htmlFor="cpf">{m.portal_login_cpf()}</Label>
-									<Input
-										id="cpf"
-										inputMode="numeric"
-										autoComplete="off"
-										required
-										value={cpf}
-										onChange={(e) => setCpf(e.target.value)}
-									/>
-								</div>
-							</>
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="name">{m.portal_login_name()}</Label>
+								<Input
+									id="name"
+									autoComplete="name"
+									required
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+								/>
+							</div>
 						) : null}
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor="email">{m.login_email()}</Label>

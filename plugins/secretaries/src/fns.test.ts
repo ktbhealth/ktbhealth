@@ -45,6 +45,7 @@ vi.mock("@ktb/server-fns", () => ({
 
 import { InviteRejected, Secretaries } from "./index.ts";
 import {
+	emailEnabledFn,
 	inviteSecretaryFn,
 	listSecretariesFn,
 	localeFn,
@@ -103,6 +104,17 @@ describe("session and locale fns", () => {
 	});
 });
 
+describe("emailEnabledFn", () => {
+	it.each([
+		["sender", true],
+		["disabled", false],
+		["absent", false],
+	] as const)("email %s resolves %s", async (mode, expected) => {
+		mocks.emailService.current = mode;
+		await expect(emailEnabledFn()).resolves.toBe(expected);
+	});
+});
+
 describe("listSecretariesFn", () => {
 	it("is null for anonymous visitors", async () => {
 		mocks.getSessionUser.mockResolvedValue(null);
@@ -141,7 +153,7 @@ describe("inviteSecretaryFn", () => {
 		const sent = mocks.send.mock.calls[0]![0] as { to: string; subject: string; text: string };
 		expect(sent.to).toBe("sec@ktb.test");
 		expect(sent.subject).toBe("Dra. Ana convidou você para o KTB Health");
-		expect(sent.text).toContain("https://app.ktb.test/login");
+		expect(sent.text).toContain("https://app.ktb.test/secretaries/login");
 	});
 
 	it("names the doctor by email when they have no profile entry", async () => {

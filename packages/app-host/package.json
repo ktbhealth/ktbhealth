@@ -22,6 +22,7 @@
 		"@ktb/driver-framework": "workspace:*",
 		"@ktb/email": "workspace:*",
 		"@ktb/email-cloudflare": "workspace:*",
+		"@ktb/email-smtp": "workspace:*",
 		"@ktb/email-stub": "workspace:*",
 		"@ktb/kernel": "workspace:*",
 		"@ktb/platform": "workspace:*",

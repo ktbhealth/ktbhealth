@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
 	portalFn: vi.fn(),
 	portalConsultationFn: vi.fn(),
 	selectPatientFn: vi.fn(async (_arg: { data: number }) => ({ ok: true })),
-	setCpfFn: vi.fn(async (_arg: { data: string }) => ({ ok: true })),
 	localeFn: vi.fn(async () => "pt-BR"),
 	invalidate: vi.fn(),
 	loaderData: { current: undefined as unknown },
@@ -18,7 +17,6 @@ vi.mock("./fns.ts", () => ({
 	portalFn: mocks.portalFn,
 	portalConsultationFn: mocks.portalConsultationFn,
 	selectPatientFn: mocks.selectPatientFn,
-	setCpfFn: mocks.setCpfFn,
 	localeFn: mocks.localeFn,
 }));
 vi.mock("./views/index.ts", () => {
@@ -80,7 +78,6 @@ afterEach(() => {
 describe("/portal", () => {
 	const portal = {
 		user: { name: "Ana", email: "ana@ktb.test" },
-		hasCpf: true,
 		awaitingInvites: 0,
 		profiles: [{ patientId: 1 }],
 		profile: { patientId: 1 },
@@ -103,14 +100,12 @@ describe("/portal", () => {
 		mocks.loaderData.current = { ...portal, locale: "en" };
 		render(createElement(home.component));
 		const props = mocks.props.current as {
-			api: { select(id: number): Promise<unknown>; setCpf(cpf: string): Promise<unknown> };
+			api: { select(id: number): Promise<unknown> };
 			onChanged(): void;
 		};
 		expect(props).toMatchObject({ ...portal, locale: "en" });
 		await props.api.select(2);
 		expect(mocks.selectPatientFn).toHaveBeenCalledWith({ data: 2 });
-		await props.api.setCpf("52998224725");
-		expect(mocks.setCpfFn).toHaveBeenCalledWith({ data: "52998224725" });
 		props.onChanged();
 		expect(mocks.invalidate).toHaveBeenCalledTimes(1);
 	});

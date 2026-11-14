@@ -39,14 +39,12 @@ const setup = (
 ) => {
 	const api: PortalApi = {
 		select: vi.fn<PortalApi["select"]>(async () => ({ ok: true })),
-		setCpf: vi.fn<PortalApi["setCpf"]>(async () => ({ ok: true })),
 		...overrides,
 	};
 	const onChanged = vi.fn<() => void>();
 	render(
 		<PortalPage
 			user={{ name: "Ana", email: "ana@ktb.test" }}
-			hasCpf
 			awaitingInvites={0}
 			profiles={[me]}
 			profile={record}
@@ -150,65 +148,5 @@ describe("PortalPage", () => {
 		await waitFor(() => expect(select).toHaveBeenCalledTimes(2));
 		expect(screen.getByText(/Something went wrong/)).toBeTruthy();
 		expect(onChanged).not.toHaveBeenCalled();
-	});
-
-	describe("CPF prompt", () => {
-		const type = (value: string) =>
-			fireEvent.change(screen.getByLabelText("CPF"), { target: { value } });
-
-		it("is hidden once the account has a CPF", () => {
-			setup();
-			expect(screen.queryByText("Tell us your CPF")).toBeNull();
-		});
-
-		it("saves the CPF and reloads", async () => {
-			const { api, onChanged } = setup({ hasCpf: false });
-			type("529.982.247-25");
-			await click("Save CPF");
-			expect(api.setCpf).toHaveBeenCalledWith("529.982.247-25");
-			await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
-		});
-
-		it("ignores an empty submit", async () => {
-			const { api } = setup({ hasCpf: false });
-			type("   ");
-			await act(async () => {
-				fireEvent.submit(screen.getByLabelText("CPF").closest("form")!);
-			});
-			expect(api.setCpf).not.toHaveBeenCalled();
-		});
-
-		it("shows why a CPF was refused", async () => {
-			const setCpf = vi
-				.fn<PortalApi["setCpf"]>()
-				.mockResolvedValueOnce({ ok: false, error: "cpf_taken" })
-				.mockRejectedValueOnce(new Error("network"));
-			const { onChanged } = setup({ hasCpf: false }, { setCpf });
-			type("529.982.247-25");
-			await click("Save CPF");
-			await waitFor(() =>
-				expect(screen.getByText("This CPF is already used by another account.")).toBeTruthy(),
-			);
-			await click("Save CPF");
-			await waitFor(() => expect(screen.getByText(/Something went wrong/)).toBeTruthy());
-			expect(onChanged).not.toHaveBeenCalled();
-		});
-
-		it("shows progress and ignores a second submit while saving", async () => {
-			let release: (value: { ok: true }) => void = () => {};
-			const setCpf = vi.fn<PortalApi["setCpf"]>(
-				() => new Promise<{ ok: true }>((resolve) => (release = resolve)),
-			);
-			const { onChanged } = setup({ hasCpf: false }, { setCpf });
-			type("529.982.247-25");
-			await click("Save CPF");
-			expect(screen.getByRole("button", { name: "Please wait…" })).toBeTruthy();
-			await act(async () => {
-				fireEvent.submit(screen.getByLabelText("CPF").closest("form")!);
-			});
-			expect(setCpf).toHaveBeenCalledTimes(1);
-			await act(async () => release({ ok: true }));
-			expect(onChanged).toHaveBeenCalledTimes(1);
-		});
 	});
 });

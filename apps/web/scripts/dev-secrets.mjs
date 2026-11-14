@@ -33,6 +33,8 @@ const OPTIONAL = [
 	"AUDIO_TRANSCRIBE_MODEL",
 	"CAPTCHA_STUB",
 	"EMAIL_STUB",
+	"SMTP_URL",
+	"EMAIL_FROM",
 ];
 
 const missing = REQUIRED.filter((key) => !process.env[key]);

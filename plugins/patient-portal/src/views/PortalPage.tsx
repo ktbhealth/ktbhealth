@@ -1,17 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { ClipboardListIcon, FileHeartIcon } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@ktbhealth/ui/components/alert";
 import { Badge } from "@ktbhealth/ui/components/badge";
 import { Button, buttonVariants } from "@ktbhealth/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@ktbhealth/ui/components/card";
 import {
 	Empty,
 	EmptyDescription,
@@ -19,8 +12,6 @@ import {
 	EmptyMedia,
 	EmptyTitle,
 } from "@ktbhealth/ui/components/empty";
-import { Input } from "@ktbhealth/ui/components/input";
-import { Label } from "@ktbhealth/ui/components/label";
 
 import { portalMessages, type PortalMessages } from "../i18n.ts";
 
@@ -48,12 +39,10 @@ type PortalError = keyof PortalMessages["errors"];
 /** Server actions the portal needs — bound to this plugin's fns by the route. */
 export interface PortalApi {
 	select(patientId: number): Promise<{ ok: boolean }>;
-	setCpf(cpf: string): Promise<{ ok: true } | { ok: false; error: PortalError }>;
 }
 
 export function PortalPage({
 	user,
-	hasCpf,
 	awaitingInvites,
 	profiles,
 	profile,
@@ -63,8 +52,6 @@ export function PortalPage({
 	onChanged,
 }: {
 	user: { readonly name: string | null; readonly email: string };
-	/** Whether the account already carries a CPF to match records by. */
-	hasCpf: boolean;
 	/** Invites for this email still waiting on email verification — the
 	 * reason a portal can look empty right after sign-up. */
 	awaitingInvites: number;
@@ -76,11 +63,10 @@ export function PortalPage({
 	/** Active UI locale, injected by the host. */
 	locale: string;
 	api: PortalApi;
-	/** Called after a profile switch or CPF save — the host reloads the data. */
+	/** Called after a profile switch — the host reloads the data. */
 	onChanged: () => void;
 }) {
 	const t = portalMessages(locale);
-	const [cpf, setCpf] = useState("");
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<PortalError | null>(null);
 
@@ -88,17 +74,6 @@ export function PortalPage({
 		setPending(false);
 		if (!ok) return setError(failure);
 		onChanged();
-	};
-
-	const saveCpf = async (e: FormEvent) => {
-		e.preventDefault();
-		if (!cpf.trim() || pending) return;
-		setPending(true);
-		setError(null);
-		const res = await api
-			.setCpf(cpf)
-			.catch(() => ({ ok: false as const, error: "failed" as const }));
-		settle(res.ok, res.ok ? undefined : res.error);
 	};
 
 	const select = async (patientId: number) => {
@@ -130,32 +105,6 @@ export function PortalPage({
 					</AlertDescription>
 				</Alert>
 			) : null}
-			{hasCpf ? null : (
-				<Card>
-					<CardHeader>
-						<CardTitle>{t.cpfTitle}</CardTitle>
-						<CardDescription>{t.cpfDescription}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<form onSubmit={saveCpf} className="flex items-end gap-2">
-							<div className="flex flex-1 flex-col gap-1.5">
-								<Label htmlFor="portal-cpf">{t.cpfLabel}</Label>
-								<Input
-									id="portal-cpf"
-									inputMode="numeric"
-									autoComplete="off"
-									required
-									value={cpf}
-									onChange={(e) => setCpf(e.target.value)}
-								/>
-							</div>
-							<Button type="submit" disabled={pending}>
-								{pending ? t.pending : t.cpfSubmit}
-							</Button>
-						</form>
-					</CardContent>
-				</Card>
-			)}
 			{profiles.length === 0 ? (
 				<Empty>
 					<EmptyHeader>

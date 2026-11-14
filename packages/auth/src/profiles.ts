@@ -51,8 +51,7 @@ export class PatientProfiles extends Context.Service<
 		listFor(userId: string): Effect.Effect<readonly PatientProfile[]>;
 		/**
 		 * Bring the user's links up to date: claim invites addressed to
-		 * their *verified* email and match patient records by CPF. Returns
-		 * how many links were created or activated.
+		 * their *verified* email. Returns how many links were activated.
 		 */
 		syncLinks(userId: string): Effect.Effect<number>;
 	}

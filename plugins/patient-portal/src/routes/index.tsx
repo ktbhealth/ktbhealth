@@ -3,11 +3,10 @@ import { redirect, useRouter } from "@tanstack/react-router";
 import { createPluginFileRoute } from "@ktb/server-fns";
 
 import { PortalPage, type PortalApi } from "../views/index.ts";
-import { localeFn, portalFn, selectPatientFn, setCpfFn } from "../fns.ts";
+import { localeFn, portalFn, selectPatientFn } from "../fns.ts";
 
 const api: PortalApi = {
 	select: (patientId) => selectPatientFn({ data: patientId }),
-	setCpf: (cpf) => setCpfFn({ data: cpf }),
 };
 
 // Patient portal home: the consultations of the signed-in person's own
@@ -20,13 +19,12 @@ export const Route = createPluginFileRoute("patient-portal.routes")("/portal/")(
 		return { ...portal, locale };
 	},
 	component: function PortalRoute() {
-		const { user, hasCpf, awaitingInvites, profiles, profile, consultations, locale } =
+		const { user, awaitingInvites, profiles, profile, consultations, locale } =
 			Route.useLoaderData();
 		const router = useRouter();
 		return (
 			<PortalPage
 				user={user}
-				hasCpf={hasCpf}
 				awaitingInvites={awaitingInvites}
 				profiles={profiles}
 				profile={profile}

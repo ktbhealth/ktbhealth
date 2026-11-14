@@ -153,7 +153,7 @@ const changeLink = async (action: "approve" | "revoke", id: number) => {
 // compiler only turns those into RPC stubs. One built by a factory is
 // left as-is, so its handler would run — and fail — in the browser.
 
-/** Approve a pending CPF match on one of the acting doctor's patients. */
+/** Approve a link still pending on one of the acting doctor's patients. */
 export const approvePatientLinkFn = createServerFn({ method: "POST" })
 	.validator((id: number) => decodeNumber(id))
 	.handler(({ data: id }) => changeLink("approve", id));

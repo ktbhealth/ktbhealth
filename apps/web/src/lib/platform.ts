@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { connect as socketConnect } from "cloudflare:sockets";
 
 import {
 	audioStorageStats,
@@ -32,7 +33,7 @@ import { openEhrExporter } from "@ktb/interop-openehr";
 // binding (wrangler.dev.jsonc), so resolve before composing the app.
 const aiBinding = resolveAi(env as unknown as AiEnv);
 
-const appEnv = { ...env, AI: aiBinding } as Record<string, unknown>;
+const appEnv = { ...env, AI: aiBinding, SMTP_CONNECT: socketConnect } as Record<string, unknown>;
 
 // Tenant resolution (P-053, phase A): the directory reads the groups
 // plugin's membership tables directly (edge adapter — the groups

@@ -11,7 +11,10 @@
 	// Local dev only: this file is not used by the Alchemy deploy. Selects
 	// @ktb/captcha-stub so credential endpoints pass without a real widget,
 	// and @ktb/email-stub so outbound email (verification links, invites)
-	// is written to the dev server log instead of being delivered.
+	// is written to the dev server log instead of being delivered. To send
+	// real email to a local SMTP instead (e.g. mailpit in Docker), bind
+	// SMTP_URL + EMAIL_FROM via .dev.vars — an explicit opt-in that wins
+	// over EMAIL_STUB (see @ktb/email-smtp).
 	// Unlike wrangler.jsonc it has NO "ai" binding: Workers AI has no local
 	// simulator, so the binding forces a remote (authenticated) dev session.
 	// AI resolution order instead: AI_STUB > AI_BASE_URL > env.AI — see

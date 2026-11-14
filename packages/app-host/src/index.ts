@@ -17,6 +17,7 @@ import { Binding, DbLive, makeDb, type SqlDatabase } from "@ktb/db";
 import { makeAuth, makeAuthService } from "@ktb/auth-better";
 import { Email, nullEmailDriver, type EmailMessage } from "@ktb/email";
 import { cloudflareEmailDriver } from "@ktb/email-cloudflare";
+import { smtpEmailDriver } from "@ktb/email-smtp";
 import { stubEmailDriver } from "@ktb/email-stub";
 import { Captcha, nullCaptchaDriver } from "@ktb/captcha";
 import { stubCaptchaDriver } from "@ktb/captcha-stub";
@@ -100,6 +101,11 @@ export interface AppEnv {
 	readonly EMAIL?: unknown;
 	/** Sender address for outbound email. */
 	readonly EMAIL_FROM?: string;
+	/** SMTP server URL — e.g. smtp://localhost:1025 against a dev mailpit. */
+	readonly SMTP_URL?: string;
+	/** Socket transport for the SMTP driver — the deploy target injects
+	 * `cloudflare:sockets` connect (workerd) or its node:net stand-in. */
+	readonly SMTP_CONNECT?: unknown;
 	readonly ANTHROPIC_API_KEY?: string;
 	readonly LLM_API_KEY?: string;
 	readonly OPENAI_API_KEY?: string;
@@ -202,6 +208,7 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 		stubCaptchaDriver,
 		turnstileCaptchaDriver,
 		nullCaptchaDriver,
+		smtpEmailDriver,
 		stubEmailDriver,
 		cloudflareEmailDriver,
 		nullEmailDriver,
@@ -219,9 +226,11 @@ export const createApp = <E extends AppEnv>(env: E, options?: AppOptions) => {
 	const BotLive = layerFor<Bot>(Bot.key, env);
 	const CaptchaLive = layerFor<Captcha>(Captcha.key, env);
 
-	// Outbound email. EMAIL_STUB (local dev var) logs instead of sending;
-	// otherwise the provider driver when its binding + EMAIL_FROM are
-	// bound; null disables email — sign-up then sends no verification.
+	// Outbound email. SMTP_URL + EMAIL_FROM select the SMTP driver — an
+	// explicit opt-in that wins over EMAIL_STUB (which stays the dev
+	// default when no SMTP_URL is set); then the stub, then the provider
+	// driver (EMAIL binding + EMAIL_FROM); null disables email — sign-up
+	// then sends no verification.
 	const EmailLive = layerFor<Email>(Email.key, env);
 	const emailSender = Effect.runSync(Effect.service(Email).pipe(Effect.provide(EmailLive)));
 	const verificationEmail = options?.verificationEmail ?? defaultVerificationEmail;

@@ -26,7 +26,7 @@ import { newConsultationApi } from "@ktb/consultations/apis";
 import { patientAccess, user } from "@ktb/db/schema";
 import { doctorContextFn } from "@ktb/doctors/fns";
 import { approvePatientLinkFn, patientLinksFn, revokePatientLinkFn } from "@ktb/patient-access/fns";
-import { portalConsultationFn, portalFn, setCpfFn } from "@ktb/patient-portal/fns";
+import { portalConsultationFn, portalFn } from "@ktb/patient-portal/fns";
 import { eq } from "drizzle-orm";
 
 import { signUpDoctor } from "#/test/doctor.ts";
@@ -133,10 +133,15 @@ describe("patient portal, end to end", () => {
 		expect(link).toMatchObject({ email: "portal-patient@x.com", status: "invited", userId: null });
 	});
 
-	it("an unverified account with the invited address sees nothing", async () => {
+	it("an unverified account with the invited address sees nothing — but is told why", async () => {
 		patient = await signUpPatient("portal-patient@x.com", "Paciente Portal", false);
 		as(patient);
-		expect(await portalFn()).toMatchObject({ profiles: [], profile: null, consultations: [] });
+		expect(await portalFn()).toMatchObject({
+			awaitingInvites: 1,
+			profiles: [],
+			profile: null,
+			consultations: [],
+		});
 		expect(await portalConsultationFn({ data: consultationId })).toEqual({ status: "missing" });
 	});
 
@@ -229,20 +234,18 @@ describe("patient portal, end to end", () => {
 	});
 });
 
-describe("patient portal, CPF match awaiting approval", () => {
-	const CPF = "529.982.247-25";
+describe("patient portal, pending link awaiting approval", () => {
 	let doctor = "";
 	let patient = "";
 	let patientId = 0;
 	let consultationId = 0;
 
 	beforeAll(async () => {
-		await signUpDoctor({ email: "cpf-doctor@x.com", password: PASSWORD, name: "Dr. Cpf" });
-		doctor = await signIn("cpf-doctor@x.com");
+		await signUpDoctor({ email: "pend-doctor@x.com", password: PASSWORD, name: "Dr. Pend" });
+		doctor = await signIn("pend-doctor@x.com");
 		as(doctor);
-		// The record carries the patient's CPF but another email address.
 		const created = await createPatientFn({
-			data: { name: "Paciente Cpf", birthDate: "1990-01-01", cpf: CPF, email: "antigo@x.com" },
+			data: { name: "Paciente Pendente", birthDate: "1990-01-01" },
 		});
 		if (!created.ok) throw new Error(`patient not created: ${JSON.stringify(created.errors)}`);
 		patientId = created.patient.id;
@@ -250,7 +253,20 @@ describe("patient portal, CPF match awaiting approval", () => {
 			data: { transcript: "fala", anamnesis, engine: "heuristic", patientId },
 		});
 		consultationId = saved.id;
-		patient = await signUpPatient("cpf-patient@x.com", "Paciente Cpf", true);
+		patient = await signUpPatient("pend-patient@x.com", "Paciente Pendente", true);
+		// Nothing creates pending links any more (account CPFs are gone),
+		// but links already pending still wait on the doctor's approval.
+		const [account] = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, "pend-patient@x.com"));
+		await db.insert(patientAccess).values({
+			patientId,
+			userId: account!.id,
+			relation: "self",
+			status: "pending",
+			source: "cpf",
+		});
 	});
 
 	const linkOf = async () => {
@@ -258,13 +274,12 @@ describe("patient portal, CPF match awaiting approval", () => {
 		return (await patientLinksFn({ data: patientId }))!.links[0];
 	};
 
-	it("a CPF match alone opens nothing: the link waits for the doctor", async () => {
+	it("a pending link opens nothing: it waits for the doctor", async () => {
 		as(patient);
-		expect(await setCpfFn({ data: CPF })).toEqual({ ok: true });
 		expect(await portalFn()).toMatchObject({ profiles: [], consultations: [] });
 		expect(await portalConsultationFn({ data: consultationId })).toEqual({ status: "missing" });
 		expect(await linkOf()).toMatchObject({
-			email: "cpf-patient@x.com",
+			email: "pend-patient@x.com",
 			status: "pending",
 			source: "cpf",
 		});
@@ -279,8 +294,8 @@ describe("patient portal, CPF match awaiting approval", () => {
 
 	it("another doctor cannot approve it either", async () => {
 		const link = await linkOf();
-		await signUpDoctor({ email: "cpf-other@x.com", password: PASSWORD, name: "Dra. Outra" });
-		as(await signIn("cpf-other@x.com"));
+		await signUpDoctor({ email: "pend-other@x.com", password: PASSWORD, name: "Dra. Outra" });
+		as(await signIn("pend-other@x.com"));
 		expect(await approvePatientLinkFn({ data: link!.id })).toEqual({ ok: false });
 		expect(await linkOf()).toMatchObject({ status: "pending" });
 	});
@@ -294,7 +309,7 @@ describe("patient portal, CPF match awaiting approval", () => {
 		expect(await linkOf()).toMatchObject({ status: "active" });
 		as(patient);
 		const portal = await portalFn();
-		expect(portal).toMatchObject({ profile: { patientId, name: "Paciente Cpf" } });
+		expect(portal).toMatchObject({ profile: { patientId, name: "Paciente Pendente" } });
 		expect(portal!.consultations.map((c) => c.id)).toEqual([consultationId]);
 		expect(await portalConsultationFn({ data: consultationId })).toMatchObject({ status: "ok" });
 	});

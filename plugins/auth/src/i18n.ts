@@ -29,6 +29,7 @@ export interface AuthMessages {
 	readonly errorPasswordMismatch: string;
 	readonly verifyLink: string;
 	readonly patientLink: string;
+	readonly secretaryLink: string;
 }
 
 const en: AuthMessages = {
@@ -49,6 +50,7 @@ const en: AuthMessages = {
 	errorPasswordMismatch: "Passwords do not match.",
 	verifyLink: "Didn't get the verification email?",
 	patientLink: "I am a patient",
+	secretaryLink: "I am a secretary",
 };
 
 const ptBR: AuthMessages = {
@@ -69,6 +71,7 @@ const ptBR: AuthMessages = {
 	errorPasswordMismatch: "As senhas não coincidem.",
 	verifyLink: "Não recebeu o e-mail de verificação?",
 	patientLink: "Sou paciente",
+	secretaryLink: "Sou secretária",
 };
 
 const es: AuthMessages = {
@@ -89,6 +92,7 @@ const es: AuthMessages = {
 	errorPasswordMismatch: "Las contraseñas no coinciden.",
 	verifyLink: "¿No recibiste el correo de verificación?",
 	patientLink: "Soy paciente",
+	secretaryLink: "Soy secretaria",
 };
 
 const CATALOGS: Record<AuthLocale, AuthMessages> = { en, "pt-BR": ptBR, es };

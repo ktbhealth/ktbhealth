@@ -32,6 +32,7 @@
         "@ktb/db-sqlite": "workspace:*",
         "@ktb/doctors": "workspace:*",
         "@ktb/email": "workspace:*",
+        "@ktb/email-smtp": "workspace:*",
         "@ktb/infra-cloudflare": "workspace:*",
         "@ktb/interop": "workspace:*",
         "@ktb/interop-fhir": "workspace:*",
@@ -134,6 +135,7 @@
         "@ktb/driver-framework": "workspace:*",
         "@ktb/email": "workspace:*",
         "@ktb/email-cloudflare": "workspace:*",
+        "@ktb/email-smtp": "workspace:*",
         "@ktb/email-stub": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/platform": "workspace:*",
@@ -255,6 +257,14 @@
     },
     "packages/email-cloudflare": {
       "name": "@ktb/email-cloudflare",
+      "dependencies": {
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/email": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/email-smtp": {
+      "name": "@ktb/email-smtp",
       "dependencies": {
         "@ktb/driver-framework": "workspace:*",
         "@ktb/email": "workspace:*",
@@ -818,8 +828,10 @@
       "name": "@ktb/secretaries",
       "dependencies": {
         "@ktb/auth": "workspace:*",
+        "@ktb/auth-better": "workspace:*",
         "@ktb/authz": "workspace:*",
         "@ktb/db": "workspace:*",
+        "@ktb/doctors": "workspace:*",
         "@ktb/email": "workspace:*",
         "@ktb/kernel": "workspace:*",
         "@ktb/server-fns": "workspace:*",
@@ -1308,6 +1320,8 @@
     "@ktb/email": ["@ktb/email@workspace:packages/email"],
 
     "@ktb/email-cloudflare": ["@ktb/email-cloudflare@workspace:packages/email-cloudflare"],
+
+    "@ktb/email-smtp": ["@ktb/email-smtp@workspace:packages/email-smtp"],
 
     "@ktb/email-stub": ["@ktb/email-stub@workspace:packages/email-stub"],
 

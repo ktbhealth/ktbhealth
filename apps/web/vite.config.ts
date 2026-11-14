@@ -43,6 +43,14 @@ export default defineConfig(({ command, isPreview }) => {
 									new URL("./src/lib/node-cloudflare-workers.ts", import.meta.url),
 								),
 							},
+							{
+								// node:net stand-in for the sockets contract — used by
+								// the SMTP email driver (platform.ts imports the specifier).
+								find: "cloudflare:sockets",
+								replacement: fileURLToPath(
+									new URL("../../packages/email-smtp/src/node-connect.ts", import.meta.url),
+								),
+							},
 						]
 					: []),
 				{

@@ -39,6 +39,16 @@ export const localeFn = createServerFn({ method: "GET" }).handler(() => getLocal
 
 export const sessionUserFn = createServerFn({ method: "GET" }).handler(() => getSessionUser());
 
+/**
+ * True when this deployment can send email (an Email sender is bound).
+ * The login view uses it to skip the post-sign-up verification step
+ * when no message could ever arrive — mirrors the auth plugin's own
+ * emailEnabledFn.
+ */
+export const emailEnabledFn = createServerFn({ method: "GET" }).handler(() =>
+	run(Effect.map(Effect.serviceOption(Email), (email) => Option.getOrNull(email) !== null)),
+);
+
 /** The session doctor's secretaries; null when the caller is anonymous
  * or has no doctor profile of their own. */
 export const listSecretariesFn = createServerFn({ method: "GET" }).handler(async () => {
@@ -66,7 +76,7 @@ export type InviteSecretaryResult =
 const notifyInvitee = async (to: string, doctorName: string): Promise<void> => {
 	const { getRequestUrl } = await import("@tanstack/react-start/server");
 	const copy = secretaryMessages(getLocale()).inviteEmail;
-	const url = new URL("/login", getRequestUrl()).toString();
+	const url = new URL("/secretaries/login", getRequestUrl()).toString();
 	const sender = await run(
 		Effect.map(Effect.serviceOption(Email), (email) => Option.getOrNull(email)),
 	);

@@ -81,6 +81,7 @@ const ADAPTER_PACKAGE_NAMES = [
 	"captcha-stub",
 	"captcha-turnstile",
 	"email-cloudflare",
+	"email-smtp",
 	"email-stub",
 	"anamnesis-llm",
 	"interop-fhir",
