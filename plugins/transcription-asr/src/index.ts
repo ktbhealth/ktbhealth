@@ -1,0 +1,64 @@
+import { definePlugin, type Plugin } from "@ktb/kernel";
+import type { Contribution } from "@ktb/eval-core";
+import { AsrPort } from "@ktb/eval-consultation/ports";
+
+/**
+ * transcription.asr — ASR capability plugin (P-074 phase 3, P-070).
+ *
+ * DATA-ONLY registrar, same contract as transcription.tts: declares
+ * the eval-core contributions (on the manifest's `contributions`
+ * channel) and adapter keys for AsrPort; adapter implementations stay
+ * in the exempt-edge packages (@ktb/eval-adapter-stub/-local/-cloud)
+ * because plugins/* is inside arch-policy PORT_GLOBS (no node:*,
+ * provider literals, or adapter imports). See
+ * plugins/transcription-tts/src/index.ts for the full mechanism —
+ * apps/eval resolves `meta.adapters[key]` per `meta.port`.
+ *
+ * Adapter keys → packages: "stub" → @ktb/eval-adapter-stub AsrPort
+ * layer, "faster-whisper" → @ktb/eval-adapter-local `makeLocalAsr`,
+ * "workers-ai" → @ktb/eval-adapter-cloud `makeWorkersAiAsr`.
+ */
+
+/**
+ * Declared contributions. ASR is the PHI-sensitive port: every adapter
+ * declares `egress` on the port shape and `guardAsrPort` (the
+ * consultation domain pack's phi.ts, evals/consultation) enforces
+ * provenance before any egress-capable adapter runs — that policy is
+ * domain code and stays in the domain pack.
+ */
+export const asrContributions: readonly Contribution[] = [
+	{
+		kind: "eval.capability",
+		id: "asr",
+		version: "1",
+		meta: {
+			port: AsrPort.key,
+			adapters: {
+				stub: "@ktb/eval-adapter-stub",
+				"faster-whisper": "@ktb/eval-adapter-local",
+				"workers-ai": "@ktb/eval-adapter-cloud",
+			},
+		},
+	},
+	{
+		kind: "eval.stage",
+		id: "transcribe",
+		version: "1",
+		meta: { port: AsrPort.key },
+	},
+];
+
+export const asrPlugin = definePlugin({
+	id: "transcription.asr",
+	contributions: asrContributions,
+});
+
+export const plugins: readonly Plugin[] = [asrPlugin];
+
+// Compile-time dep registry: ids declared here are referenceable in
+// requiredDeps/optionalDeps of any plugin that imports this module.
+declare module "@ktb/kernel" {
+	interface PluginRegistry {
+		"transcription.asr": true;
+	}
+}

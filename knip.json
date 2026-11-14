@@ -27,15 +27,22 @@
 			// Ambient globals via /// <reference types> in src/env.d.ts.
 			"ignoreDependencies": ["@cloudflare/workers-types"]
 		},
+		"evals/*": {
+			// Suite manifests are loaded by file path at runtime
+			// (apps/eval/src/suites.ts scans evals/ recursively) — never
+			// statically imported, so knip would flag them as unused.
+			"entry": ["*.suite.ts"]
+		},
+		"packages/eval-adapter-local": {
+			// Runnable benchmark harness — `bun scripts/bench/wer.ts`
+			// (see scripts/bench/BENCHMARK.md), not imported anywhere.
+			"entry": ["scripts/**/*.ts"]
+		},
 		"infra/oci": {
 			// pulumi/ is a standalone Pulumi program — not a workspace
 			// member, with its own package.json/lockfile; its @pulumi/*
 			// deps are intentionally not declared on @ktb/infra-oci.
 			"ignore": ["pulumi/**"]
-		},
-		"packages/eval-dataset-local": {
-			// Runnable demo — `bun scripts/demo.ts`, not imported anywhere.
-			"entry": ["scripts/**/*.ts"]
 		},
 		"infra/oci": {
 			// pulumi/ is a standalone Pulumi program — not a workspace

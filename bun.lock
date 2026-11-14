@@ -16,6 +16,28 @@
         "vitest": "5.1.0",
       },
     },
+    "apps/eval": {
+      "name": "@ktb/app-eval",
+      "dependencies": {
+        "@effect/platform-node": "4.1.2",
+        "@ktb/driver-framework": "workspace:*",
+        "@ktb/eval-adapter-cloud": "workspace:*",
+        "@ktb/eval-adapter-local": "workspace:*",
+        "@ktb/eval-adapter-stub": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+        "@ktb/llm-eval": "workspace:*",
+        "@ktb/storage-dataset": "workspace:*",
+        "@ktb/transcription-asr": "workspace:*",
+        "@ktb/transcription-tts": "workspace:*",
+        "effect": "4.1.2",
+      },
+      "devDependencies": {
+        "@types/node": "^22.10.2",
+        "vitest": "5.1.0",
+      },
+    },
     "apps/web": {
       "name": "@ktb/web",
       "dependencies": {
@@ -76,6 +98,14 @@
         "vite": "npm:@voidzero-dev/vite-plus-core@1.5.1",
         "vitest": "5.1.0",
         "wrangler": "4.158.0",
+      },
+    },
+    "evals/consultation": {
+      "name": "@ktb/eval-consultation",
+      "dependencies": {
+        "@ktb/eval-core": "workspace:*",
+        "effect": "4.1.2",
+        "eta": "^4.6.0",
       },
     },
     "infra/cloudflare": {
@@ -262,38 +292,40 @@
         "effect": "4.1.2",
       },
     },
-    "packages/eval-dataset": {
-      "name": "@ktb/eval-dataset",
+    "packages/eval-adapter-cloud": {
+      "name": "@ktb/eval-adapter-cloud",
       "dependencies": {
-        "effect": "4.1.2",
-        "eta": "^4.6.0",
-      },
-    },
-    "packages/eval-dataset-cloud": {
-      "name": "@ktb/eval-dataset-cloud",
-      "dependencies": {
-        "@ktb/eval-dataset": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
         "effect": "4.1.2",
       },
     },
-    "packages/eval-dataset-local": {
-      "name": "@ktb/eval-dataset-local",
+    "packages/eval-adapter-local": {
+      "name": "@ktb/eval-adapter-local",
       "dependencies": {
-        "@ktb/eval-dataset": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
         "better-sqlite3": "^13.0.3",
         "effect": "4.1.2",
       },
       "devDependencies": {
-        "@ktb/eval-dataset-stub": "workspace:*",
         "@types/better-sqlite3": "^9.6.0",
         "@types/node": "^22.10.2",
         "vitest": "5.1.0",
       },
     },
-    "packages/eval-dataset-stub": {
-      "name": "@ktb/eval-dataset-stub",
+    "packages/eval-adapter-stub": {
+      "name": "@ktb/eval-adapter-stub",
       "dependencies": {
-        "@ktb/eval-dataset": "workspace:*",
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "effect": "4.1.2",
+      },
+    },
+    "packages/eval-core": {
+      "name": "@ktb/eval-core",
+      "dependencies": {
+        "@ktb/kernel": "workspace:*",
         "effect": "4.1.2",
       },
     },
@@ -607,6 +639,14 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/llm-eval": {
+      "name": "@ktb/llm-eval",
+      "dependencies": {
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+      },
+    },
     "plugins/manager": {
       "name": "@ktb/manager",
       "dependencies": {
@@ -792,6 +832,14 @@
         "react": "^19.2.0",
       },
     },
+    "plugins/storage-dataset": {
+      "name": "@ktb/storage-dataset",
+      "dependencies": {
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+      },
+    },
     "plugins/tenant": {
       "name": "@ktb/tenant-plugin",
       "dependencies": {
@@ -817,6 +865,22 @@
       },
       "peerDependencies": {
         "react": "^19.2.0",
+      },
+    },
+    "plugins/transcription-asr": {
+      "name": "@ktb/transcription-asr",
+      "dependencies": {
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
+      },
+    },
+    "plugins/transcription-tts": {
+      "name": "@ktb/transcription-tts",
+      "dependencies": {
+        "@ktb/eval-consultation": "workspace:*",
+        "@ktb/eval-core": "workspace:*",
+        "@ktb/kernel": "workspace:*",
       },
     },
     "plugins/users": {
@@ -1209,6 +1273,8 @@
 
     "@ktb/anamnesis-llm": ["@ktb/anamnesis-llm@workspace:packages/anamnesis-llm"],
 
+    "@ktb/app-eval": ["@ktb/app-eval@workspace:apps/eval"],
+
     "@ktb/app-host": ["@ktb/app-host@workspace:packages/app-host"],
 
     "@ktb/audience": ["@ktb/audience@workspace:plugins/audience"],
@@ -1243,13 +1309,15 @@
 
     "@ktb/driver-framework": ["@ktb/driver-framework@workspace:packages/driver-framework"],
 
-    "@ktb/eval-dataset": ["@ktb/eval-dataset@workspace:packages/eval-dataset"],
+    "@ktb/eval-adapter-cloud": ["@ktb/eval-adapter-cloud@workspace:packages/eval-adapter-cloud"],
 
-    "@ktb/eval-dataset-cloud": ["@ktb/eval-dataset-cloud@workspace:packages/eval-dataset-cloud"],
+    "@ktb/eval-adapter-local": ["@ktb/eval-adapter-local@workspace:packages/eval-adapter-local"],
 
-    "@ktb/eval-dataset-local": ["@ktb/eval-dataset-local@workspace:packages/eval-dataset-local"],
+    "@ktb/eval-adapter-stub": ["@ktb/eval-adapter-stub@workspace:packages/eval-adapter-stub"],
 
-    "@ktb/eval-dataset-stub": ["@ktb/eval-dataset-stub@workspace:packages/eval-dataset-stub"],
+    "@ktb/eval-consultation": ["@ktb/eval-consultation@workspace:evals/consultation"],
+
+    "@ktb/eval-core": ["@ktb/eval-core@workspace:packages/eval-core"],
 
     "@ktb/export-pdf": ["@ktb/export-pdf@workspace:packages/export-pdf"],
 
@@ -1272,6 +1340,8 @@
     "@ktb/jobs": ["@ktb/jobs@workspace:plugins/jobs"],
 
     "@ktb/kernel": ["@ktb/kernel@workspace:packages/kernel"],
+
+    "@ktb/llm-eval": ["@ktb/llm-eval@workspace:plugins/llm-eval"],
 
     "@ktb/manager": ["@ktb/manager@workspace:plugins/manager"],
 
@@ -1299,11 +1369,17 @@
 
     "@ktb/site": ["@ktb/site@workspace:plugins/site"],
 
+    "@ktb/storage-dataset": ["@ktb/storage-dataset@workspace:plugins/storage-dataset"],
+
     "@ktb/tenant": ["@ktb/tenant@workspace:packages/tenant"],
 
     "@ktb/tenant-plugin": ["@ktb/tenant-plugin@workspace:plugins/tenant"],
 
     "@ktb/transcription": ["@ktb/transcription@workspace:packages/transcription"],
+
+    "@ktb/transcription-asr": ["@ktb/transcription-asr@workspace:plugins/transcription-asr"],
+
+    "@ktb/transcription-tts": ["@ktb/transcription-tts@workspace:plugins/transcription-tts"],
 
     "@ktb/transcription-webspeech": ["@ktb/transcription-webspeech@workspace:packages/transcription-webspeech"],
 

@@ -19,6 +19,9 @@ import { collectPages } from "./pages.ts";
  */
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins({
+		// Same glob as ./index.ts — eval packs included (P-070); their
+		// client.ts mirrors are bare-id markers since eval.*
+		// contributions have no browser consumer.
 		...import.meta.glob("../../../plugins/*/src/client.ts", { eager: true }),
 		"@ktb/platform/client": { plugins: platformClientPlugins },
 	}),

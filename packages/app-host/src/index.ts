@@ -72,6 +72,10 @@ import {
  */
 export const plugins: readonly Plugin[] = orderPlugins(
 	discoverPlugins({
+		// Every plugins/* entry joins the registry, eval packs included
+		// (P-070): eval.* contributions ride the generic `contributions`
+		// channel — data-only metadata this host never collects (its
+		// consumers opt in per kind; see @ktb/kernel kinds.ts).
 		...import.meta.glob("../../../plugins/*/src/index.ts", { eager: true }),
 		"@ktb/platform": { plugins: platformPlugins },
 	}),

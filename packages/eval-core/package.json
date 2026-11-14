@@ -1,0 +1,12 @@
+{
+	"name": "@ktb/eval-core",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@ktb/kernel": "workspace:*",
+		"effect": "4.1.2"
+	}
+}

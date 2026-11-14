@@ -1,0 +1,28 @@
+{
+	"name": "@ktb/app-eval",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"eval": "bun src/cli.ts",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@effect/platform-node": "4.1.2",
+		"@ktb/driver-framework": "workspace:*",
+		"@ktb/eval-adapter-cloud": "workspace:*",
+		"@ktb/eval-adapter-local": "workspace:*",
+		"@ktb/eval-adapter-stub": "workspace:*",
+		"@ktb/eval-consultation": "workspace:*",
+		"@ktb/eval-core": "workspace:*",
+		"@ktb/kernel": "workspace:*",
+		"@ktb/llm-eval": "workspace:*",
+		"@ktb/storage-dataset": "workspace:*",
+		"@ktb/transcription-asr": "workspace:*",
+		"@ktb/transcription-tts": "workspace:*",
+		"effect": "4.1.2"
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"vitest": "5.1.0"
+	}
+}

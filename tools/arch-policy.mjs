@@ -35,9 +35,9 @@ const PORT_PACKAGE_NAMES = [
 	"rbac",
 	// The server-fn runtime registry is port infrastructure, not an adapter.
 	"server-fns",
-	// Eval platform (P-066): domain package; its -stub/-local/-cloud
-	// adapters live in ADAPTER_PACKAGE_NAMES below.
-	"eval-dataset",
+	// Eval framework core (P-074): generic suite/runner machinery —
+	// domain code held to the same boundary as every other port.
+	"eval-core",
 	// Host infrastructure below the plugin system (admin gate, console
 	// shell, plugin_state) — held to the same boundary it had under
 	// plugins/ before the T-088 move to packages/platform.
@@ -46,14 +46,21 @@ const PORT_PACKAGE_NAMES = [
 
 const pkgGlob = (names) => `packages/{${names.join(",")}}/src/**/*.{ts,tsx}`;
 
-/** Files held to the strict boundary: ports, domain packages, plugins. */
-export const PORT_GLOBS = [pkgGlob(PORT_PACKAGE_NAMES), "plugins/**/*.{ts,tsx}"];
+/** Files held to the strict boundary: ports, domain packages, plugins,
+ * and eval domain packs (evals/<domain>/ — plain packages since P-075,
+ * held to the same boundary they had under plugins/). */
+export const PORT_GLOBS = [
+	pkgGlob(PORT_PACKAGE_NAMES),
+	"plugins/**/*.{ts,tsx}",
+	"evals/**/*.{ts,tsx}",
+];
 
 /** Test files inside the strict boundary — relaxed by the test override
  * in vite.config.ts (Node APIs and impl mocks are fine in tests). */
 export const PORT_TEST_GLOBS = [
 	`packages/{${PORT_PACKAGE_NAMES.join(",")}}/src/**/*.test.{ts,tsx}`,
 	"plugins/**/*.test.{ts,tsx}",
+	"evals/**/*.test.{ts,tsx}",
 ];
 
 /** Import specifiers that tie code to a runtime or cloud platform. */
@@ -90,11 +97,11 @@ const ADAPTER_PACKAGE_NAMES = [
 	"transcription-whisper",
 	"transcription-webspeech",
 	"db-sqlite",
-	// Eval platform adapters (P-066) — -local/-cloud land in later
-	// milestones; registered now so the boundary already covers them.
-	"eval-dataset-stub",
-	"eval-dataset-local",
-	"eval-dataset-cloud",
+	// Eval platform adapters — the exempt edge for the eval ports
+	// (deterministic stub, on-box local services, cloud providers).
+	"eval-adapter-stub",
+	"eval-adapter-local",
+	"eval-adapter-cloud",
 ];
 
 /**

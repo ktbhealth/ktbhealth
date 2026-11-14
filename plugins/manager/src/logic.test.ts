@@ -75,6 +75,21 @@ describe("contributionKinds", () => {
 			contributionKinds(definePlugin({ id: "t.landing", landing: { page: () => null } })),
 		).toEqual(["landing"]);
 	});
+
+	it("surfaces generic contribution kinds under their kind id (P-070)", () => {
+		expect(
+			contributionKinds(
+				definePlugin({
+					id: "t.eval",
+					contributions: [
+						{ kind: "eval.stage", id: "s", version: "1" },
+						{ kind: "eval.stage", id: "s2", version: "1" },
+						{ kind: "eval.metric", id: "m", version: "1" },
+					],
+				}),
+			),
+		).toEqual(["eval.stage", "eval.metric"]);
+	});
 });
 
 describe("missingRequiredDeps", () => {
