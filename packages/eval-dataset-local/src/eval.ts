@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Schedule from "effect/Schedule";
 
-import { EvalAnswer, EvalPort, PortError } from "@ktb/eval-dataset";
+import { EvalAnswer, EvalPort, fnvHex, PortError } from "@ktb/eval-dataset";
 
 export interface JevEvalOptions {
 	readonly baseUrl: string;
@@ -34,6 +34,10 @@ export const makeJevEval = (opts: JevEvalOptions): Layer.Layer<EvalPort> =>
 				const fetchImpl = opts.fetchImpl ?? fetch;
 				const timeoutMs = opts.timeoutMs ?? 30_000;
 				const started = Date.now();
+				// Content hash, not a count — two judge calls with the same
+				// number of questions but different text must not share a
+				// run identity.
+				const qhash = fnvHex(JSON.stringify(input.questions));
 
 				const request = Effect.tryPromise({
 					try: async () => {
@@ -70,10 +74,10 @@ export const makeJevEval = (opts: JevEvalOptions): Layer.Layer<EvalPort> =>
 						answers,
 						record: {
 							runId: "eval",
-							taskId: `judge:${input.questions.length}`,
+							taskId: `judge:${qhash}`,
 							stage: "judge",
 							engine: "jev",
-							inputHash: `q${input.questions.length}`,
+							inputHash: `q${qhash}`,
 							startedAt: started,
 							latencyMs: Date.now() - started,
 						},

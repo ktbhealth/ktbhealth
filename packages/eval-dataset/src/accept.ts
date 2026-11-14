@@ -6,8 +6,13 @@
  * Three independent gates, all must pass, every failure named:
  *
  *   1. lexical: stage WER under maxWer
- *   2. calibration: Wilson-floor precision over confSegments
- *      ≥ target AND n ≥ minN (small samples can't auto-accept)
+ *   2. calibration: Wilson-floor precision over ALL confSegments
+ *      ≥ target AND n ≥ minN (small samples can't auto-accept).
+ *      This is a POOLED PRECISION FLOOR over judged segments — not
+ *      confidence calibration. Segment `confidence` is intentionally
+ *      unused at this stage (TODO: the calibration milestone — sweep
+ *      `recommendAutoThreshold`/`bucketByConfidence` in metrics.ts
+ *      and/or stage-scoped confSegments, see pipeline.ts).
  *   3. risk: severity-weighted entity misses ≤ maxRisk
  *
  * Pure — the caller picks the stage ("asr" gates the raw transcript,
@@ -15,9 +20,14 @@
  *
  * Evidence scope: `result.confSegments` is produced from the ASR
  * stage's segments today (see pipeline.ts), so the calibration gate
- * measures ASR-derived confidence regardless of `stage`. Stage-scoped
+ * measures ASR-derived correctness regardless of `stage`. Stage-scoped
  * confSegments is future work; until then treat `stage` as selecting
  * WHICH metric gates, not which evidence calibrates.
+ *
+ * Two "auto-accept" notions coexist on purpose: this gate is a
+ * run/sample-level precision floor (`calibrate` in calibrate.ts);
+ * `recommendThreshold` in metrics.ts picks a per-segment confidence
+ * cutoff — a different question, do not conflate them.
  */
 
 import { calibrate } from "./calibrate.ts";

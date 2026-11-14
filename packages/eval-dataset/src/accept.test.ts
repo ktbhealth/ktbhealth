@@ -99,6 +99,28 @@ describe("decideAutoAccept", () => {
 		expect(d.accept).toBe(true);
 	});
 
+	it("ignores segment confidence — pooled precision floor, not calibration", () => {
+		// TODO(calibration milestone): confidence is intentionally unused
+		// here; this test pins that so a future change is deliberate.
+		const d = decideAutoAccept(
+			result({
+				confSegments: Array.from({ length: 50 }, () => ({ correct: true, confidence: 0.01 })),
+			}),
+			policy,
+		);
+		expect(d.accept).toBe(true);
+	});
+
+	it("counts unscored segments the same as scored ones", () => {
+		const d = decideAutoAccept(
+			result({
+				confSegments: Array.from({ length: 50 }, () => ({ correct: true })),
+			}),
+			policy,
+		);
+		expect(d.accept).toBe(true);
+	});
+
 	it("gates the asr stage when asked", () => {
 		const d = decideAutoAccept(result(), { ...policy, stage: "asr" });
 		expect(d.metrics?.wer).toBe(0.03);

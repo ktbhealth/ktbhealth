@@ -46,6 +46,47 @@ describe("alignEntities", () => {
 		expect(a[0]?.segmentIndexes).toEqual([0, 1]);
 	});
 
+	it("token-boundary match: 'dor' does not hit inside 'dormir'", () => {
+		const a = alignEntities(
+			[{ t0: 0, t1: 1, text: "o paciente vai dormir cedo" }],
+			[{ category: "dosage", value: "dor" }],
+		);
+		expect(a[0]?.matched).toBe(false);
+		expect(a[0]?.segmentIndexes).toEqual([]);
+		// …but a real token boundary still matches.
+		const b = alignEntities(
+			[{ t0: 0, t1: 1, text: "relata dor de cabeça" }],
+			[{ category: "dosage", value: "dor" }],
+		);
+		expect(b[0]?.matched).toBe(true);
+	});
+
+	it("an entity that normalizes to empty never matches", () => {
+		const a = alignEntities(segs, [{ category: "dosage", value: "!!!" }]);
+		expect(a[0]?.matched).toBe(false);
+		expect(a[0]?.segmentIndexes).toEqual([]);
+	});
+
+	it("unscored segments keep confidence undefined — unscored ≠ 0", () => {
+		const a = alignEntities(
+			[{ t0: 0, t1: 1, text: "nega febre" }],
+			[{ category: "negation", value: "nega febre" }],
+		);
+		expect(a[0]?.matched).toBe(true);
+		expect(a[0]?.confidence).toBeUndefined();
+	});
+
+	it("max confidence ignores unscored hits among scored ones", () => {
+		const a = alignEntities(
+			[
+				{ t0: 0, t1: 1, text: "losartana", confidence: 0.4 },
+				{ t0: 1, t1: 2, text: "losartana" },
+			],
+			[{ category: "medication", value: "losartana" }],
+		);
+		expect(a[0]?.confidence).toBe(0.4);
+	});
+
 	it("droppedEntities lists only unmatched", () => {
 		const dropped = droppedEntities(alignEntities(segs, ents));
 		expect(dropped).toEqual([{ category: "medication", value: "dipirona" }]);

@@ -15,7 +15,9 @@ export interface EntityAlignment {
 	/** Indexes into the segments array — empty when the entity text
 	 * appears in no segment (dropped). */
 	readonly segmentIndexes: readonly number[];
-	/** Max segment confidence among matches — undefined when dropped. */
+	/** Max segment confidence among matches — undefined when dropped
+	 * OR when no matched segment carries a confidence. Unscored stays
+	 * undefined: conflating it with 0 would read as "known-bad". */
 	readonly confidence?: number;
 	readonly matched: boolean;
 }
@@ -26,9 +28,22 @@ export const alignEntities = (
 ): readonly EntityAlignment[] =>
 	entities.map((entity) => {
 		const needle = normalize(entity.value);
-		const hits = segments.flatMap((seg, i) => (normalize(seg.text).includes(needle) ? [i] : []));
-		const confidence =
-			hits.length > 0 ? Math.max(...hits.map((i) => segments[i]!.confidence ?? 0)) : undefined;
+		// Same guards as metrics.ts checkEntities: an entity that
+		// normalizes to nothing can never be verified (it must not
+		// match every segment), and matching is token-boundary —
+		// raw includes() would let "dor" hit inside "dormir".
+		const hits =
+			needle === ""
+				? []
+				: segments.flatMap((seg, i) => {
+						const text = normalize(seg.text);
+						const padded = text ? ` ${text} ` : "";
+						return padded.includes(` ${needle} `) ? [i] : [];
+					});
+		const scored = hits
+			.map((i) => segments[i]!.confidence)
+			.filter((c): c is number => c !== undefined);
+		const confidence = hits.length > 0 && scored.length > 0 ? Math.max(...scored) : undefined;
 		return { entity, segmentIndexes: hits, confidence, matched: hits.length > 0 };
 	});
 
