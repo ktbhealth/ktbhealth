@@ -80,10 +80,10 @@ if (!isScratch) {
 fs.rmSync(root, { recursive: true, force: true });
 
 const personas = expandPersonaMatrix({
-	regions: ["sudeste", "nordeste"],
-	ageBands: ["adulto", "idoso"],
+	regions: ["southeast", "northeast"],
+	ageBands: ["adult", "elderly"],
 	registers: ["colloquial"],
-	specialties: ["clinico_geral"],
+	specialties: ["general_practice"],
 });
 console.log(`\n== persona matrix (2x2x1x1) → ${personas.length} cells ==`);
 for (const p of personas) console.log("  ", JSON.stringify(p));

@@ -48,7 +48,12 @@ const sample: Sample = {
 	origin: "synthetic",
 	script: "o paciente nega febre e toma losartana 50 mg",
 	scriptHash: "h",
-	persona: { region: "sudeste", ageBand: "adulto", register: "colloquial", specialty: "clinico" },
+	persona: {
+		region: "southeast",
+		ageBand: "adult",
+		register: "colloquial",
+		specialty: "general_practice",
+	},
 	audio: { uri: "stub://a" },
 	gold: { validatedBy: "generator" },
 };

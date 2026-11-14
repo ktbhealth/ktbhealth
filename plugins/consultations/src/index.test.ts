@@ -1422,7 +1422,7 @@ describe("ConsultationsLive tenant scope (P-053)", () => {
 		expect(await tenantIdOf(personal!)).toBeNull();
 		const weird = await asTenant(
 			"u1",
-			{ ...TENANT_A, id: "clinic-x" },
+			Object.assign({}, TENANT_A, { id: "clinic-x" }),
 			call((c) => c.create({ userId: "u1", source: "browser" })),
 		);
 		expect(await tenantIdOf(weird!)).toBeNull();

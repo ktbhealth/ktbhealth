@@ -18,16 +18,16 @@ export interface PersonaMatrix {
 /** Default pt-BR matrix — covers the diversity axes the eval must
  * prove: regional accent/register, life stage, clinical domain. */
 export const DEFAULT_MATRIX: PersonaMatrix = {
-	regions: ["sudeste", "sul", "nordeste", "norte", "centro_oeste"],
-	ageBands: ["crianca", "adulto", "idoso"],
+	regions: ["southeast", "south", "northeast", "north", "central_west"],
+	ageBands: ["child", "adult", "elderly"],
 	registers: ["formal", "colloquial"],
 	specialties: [
-		"clinico_geral",
-		"pediatria",
-		"ginecologia",
-		"geriatria",
-		"cardiologia",
-		"psiquiatria",
+		"general_practice",
+		"pediatrics",
+		"gynecology",
+		"geriatrics",
+		"cardiology",
+		"psychiatry",
 	],
 };
 

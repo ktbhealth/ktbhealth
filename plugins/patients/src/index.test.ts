@@ -688,7 +688,7 @@ describe("PatientsLive tenant scope (P-053)", () => {
 	it("create leaves tenant_id NULL for non-numeric tenant ids", async () => {
 		const row = await asTenant(
 			"u1",
-			{ ...TENANT_A, id: "clinic-x" },
+			Object.assign({}, TENANT_A, { id: "clinic-x" }),
 			call((p) => p.create("u1", fields("Strange Tenant"))),
 		);
 		expect(row?.tenantId).toBeNull();
