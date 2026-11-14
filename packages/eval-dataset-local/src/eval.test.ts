@@ -66,7 +66,7 @@ describe("makeJevEval", () => {
 		let body = "";
 		const spy = (async (u: unknown, init: RequestInit) => {
 			url = String(u);
-			body = String(init.body);
+			body = typeof init.body === "string" ? init.body : "";
 			return new Response(JSON.stringify(answers));
 		}) as typeof fetch;
 		await run(spy);
